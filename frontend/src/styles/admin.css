@@ -1,0 +1,279 @@
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f6f7fb;
+}
+
+/* Sidebar */
+.admin-sidebar {
+  width: 260px;
+  background: #0a1a3b;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.brand {
+  margin-bottom: 20px;
+}
+
+.brand .logo {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.sidebar-links a {
+  display: block;
+  padding: 10px;
+  margin: 4px 0;
+  color: #cbd6f3;
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.sidebar-links a.active {
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.sidebar-group {
+  margin: 12px 0;
+}
+
+.sidebar-group span {
+  font-size: 12px;
+  color: #9fb3e5;
+  margin-left: 4px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.sidebar-user {
+  margin-top: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-top: 20px;
+}
+
+.sidebar-user .avatar {
+  background: #223b72;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: bold;
+}
+
+/* Main */
+.admin-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-header {
+  height: 60px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+
+.admin-content {
+  padding: 24px;
+}
+
+.page-title h1 {
+  margin-bottom: 6px;
+}
+
+.page-title p {
+  color: #6b7280;
+}
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.kpi-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+/* Panels */
+.panel {
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.chart-placeholder {
+  height: 200px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #666;
+}
+
+/* Tables */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.table th, .table td {
+  padding: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  font-size: 14px;
+}
+
+/* Buttons */
+.btn {
+  background: #1e3a8a;
+  color: #fff;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  margin-right: 6px;
+  cursor: pointer;
+}
+
+.btn-outline {
+  border: 1px solid #1e3a8a;
+  background: transparent;
+  color: #1e3a8a;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+}
+
+/* Lists */
+.list-item {
+  background: #f3f4f6;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+}
+
+/* Cards / Grid */
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.card {
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+/* Chat */
+.chat-bubble {
+  background: #f3f4f6;
+  padding: 8px 12px;
+  border-radius: 8px;
+  width: fit-content;
+  margin: 6px 0;
+}
+
+.chat-bubble.right {
+  margin-left: auto;
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+/* Inputs */
+input.search {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  width: 400px;
+  max-width: 95%;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body input, .modal-body select {
+  width: 100%;
+  padding: 8px;
+  margin: 6px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+}

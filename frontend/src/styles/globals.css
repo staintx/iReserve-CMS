@@ -1,0 +1,269 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Manrope:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: "Manrope", "Segoe UI", Arial, sans-serif;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(1200px 600px at 10% -10%, rgba(37, 99, 235, 0.08), transparent),
+      radial-gradient(1000px 500px at 90% -20%, rgba(219, 202, 184, 0.45), transparent),
+      #f8fafc;
+    color: #0b1220;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: "Fraunces", Georgia, serif;
+    letter-spacing: -0.01em;
+    color: #0b1220;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  img {
+    max-width: 100%;
+    display: block;
+  }
+
+  input, select, textarea, button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply min-h-screen bg-transparent text-ink-900;
+  }
+
+  .surface {
+    @apply rounded-3xl bg-white/90 shadow-soft backdrop-blur;
+  }
+
+  .card {
+    @apply rounded-2xl bg-white shadow-soft border border-white/50;
+  }
+
+  .panel {
+    @apply rounded-2xl bg-white shadow-soft border border-slate-100;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-brand-700 px-5 py-2 text-sm font-semibold text-white shadow-lift transition hover:bg-brand-600;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-ink-200 px-5 py-2 text-sm font-semibold text-ink-800 transition hover:border-ink-700 hover:text-ink-900;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-red-500;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-ink-700 transition hover:bg-ink-100;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700;
+  }
+
+  .section {
+    @apply mt-10;
+  }
+
+  .grid {
+    display: grid;
+    @apply gap-6;
+  }
+
+  .actions {
+    @apply mt-4 flex flex-wrap gap-3;
+  }
+
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 32px;
+    padding: 72px 56px;
+    background: linear-gradient(120deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.35)),
+      url("/hero.jpg") center/cover no-repeat;
+    color: #fff;
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0));
+  }
+
+  .hero > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .banner {
+    @apply rounded-3xl bg-gradient-to-r from-sand-200 via-white to-sand-100 p-10 shadow-soft;
+  }
+
+  .cta {
+    @apply rounded-3xl bg-ink-900 text-white p-10 text-center shadow-lift;
+  }
+
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .table th, .table td {
+    @apply border-b border-slate-200 px-4 py-3 text-left;
+  }
+
+  .form-card {
+    @apply rounded-3xl bg-white p-6 shadow-soft border border-slate-100;
+  }
+
+  .stepper {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .step {
+    @apply rounded-full bg-ink-100 px-4 py-2 text-xs font-semibold text-ink-700;
+  }
+
+  .step.active {
+    @apply bg-ink-900 text-white;
+  }
+
+  .kpi-grid {
+    @apply grid gap-6 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .kpi-card {
+    @apply rounded-2xl bg-white border border-slate-100 p-5 shadow-soft;
+  }
+
+  .kpi-value {
+    @apply text-3xl font-semibold text-ink-900;
+  }
+
+  .list-item {
+    @apply rounded-2xl bg-sand-100 p-4;
+  }
+
+  .hero-text {
+    @apply max-w-xl space-y-4;
+  }
+
+  .hero-actions {
+    @apply flex flex-wrap gap-3;
+  }
+
+  .hero-card {
+    @apply rounded-2xl bg-white/90 p-6 text-ink-900 shadow-soft;
+  }
+
+  .stats {
+    @apply mt-10 grid gap-6 sm:grid-cols-3;
+  }
+
+  .stat-card {
+    @apply rounded-2xl bg-white p-6 text-center shadow-soft;
+  }
+
+  .features {
+    @apply mt-10;
+  }
+
+  .process {
+    @apply mt-10;
+  }
+
+  .success-card {
+    @apply rounded-3xl bg-white p-8 text-center shadow-soft;
+  }
+
+  .gallery-grid, .menu-grid {
+    @apply grid gap-6 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .package-card img, .menu-card img, .gallery-card img {
+    @apply w-full rounded-2xl;
+  }
+
+  .chat-bubble {
+    @apply w-fit rounded-2xl bg-sand-100 px-4 py-2 text-sm text-ink-900;
+  }
+
+  .chat-bubble.right {
+    @apply ml-auto bg-ink-900 text-white;
+  }
+
+  .chat-input {
+    @apply flex gap-3;
+  }
+
+  .chat-input input {
+    @apply flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm;
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 grid place-items-center bg-black/40;
+  }
+
+  .modal {
+    @apply w-[420px] max-w-[95%] rounded-2xl bg-white p-6 shadow-lift;
+  }
+
+  .modal-header {
+    @apply flex items-center justify-between;
+  }
+
+  .modal-body input, .modal-body select, .modal-body textarea {
+    @apply w-full rounded-xl border border-slate-200 px-4 py-2 text-sm;
+  }
+
+  .btn-close {
+    @apply rounded-full p-2 text-ink-700 transition hover:bg-ink-100 hover:text-ink-900;
+  }
+
+  .auth-page {
+    @apply grid min-h-screen grid-cols-1 lg:grid-cols-2;
+  }
+
+  .auth-left, .auth-right {
+    @apply flex flex-col justify-center px-10 py-16;
+  }
+
+  .auth-left {
+    @apply bg-ink-900 text-white;
+  }
+
+  .logo-card {
+    @apply grid h-44 w-44 place-items-center rounded-3xl bg-white text-ink-900 text-xl font-semibold shadow-soft;
+  }
+
+  .auth-error {
+    @apply text-sm text-red-600;
+  }
+
+  .form-field input, .form-field textarea, .form-field select {
+    @apply w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-brand-600 focus:outline-none;
+  }
+
+  .chat-fab {
+    @apply fixed bottom-6 right-6 grid h-14 w-14 place-items-center rounded-full bg-ink-900 text-white shadow-lift;
+  }
+}

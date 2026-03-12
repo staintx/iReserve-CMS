@@ -1,0 +1,193 @@
+.customer-layout {
+  min-height: 100vh;
+  background: #f6f7fb;
+}
+
+.customer-header {
+  background: #0a1a3b;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+}
+
+.customer-header nav a {
+  color: #cbd6f3;
+  margin: 0 10px;
+  text-decoration: none;
+}
+
+.customer-header nav a.active {
+  color: #fff;
+  font-weight: bold;
+}
+
+.logo {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  background: #1e3a8a;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.customer-content {
+  padding: 24px;
+}
+
+.hero {
+  background: url("/hero.jpg") center/cover;
+  padding: 80px;
+  color: white;
+}
+
+.banner {
+  background: linear-gradient(90deg, #4e73df, #b59c7a);
+  padding: 40px;
+  color: white;
+  border-radius: 8px;
+}
+
+.section {
+  margin: 40px 0;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.card {
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.package-card img, .menu-card img, .gallery-card img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  background: #1e3a8a;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-outline {
+  border: 1px solid #1e3a8a;
+  color: #1e3a8a;
+  padding: 8px 14px;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cta {
+  background: #0a1a3b;
+  color: #fff;
+  text-align: center;
+  padding: 30px;
+  border-radius: 10px;
+}
+
+.stepper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.step {
+  padding: 8px 12px;
+  border-radius: 20px;
+  background: #e5e7eb;
+}
+
+.step.active {
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.form-card input, .form-card textarea {
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.chat-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  background: #1e3a8a;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+}
+
+/* Auth */
+.auth-page {
+  display: flex;
+  min-height: 100vh;
+}
+
+.auth-left, .auth-right {
+  flex: 1;
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-left {
+  background: #1e4e79;
+  color: #fff;
+}
+
+.logo-card {
+  background: #fff;
+  color: #1e4e79;
+  width: 200px;
+  height: 200px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.auth-error {
+  margin: 8px 0;
+  color: #b91c1c;
+}

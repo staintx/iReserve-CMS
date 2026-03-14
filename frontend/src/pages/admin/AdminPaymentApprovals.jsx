@@ -1,45 +1,53 @@
 import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
+import AdminPaymentApprovalsTable from "../../components/tables/AdminPaymentApprovalsTable";
 
 export default function AdminPaymentApprovals() {
   const [payments, setPayments] = useState([]);
+  const [query, setQuery] = useState("");
 
-  const load = () => AdminAPI.getPayments().then((res) => setPayments(res.data));
-  useEffect(() => load(), []);
+  const load = () => AdminAPI.getPayments().then((res) => setPayments(Array.isArray(res.data) ? res.data : []));
+  useEffect(() => {
+    load();
+  }, []);
 
   const approve = (id) => AdminAPI.updatePayment(id, { status: "approved" }).then(load);
   const reject = (id) => AdminAPI.updatePayment(id, { status: "rejected" }).then(load);
 
+  const mockPayments = [
+    { _id: "mock-1", booking_id: { event_type: "Wedding" }, customer_id: { full_name: "Maria Santos" }, amount: 5000, payment_type: "Deposit", method: "GCash", status: "pending" },
+    { _id: "mock-2", booking_id: { event_type: "Birthday" }, customer_id: { full_name: "John Reyes" }, amount: 15000, payment_type: "Remaining", method: "Credit Card", status: "approved" }
+  ];
+
+  const list = payments.length > 0 ? payments : mockPayments;
+  const filtered = list.filter((p) =>
+    p.customer_id?.full_name?.toLowerCase().includes(query.toLowerCase()) ||
+    p.booking_id?.event_type?.toLowerCase().includes(query.toLowerCase())
+  );
+
   return (
     <AdminLayout>
-      <h1>Payment Approvals</h1>
-      <div className="panel">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Amount</th>
-              <th>Type</th>
-              <th>Method</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map((p) => (
-              <tr key={p._id}>
-                <td>₱{p.amount}</td>
-                <td>{p.payment_type}</td>
-                <td>{p.method}</td>
-                <td>{p.status}</td>
-                <td>
-                  <button className="btn" onClick={() => approve(p._id)}>Approve</button>
-                  <button className="btn-danger" onClick={() => reject(p._id)}>Reject</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="admin-page-head">
+        <div className="admin-title">
+          <h1>Payment Approvals</h1>
+          <p>Review and approve pending payments</p>
+        </div>
+      </div>
+
+      <div className="admin-actions" style={{ marginBottom: "12px" }}>
+        <div className="admin-search">
+          <input placeholder="Search by client name, booking ID, or event type" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        <button className="admin-filter">Filters</button>
+      </div>
+
+      <div className="admin-table-wrap">
+        <AdminPaymentApprovalsTable
+          payments={filtered}
+          onApprove={approve}
+          onReject={reject}
+        />
       </div>
     </AdminLayout>
   );

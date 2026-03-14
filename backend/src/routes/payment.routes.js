@@ -5,6 +5,7 @@ const { authorize } = require("../middleware/role.middleware");
 
 router.post("/", protect, ctrl.create);
 router.get("/", protect, authorize("admin"), ctrl.getAll);
+router.get("/me", protect, ctrl.getMine);
 router.get("/:id", protect, ctrl.getById);
 router.put("/:id", protect, authorize("admin"), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);

@@ -10,7 +10,13 @@ import ResetPassword from "../pages/auth/ResetPassword";
 import VerifyEmail from "../pages/auth/VerifyEmail";
 
 import Landing from "../pages/customer/Landing";
-import CustomerHome from "../pages/customer/CustomerHome";
+import CustomerInquiries from "../pages/customer/CustomerInquiries";
+import CustomerBookings from "../pages/customer/CustomerBookings";
+import CustomerDashboard from "../pages/customer/CustomerDashboard";
+import CustomerPayments from "../pages/customer/CustomerPayments";
+import CustomerMessages from "../pages/customer/CustomerMessages";
+import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
+import CustomerProfile from "../pages/customer/CustomerProfile";
 import Packages from "../pages/customer/Packages";
 import PackageDetails from "../pages/customer/PackageDetails";
 import Menu from "../pages/customer/Menu";
@@ -29,6 +35,7 @@ import AdminMessagesChat from "../pages/admin/AdminMessagesChat";
 import AdminGallery from "../pages/admin/AdminGallery";
 import AdminBookingsActive from "../pages/admin/AdminBookingsActive";
 import AdminBookingsHistory from "../pages/admin/AdminBookingsHistory";
+import AdminBookingsCalendar from "../pages/admin/AdminBookingsCalendar";
 import AdminPackages from "../pages/admin/AdminPackages";
 import AdminMenu from "../pages/admin/AdminMenu";
 import AdminInventory from "../pages/admin/AdminInventory";
@@ -64,9 +71,16 @@ export default function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Booking & Quote (protected) */}
-        <Route path="/customer/home" element={<ProtectedRoute><CustomerHome /></ProtectedRoute>} />
+        <Route path="/customer/home" element={<ProtectedRoute><CustomerDashboard /></ProtectedRoute>} />
+        <Route path="/customer/dashboard" element={<ProtectedRoute><CustomerDashboard /></ProtectedRoute>} />
         <Route path="/customer/book" element={<ProtectedRoute><BookingWizard /></ProtectedRoute>} />
         <Route path="/customer/booking-success" element={<ProtectedRoute><BookingSuccess /></ProtectedRoute>} />
+        <Route path="/customer/inquiries" element={<ProtectedRoute><CustomerInquiries /></ProtectedRoute>} />
+        <Route path="/customer/bookings" element={<ProtectedRoute><CustomerBookings /></ProtectedRoute>} />
+        <Route path="/customer/payments" element={<ProtectedRoute><CustomerPayments /></ProtectedRoute>} />
+        <Route path="/customer/messages" element={<ProtectedRoute><CustomerMessages /></ProtectedRoute>} />
+        <Route path="/customer/messages/:id" element={<ProtectedRoute><CustomerMessageThread /></ProtectedRoute>} />
+        <Route path="/customer/profile" element={<ProtectedRoute><CustomerProfile /></ProtectedRoute>} />
 
         <Route path="/customer/quote" element={<ProtectedRoute><QuoteWizard /></ProtectedRoute>} />
 
@@ -79,6 +93,7 @@ export default function AppRoutes() {
         <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminRoles}><AdminGallery /></ProtectedRoute>} />
         <Route path="/admin/bookings/active" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBookingsActive /></ProtectedRoute>} />
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBookingsHistory /></ProtectedRoute>} />
+        <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBookingsCalendar /></ProtectedRoute>} />
         <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminRoles}><AdminPackages /></ProtectedRoute>} />
         <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminRoles}><AdminMenu /></ProtectedRoute>} />
         <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminRoles}><AdminInventory /></ProtectedRoute>} />

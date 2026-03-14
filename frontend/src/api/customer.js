@@ -18,7 +18,16 @@ export const CustomerAPI = {
 
   // inquiry + bookings
   submitInquiry: (data) => api.post("/inquiries", data),
+  getInquiries: () => api.get("/inquiries/me"),
+  getBookings: () => api.get("/bookings/me"),
   createBooking: (data) => api.post("/bookings", data),
+
+  // profile
+  getProfile: () => api.get("/users/me"),
+  updateProfile: (data) => api.put("/users/me", data),
+
+  // payments
+  getPayments: () => api.get("/payments/me"),
 
   // custom quote
   submitQuote: (data) => api.post("/quotes", data) // ensure this exists in backend

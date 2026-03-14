@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CustomerAPI } from "../../api/customer";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import AuthResetPasswordForm from "../../components/forms/AuthResetPasswordForm";
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -21,13 +22,13 @@ export default function ResetPassword() {
         <h2>Forgot your password? Let’s fix that in a bite.</h2>
       </div>
       <div className="auth-right">
-        <h1>RESET PASSWORD</h1>
-        <form onSubmit={submit}>
-          <input placeholder="New Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <input placeholder="Confirm Password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-          <button className="btn">Reset Password</button>
-          <Link to="/login">Back to login</Link>
-        </form>
+        <AuthResetPasswordForm
+          password={password}
+          confirm={confirm}
+          onPasswordChange={(e) => setPassword(e.target.value)}
+          onConfirmChange={(e) => setConfirm(e.target.value)}
+          onSubmit={submit}
+        />
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import useAuth from "../../hooks/useAuth";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import logo from "../../assets/images/logo.jpg";
+import AuthLoginForm from "../../components/forms/AuthLoginForm";
 
 export default function Login() {
   const { login } = useAuth();
@@ -29,28 +31,22 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="auth-left">
-        <div className="logo-card">Caezelle's</div>
+        <div className="logo-card">
+          <img src={logo} alt="Caezelle's logo" className="object-cover w-full h-full rounded-2xl" />
+        </div>
         <h2 className="mt-6 text-3xl font-semibold">Your next delicious moment starts here.</h2>
         <p className="mt-4 text-sm text-white/70">Handcrafted menus, seamless service, unforgettable events.</p>
       </div>
-      <div className="auth-right bg-white">
-        <div className="surface p-10">
-          <h1 className="text-3xl font-semibold">Welcome back</h1>
-          <p className="mt-2 text-sm text-slate-500">Sign in to manage your bookings.</p>
-          <form className="mt-8 space-y-4" onSubmit={submit}>
-            <div className="form-field">
-              <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="form-field">
-              <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            {error && <p className="auth-error">{error}</p>}
-            <div className="flex items-center justify-between text-sm">
-              <Link className="text-brand-700" to="/forgot-password">Forgot Password?</Link>
-            </div>
-            <button className="btn w-full" type="submit">Login now</button>
-            <p className="text-sm text-slate-500">Don't have an account? <Link className="text-brand-700" to="/signup">Sign up</Link></p>
-          </form>
+      <div className="bg-white auth-right">
+        <div className="p-10 surface">
+          <AuthLoginForm
+            email={email}
+            password={password}
+            error={error}
+            onEmailChange={(e) => setEmail(e.target.value)}
+            onPasswordChange={(e) => setPassword(e.target.value)}
+            onSubmit={submit}
+          />
         </div>
       </div>
     </div>

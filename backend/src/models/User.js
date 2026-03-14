@@ -5,7 +5,7 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   phone: String,
   address: String,
-  username: { type: String, unique: true },
+  username: { type: String, unique: true, sparse: true, default: undefined },
   password: String,
   role: { type: String, enum: ["admin", "manager", "staff", "customer"], default: "customer" },
   is_active: { type: Boolean, default: true },
@@ -15,5 +15,7 @@ const UserSchema = new mongoose.Schema({
   email_otp_hash: String,
   email_otp_expires: Date
 }, { timestamps: true });
+
+UserSchema.index({ username: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("User", UserSchema);

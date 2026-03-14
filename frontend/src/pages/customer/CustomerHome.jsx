@@ -1,6 +1,9 @@
+import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/layout/CustomerLayout";
 
 export default function CustomerHome() {
+  const navigate = useNavigate();
+
   return (
     <CustomerLayout>
       <section className="hero">
@@ -11,15 +14,15 @@ export default function CustomerHome() {
             your catering service in one place.
           </p>
           <div className="hero-actions">
-            <button className="btn">Start Inquiry</button>
-            <button className="btn-outline">View Packages</button>
+            <button className="btn" onClick={() => navigate("/customer/book")}>Start Inquiry</button>
+            <button className="btn-outline" onClick={() => navigate("/packages")}>View Packages</button>
           </div>
         </div>
 
         <div className="hero-card">
           <h3>Quick Inquiry</h3>
           <p>Tell us your event details and we’ll respond fast.</p>
-          <button className="btn">Submit Inquiry</button>
+          <button className="btn" onClick={() => navigate("/customer/book")}>Submit Inquiry</button>
         </div>
       </section>
 
@@ -69,7 +72,7 @@ export default function CustomerHome() {
       <section className="cta">
         <h2>Ready to Plan Your Event?</h2>
         <p>Start your inquiry now and secure your preferred schedule.</p>
-        <button className="btn">Book Now</button>
+        <button className="btn" onClick={() => navigate("/customer/book")}>Book Now</button>
       </section>
     </CustomerLayout>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
+import AdminSystemLogsTable from "../../components/tables/AdminSystemLogsTable";
 
 export default function AdminSystemLogs() {
   const [logs, setLogs] = useState([]);
@@ -13,17 +14,7 @@ export default function AdminSystemLogs() {
     <AdminLayout>
       <h1>System Logs</h1>
       <div className="panel">
-        <table className="table">
-          <thead><tr><th>Action</th><th>Details</th></tr></thead>
-          <tbody>
-            {logs.map((l) => (
-              <tr key={l._id}>
-                <td>{l.action}</td>
-                <td>{l.details}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <AdminSystemLogsTable logs={logs} />
       </div>
     </AdminLayout>
   );

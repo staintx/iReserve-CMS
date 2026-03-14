@@ -10,6 +10,7 @@ export const AdminAPI = {
 
   // Bookings
   getBookings: () => api.get("/bookings"),
+  createBookingFromInquiry: (id, data) => api.post(`/bookings/from-inquiry/${id}`, data),
   updateBooking: (id, data) => api.put(`/bookings/${id}`, data),
   deleteBooking: (id) => api.delete(`/bookings/${id}`),
 
@@ -44,6 +45,8 @@ export const AdminAPI = {
   // Staff
   getStaff: () => api.get("/staff"),
   createStaff: (data) => api.post("/staff", data),
+  updateStaff: (id, data) => api.put(`/staff/${id}`, data),
+  deleteStaff: (id) => api.delete(`/staff/${id}`),
 
   // Ratings
   getRatings: () => api.get("/ratings"),

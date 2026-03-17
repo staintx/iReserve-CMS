@@ -19,6 +19,7 @@ const reportRoutes = require("./routes/report.routes");
 const ratingRoutes = require("./routes/rating.routes");
 const systemLogRoutes = require("./routes/systemlog.routes");
 const userRoutes = require("./routes/user.routes");
+const quoteRoutes = require("./routes/quote.routes");
 
 dotenv.config();
 connectDB();
@@ -43,6 +44,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/systemlogs", systemLogRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/quotes", quoteRoutes);
 
 app.use(errorHandler);
 

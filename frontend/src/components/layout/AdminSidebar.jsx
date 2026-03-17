@@ -3,6 +3,9 @@ import useAuth from "../../hooks/useAuth";
 
 export default function AdminSidebar() {
   const { user } = useAuth();
+  const role = user?.role || "admin";
+  const isAdmin = role === "admin";
+  const isManager = role === "manager" || isAdmin;
   const linkClass = ({ isActive }) =>
     `block rounded-xl px-4 py-2 text-sm font-medium transition ${
       isActive
@@ -27,10 +30,10 @@ export default function AdminSidebar() {
       <nav className="flex flex-col flex-1 gap-5">
         <div className="space-y-1">
           <NavLink to="/admin/dashboard" className={linkClass}>Dashboard</NavLink>
-          <NavLink to="/admin/inquiries" className={linkClass}>Inquiries</NavLink>
-          <NavLink to="/admin/payment-approvals" className={linkClass}>Payment Approvals</NavLink>
+          {isManager && <NavLink to="/admin/inquiries" className={linkClass}>Inquiries</NavLink>}
+          {isManager && <NavLink to="/admin/payment-approvals" className={linkClass}>Payment Approvals</NavLink>}
           <NavLink to="/admin/messages" className={linkClass}>Messages</NavLink>
-          <NavLink to="/admin/gallery" className={linkClass}>Gallery Manager</NavLink>
+          {isManager && <NavLink to="/admin/gallery" className={linkClass}>Gallery Manager</NavLink>}
         </div>
 
         <div className="space-y-2">
@@ -40,24 +43,28 @@ export default function AdminSidebar() {
           <NavLink to="/admin/bookings/calendar" className={linkClass}>Availability</NavLink>
         </div>
 
-        <div className="space-y-2">
-          <span className="px-4 text-xs uppercase tracking-[0.2em] text-slate-400">Service Management</span>
-          <NavLink to="/admin/packages" className={linkClass}>Packages</NavLink>
-          <NavLink to="/admin/menu" className={linkClass}>Food Menu</NavLink>
-          <NavLink to="/admin/inventory" className={linkClass}>Inventory</NavLink>
-        </div>
+        {isAdmin && (
+          <div className="space-y-2">
+            <span className="px-4 text-xs uppercase tracking-[0.2em] text-slate-400">Service Management</span>
+            <NavLink to="/admin/packages" className={linkClass}>Packages</NavLink>
+            <NavLink to="/admin/menu" className={linkClass}>Food Menu</NavLink>
+            <NavLink to="/admin/inventory" className={linkClass}>Inventory</NavLink>
+          </div>
+        )}
 
-        <div className="space-y-2">
-          <span className="px-4 text-xs uppercase tracking-[0.2em] text-slate-400">Manager & Staff</span>
-          <NavLink to="/admin/managers" className={linkClass}>Managers</NavLink>
-          <NavLink to="/admin/staff" className={linkClass}>Staff</NavLink>
-        </div>
+        {isAdmin && (
+          <div className="space-y-2">
+            <span className="px-4 text-xs uppercase tracking-[0.2em] text-slate-400">Manager & Staff</span>
+            <NavLink to="/admin/managers" className={linkClass}>Managers</NavLink>
+            <NavLink to="/admin/staff" className={linkClass}>Staff</NavLink>
+          </div>
+        )}
 
         <div className="space-y-1">
-          <NavLink to="/admin/reports" className={linkClass}>Reports & Analytics</NavLink>
-          <NavLink to="/admin/ratings" className={linkClass}>Ratings</NavLink>
-          <NavLink to="/admin/business-info" className={linkClass}>Business Info</NavLink>
-          <NavLink to="/admin/logs" className={linkClass}>System Logs</NavLink>
+          {isManager && <NavLink to="/admin/reports" className={linkClass}>Reports & Analytics</NavLink>}
+          {isAdmin && <NavLink to="/admin/ratings" className={linkClass}>Ratings</NavLink>}
+          {isAdmin && <NavLink to="/admin/business-info" className={linkClass}>Business Info</NavLink>}
+          {isAdmin && <NavLink to="/admin/logs" className={linkClass}>System Logs</NavLink>}
         </div>
       </nav>
 

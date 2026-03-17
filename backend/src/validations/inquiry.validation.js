@@ -20,7 +20,7 @@ exports.inquirySchema = Joi.object({
   landmark: Joi.string().optional(),
   zip_code: Joi.string().optional(),
   venue_contact_name: Joi.string().optional(),
-  venue_contact_phone: Joi.string().optional(),
+  venue_contact_phone: Joi.string().pattern(/^09\d{9}$/).optional(),
   budget_min: Joi.number().optional(),
   budget_max: Joi.number().optional(),
   selected_menu: Joi.array().items(Joi.string()).optional(),
@@ -31,8 +31,8 @@ exports.inquirySchema = Joi.object({
   contact_first_name: Joi.string().optional(),
   contact_last_name: Joi.string().optional(),
   contact_email: Joi.string().email().optional(),
-  contact_phone: Joi.string().optional(),
-  contact_alt_phone: Joi.string().optional(),
+  contact_phone: Joi.string().pattern(/^09\d{9}$/).optional(),
+  contact_alt_phone: Joi.string().pattern(/^09\d{9}$/).optional(),
   contact_method: Joi.string().optional(),
   payment_method: Joi.string().optional(),
   quote_amount: Joi.number().optional(),
@@ -60,7 +60,7 @@ exports.inquiryUpdateSchema = Joi.object({
   landmark: Joi.string().optional(),
   zip_code: Joi.string().optional(),
   venue_contact_name: Joi.string().optional(),
-  venue_contact_phone: Joi.string().optional(),
+  venue_contact_phone: Joi.string().pattern(/^09\d{9}$/).optional(),
   budget_min: Joi.number().optional(),
   budget_max: Joi.number().optional(),
   selected_menu: Joi.array().items(Joi.string()).optional(),
@@ -71,11 +71,15 @@ exports.inquiryUpdateSchema = Joi.object({
   contact_first_name: Joi.string().optional(),
   contact_last_name: Joi.string().optional(),
   contact_email: Joi.string().email().optional(),
-  contact_phone: Joi.string().optional(),
-  contact_alt_phone: Joi.string().optional(),
+  contact_phone: Joi.string().pattern(/^09\d{9}$/).optional(),
+  contact_alt_phone: Joi.string().pattern(/^09\d{9}$/).optional(),
   contact_method: Joi.string().optional(),
   payment_method: Joi.string().optional(),
   quote_amount: Joi.number().optional(),
   quote_notes: Joi.string().optional(),
   status: Joi.string().optional()
+});
+
+exports.inquiryStatusSchema = Joi.object({
+  status: Joi.string().valid("cancelled").required()
 });

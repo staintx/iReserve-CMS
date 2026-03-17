@@ -3,6 +3,7 @@ import api from "./axios";
 export const AdminAPI = {
   // Dashboard
   getSummary: () => api.get("/reports/summary"),
+  getMetrics: () => api.get("/reports/metrics"),
 
   // Inquiries
   getInquiries: () => api.get("/inquiries"),

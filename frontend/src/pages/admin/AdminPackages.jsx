@@ -51,6 +51,8 @@ export default function AdminPackages() {
     setShow(true);
   };
   const remove = (id) => AdminAPI.deletePackage(id).then(load);
+  const toggleAvailability = (pkg) =>
+    AdminAPI.updatePackage(pkg._id, { available: !pkg.available }).then(load);
 
   const mockPackages = [
     { _id: "mock-1", name: "Birthday Package 2", size: "20x40", price_min: 15000, price_max: 30000 },
@@ -89,6 +91,9 @@ export default function AdminPackages() {
             {p._id?.startsWith("mock-") ? null : (
               <div className="tile-actions">
                 <button className="edit" type="button" onClick={() => edit(p)}>Edit</button>
+                <button className="edit" type="button" onClick={() => toggleAvailability(p)}>
+                  {p.available === false ? "Enable" : "Disable"}
+                </button>
                 <button className="delete" type="button" onClick={() => remove(p._id)}>Delete</button>
               </div>
             )}

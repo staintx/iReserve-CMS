@@ -16,6 +16,4 @@ const UserSchema = new mongoose.Schema({
   email_otp_expires: Date
 }, { timestamps: true });
 
-UserSchema.index({ username: 1 }, { unique: true, sparse: true });
-
 module.exports = mongoose.model("User", UserSchema);

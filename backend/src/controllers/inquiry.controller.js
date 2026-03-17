@@ -27,6 +27,20 @@ exports.update = asyncHandler(async (req, res) => {
   res.json(await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true }));
 });
 
+exports.updateMineStatus = asyncHandler(async (req, res) => {
+  const inquiry = await Inquiry.findOne({ _id: req.params.id, customer_id: req.user._id });
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  const blockedStatuses = ["approved", "booked", "completed"];
+  if (blockedStatuses.includes(inquiry.status)) {
+    return res.status(400).json({ message: "Inquiry can no longer be cancelled" });
+  }
+
+  inquiry.status = req.body.status;
+  await inquiry.save();
+  res.json(inquiry);
+});
+
 exports.remove = asyncHandler(async (req, res) => {
   await Inquiry.findByIdAndDelete(req.params.id);
   res.json({ message: "Deleted" });

@@ -1,4 +1,4 @@
-export default function AdminMenuTable({ items, onEdit, onToggleAvailability }) {
+export default function AdminMenuTable({ items, onEdit, onToggleAvailability, onDelete }) {
   return (
     <table className="table">
       <thead>
@@ -26,6 +26,7 @@ export default function AdminMenuTable({ items, onEdit, onToggleAvailability }) 
                   <button className="btn-outline" onClick={() => onToggleAvailability(m)}>
                     {m.available ? "Disable" : "Enable"}
                   </button>
+                  <button className="btn-danger" onClick={() => onDelete(m._id)}>Delete</button>
                 </>
               )}
             </td>

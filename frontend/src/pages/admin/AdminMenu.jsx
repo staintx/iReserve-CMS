@@ -19,7 +19,10 @@ export default function AdminMenu() {
 
   const submit = async () => {
     const data = new FormData();
-    Object.entries(form).forEach(([k, v]) => data.append(k, v));
+    Object.entries(form).forEach(([k, v]) => {
+      if (v === undefined || v === null) return;
+      data.append(k, v);
+    });
     if (file) data.append("image", file);
 
     if (form._id) await AdminAPI.updateMenu(form._id, data);
@@ -68,6 +71,7 @@ export default function AdminMenu() {
           items={filtered}
           onEdit={edit}
           onToggleAvailability={toggleAvailability}
+          onDelete={remove}
         />
       </div>
 

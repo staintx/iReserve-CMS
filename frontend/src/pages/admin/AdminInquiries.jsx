@@ -56,7 +56,12 @@ export default function AdminInquiries() {
       package_id: bookingData.package_id || undefined,
       manager_id: bookingData.manager_id || undefined,
       staff_ids: bookingData.staff_ids
-    }).then(load);
+    })
+      .then(load)
+      .catch((err) => {
+        const message = err?.response?.data?.message || "Unable to create booking";
+        alert(message);
+      });
   };
 
   return (

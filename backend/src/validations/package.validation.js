@@ -12,3 +12,16 @@ exports.packageSchema = Joi.object({
   inclusions: Joi.array().items(Joi.string()).optional(),
   add_ons: Joi.array().items(Joi.string()).optional()
 });
+
+exports.packageUpdateSchema = Joi.object({
+  name: Joi.string().optional(),
+  description: Joi.string().optional(),
+  size: Joi.string().optional(),
+  price_min: Joi.number().optional(),
+  price_max: Joi.number().optional(),
+  available: Joi.boolean().optional(),
+  booking_requirements: Joi.string().optional(),
+  cancellation_policy: Joi.string().optional(),
+  inclusions: Joi.array().items(Joi.string()).optional(),
+  add_ons: Joi.array().items(Joi.string()).optional()
+});

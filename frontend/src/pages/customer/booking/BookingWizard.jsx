@@ -16,6 +16,7 @@ export default function BookingWizard() {
   const [step, setStep] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
   const [error, setError] = useState("");
+  const [availability, setAvailability] = useState({ status: "idle", message: "" });
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [form, setForm] = useState({
     customer_id: user._id,
@@ -61,6 +62,48 @@ export default function BookingWizard() {
       .catch(() => setMenuItems([]));
   }, []);
 
+  useEffect(() => {
+    if (!form.event_date || !form.start_time || !form.duration_hours) {
+      setAvailability({ status: "idle", message: "" });
+      return;
+    }
+
+    setAvailability({ status: "checking", message: "Checking availability..." });
+    const timer = setTimeout(() => {
+      CustomerAPI.checkAvailability({
+        event_date: form.event_date,
+        start_time: form.start_time,
+        duration_hours: form.duration_hours,
+        venue_type: form.venue_type,
+        province: form.province,
+        municipality: form.municipality,
+        barangay: form.barangay,
+        street: form.street
+      })
+        .then((res) => {
+          if (res.data.available) {
+            setAvailability({ status: "available", message: "Selected time is available." });
+          } else {
+            setAvailability({ status: "unavailable", message: "Selected time has a conflict. Please choose another schedule." });
+          }
+        })
+        .catch(() => {
+          setAvailability({ status: "idle", message: "" });
+        });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    form.event_date,
+    form.start_time,
+    form.duration_hours,
+    form.venue_type,
+    form.province,
+    form.municipality,
+    form.barangay,
+    form.street
+  ]);
+
   const toggleService = (value) => {
     setForm((prev) => {
       const exists = prev.additional_services.includes(value);
@@ -90,6 +133,11 @@ export default function BookingWizard() {
     try {
       if (!agreements.terms || !agreements.privacy) {
         setError("Please accept the terms and privacy policy.");
+        return;
+      }
+
+      if (availability.status === "unavailable") {
+        setError("Selected time has a conflict. Please choose another schedule.");
         return;
       }
 
@@ -167,6 +215,12 @@ export default function BookingWizard() {
                 <input placeholder="2 hours" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
               </label>
             </div>
+
+            {availability.status !== "idle" && (
+              <div className={`booking-alert ${availability.status}`}>
+                {availability.message}
+              </div>
+            )}
 
             <div className="booking-toggle">
               <p>Would you like to include food and menu service in your package?</p>

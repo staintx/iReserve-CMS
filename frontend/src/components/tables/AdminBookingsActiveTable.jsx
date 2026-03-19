@@ -1,4 +1,4 @@
-export default function AdminBookingsActiveTable({ bookings, onMarkDone, onCancel }) {
+export default function AdminBookingsActiveTable({ bookings, onMarkDone, onCancel, onView }) {
   return (
     <table className="table">
       <thead>
@@ -20,6 +20,7 @@ export default function AdminBookingsActiveTable({ bookings, onMarkDone, onCance
             <td>{b.guest_count}</td>
             <td>{b.status}</td>
             <td>
+              <button className="btn-outline" onClick={() => onView?.(b)}>View</button>
               <button className="btn" onClick={() => onMarkDone(b._id)}>Mark Done</button>
               <button className="btn-danger" onClick={() => onCancel(b._id)}>Cancel</button>
             </td>

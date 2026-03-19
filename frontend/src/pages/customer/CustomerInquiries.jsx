@@ -2,14 +2,31 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
+import useToast from "../../hooks/useToast";
 
 export default function CustomerInquiries() {
   const navigate = useNavigate();
   const [inquiries, setInquiries] = useState([]);
+  const { notify } = useToast();
+
+  const load = () => {
+    CustomerAPI.getInquiries()
+      .then((res) => setInquiries(res.data))
+      .catch(() => setInquiries([]));
+  };
 
   useEffect(() => {
-    CustomerAPI.getInquiries().then((res) => setInquiries(res.data)).catch(() => setInquiries([]));
+    load();
   }, []);
+
+  const cancelInquiry = (id) => {
+    CustomerAPI.cancelInquiry(id)
+      .then(() => {
+        notify("Inquiry cancelled.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to cancel inquiry.", "error"));
+  };
 
   return (
     <CustomerDashboardLayout
@@ -25,8 +42,10 @@ export default function CustomerInquiries() {
                 <div><small>Submitted on {inq.createdAt ? new Date(inq.createdAt).toLocaleDateString() : ""}</small></div>
               </div>
               <div className="actions">
-                <button className="btn-outline" type="button">Edit</button>
-                <button className="btn-danger" type="button">Cancel</button>
+                <button className="btn-outline" type="button" onClick={() => navigate("/customer/messages")}>Message</button>
+                {inq.status !== "cancelled" && (
+                  <button className="btn-danger" type="button" onClick={() => cancelInquiry(inq._id)}>Cancel</button>
+                )}
               </div>
             </div>
             <div className="grid sm:grid-cols-5">
@@ -44,7 +63,7 @@ export default function CustomerInquiries() {
               </div>
               <div>
                 <small>Service Type</small>
-                <div>{inq.include_food ? "Food & Event" : "Event Setup"}</div>
+                <div>{inq.service_type || (inq.include_food ? "Food & Event" : "Event Setup")}</div>
               </div>
               <div>
                 <small>Contact</small>

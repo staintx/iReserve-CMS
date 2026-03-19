@@ -1,13 +1,26 @@
 import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
+import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
 
 export default function AdminDashboard() {
-  const [data, setData] = useState({ totalBookings: 0, pendingInquiries: 0, totalRevenue: 0 });
+  const [summary, setSummary] = useState({
+    totalBookings: 0,
+    activeBookings: 0,
+    completedBookings: 0,
+    pendingInquiries: 0,
+    totalRevenue: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
-    AdminAPI.getSummary().then((res) => setData(res.data));
+    AdminAPI.getMetrics().then((res) => {
+      setSummary(res.data.summary || {});
+      setRecentActivity(res.data.recentActivity || []);
+    });
   }, []);
+
+  const formatCurrency = (value) => `PHP ${Number(value || 0).toLocaleString()}`;
 
   return (
     <AdminLayout>
@@ -16,19 +29,24 @@ export default function AdminDashboard() {
         <p className="mt-2 text-sm text-slate-500">Overview of system activities</p>
       </div>
 
-      <div className="kpi-grid">
-        <div className="kpi-card">
-          <h4>Total Bookings</h4>
-          <p className="kpi-value">{data.totalBookings}</p>
-        </div>
-        <div className="kpi-card">
-          <h4>Pending Inquiries</h4>
-          <p className="kpi-value">{data.pendingInquiries}</p>
-        </div>
-        <div className="kpi-card">
-          <h4>Total Revenue</h4>
-          <p className="kpi-value">₱{data.totalRevenue}</p>
-        </div>
+      <div className="dashboard-cards">
+        <DashboardStatCard label="Total Bookings" value={summary.totalBookings || 0} />
+        <DashboardStatCard label="Active Bookings" value={summary.activeBookings || 0} />
+        <DashboardStatCard label="Pending Inquiries" value={summary.pendingInquiries || 0} />
+        <DashboardStatCard label="Total Revenue" value={formatCurrency(summary.totalRevenue)} />
+      </div>
+
+      <div className="panel">
+        <h3>Recent Activity</h3>
+        {recentActivity.length === 0 && <p>No activity yet.</p>}
+        {recentActivity.map((item) => (
+          <div className="list-item" key={`${item.type}-${item.id}`}>
+            <strong>{item.title}</strong> · {item.type}
+            <div>
+              <small>Status: {item.status || "-"}</small>
+            </div>
+          </div>
+        ))}
       </div>
     </AdminLayout>
   );

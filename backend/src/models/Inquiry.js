@@ -24,10 +24,24 @@ const InquirySchema = new mongoose.Schema({
   budget_min: Number,
   budget_max: Number,
   selected_menu: [String],
+  menu_items: [
+    {
+      name: String,
+      note: String,
+      price: Number
+    }
+  ],
   dietary_restrictions: String,
   allergies: String,
   special_requests: String,
   additional_services: [String],
+  service_items: [
+    {
+      name: String,
+      quantity: Number,
+      price: Number
+    }
+  ],
   contact_first_name: String,
   contact_last_name: String,
   contact_email: String,
@@ -35,6 +49,7 @@ const InquirySchema = new mongoose.Schema({
   contact_alt_phone: String,
   contact_method: String,
   payment_method: String,
+  package_amount: Number,
   quote_amount: Number,
   quote_notes: String,
   status: { type: String, default: "pending" }

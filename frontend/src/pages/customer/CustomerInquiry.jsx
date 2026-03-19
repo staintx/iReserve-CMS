@@ -2,24 +2,64 @@ import { useState } from "react";
 import CustomerLayout from "../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../api/customer";
 import useAuth from "../../hooks/useAuth";
+import useToast from "../../hooks/useToast";
 
 export default function CustomerInquiry() {
   const { user } = useAuth();
+  const { notify } = useToast();
   const [form, setForm] = useState({
     event_type: "",
     event_date: "",
+    start_time: "",
     guest_count: "",
-    venue: "",
-    service_type: "",
+    duration_hours: "",
+    service_type: "food_event",
+    venue_type: "",
+    indoor_outdoor: "",
+    province: "",
+    municipality: "",
+    barangay: "",
+    street: "",
+    landmark: "",
+    zip_code: "",
     budget_min: "",
     budget_max: "",
-    menu_preferences: "",
-    dietary_needs: ""
+    selected_menu: "",
+    dietary_restrictions: "",
+    special_requests: "",
+    contact_first_name: "",
+    contact_last_name: "",
+    contact_email: "",
+    contact_phone: "",
+    contact_method: ""
   });
 
+  const parseMenuItems = (value) =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
   const submit = async () => {
-    await CustomerAPI.submitInquiry({ ...form, customer_id: user._id });
-    alert("Inquiry submitted!");
+    const includeFood = form.service_type !== "event_setup";
+    const payload = {
+      ...form,
+      customer_id: user._id,
+      include_food: includeFood,
+      service_type: includeFood ? "Food & Event Setup" : "Event Setup Only",
+      guest_count: Number(form.guest_count || 0),
+      duration_hours: form.duration_hours ? Number(form.duration_hours) : undefined,
+      budget_min: form.budget_min ? Number(form.budget_min) : undefined,
+      budget_max: form.budget_max ? Number(form.budget_max) : undefined,
+      selected_menu: form.selected_menu ? parseMenuItems(form.selected_menu) : []
+    };
+
+    try {
+      await CustomerAPI.submitInquiry(payload);
+      notify("Inquiry submitted.", "success");
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to submit inquiry.", "error");
+    }
   };
 
   return (
@@ -28,13 +68,31 @@ export default function CustomerInquiry() {
       <div className="form-card">
         <input placeholder="Event Type" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
         <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+        <input placeholder="Start Time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
         <input placeholder="Guest Count" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
-        <input placeholder="Venue" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} />
-        <input placeholder="Service Type" value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })} />
+        <input placeholder="Duration (hours)" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
+        <select value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })}>
+          <option value="food_event">Food & Event Setup</option>
+          <option value="event_setup">Event Setup Only</option>
+        </select>
+        <input placeholder="Venue Type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value })} />
+        <input placeholder="Indoor or Outdoor" value={form.indoor_outdoor} onChange={(e) => setForm({ ...form, indoor_outdoor: e.target.value })} />
+        <input placeholder="Province" value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
+        <input placeholder="Municipality" value={form.municipality} onChange={(e) => setForm({ ...form, municipality: e.target.value })} />
+        <input placeholder="Barangay" value={form.barangay} onChange={(e) => setForm({ ...form, barangay: e.target.value })} />
+        <input placeholder="Street" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+        <input placeholder="Landmark" value={form.landmark} onChange={(e) => setForm({ ...form, landmark: e.target.value })} />
+        <input placeholder="ZIP Code" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value })} />
         <input placeholder="Budget Min" value={form.budget_min} onChange={(e) => setForm({ ...form, budget_min: e.target.value })} />
         <input placeholder="Budget Max" value={form.budget_max} onChange={(e) => setForm({ ...form, budget_max: e.target.value })} />
-        <textarea placeholder="Menu Preferences" value={form.menu_preferences} onChange={(e) => setForm({ ...form, menu_preferences: e.target.value })} />
-        <textarea placeholder="Dietary Needs" value={form.dietary_needs} onChange={(e) => setForm({ ...form, dietary_needs: e.target.value })} />
+        <textarea placeholder="Selected Menu (comma-separated)" value={form.selected_menu} onChange={(e) => setForm({ ...form, selected_menu: e.target.value })} />
+        <textarea placeholder="Dietary Restrictions" value={form.dietary_restrictions} onChange={(e) => setForm({ ...form, dietary_restrictions: e.target.value })} />
+        <textarea placeholder="Special Requests" value={form.special_requests} onChange={(e) => setForm({ ...form, special_requests: e.target.value })} />
+        <input placeholder="Contact First Name" value={form.contact_first_name} onChange={(e) => setForm({ ...form, contact_first_name: e.target.value })} />
+        <input placeholder="Contact Last Name" value={form.contact_last_name} onChange={(e) => setForm({ ...form, contact_last_name: e.target.value })} />
+        <input placeholder="Contact Email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} />
+        <input placeholder="Contact Phone" value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} />
+        <input placeholder="Preferred Contact Method" value={form.contact_method} onChange={(e) => setForm({ ...form, contact_method: e.target.value })} />
         <button className="btn" onClick={submit}>Submit Inquiry</button>
       </div>
     </CustomerLayout>

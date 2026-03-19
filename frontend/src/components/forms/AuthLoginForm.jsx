@@ -14,6 +14,7 @@ export default function AuthLoginForm({ email, password, error, onEmailChange, o
         </div>
         {error && <p className="auth-error">{error}</p>}
         <div className="flex items-center justify-between text-sm">
+          <Link className="text-brand-700" to="/">Back to homepage</Link>
           <Link className="text-brand-700" to="/forgot-password">Forgot Password?</Link>
         </div>
         <button className="w-full btn" type="submit">Login now</button>

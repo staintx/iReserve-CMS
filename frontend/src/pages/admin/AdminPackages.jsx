@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import Modal from "../../components/common/Modal";
+import useToast from "../../hooks/useToast";
 
 export default function AdminPackages() {
   const [packages, setPackages] = useState([]);
@@ -9,6 +10,7 @@ export default function AdminPackages() {
   const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
+  const { notify } = useToast();
 
   const load = () =>
     AdminAPI.getPackages()
@@ -19,7 +21,9 @@ export default function AdminPackages() {
       })
       .catch((err) => {
         setPackages([]);
-        setError(err.response?.data?.message || "Failed to load packages.");
+        const message = err.response?.data?.message || "Failed to load packages.";
+        setError(message);
+        notify(message, "error");
       });
   useEffect(() => {
     load();
@@ -33,8 +37,18 @@ export default function AdminPackages() {
     });
     if (file) data.append("image", file);
 
-    if (form._id) await AdminAPI.updatePackage(form._id, data);
-    else await AdminAPI.createPackage(data);
+    try {
+      if (form._id) {
+        await AdminAPI.updatePackage(form._id, data);
+        notify("Package updated.", "success");
+      } else {
+        await AdminAPI.createPackage(data);
+        notify("Package created.", "success");
+      }
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to save package.", "error");
+      return;
+    }
 
     setShow(false);
     setForm({});
@@ -50,15 +64,22 @@ export default function AdminPackages() {
     });
     setShow(true);
   };
-  const remove = (id) => AdminAPI.deletePackage(id).then(load);
+  const remove = (id) =>
+    AdminAPI.deletePackage(id)
+      .then(() => {
+        notify("Package deleted.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete package.", "error"));
+  const toggleAvailability = (pkg) =>
+    AdminAPI.updatePackage(pkg._id, { available: !pkg.available })
+      .then(() => {
+        notify(pkg.available ? "Package disabled." : "Package enabled.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to update package.", "error"));
 
-  const mockPackages = [
-    { _id: "mock-1", name: "Birthday Package 2", size: "20x40", price_min: 15000, price_max: 30000 },
-    { _id: "mock-2", name: "Wedding Package 2", size: "50x80", price_min: 45000, price_max: 90000 },
-    { _id: "mock-3", name: "Corporate Package", size: "30x60", price_min: 25000, price_max: 50000 }
-  ];
-
-  const list = packages.length > 0 ? packages : mockPackages;
+  const list = packages;
 
   return (
     <AdminLayout>
@@ -74,6 +95,7 @@ export default function AdminPackages() {
 
       {error && <p className="auth-error">{error}</p>}
       <div className="admin-card-grid">
+        {list.length === 0 && <p>No packages yet.</p>}
         {list.map((p) => (
           <div className="package-tile" key={p._id}>
             {p.image_url ? (
@@ -86,12 +108,13 @@ export default function AdminPackages() {
               <p>Size: {p.size || "-"}</p>
               <p>PHP {p.price_min || 0} - {p.price_max || 0}</p>
             </div>
-            {p._id?.startsWith("mock-") ? null : (
-              <div className="tile-actions">
-                <button className="edit" type="button" onClick={() => edit(p)}>Edit</button>
-                <button className="delete" type="button" onClick={() => remove(p._id)}>Delete</button>
-              </div>
-            )}
+            <div className="tile-actions">
+              <button className="edit" type="button" onClick={() => edit(p)}>Edit</button>
+              <button className="edit" type="button" onClick={() => toggleAvailability(p)}>
+                {p.available === false ? "Enable" : "Disable"}
+              </button>
+              <button className="delete" type="button" onClick={() => remove(p._id)}>Delete</button>
+            </div>
           </div>
         ))}
       </div>

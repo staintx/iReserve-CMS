@@ -3,6 +3,7 @@ import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
+import useToast from "../../../hooks/useToast";
 
 const steps = ["Event Details", "Venue Information", "Menu Options", "Additional Services", "Contact Info", "Review & Payment"];
 
@@ -16,6 +17,8 @@ export default function BookingWizard() {
   const [step, setStep] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
   const [error, setError] = useState("");
+  const [availability, setAvailability] = useState({ status: "idle", message: "" });
+  const { notify } = useToast();
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [form, setForm] = useState({
     customer_id: user._id,
@@ -61,6 +64,48 @@ export default function BookingWizard() {
       .catch(() => setMenuItems([]));
   }, []);
 
+  useEffect(() => {
+    if (!form.event_date || !form.start_time || !form.duration_hours) {
+      setAvailability({ status: "idle", message: "" });
+      return;
+    }
+
+    setAvailability({ status: "checking", message: "Checking availability..." });
+    const timer = setTimeout(() => {
+      CustomerAPI.checkAvailability({
+        event_date: form.event_date,
+        start_time: form.start_time,
+        duration_hours: form.duration_hours,
+        venue_type: form.venue_type,
+        province: form.province,
+        municipality: form.municipality,
+        barangay: form.barangay,
+        street: form.street
+      })
+        .then((res) => {
+          if (res.data.available) {
+            setAvailability({ status: "available", message: "Selected time is available." });
+          } else {
+            setAvailability({ status: "unavailable", message: "Selected time has a conflict. Please choose another schedule." });
+          }
+        })
+        .catch(() => {
+          setAvailability({ status: "idle", message: "" });
+        });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    form.event_date,
+    form.start_time,
+    form.duration_hours,
+    form.venue_type,
+    form.province,
+    form.municipality,
+    form.barangay,
+    form.street
+  ]);
+
   const toggleService = (value) => {
     setForm((prev) => {
       const exists = prev.additional_services.includes(value);
@@ -85,6 +130,11 @@ export default function BookingWizard() {
     });
   };
 
+  const parseNumber = (value) => {
+    const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
   const submit = async () => {
     setError("");
     try {
@@ -93,18 +143,26 @@ export default function BookingWizard() {
         return;
       }
 
+      if (availability.status === "unavailable") {
+        setError("Selected time has a conflict. Please choose another schedule.");
+        return;
+      }
+
       const payload = {
         ...form,
-        guest_count: form.guest_count ? Number(form.guest_count) : undefined,
-        duration_hours: form.duration_hours ? Number(form.duration_hours) : undefined,
-        budget_min: form.budget_min ? Number(form.budget_min) : undefined,
-        budget_max: form.budget_max ? Number(form.budget_max) : undefined
+        guest_count: parseNumber(form.guest_count),
+        duration_hours: parseNumber(form.duration_hours),
+        budget_min: parseNumber(form.budget_min),
+        budget_max: parseNumber(form.budget_max)
       };
 
       await CustomerAPI.submitInquiry(payload);
+      notify("Inquiry submitted.", "success");
       navigate("/customer/booking-success");
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to submit inquiry.");
+      const message = err.response?.data?.message || "Failed to submit inquiry.";
+      setError(message);
+      notify(message, "error");
     }
   };
 
@@ -160,13 +218,19 @@ export default function BookingWizard() {
               </label>
               <label className="field">
                 <span>Estimated Guest Count</span>
-                <input placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
+                <input type="number" min="1" placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
               </label>
               <label className="field">
                 <span>Event Duration (hours)</span>
-                <input placeholder="2 hours" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
+                <input type="number" min="1" step="0.5" placeholder="2" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
               </label>
             </div>
+
+            {availability.status !== "idle" && (
+              <div className={`booking-alert ${availability.status}`}>
+                {availability.message}
+              </div>
+            )}
 
             <div className="booking-toggle">
               <p>Would you like to include food and menu service in your package?</p>

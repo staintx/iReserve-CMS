@@ -1,4 +1,4 @@
-export default function AdminBookingsHistoryTable({ bookings }) {
+export default function AdminBookingsHistoryTable({ bookings, onView }) {
   return (
     <table className="table">
       <thead>
@@ -8,6 +8,7 @@ export default function AdminBookingsHistoryTable({ bookings }) {
           <th>Customer</th>
           <th>Date</th>
           <th>Status</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>
@@ -18,6 +19,9 @@ export default function AdminBookingsHistoryTable({ bookings }) {
             <td>{b.customer_id?.full_name || "Customer"}</td>
             <td>{new Date(b.event_date).toLocaleDateString()}</td>
             <td>{b.status}</td>
+            <td>
+              <button className="btn-outline" onClick={() => onView?.(b)}>View</button>
+            </td>
           </tr>
         ))}
       </tbody>

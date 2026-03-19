@@ -2,18 +2,32 @@ import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminPaymentApprovalsTable from "../../components/tables/AdminPaymentApprovalsTable";
+import useToast from "../../hooks/useToast";
 
 export default function AdminPaymentApprovals() {
   const [payments, setPayments] = useState([]);
   const [query, setQuery] = useState("");
+  const { notify } = useToast();
 
   const load = () => AdminAPI.getPayments().then((res) => setPayments(Array.isArray(res.data) ? res.data : []));
   useEffect(() => {
     load();
   }, []);
 
-  const approve = (id) => AdminAPI.updatePayment(id, { status: "approved" }).then(load);
-  const reject = (id) => AdminAPI.updatePayment(id, { status: "rejected" }).then(load);
+  const approve = (id) =>
+    AdminAPI.updatePayment(id, { status: "approved" })
+      .then(() => {
+        notify("Payment approved.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to approve payment.", "error"));
+  const reject = (id) =>
+    AdminAPI.updatePayment(id, { status: "rejected" })
+      .then(() => {
+        notify("Payment rejected.", "warning");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to reject payment.", "error"));
 
   const mockPayments = [
     { _id: "mock-1", booking_id: { event_type: "Wedding" }, customer_id: { full_name: "Maria Santos" }, amount: 5000, payment_type: "Deposit", method: "GCash", status: "pending" },

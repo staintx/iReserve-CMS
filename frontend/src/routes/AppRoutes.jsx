@@ -45,22 +45,29 @@ import AdminReports from "../pages/admin/AdminReports";
 import AdminRatings from "../pages/admin/AdminRatings";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
 import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
+import AdminInquiryQuote from "../pages/admin/AdminInquiryQuote";
+import ManagerDashboard from "../pages/manager/ManagerDashboard";
+import ManagerBookings from "../pages/manager/ManagerBookings";
+import ManagerStaff from "../pages/manager/ManagerStaff";
 
 const adminRoles = ["admin", "manager", "staff"];
+const managerRoles = ["admin", "manager"];
+const adminOnly = ["admin"];
 
 export default function AppRoutes() {
   const { user } = useAuth();
   const isAdmin = adminRoles.includes(user?.role);
+  const isManager = user?.role === "manager";
 
   return (
     <BrowserRouter>
       <Routes>
         {/* Public pages */}
-        <Route path="/" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Landing />} />
-        <Route path="/packages" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Packages />} />
-        <Route path="/packages/:id" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <PackageDetails />} />
-        <Route path="/menu" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Menu />} />
-        <Route path="/gallery" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Gallery />} />
+        <Route path="/" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Landing />} />
+        <Route path="/packages" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Packages />} />
+        <Route path="/packages/:id" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <PackageDetails />} />
+        <Route path="/menu" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Menu />} />
+        <Route path="/gallery" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Gallery />} />
 
         {/* Auth */}
         <Route path="/login" element={<Login />} />
@@ -86,25 +93,31 @@ export default function AppRoutes() {
 
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminRoles}><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/inquiries" element={<ProtectedRoute allowedRoles={adminRoles}><AdminInquiries /></ProtectedRoute>} />
-        <Route path="/admin/payment-approvals" element={<ProtectedRoute allowedRoles={adminRoles}><AdminPaymentApprovals /></ProtectedRoute>} />
+        <Route path="/admin/inquiries" element={<ProtectedRoute allowedRoles={managerRoles}><AdminInquiries /></ProtectedRoute>} />
+        <Route path="/admin/inquiries/:id/quote" element={<ProtectedRoute allowedRoles={managerRoles}><AdminInquiryQuote /></ProtectedRoute>} />
+        <Route path="/admin/payment-approvals" element={<ProtectedRoute allowedRoles={managerRoles}><AdminPaymentApprovals /></ProtectedRoute>} />
         <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminRoles}><AdminMessagesList /></ProtectedRoute>} />
         <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminRoles}><AdminMessagesChat /></ProtectedRoute>} />
-        <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminRoles}><AdminGallery /></ProtectedRoute>} />
+        <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={managerRoles}><AdminGallery /></ProtectedRoute>} />
         <Route path="/admin/bookings/active" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBookingsActive /></ProtectedRoute>} />
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBookingsHistory /></ProtectedRoute>} />
         <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBookingsCalendar /></ProtectedRoute>} />
-        <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminRoles}><AdminPackages /></ProtectedRoute>} />
-        <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminRoles}><AdminMenu /></ProtectedRoute>} />
-        <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminRoles}><AdminInventory /></ProtectedRoute>} />
-        <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminRoles}><AdminManagers /></ProtectedRoute>} />
-        <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminRoles}><AdminStaff /></ProtectedRoute>} />
-        <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={adminRoles}><AdminReports /></ProtectedRoute>} />
-        <Route path="/admin/ratings" element={<ProtectedRoute allowedRoles={adminRoles}><AdminRatings /></ProtectedRoute>} />
-        <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminRoles}><AdminBusinessInfo /></ProtectedRoute>} />
-        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminRoles}><AdminSystemLogs /></ProtectedRoute>} />
+        <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPackages /></ProtectedRoute>} />
+        <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMenu /></ProtectedRoute>} />
+        <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
+        <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminManagers /></ProtectedRoute>} />
+        <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
+        <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={managerRoles}><AdminReports /></ProtectedRoute>} />
+        <Route path="/admin/ratings" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRatings /></ProtectedRoute>} />
+        <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
+        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
 
-        <Route path="*" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Landing />} />
+        {/* Manager (protected by role) */}
+        <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
+        <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
+        <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerStaff /></ProtectedRoute>} />
+
+        <Route path="*" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Landing />} />
       </Routes>
     </BrowserRouter>
   );

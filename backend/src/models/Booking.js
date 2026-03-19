@@ -24,10 +24,24 @@ const BookingSchema = new mongoose.Schema({
   venue_contact_name: String,
   venue_contact_phone: String,
   selected_menu: [String],
+  menu_items: [
+    {
+      name: String,
+      note: String,
+      price: Number
+    }
+  ],
   dietary_restrictions: String,
   allergies: String,
   special_requests: String,
   additional_services: [String],
+  service_items: [
+    {
+      name: String,
+      quantity: Number,
+      price: Number
+    }
+  ],
   contact_first_name: String,
   contact_last_name: String,
   contact_email: String,
@@ -37,7 +51,38 @@ const BookingSchema = new mongoose.Schema({
   total_price: Number,
   payment_method: String,
   payment_status: { type: String, default: "pending" },
-  status: { type: String, default: "active" }
+  status: { type: String, default: "active" },
+  staff_assignments: [
+    {
+      role: String,
+      user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      name: String,
+      phone: String
+    }
+  ],
+  manager_notes: [
+    {
+      note: String,
+      created_at: { type: Date, default: Date.now }
+    }
+  ],
+  staff_reports: [
+    {
+      staff_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      role: String,
+      note: String,
+      created_at: { type: Date, default: Date.now }
+    }
+  ],
+  equipment_returns: [
+    {
+      name: String,
+      returned: { type: Boolean, default: false },
+      verified_at: Date,
+      verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+    }
+  ],
+  completed_at: Date
 }, { timestamps: true });
 
 module.exports = mongoose.model("Booking", BookingSchema);

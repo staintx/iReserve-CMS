@@ -4,12 +4,14 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import Modal from "../../components/common/Modal";
 import AdminManagersTable from "../../components/tables/AdminManagersTable";
 import AdminManagersForm from "../../components/forms/AdminManagersForm";
+import useToast from "../../hooks/useToast";
 
 export default function AdminManagers({ defaultTab = "managers" }) {
   const [staff, setStaff] = useState([]);
   const [show, setShow] = useState(false);
   const [tab, setTab] = useState(defaultTab);
   const [form, setForm] = useState({ role: "manager", is_active: true });
+  const { notify } = useToast();
 
   const load = () => AdminAPI.getStaff().then((res) => setStaff(Array.isArray(res.data) ? res.data : []));
   useEffect(() => {
@@ -29,8 +31,10 @@ export default function AdminManagers({ defaultTab = "managers" }) {
 
     if (form._id) {
       await AdminAPI.updateStaff(form._id, payload);
+      notify("Account updated.", "success");
     } else {
       await AdminAPI.createStaff(payload);
+      notify("Account created.", "success");
     }
 
     setShow(false);
@@ -51,7 +55,13 @@ export default function AdminManagers({ defaultTab = "managers" }) {
     setShow(true);
   };
 
-  const remove = (id) => AdminAPI.deleteStaff(id).then(load);
+  const remove = (id) =>
+    AdminAPI.deleteStaff(id)
+      .then(() => {
+        notify("Account deleted.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete account.", "error"));
 
   const managers = staff.filter((m) => m.role === "manager");
   const staffMembers = staff.filter((m) => m.role === "staff");

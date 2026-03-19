@@ -309,7 +309,11 @@
   }
 
   .auth-error {
-    @apply text-sm text-red-600;
+    @apply mt-2 text-sm text-red-600;
+  }
+
+  .auth-success {
+    @apply mt-2 text-sm text-emerald-600;
   }
 
   .user-menu {

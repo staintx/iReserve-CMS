@@ -32,14 +32,14 @@ export default function AdminBookingsActive() {
         notify("Booking marked as completed.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update booking.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the booking. Please try again.", "error"));
   const cancel = (id) =>
     AdminAPI.updateBooking(id, { status: "cancelled" })
       .then(() => {
         notify("Booking cancelled.", "warning");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update booking.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the booking. Please try again.", "error"));
 
   return (
     <AdminLayout>

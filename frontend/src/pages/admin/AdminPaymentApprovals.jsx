@@ -20,14 +20,14 @@ export default function AdminPaymentApprovals() {
         notify("Payment approved.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to approve payment.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not approve the payment. Please try again.", "error"));
   const reject = (id) =>
     AdminAPI.updatePayment(id, { status: "rejected" })
       .then(() => {
         notify("Payment rejected.", "warning");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to reject payment.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not reject the payment. Please try again.", "error"));
 
   const mockPayments = [
     { _id: "mock-1", booking_id: { event_type: "Wedding" }, customer_id: { full_name: "Maria Santos" }, amount: 5000, payment_type: "Deposit", method: "GCash", status: "pending" },

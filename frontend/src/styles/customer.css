@@ -1280,16 +1280,14 @@
 
 .auth-error {
   margin: 8px 0;
-  color: #b91c1c;
+  color: #dc2626;
+  font-size: 14px;
 }
 
 .auth-success {
-  margin: 8px 0 16px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #ecfdf3;
-  color: #15803d;
-  border: 1px solid #86efac;
+  margin: 8px 0;
+  color: #059669;
+  font-size: 14px;
 }
 
 /* Customer dashboard */

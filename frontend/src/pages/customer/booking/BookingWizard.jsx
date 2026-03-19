@@ -139,12 +139,12 @@ export default function BookingWizard() {
     setError("");
     try {
       if (!agreements.terms || !agreements.privacy) {
-        setError("Please accept the terms and privacy policy.");
+        setError("Please accept the terms and privacy policy to continue.");
         return;
       }
 
       if (availability.status === "unavailable") {
-        setError("Selected time has a conflict. Please choose another schedule.");
+        setError("That time is unavailable. Please choose a different schedule.");
         return;
       }
 
@@ -160,7 +160,7 @@ export default function BookingWizard() {
       notify("Inquiry submitted.", "success");
       navigate("/customer/booking-success");
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to submit inquiry.";
+      const message = err.response?.data?.message || "We could not submit your inquiry. Please try again.";
       setError(message);
       notify(message, "error");
     }

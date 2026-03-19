@@ -28,7 +28,7 @@ export default function AdminInventory() {
         notify("Inventory item created.", "success");
       }
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to save inventory item.", "error");
+      notify(err.response?.data?.message || "We could not save the inventory item. Please try again.", "error");
       return;
     }
     setShow(false);
@@ -43,14 +43,14 @@ export default function AdminInventory() {
         notify("Inventory item deleted.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to delete inventory item.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not delete the inventory item. Please try again.", "error"));
   const toggleAvailability = (item) =>
     AdminAPI.updateInventory(item._id, { ...item, available: !item.available })
       .then(() => {
         notify(item.available ? "Inventory item disabled." : "Inventory item enabled.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update inventory item.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the inventory item. Please try again.", "error"));
 
   const mockItems = [
     { _id: "mock-1", item_name: "Chairs", quantity: 150, category: "Furniture", available: true },

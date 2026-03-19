@@ -25,7 +25,7 @@ export default function CustomerInquiries() {
         notify("Inquiry cancelled.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to cancel inquiry.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not cancel the inquiry. Please try again.", "error"));
   };
 
   return (

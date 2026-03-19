@@ -30,7 +30,7 @@ export default function AdminGallery() {
         notify("Gallery item created.", "success");
       }
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to save gallery item.", "error");
+      notify(err.response?.data?.message || "We could not save the gallery item. Please try again.", "error");
       return;
     }
 
@@ -44,7 +44,7 @@ export default function AdminGallery() {
         notify("Gallery item deleted.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to delete gallery item.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not delete the gallery item. Please try again.", "error"));
 
   const list = items;
   const foodList = foods;

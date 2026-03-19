@@ -67,7 +67,7 @@ export default function AdminInquiryQuote() {
         setPackageAmount(inquiryData.package_amount ?? "");
       })
       .catch((err) => {
-        notify(err.response?.data?.message || "Failed to load inquiry.", "error");
+        notify(err.response?.data?.message || "We could not load the inquiry. Please refresh and try again.", "error");
       });
   }, [id, notify]);
 
@@ -166,7 +166,7 @@ export default function AdminInquiryQuote() {
     if (!inquiry) return;
     AdminAPI.updateInquiry(inquiry._id, buildPayload())
       .then(() => notify("Quote saved.", "success"))
-      .catch((err) => notify(err.response?.data?.message || "Failed to save quote.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not save the quote. Please try again.", "error"));
   };
 
   const submitBooking = () => {
@@ -185,7 +185,7 @@ export default function AdminInquiryQuote() {
         navigate("/admin/bookings/active");
       })
       .catch((err) => {
-        const message = err?.response?.data?.message || "Unable to create booking";
+        const message = err?.response?.data?.message || "We could not create the booking. Please try again.";
         notify(message, "error");
       });
   };

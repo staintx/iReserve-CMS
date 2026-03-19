@@ -166,7 +166,7 @@ export default function ManagerBookings() {
         loadBookings();
       })
       .catch((err) => {
-        notify(err.response?.data?.message || "Failed to assign staff.", "error");
+        notify(err.response?.data?.message || "We could not assign staff. Please try again.", "error");
       });
   };
 
@@ -177,14 +177,14 @@ export default function ManagerBookings() {
         setDetail((prev) => ({ ...prev, manager_notes: res.data }));
         setNote("");
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to add note.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not add the note. Please try again.", "error"));
   };
 
   const toggleEquipment = (name, returned) => {
     if (!detail) return;
     ManagerAPI.updateEquipment(detail._id, { name, returned })
       .then((res) => setDetail((prev) => ({ ...prev, equipment_returns: res.data })))
-      .catch((err) => notify(err.response?.data?.message || "Failed to update equipment.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the equipment list. Please try again.", "error"));
   };
 
   const markCompleted = () => {
@@ -195,7 +195,7 @@ export default function ManagerBookings() {
         loadBookings();
         notify("Event marked as completed.", "success");
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update event.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the event. Please try again.", "error"));
   };
 
   const renderBookingCard = (booking) => (

@@ -32,7 +32,7 @@ export default function AdminInquiries() {
         notify(`Inquiry ${status}.`, "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update inquiry.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the inquiry. Please try again.", "error"));
   };
 
   const filtered = inquiries.filter((inq) => {

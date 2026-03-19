@@ -2,17 +2,27 @@ import { useState } from "react";
 import { CustomerAPI } from "../../api/customer";
 import { useSearchParams } from "react-router-dom";
 import AuthResetPasswordForm from "../../components/forms/AuthResetPasswordForm";
+import useToast from "../../hooks/useToast";
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
   const token = params.get("token");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const { notify } = useToast();
 
   const submit = async (e) => {
     e.preventDefault();
-    await CustomerAPI.resetPassword({ token, password, confirm });
-    alert("Password reset success!");
+    setError("");
+    try {
+      await CustomerAPI.resetPassword({ token, password, confirm });
+      notify("Password updated. You can sign in now.", "success");
+    } catch (err) {
+      const message = err.response?.data?.message || "We could not reset your password. Please try again.";
+      setError(message);
+      notify(message, "error");
+    }
   };
 
   return (
@@ -25,6 +35,7 @@ export default function ResetPassword() {
         <AuthResetPasswordForm
           password={password}
           confirm={confirm}
+          error={error}
           onPasswordChange={(e) => setPassword(e.target.value)}
           onConfirmChange={(e) => setConfirm(e.target.value)}
           onSubmit={submit}

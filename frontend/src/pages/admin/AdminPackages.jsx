@@ -21,7 +21,7 @@ export default function AdminPackages() {
       })
       .catch((err) => {
         setPackages([]);
-        const message = err.response?.data?.message || "Failed to load packages.";
+        const message = err.response?.data?.message || "We could not load packages. Please refresh and try again.";
         setError(message);
         notify(message, "error");
       });
@@ -46,7 +46,7 @@ export default function AdminPackages() {
         notify("Package created.", "success");
       }
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to save package.", "error");
+      notify(err.response?.data?.message || "We could not save the package. Please try again.", "error");
       return;
     }
 
@@ -70,14 +70,14 @@ export default function AdminPackages() {
         notify("Package deleted.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to delete package.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not delete the package. Please try again.", "error"));
   const toggleAvailability = (pkg) =>
     AdminAPI.updatePackage(pkg._id, { available: !pkg.available })
       .then(() => {
         notify(pkg.available ? "Package disabled." : "Package enabled.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update package.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the package. Please try again.", "error"));
 
   const list = packages;
 

@@ -79,6 +79,7 @@ export default function QuoteWizard() {
   const [menuItems, setMenuItems] = useState([]);
   const [menuFilter, setMenuFilter] = useState(menuTabs[0]);
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
   const { notify } = useToast();
   const [form, setForm] = useState({
     customer_id: user?._id || "",
@@ -185,10 +186,125 @@ export default function QuoteWizard() {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
 
+  const fieldLabels = {
+    event_type: "Event type",
+    event_date: "Event date",
+    start_time: "Event start time",
+    guest_count: "Guest count",
+    duration_hours: "Event duration",
+    venue_type: "Venue type",
+    indoor_outdoor: "Indoor or outdoor",
+    province: "Province",
+    municipality: "Municipality",
+    barangay: "Barangay",
+    street: "Street name",
+    zip_code: "Zip code",
+    budget_range: "Budget range",
+    delivery_date: "Delivery date",
+    delivery_time: "Preferred delivery time",
+    pickup_date: "Pickup date",
+    pickup_time: "Pickup time",
+    full_name: "Full name",
+    email: "Email address",
+    phone: "Phone number",
+    agree_terms: "Terms and Conditions",
+    agree_privacy: "Privacy Policy"
+  };
+
+  const mapBackendErrors = (list) => {
+    const nextErrors = {};
+    (list || []).forEach((item) => {
+      const match = String(item).match(/"([^"]+)"/);
+      const field = match ? match[1] : null;
+      if (!field) return;
+      if (item.includes("is required")) {
+        nextErrors[field] = `${fieldLabels[field] || field} is required.`;
+      } else if (item.includes("must be a valid email")) {
+        nextErrors[field] = "Enter a valid email address.";
+      } else {
+        nextErrors[field] = item;
+      }
+    });
+    return nextErrors;
+  };
+
+  const validateRequired = () => {
+    const nextErrors = {};
+    const isEmpty = (value) => !String(value || "").trim();
+
+    const setRequired = (field, label) => {
+      if (isEmpty(form[field])) {
+        nextErrors[field] = `${label} is required.`;
+      }
+    };
+
+    setRequired("event_type", "Event type");
+    setRequired("event_date", "Event date");
+    setRequired("start_time", "Event start time");
+
+    if (isEmpty(form.guest_count)) {
+      nextErrors.guest_count = "Guest count is required.";
+    } else if (!Number.isFinite(parseNumber(form.guest_count))) {
+      nextErrors.guest_count = "Enter a valid guest count.";
+    }
+
+    if (isEmpty(form.duration_hours)) {
+      nextErrors.duration_hours = "Event duration is required.";
+    } else if (!Number.isFinite(parseNumber(form.duration_hours))) {
+      nextErrors.duration_hours = "Enter a valid duration.";
+    }
+
+    if (form.service_type !== "food") {
+      setRequired("venue_type", "Venue type");
+      setRequired("indoor_outdoor", "Indoor or outdoor");
+      setRequired("province", "Province");
+      setRequired("municipality", "Municipality");
+      setRequired("barangay", "Barangay");
+      setRequired("street", "Street name");
+      setRequired("zip_code", "Zip code");
+      setRequired("budget_range", "Budget range");
+    }
+
+    if (form.service_type === "food") {
+      setRequired("province", "Province");
+      setRequired("municipality", "Municipality");
+      setRequired("barangay", "Barangay");
+      setRequired("street", "Street name");
+      setRequired("zip_code", "Zip code");
+
+      if (form.delivery_method === "pickup") {
+        setRequired("pickup_date", "Pickup date");
+        setRequired("pickup_time", "Pickup time");
+      } else {
+        setRequired("delivery_date", "Delivery date");
+        setRequired("delivery_time", "Preferred delivery time");
+      }
+    }
+
+    setRequired("full_name", "Full name");
+    setRequired("email", "Email address");
+    setRequired("phone", "Phone number");
+
+    if (!isEmpty(form.email) && !/\S+@\S+\.\S+/.test(form.email)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+
+    if (!form.agree_terms) {
+      nextErrors.agree_terms = "Please accept the Terms and Conditions.";
+    }
+    if (!form.agree_privacy) {
+      nextErrors.agree_privacy = "Please accept the Privacy Policy.";
+    }
+
+    return nextErrors;
+  };
+
   const submit = async () => {
     setError("");
-    if (!form.agree_terms || !form.agree_privacy) {
-      setError("Please accept the terms and privacy policy.");
+    const nextErrors = validateRequired();
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError("Please complete the required fields below.");
       return;
     }
     try {
@@ -201,7 +317,13 @@ export default function QuoteWizard() {
       await CustomerAPI.submitQuote(payload);
       notify("Quote submitted.", "success");
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to submit quote.";
+      const backendErrors = mapBackendErrors(err.response?.data?.errors);
+      if (Object.keys(backendErrors).length > 0) {
+        setErrors(backendErrors);
+        setError("Please complete the required fields below.");
+        return;
+      }
+      const message = err.response?.data?.message || "We could not submit your quote. Please try again.";
       setError(message);
       notify(message, "error");
     }
@@ -318,6 +440,7 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Event Type</span>
                         <input placeholder="Birthday" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
+                        {errors.event_type && <p className="auth-error">{errors.event_type}</p>}
                       </label>
                       <label className="field">
                         <span>Event Theme or Colors</span>
@@ -326,18 +449,22 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Event Date</span>
                         <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">
                         <span>Event Start Time</span>
                         <input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+                        {errors.start_time && <p className="auth-error">{errors.start_time}</p>}
                       </label>
                       <label className="field">
                         <span>Estimated Guest Count</span>
                         <input placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
+                        {errors.guest_count && <p className="auth-error">{errors.guest_count}</p>}
                       </label>
                       <label className="field">
                         <span>Event Duration (hours)</span>
                         <input placeholder="2 hours" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
+                        {errors.duration_hours && <p className="auth-error">{errors.duration_hours}</p>}
                       </label>
                     </div>
                     <div className="booking-actions">
@@ -355,22 +482,27 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Province</span>
                         <input placeholder="Nueva Ecija" value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
+                        {errors.province && <p className="auth-error">{errors.province}</p>}
                       </label>
                       <label className="field">
                         <span>Municipality</span>
                         <input placeholder="General M. Natividad" value={form.municipality} onChange={(e) => setForm({ ...form, municipality: e.target.value })} />
+                        {errors.municipality && <p className="auth-error">{errors.municipality}</p>}
                       </label>
                       <label className="field">
                         <span>Barangay</span>
                         <input placeholder="Mataas Na Kahoy" value={form.barangay} onChange={(e) => setForm({ ...form, barangay: e.target.value })} />
+                        {errors.barangay && <p className="auth-error">{errors.barangay}</p>}
                       </label>
                       <label className="field">
                         <span>Street Name</span>
                         <input placeholder="Purok 4" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+                        {errors.street && <p className="auth-error">{errors.street}</p>}
                       </label>
                       <label className="field">
                         <span>Zip Code</span>
                         <input placeholder="3125" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value })} />
+                        {errors.zip_code && <p className="auth-error">{errors.zip_code}</p>}
                       </label>
                       <label className="field">
                         <span>Landmark</span>
@@ -384,10 +516,12 @@ export default function QuoteWizard() {
                         <label className="field">
                           <span>Delivery Date</span>
                           <input type="date" value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
+                          {errors.delivery_date && <p className="auth-error">{errors.delivery_date}</p>}
                         </label>
                         <label className="field">
                           <span>Preferred Delivery Time</span>
                           <input type="time" value={form.delivery_time} onChange={(e) => setForm({ ...form, delivery_time: e.target.value })} />
+                          {errors.delivery_time && <p className="auth-error">{errors.delivery_time}</p>}
                         </label>
                       </div>
                       <div className="booking-toggle">
@@ -422,6 +556,7 @@ export default function QuoteWizard() {
                             disabled={form.delivery_method !== "pickup"}
                             onChange={(e) => setForm({ ...form, pickup_date: e.target.value })}
                           />
+                          {errors.pickup_date && <p className="auth-error">{errors.pickup_date}</p>}
                         </label>
                         <label className="field">
                           <span>Pickup Time</span>
@@ -431,6 +566,7 @@ export default function QuoteWizard() {
                             disabled={form.delivery_method !== "pickup"}
                             onChange={(e) => setForm({ ...form, pickup_time: e.target.value })}
                           />
+                          {errors.pickup_time && <p className="auth-error">{errors.pickup_time}</p>}
                         </label>
                       </div>
                       <label className="field">
@@ -551,14 +687,17 @@ export default function QuoteWizard() {
                       <label className="field span-2">
                         <span>Full Name</span>
                         <input placeholder="Your Name" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+                        {errors.full_name && <p className="auth-error">{errors.full_name}</p>}
                       </label>
                       <label className="field">
                         <span>Email Address</span>
                         <input placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                        {errors.email && <p className="auth-error">{errors.email}</p>}
                       </label>
                       <label className="field">
                         <span>Phone Number</span>
                         <input placeholder="0900 000 0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                        {errors.phone && <p className="auth-error">{errors.phone}</p>}
                       </label>
                       {form.service_type === "event" && (
                         <label className="field">
@@ -637,6 +776,7 @@ export default function QuoteWizard() {
                         />
                         I agree to the Terms and Conditions and understand that this is a request for a quote, not a confirmed booking.
                       </label>
+                      {errors.agree_terms && <p className="auth-error">{errors.agree_terms}</p>}
                       <label className="choice">
                         <input
                           type="checkbox"
@@ -645,6 +785,7 @@ export default function QuoteWizard() {
                         />
                         I have read the Privacy Policy.
                       </label>
+                      {errors.agree_privacy && <p className="auth-error">{errors.agree_privacy}</p>}
                     </div>
                     {error && <p className="auth-error">{error}</p>}
                     <div className="booking-tip info">
@@ -670,6 +811,7 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Event Type</span>
                         <input placeholder="Birthday" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
+                        {errors.event_type && <p className="auth-error">{errors.event_type}</p>}
                       </label>
                       <label className="field">
                         <span>Event Theme or Colors</span>
@@ -678,18 +820,22 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Event Date</span>
                         <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">
                         <span>Event Start Time</span>
                         <input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+                        {errors.start_time && <p className="auth-error">{errors.start_time}</p>}
                       </label>
                       <label className="field">
                         <span>Estimated Guest Count</span>
                         <input placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
+                        {errors.guest_count && <p className="auth-error">{errors.guest_count}</p>}
                       </label>
                       <label className="field">
                         <span>Event Duration (hours)</span>
                         <input placeholder="2 hours" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
+                        {errors.duration_hours && <p className="auth-error">{errors.duration_hours}</p>}
                       </label>
                     </div>
                     <div className="booking-actions split">
@@ -708,6 +854,7 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Venue Type</span>
                         <input placeholder="Covered court" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value })} />
+                        {errors.venue_type && <p className="auth-error">{errors.venue_type}</p>}
                       </label>
                       <label className="field">
                         <span>Venue Size</span>
@@ -716,26 +863,32 @@ export default function QuoteWizard() {
                       <label className="field">
                         <span>Indoor or Outdoor</span>
                         <input placeholder="Indoor" value={form.indoor_outdoor} onChange={(e) => setForm({ ...form, indoor_outdoor: e.target.value })} />
+                        {errors.indoor_outdoor && <p className="auth-error">{errors.indoor_outdoor}</p>}
                       </label>
                       <label className="field">
                         <span>Province</span>
                         <input placeholder="Nueva Ecija" value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
+                        {errors.province && <p className="auth-error">{errors.province}</p>}
                       </label>
                       <label className="field">
                         <span>Municipality</span>
                         <input placeholder="General M. Natividad" value={form.municipality} onChange={(e) => setForm({ ...form, municipality: e.target.value })} />
+                        {errors.municipality && <p className="auth-error">{errors.municipality}</p>}
                       </label>
                       <label className="field">
                         <span>Barangay</span>
                         <input placeholder="Mataas na Kahoy" value={form.barangay} onChange={(e) => setForm({ ...form, barangay: e.target.value })} />
+                        {errors.barangay && <p className="auth-error">{errors.barangay}</p>}
                       </label>
                       <label className="field">
                         <span>Street Name</span>
                         <input placeholder="Purok 4" value={form.street} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+                        {errors.street && <p className="auth-error">{errors.street}</p>}
                       </label>
                       <label className="field">
                         <span>Zip Code</span>
                         <input placeholder="3125" value={form.zip_code} onChange={(e) => setForm({ ...form, zip_code: e.target.value })} />
+                        {errors.zip_code && <p className="auth-error">{errors.zip_code}</p>}
                       </label>
                       <label className="field">
                         <span>Landmark</span>
@@ -767,6 +920,7 @@ export default function QuoteWizard() {
                         </button>
                       ))}
                     </div>
+                    {errors.budget_range && <p className="auth-error">{errors.budget_range}</p>}
                     <div className="booking-actions split">
                       <button className="btn-outline" onClick={back}>Back</button>
                       <button className="btn" onClick={next}>Next Step</button>

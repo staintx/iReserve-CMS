@@ -24,7 +24,7 @@ export default function Login() {
         navigate("/customer/home");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      setError(err.response?.data?.message || "We could not sign you in. Check your email and password and try again.");
     }
   };
 

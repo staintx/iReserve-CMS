@@ -36,7 +36,7 @@ export default function AdminMenu() {
         notify("Menu item created.", "success");
       }
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to save menu item.", "error");
+      notify(err.response?.data?.message || "We could not save the menu item. Please try again.", "error");
       return;
     }
 
@@ -50,14 +50,14 @@ export default function AdminMenu() {
         notify("Menu item deleted.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to delete menu item.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not delete the menu item. Please try again.", "error"));
   const toggleAvailability = (item) =>
     AdminAPI.updateMenu(item._id, { ...item, available: !item.available })
       .then(() => {
         notify(item.available ? "Menu item disabled." : "Menu item enabled.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to update menu item.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not update the menu item. Please try again.", "error"));
 
   const list = menu;
   const filtered = list.filter((item) =>

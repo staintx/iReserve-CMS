@@ -2,15 +2,26 @@ import { useState } from "react";
 import { CustomerAPI } from "../../api/customer";
 import { useNavigate } from "react-router-dom";
 import AuthForgotPasswordForm from "../../components/forms/AuthForgotPasswordForm";
+import useToast from "../../hooks/useToast";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { notify } = useToast();
 
   const submit = async (e) => {
     e.preventDefault();
-    await CustomerAPI.forgotPassword({ email });
-    navigate("/forgot-password/sent");
+    setError("");
+    try {
+      await CustomerAPI.forgotPassword({ email });
+      notify("Reset link sent. Check your email.", "success");
+      navigate("/forgot-password/sent");
+    } catch (err) {
+      const message = err.response?.data?.message || "We could not send the reset link. Please try again.";
+      setError(message);
+      notify(message, "error");
+    }
   };
 
   return (
@@ -22,6 +33,7 @@ export default function ForgotPassword() {
       <div className="auth-right">
         <AuthForgotPasswordForm
           email={email}
+          error={error}
           onEmailChange={(e) => setEmail(e.target.value)}
           onSubmit={submit}
         />

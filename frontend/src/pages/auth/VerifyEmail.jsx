@@ -11,7 +11,7 @@ export default function VerifyEmail() {
   const initialEmail = params.get("email") || "";
   const [email, setEmail] = useState(initialEmail);
   const [otp, setOtp] = useState("");
-  const [status, setStatus] = useState({ loading: Boolean(token), message: "" });
+  const [status, setStatus] = useState({ loading: Boolean(token), message: "", tone: "info" });
 
   useEffect(() => {
     const verify = async () => {
@@ -19,9 +19,9 @@ export default function VerifyEmail() {
 
       try {
         const { data } = await CustomerAPI.verifyEmail(token);
-        setStatus({ loading: false, message: data.message || "Email verified." });
+        setStatus({ loading: false, message: data.message || "Email verified. You can sign in now.", tone: "success" });
       } catch (err) {
-        setStatus({ loading: false, message: err.response?.data?.message || "Verification failed." });
+        setStatus({ loading: false, message: err.response?.data?.message || "We could not verify your email. Please try again.", tone: "error" });
       }
     };
 
@@ -30,22 +30,22 @@ export default function VerifyEmail() {
 
   const submitOtp = async (e) => {
     e.preventDefault();
-    setStatus({ loading: true, message: "" });
+    setStatus({ loading: true, message: "", tone: "info" });
     try {
       const { data } = await CustomerAPI.verifyOtp({ email, otp });
-      setStatus({ loading: false, message: data.message || "Email verified." });
+      setStatus({ loading: false, message: data.message || "Email verified. You can sign in now.", tone: "success" });
     } catch (err) {
-      setStatus({ loading: false, message: err.response?.data?.message || "Verification failed." });
+      setStatus({ loading: false, message: err.response?.data?.message || "We could not verify that code. Please try again.", tone: "error" });
     }
   };
 
   const resendOtp = async () => {
-    setStatus({ loading: true, message: "" });
+    setStatus({ loading: true, message: "", tone: "info" });
     try {
       const { data } = await CustomerAPI.resendOtp({ email });
-      setStatus({ loading: false, message: data.message || "OTP sent." });
+      setStatus({ loading: false, message: data.message || "OTP sent. Check your inbox.", tone: "success" });
     } catch (err) {
-      setStatus({ loading: false, message: err.response?.data?.message || "Failed to resend OTP." });
+      setStatus({ loading: false, message: err.response?.data?.message || "We could not resend the OTP. Please try again.", tone: "error" });
     }
   };
 

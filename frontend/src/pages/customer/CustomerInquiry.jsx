@@ -58,7 +58,7 @@ export default function CustomerInquiry() {
       await CustomerAPI.submitInquiry(payload);
       notify("Inquiry submitted.", "success");
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to submit inquiry.", "error");
+      notify(err.response?.data?.message || "We could not submit your inquiry. Please try again.", "error");
     }
   };
 

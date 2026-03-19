@@ -29,12 +29,17 @@ export default function AdminManagers({ defaultTab = "managers" }) {
       is_active: form.is_active
     };
 
-    if (form._id) {
-      await AdminAPI.updateStaff(form._id, payload);
-      notify("Account updated.", "success");
-    } else {
-      await AdminAPI.createStaff(payload);
-      notify("Account created.", "success");
+    try {
+      if (form._id) {
+        await AdminAPI.updateStaff(form._id, payload);
+        notify("Account updated.", "success");
+      } else {
+        await AdminAPI.createStaff(payload);
+        notify("Account created.", "success");
+      }
+    } catch (err) {
+      notify(err.response?.data?.message || "We could not save the account. Please try again.", "error");
+      return;
     }
 
     setShow(false);
@@ -61,7 +66,7 @@ export default function AdminManagers({ defaultTab = "managers" }) {
         notify("Account deleted.", "success");
         load();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to delete account.", "error"));
+      .catch((err) => notify(err.response?.data?.message || "We could not delete the account. Please try again.", "error"));
 
   const managers = staff.filter((m) => m.role === "manager");
   const staffMembers = staff.filter((m) => m.role === "staff");

@@ -14,7 +14,7 @@ export default function Signup() {
     setError("");
 
     if (form.password !== form.confirm) {
-      setError("Passwords do not match");
+      setError("Passwords do not match. Please re-enter them.");
       return;
     }
 
@@ -28,7 +28,7 @@ export default function Signup() {
         state: { registered: true }
       });
     } catch (err) {
-      setError(err.response?.data?.message || "Signup failed");
+      setError(err.response?.data?.message || "We could not create your account. Please try again.");
     }
   };
 

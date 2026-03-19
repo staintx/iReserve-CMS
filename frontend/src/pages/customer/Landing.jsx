@@ -1,8 +1,105 @@
 import CustomerLayout from "../../components/layout/CustomerLayout";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+const HERO_MESSAGES = [
+  {
+    title: "Delicious Catering for your Special Events",
+    description: "Creating unforgettable culinary experiences with exceptional service"
+  },
+  {
+    title: "Fresh Menus Crafted by Experts",
+    description: "From appetizers to desserts, every dish is prepared to impress your guests."
+  },
+  {
+    title: "Elegant Setups for Every Celebration",
+    description: "Beautiful food presentation and full-service planning for weddings, birthdays, and more."
+  },
+  {
+    title: "Reliable Team, Memorable Experience",
+    description: "Professional staff and seamless coordination so you can enjoy your event stress-free."
+  }
+];
+
+const HERO_IMAGE_POOL = [
+  "https://images.pexels.com/photos/5638732/pexels-photo-5638732.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/5779787/pexels-photo-5779787.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/5876397/pexels-photo-5876397.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/4553035/pexels-photo-4553035.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/5779818/pexels-photo-5779818.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/5638748/pexels-photo-5638748.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/5638730/pexels-photo-5638730.jpeg?auto=compress&cs=tinysrgb&w=1600",
+  "https://images.pexels.com/photos/5638698/pexels-photo-5638698.jpeg?auto=compress&cs=tinysrgb&w=1600"
+];
+
+const SWIPE_THRESHOLD = 45;
+
+const buildHeroSlides = () => {
+  const shuffledImages = [...HERO_IMAGE_POOL]
+    .map((imageUrl, index) => ({ imageUrl, order: Math.random() + index }))
+    .sort((left, right) => left.order - right.order)
+    .map((item) => item.imageUrl);
+
+  return HERO_MESSAGES.map((slide, index) => ({
+    ...slide,
+    image: shuffledImages[index % shuffledImages.length]
+  }));
+};
 
 export default function Landing() {
   const navigate = useNavigate();
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [heroSlides] = useState(() => buildHeroSlides());
+  const swipeStartXRef = useRef(null);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % heroSlides.length);
+    }, 6000);
+
+    return () => window.clearInterval(intervalId);
+  }, [heroSlides.length]);
+
+  const goToSlide = (slideIndex) => {
+    setActiveSlide(slideIndex);
+  };
+
+  const goToPreviousSlide = () => {
+    setActiveSlide((current) => (current - 1 + heroSlides.length) % heroSlides.length);
+  };
+
+  const goToNextSlide = () => {
+    setActiveSlide((current) => (current + 1) % heroSlides.length);
+  };
+
+  const handleSwipeStart = (event) => {
+    swipeStartXRef.current = event.clientX;
+  };
+
+  const resetSwipe = () => {
+    swipeStartXRef.current = null;
+  };
+
+  const handleSwipeEnd = (event) => {
+    if (swipeStartXRef.current === null) {
+      return;
+    }
+
+    const swipeDistance = event.clientX - swipeStartXRef.current;
+    resetSwipe();
+
+    if (Math.abs(swipeDistance) < SWIPE_THRESHOLD) {
+      return;
+    }
+
+    if (swipeDistance < 0) {
+      goToNextSlide();
+      return;
+    }
+
+    goToPreviousSlide();
+  };
+
   const eventTypes = [
     { label: "Weddings", icon: "💍" },
     { label: "Corp Events", icon: "💼" },
@@ -26,16 +123,37 @@ export default function Landing() {
 
   return (
     <CustomerLayout>
-      <section className="landing-hero">
+      <section
+        className="landing-hero"
+        onPointerDown={handleSwipeStart}
+        onPointerUp={handleSwipeEnd}
+        onPointerCancel={resetSwipe}
+        onPointerLeave={resetSwipe}
+      >
+        <div className="landing-hero-track" aria-hidden="true">
+          {heroSlides.map((slide, index) => (
+            <div
+              key={`${slide.image}-${index}`}
+              className={`landing-hero-slide ${index === activeSlide ? "active" : ""}`}
+              style={{ backgroundImage: `url(${slide.image})` }}
+            />
+          ))}
+        </div>
         <div className="landing-hero-content">
-          <h1>Delicious Catering for your Special Events</h1>
-          <p>Creating unforgettable culinary experiences with exceptional service and exquisite flavors.</p>
+          <h1>{heroSlides[activeSlide].title}</h1>
+          <p>{heroSlides[activeSlide].description}</p>
           <button className="btn" onClick={() => navigate("/customer/book")}>Get Started</button>
           <div className="landing-dots">
-            <span className="landing-dot" />
-            <span className="landing-dot" />
-            <span className="landing-dot" />
-            <span className="landing-dot active" />
+            {heroSlides.map((slide, index) => (
+              <button
+                key={`${slide.image}-${index}`}
+                type="button"
+                className={`landing-dot ${index === activeSlide ? "active" : ""}`}
+                onClick={() => goToSlide(index)}
+                aria-label={`Show hero image ${index + 1}`}
+                aria-pressed={index === activeSlide}
+              />
+            ))}
           </div>
         </div>
       </section>

@@ -45,6 +45,10 @@ import AdminReports from "../pages/admin/AdminReports";
 import AdminRatings from "../pages/admin/AdminRatings";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
 import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
+import AdminInquiryQuote from "../pages/admin/AdminInquiryQuote";
+import ManagerDashboard from "../pages/manager/ManagerDashboard";
+import ManagerBookings from "../pages/manager/ManagerBookings";
+import ManagerStaff from "../pages/manager/ManagerStaff";
 
 const adminRoles = ["admin", "manager", "staff"];
 const managerRoles = ["admin", "manager"];
@@ -53,16 +57,17 @@ const adminOnly = ["admin"];
 export default function AppRoutes() {
   const { user } = useAuth();
   const isAdmin = adminRoles.includes(user?.role);
+  const isManager = user?.role === "manager";
 
   return (
     <BrowserRouter>
       <Routes>
         {/* Public pages */}
-        <Route path="/" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Landing />} />
-        <Route path="/packages" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Packages />} />
-        <Route path="/packages/:id" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <PackageDetails />} />
-        <Route path="/menu" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Menu />} />
-        <Route path="/gallery" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Gallery />} />
+        <Route path="/" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Landing />} />
+        <Route path="/packages" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Packages />} />
+        <Route path="/packages/:id" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <PackageDetails />} />
+        <Route path="/menu" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Menu />} />
+        <Route path="/gallery" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Gallery />} />
 
         {/* Auth */}
         <Route path="/login" element={<Login />} />
@@ -89,6 +94,7 @@ export default function AppRoutes() {
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminRoles}><AdminDashboard /></ProtectedRoute>} />
         <Route path="/admin/inquiries" element={<ProtectedRoute allowedRoles={managerRoles}><AdminInquiries /></ProtectedRoute>} />
+        <Route path="/admin/inquiries/:id/quote" element={<ProtectedRoute allowedRoles={managerRoles}><AdminInquiryQuote /></ProtectedRoute>} />
         <Route path="/admin/payment-approvals" element={<ProtectedRoute allowedRoles={managerRoles}><AdminPaymentApprovals /></ProtectedRoute>} />
         <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminRoles}><AdminMessagesList /></ProtectedRoute>} />
         <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminRoles}><AdminMessagesChat /></ProtectedRoute>} />
@@ -106,7 +112,12 @@ export default function AppRoutes() {
         <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
         <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
 
-        <Route path="*" element={isAdmin ? <Navigate to="/admin/dashboard" /> : <Landing />} />
+        {/* Manager (protected by role) */}
+        <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
+        <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
+        <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerStaff /></ProtectedRoute>} />
+
+        <Route path="*" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Landing />} />
       </Routes>
     </BrowserRouter>
   );

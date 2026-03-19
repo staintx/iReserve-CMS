@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
+import useToast from "../../hooks/useToast";
 
 export default function CustomerInquiries() {
   const navigate = useNavigate();
   const [inquiries, setInquiries] = useState([]);
+  const { notify } = useToast();
 
   const load = () => {
     CustomerAPI.getInquiries()
@@ -18,7 +20,12 @@ export default function CustomerInquiries() {
   }, []);
 
   const cancelInquiry = (id) => {
-    CustomerAPI.cancelInquiry(id).then(load);
+    CustomerAPI.cancelInquiry(id)
+      .then(() => {
+        notify("Inquiry cancelled.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to cancel inquiry.", "error"));
   };
 
   return (

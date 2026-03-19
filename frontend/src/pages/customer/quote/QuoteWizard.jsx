@@ -3,6 +3,7 @@ import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import useToast from "../../../hooks/useToast";
 
 const stepsByService = {
   food: ["Event Information", "Delivery Address", "Menu Selection", "Dietary Needs", "Contact"],
@@ -78,6 +79,7 @@ export default function QuoteWizard() {
   const [menuItems, setMenuItems] = useState([]);
   const [menuFilter, setMenuFilter] = useState(menuTabs[0]);
   const [error, setError] = useState("");
+  const { notify } = useToast();
   const [form, setForm] = useState({
     customer_id: user?._id || "",
     service_type: "food",
@@ -178,6 +180,11 @@ export default function QuoteWizard() {
     return "We will guide you through menu selection, dietary preferences, and beverage options.";
   };
 
+  const parseNumber = (value) => {
+    const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
   const submit = async () => {
     setError("");
     if (!form.agree_terms || !form.agree_privacy) {
@@ -185,10 +192,18 @@ export default function QuoteWizard() {
       return;
     }
     try {
-      await CustomerAPI.submitQuote(form);
-      alert("Quote submitted!");
+      const payload = {
+        ...form,
+        guest_count: parseNumber(form.guest_count),
+        duration_hours: parseNumber(form.duration_hours)
+      };
+
+      await CustomerAPI.submitQuote(payload);
+      notify("Quote submitted.", "success");
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to submit quote.");
+      const message = err.response?.data?.message || "Failed to submit quote.";
+      setError(message);
+      notify(message, "error");
     }
   };
 

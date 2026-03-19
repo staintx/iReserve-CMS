@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import Modal from "../../components/common/Modal";
+import useToast from "../../hooks/useToast";
 
 export default function AdminGallery() {
   const [items, setItems] = useState([]);
@@ -9,6 +10,7 @@ export default function AdminGallery() {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
+  const { notify } = useToast();
 
   const load = () => AdminAPI.getGallery().then((res) => setItems(Array.isArray(res.data) ? res.data : []));
   const loadFoods = () => AdminAPI.getMenu().then((res) => setFoods(Array.isArray(res.data) ? res.data : []));
@@ -19,28 +21,33 @@ export default function AdminGallery() {
     Object.entries(form).forEach(([k, v]) => data.append(k, v));
     if (file) data.append("image", file);
 
-    if (form._id) await AdminAPI.updateGallery(form._id, data);
-    else await AdminAPI.createGallery(data);
+    try {
+      if (form._id) {
+        await AdminAPI.updateGallery(form._id, data);
+        notify("Gallery item updated.", "success");
+      } else {
+        await AdminAPI.createGallery(data);
+        notify("Gallery item created.", "success");
+      }
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to save gallery item.", "error");
+      return;
+    }
 
     setShow(false); setForm({}); setFile(null); load();
   };
 
   const edit = (g) => { setForm(g); setShow(true); };
-  const remove = (id) => AdminAPI.deleteGallery(id).then(load);
+  const remove = (id) =>
+    AdminAPI.deleteGallery(id)
+      .then(() => {
+        notify("Gallery item deleted.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete gallery item.", "error"));
 
-  const mockGallery = [
-    { _id: "mock-1", title: "Weddings", category: "Weddings" },
-    { _id: "mock-2", title: "Corporate Events", category: "Corporate Events" },
-    { _id: "mock-3", title: "Birthday", category: "Birthday" }
-  ];
-  const mockFoods = [
-    { _id: "mock-food-1", name: "Herb Roasted Chicken" },
-    { _id: "mock-food-2", name: "Grilled Chicken" },
-    { _id: "mock-food-3", name: "Carbonara" }
-  ];
-
-  const list = items.length > 0 ? items : mockGallery;
-  const foodList = foods.length > 0 ? foods : mockFoods;
+  const list = items;
+  const foodList = foods;
 
   return (
     <AdminLayout>
@@ -60,6 +67,7 @@ export default function AdminGallery() {
 
       <h3>Our Gallery</h3>
       <div className="gallery-grid" style={{ marginTop: "12px" }}>
+        {list.length === 0 && <p>No gallery items yet.</p>}
         {list.map((g) => (
           <div className="gallery-card" key={g._id}>
             {g.image_url ? (
@@ -70,12 +78,8 @@ export default function AdminGallery() {
             <div className="gallery-card-body">
               <strong>{g.title}</strong>
               <div className="actions">
-                {g._id?.startsWith("mock-") ? null : (
-                  <>
-                    <button className="btn-outline" onClick={() => edit(g)}>Edit</button>
-                    <button className="btn-danger" onClick={() => remove(g._id)}>Delete</button>
-                  </>
-                )}
+                <button className="btn-outline" onClick={() => edit(g)}>Edit</button>
+                <button className="btn-danger" onClick={() => remove(g._id)}>Delete</button>
               </div>
             </div>
           </div>
@@ -84,6 +88,7 @@ export default function AdminGallery() {
 
       <h3 style={{ marginTop: "18px" }}>Our Food</h3>
       <div className="gallery-grid" style={{ marginTop: "12px" }}>
+        {foodList.length === 0 && <p>No menu items available.</p>}
         {foodList.map((food) => (
           <div className="gallery-card" key={food._id}>
             {food.image_url ? (

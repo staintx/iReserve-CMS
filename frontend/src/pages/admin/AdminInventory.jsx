@@ -4,12 +4,14 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import Modal from "../../components/common/Modal";
 import AdminInventoryTable from "../../components/tables/AdminInventoryTable";
 import AdminInventoryForm from "../../components/forms/AdminInventoryForm";
+import useToast from "../../hooks/useToast";
 
 export default function AdminInventory() {
   const [items, setItems] = useState([]);
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ available: true });
   const [query, setQuery] = useState("");
+  const { notify } = useToast();
 
   const load = () => AdminAPI.getInventory().then((res) => setItems(Array.isArray(res.data) ? res.data : []));
   useEffect(() => {
@@ -17,15 +19,38 @@ export default function AdminInventory() {
   }, []);
 
   const submit = async () => {
-    if (form._id) await AdminAPI.updateInventory(form._id, form);
-    else await AdminAPI.createInventory(form);
-    setShow(false); setForm({ available: true }); load();
+    try {
+      if (form._id) {
+        await AdminAPI.updateInventory(form._id, form);
+        notify("Inventory item updated.", "success");
+      } else {
+        await AdminAPI.createInventory(form);
+        notify("Inventory item created.", "success");
+      }
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to save inventory item.", "error");
+      return;
+    }
+    setShow(false);
+    setForm({ available: true });
+    load();
   };
 
   const edit = (i) => { setForm(i); setShow(true); };
-  const remove = (id) => AdminAPI.deleteInventory(id).then(load);
+  const remove = (id) =>
+    AdminAPI.deleteInventory(id)
+      .then(() => {
+        notify("Inventory item deleted.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete inventory item.", "error"));
   const toggleAvailability = (item) =>
-    AdminAPI.updateInventory(item._id, { ...item, available: !item.available }).then(load);
+    AdminAPI.updateInventory(item._id, { ...item, available: !item.available })
+      .then(() => {
+        notify(item.available ? "Inventory item disabled." : "Inventory item enabled.", "success");
+        load();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to update inventory item.", "error"));
 
   const mockItems = [
     { _id: "mock-1", item_name: "Chairs", quantity: 150, category: "Furniture", available: true },

@@ -2,9 +2,11 @@ import { useState } from "react";
 import CustomerLayout from "../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../api/customer";
 import useAuth from "../../hooks/useAuth";
+import useToast from "../../hooks/useToast";
 
 export default function CustomerInquiry() {
   const { user } = useAuth();
+  const { notify } = useToast();
   const [form, setForm] = useState({
     event_type: "",
     event_date: "",
@@ -52,8 +54,12 @@ export default function CustomerInquiry() {
       selected_menu: form.selected_menu ? parseMenuItems(form.selected_menu) : []
     };
 
-    await CustomerAPI.submitInquiry(payload);
-    alert("Inquiry submitted!");
+    try {
+      await CustomerAPI.submitInquiry(payload);
+      notify("Inquiry submitted.", "success");
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to submit inquiry.", "error");
+    }
   };
 
   return (

@@ -98,8 +98,7 @@
     overflow: hidden;
     border-radius: 32px;
     padding: 72px 56px;
-    background: linear-gradient(120deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.35)),
-      url("/hero.jpg") center/cover no-repeat;
+    background: linear-gradient(120deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.35));
     color: #fff;
   }
 
@@ -121,6 +120,15 @@
 
   .cta {
     @apply p-10 text-center text-white rounded-3xl bg-ink-900 shadow-lift;
+  }
+
+  .landing-cta {
+    @apply rounded-b-none shadow-none;
+  }
+
+  .landing-cta-surface {
+    @apply mt-10 p-10 text-center text-white rounded-3xl rounded-b-none shadow-none;
+    @apply bg-gradient-to-r from-blue-500 via-slate-500 to-sand-300;
   }
 
   .table {
@@ -416,6 +424,46 @@
     @apply text-2xl text-center;
   }
 
+  .event-types-row {
+    @apply mt-6 flex flex-nowrap justify-center gap-4 overflow-x-auto pb-2;
+  }
+
+  .event-type-card {
+    @apply flex w-36 shrink-0 flex-col items-center justify-center rounded-2xl bg-white p-5 text-center shadow-soft;
+  }
+
+  .event-type-icon {
+    @apply grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-3xl;
+  }
+
+  .event-type-label {
+    @apply mt-2 text-sm font-medium text-slate-700;
+  }
+
+  .how-works-row {
+    @apply mt-10 grid gap-10 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .how-works-item {
+    @apply flex flex-col items-center text-center;
+  }
+
+  .how-works-icon {
+    @apply grid h-16 w-16 place-items-center rounded-full bg-blue-100 text-blue-600;
+  }
+
+  .how-works-icon svg {
+    @apply h-7 w-7;
+  }
+
+  .how-works-title {
+    @apply mt-4 text-sm font-semibold;
+  }
+
+  .how-works-text {
+    @apply mt-2 max-w-[13rem] text-xs text-slate-500;
+  }
+
   .landing-card {
     @apply p-5 text-center bg-white rounded-2xl shadow-soft;
   }
@@ -486,7 +534,52 @@
   }
 
   .landing-footer {
-    @apply p-10 mt-16 text-white rounded-3xl bg-ink-900;
+    @apply p-10 mt-0 text-white rounded-3xl rounded-t-none bg-ink-900;
+  }
+
+  .footer-brand {
+    @apply flex items-start gap-3;
+  }
+
+  .footer-logo {
+    @apply h-10 w-10 rounded-md bg-white object-cover;
+  }
+
+  .footer-brand-title {
+    @apply text-sm font-semibold text-white;
+  }
+
+  .footer-contact {
+    @apply mt-2 flex flex-col gap-2;
+  }
+
+  .footer-contact-item {
+    @apply flex items-start gap-2 text-xs text-white/70;
+  }
+
+  .footer-contact-icon {
+    @apply mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md bg-white/10 text-white/80;
+    flex: 0 0 auto;
+  }
+
+  .footer-contact-icon svg {
+    @apply h-3.5 w-3.5;
+  }
+
+  .footer-social {
+    @apply mt-4 flex items-center gap-3;
+  }
+
+  .footer-social a {
+    @apply mt-0 grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/80 transition;
+  }
+
+  .footer-social a:hover {
+    @apply bg-white/20 text-white;
+  }
+
+  .footer-social svg {
+    @apply h-4 w-4;
   }
 
   .footer-grid {
@@ -494,7 +587,7 @@
   }
 
   .landing-footer h4 {
-    @apply text-sm font-semibold;
+    @apply text-sm font-semibold text-white;
   }
 
   .landing-footer p, .landing-footer a {

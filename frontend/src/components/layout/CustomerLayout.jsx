@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
@@ -6,10 +6,51 @@ import logo from "../../assets/images/logo.jpg";
 export default function CustomerLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const navClass = ({ isActive }) =>
     `text-sm font-semibold transition ${isActive ? "text-ink-900" : "text-ink-700 hover:text-ink-900"}`;
+
+  const scrollToSection = (sectionId) => {
+    if (sectionId === "top") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const sectionLinkClass = (sectionId) => {
+    const isLanding = location.pathname === "/";
+    const activeHash = location.hash || "";
+
+    const isActive =
+      isLanding &&
+      ((sectionId === "top" && (!activeHash || activeHash === "#top")) || activeHash === `#${sectionId}`);
+
+    return navClass({ isActive });
+  };
+
+  const handleSectionNav = (sectionId) => (event) => {
+    event.preventDefault();
+    setMenuOpen(false);
+
+    const destination = sectionId === "top" ? "/#top" : `/#${sectionId}`;
+
+    if (location.pathname !== "/") {
+      navigate(destination);
+      return;
+    }
+
+    if ((location.hash || "") !== `#${sectionId}`) {
+      navigate(destination);
+    }
+
+    scrollToSection(sectionId);
+  };
   const initials = (() => {
     const name = user?.full_name || user?.email || "";
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -42,11 +83,11 @@ export default function CustomerLayout({ children }) {
           </div>
 
           <nav className="items-center hidden gap-6 md:flex">
-            <NavLink to="/" className={navClass}>Home</NavLink>
-            <NavLink to="/packages" className={navClass}>Packages</NavLink>
-            <NavLink to="/gallery" className={navClass}>Gallery</NavLink>
-            <a className={navClass({ isActive: false })} href="/#about">About Us</a>
-            <a className={navClass({ isActive: false })} href="/#contact">Contact</a>
+            <a href="/#top" className={sectionLinkClass("top")} onClick={handleSectionNav("top")}>Home</a>
+            <a href="/#packages" className={sectionLinkClass("packages")} onClick={handleSectionNav("packages")}>Packages</a>
+            <a href="/#gallery" className={sectionLinkClass("gallery")} onClick={handleSectionNav("gallery")}>Gallery</a>
+            <a href="/#testimonials" className={sectionLinkClass("testimonials")} onClick={handleSectionNav("testimonials")}>About Us</a>
+            <a href="/#contact" className={sectionLinkClass("contact")} onClick={handleSectionNav("contact")}>Contact</a>
             {user && <NavLink to="/customer/book" className={navClass}>Book Now</NavLink>}
           </nav>
 

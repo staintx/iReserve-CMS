@@ -6,6 +6,7 @@ export const CustomerAPI = {
   getPackageById: (id) => api.get(`/packages/${id}`),
   getMenu: () => api.get("/menu"),
   getGallery: () => api.get("/gallery"),
+  getRatings: () => api.get("/ratings/public"),
 
   // auth
   register: (data) => api.post("/auth/register", data),

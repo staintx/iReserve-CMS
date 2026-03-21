@@ -4,3 +4,12 @@ exports.create = async (req, res) => res.status(201).json(await Rating.create(re
 exports.getAll = async (req, res) => res.json(await Rating.find().populate("customer_id booking_id"));
 exports.getById = async (req, res) => res.json(await Rating.findById(req.params.id).populate("customer_id booking_id"));
 exports.remove = async (req, res) => { await Rating.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); };
+
+exports.getPublic = async (req, res) => {
+	const ratings = await Rating.find()
+		.select("stars review customer_id createdAt")
+		.populate({ path: "customer_id", select: "full_name" })
+		.sort({ createdAt: -1 });
+
+	res.json(ratings);
+};

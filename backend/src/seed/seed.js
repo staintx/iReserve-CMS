@@ -26,33 +26,6 @@ const seed = async () => {
       role: "admin"
     });
 
-    await Package.insertMany([
-      {
-        name: "Birthday Package 1",
-        description: "Perfect for small birthday gatherings",
-        size: "20x20",
-        price_min: 15000,
-        price_max: 17000,
-        inclusions: ["Basic setup", "Buffet"],
-        add_ons: ["Cake table", "Balloon decor"]
-      },
-      {
-        name: "Wedding Package 2",
-        description: "Elegant wedding catering package",
-        size: "50x50",
-        price_min: 50000,
-        price_max: 70000,
-        inclusions: ["Stage setup", "Buffet", "Host"],
-        add_ons: ["Premium decor", "Live band"]
-      }
-    ]);
-
-    await MenuItem.insertMany([
-      { name: "Grilled Chicken", description: "Juicy grilled chicken", category: "Main Course" },
-      { name: "Caesar Salad", description: "Fresh romaine with dressing", category: "Appetizer" },
-      { name: "Chocolate Cake", description: "Rich chocolate dessert", category: "Dessert" }
-    ]);
-
     console.log("✅ Seed data inserted");
     process.exit();
   } catch (err) {

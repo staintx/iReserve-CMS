@@ -345,8 +345,29 @@
   }
 
   .landing-hero {
-    @apply relative overflow-hidden rounded-3xl bg-[url('/hero.jpg')] bg-cover bg-center text-white shadow-soft;
+    @apply relative overflow-hidden rounded-3xl bg-slate-900 text-white shadow-soft;
     min-height: 420px;
+    isolation: isolate;
+  }
+
+  .landing-hero-track {
+    position: absolute;
+    inset: 0;
+  }
+
+  .landing-hero-slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transform: scale(1.06);
+    transition: opacity 450ms ease, transform 6s ease;
+  }
+
+  .landing-hero-slide.active {
+    opacity: 1;
+    transform: scale(1);
   }
 
   .landing-hero::after {
@@ -354,10 +375,12 @@
     position: absolute;
     inset: 0;
     background: linear-gradient(180deg, rgba(15, 23, 42, 0.15), rgba(15, 23, 42, 0.7));
+    z-index: 1;
+    pointer-events: none;
   }
 
   .landing-hero-content {
-    @apply relative z-10 max-w-2xl p-12;
+    @apply relative z-10 mx-auto flex min-h-[420px] max-w-2xl flex-col items-center justify-center p-12 text-center;
   }
 
   .landing-hero-content h1 {
@@ -373,11 +396,20 @@
   }
 
   .landing-dot {
-    @apply w-2 h-2 rounded-full bg-white/50;
+    @apply w-2.5 h-2.5 rounded-full bg-white/50 transition;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
   }
 
   .landing-dot.active {
     @apply bg-white;
+    transform: scale(1.15);
+  }
+
+  .landing-dot:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 3px;
   }
 
   .landing-section h2 {

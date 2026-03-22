@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const PackageSchema = new mongoose.Schema({
   name: String,
   description: String,
+  fullDescription: String,
   size: String,
   price_min: Number,
   price_max: Number,

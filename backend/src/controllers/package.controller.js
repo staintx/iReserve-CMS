@@ -10,6 +10,11 @@ const normalizeList = (value) => {
   return [];
 };
 
+const canViewUnavailable = (user) => {
+  if (!user) return false;
+  return ["admin", "manager", "staff"].includes(user.role);
+};
+
 exports.create = async (req, res) => {
   let image_url = "";
   if (req.file) {
@@ -25,8 +30,20 @@ exports.create = async (req, res) => {
   res.status(201).json(await Package.create(payload));
 };
 
-exports.getAll = async (req, res) => res.json(await Package.find());
-exports.getById = async (req, res) => res.json(await Package.findById(req.params.id));
+exports.getAll = async (req, res) => {
+  const query = canViewUnavailable(req.user) ? {} : { available: true };
+  res.json(await Package.find(query));
+};
+
+exports.getById = async (req, res) => {
+  const query = canViewUnavailable(req.user)
+    ? { _id: req.params.id }
+    : { _id: req.params.id, available: true };
+
+  const pkg = await Package.findOne(query);
+  if (!pkg) return res.status(404).json({ message: "Package not found" });
+  res.json(pkg);
+};
 
 exports.update = async (req, res) => {
   let data = {

@@ -13,3 +13,19 @@ exports.protect = async (req, res, next) => {
     res.status(401).json({ message: "Invalid token" });
   }
 };
+
+// Optional auth for public routes: if a valid token exists, attach req.user.
+// If no token (or invalid token), continue as anonymous.
+exports.optionalProtect = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return next();
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id).select("-password");
+  } catch (err) {
+    // Ignore invalid token for public endpoints.
+  }
+
+  next();
+};

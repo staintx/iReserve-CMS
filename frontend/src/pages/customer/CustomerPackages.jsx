@@ -6,7 +6,10 @@ export default function CustomerPackages() {
   const [packages, setPackages] = useState([]);
 
   useEffect(() => {
-    CustomerAPI.getPackages().then((res) => setPackages(res.data));
+    CustomerAPI.getPackages().then((res) => {
+      const next = Array.isArray(res.data) ? res.data : [];
+      setPackages(next.filter((pkg) => pkg?.available !== false));
+    });
   }, []);
 
   return (

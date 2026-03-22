@@ -9,8 +9,26 @@ export default function PackageDetails() {
   const [pkg, setPkg] = useState(null);
 
   useEffect(() => {
-    CustomerAPI.getPackageById(id).then((res) => setPkg(res.data));
-  }, [id]);
+    let isMounted = true;
+
+    CustomerAPI.getPackageById(id)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res?.data?.available === false) {
+          navigate("/packages", { replace: true });
+          return;
+        }
+        setPkg(res.data);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        navigate("/packages", { replace: true });
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, navigate]);
 
   if (!pkg) return null;
 
@@ -47,7 +65,7 @@ export default function PackageDetails() {
           <section className="package-panel">
             <div className="package-section">
               <h2>About This Package</h2>
-              <p className="package-body">{pkg.description}</p>
+              <p className="package-body">{pkg.fullDescription || pkg.description}</p>
               <div className="package-policy-grid">
                 <div className="package-policy-card">
                   <h4>Cancellation Policy</h4>

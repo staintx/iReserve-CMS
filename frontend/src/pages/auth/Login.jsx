@@ -19,9 +19,9 @@ export default function Login() {
       const role = loggedInUser?.role;
 
       if (role === "admin" || role === "manager" || role === "staff") {
-        navigate("/admin/dashboard");
+        navigate("/admin/dashboard", { replace: true });
       } else {
-        navigate("/customer/home");
+        navigate("/", { replace: true });
       }
     } catch (err) {
       setError(err.response?.data?.message || "We could not sign you in. Check your email and password and try again.");

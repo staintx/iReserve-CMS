@@ -86,7 +86,7 @@ export default function Landing() {
           return Array.isArray(result.value?.data) ? result.value.data : [];
         };
 
-        setPackages(toArray(packagesResult));
+        setPackages(toArray(packagesResult).filter((pkg) => pkg?.available !== false));
         setGalleryItems(toArray(galleryResult));
         setMenuItems(toArray(menuResult));
         setReviews(toArray(ratingsResult));
@@ -239,16 +239,30 @@ export default function Landing() {
           </div>
         ) : (
           <>
-            <div className="grid mt-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid items-start gap-6 mt-6 sm:grid-cols-2 lg:grid-cols-4">
               {packages.slice(0, 4).map((pkg) => (
-                <div key={pkg._id || pkg.name} className="package-card">
-                  <div
-                    className="image-card"
+                <div key={pkg._id || pkg.name} className="landing-package-card">
+                  <div className="landing-package-title">{pkg.name}</div>
+                  <button
+                    type="button"
+                    className="landing-package-thumb"
                     style={pkg.image_url ? { backgroundImage: `url(${pkg.image_url})` } : undefined}
-                  />
-                  <div className="package-body">
-                    <h3>{pkg.name}</h3>
-                  </div>
+                    onClick={() => navigate(pkg._id ? `/packages/${pkg._id}` : "/packages")}
+                    aria-label={`View ${pkg.name}`}
+                  >
+                    <div className="landing-package-hover" aria-hidden="true">
+                      <div className="landing-package-hover-box">
+                        <div className="landing-package-hover-title">{pkg.name}</div>
+                        <div className="landing-package-hover-cta">
+                          <span>Learn more</span>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 12h12" />
+                            <path d="m13 6 6 6-6 6" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
                 </div>
               ))}
             </div>

@@ -88,7 +88,6 @@ export default function CustomerLayout({ children }) {
             <a href="/#gallery" className={sectionLinkClass("gallery")} onClick={handleSectionNav("gallery")}>Gallery</a>
             <a href="/#testimonials" className={sectionLinkClass("testimonials")} onClick={handleSectionNav("testimonials")}>About Us</a>
             <a href="/#contact" className={sectionLinkClass("contact")} onClick={handleSectionNav("contact")}>Contact</a>
-            {user && <NavLink to="/customer/book" className={navClass}>Book Now</NavLink>}
           </nav>
 
           <div className="flex items-center gap-3">

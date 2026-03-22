@@ -9,8 +9,12 @@ export default function AdminPackages() {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
+  const [inclusionDraft, setInclusionDraft] = useState({ category: "", item: "", qty: "" });
+  const [addOnDraft, setAddOnDraft] = useState({ name: "", qty: "" });
   const [error, setError] = useState("");
   const { notify } = useToast();
+
+  const inclusionCategories = ["Event Setup & Furniture", "Dining & Service Inventory"];
 
   const initialFormState = {
     name: "",
@@ -20,8 +24,6 @@ export default function AdminPackages() {
     price_min: "",
     price_max: "",
     available: true,
-    booking_requirements: "",
-    cancellation_policy: "",
     inclusions: [],
     add_ons: []
   };
@@ -44,66 +46,91 @@ export default function AdminPackages() {
     load();
   }, []);
 
-  const handleAddInclusionCategory = () => {
-    const newInclusions = [...(form.inclusions || []), { category: "", items: [] }];
-    setForm({ ...form, inclusions: newInclusions });
+  const formatQtyLine = (name, qty) => {
+    const cleanName = String(name || "").trim();
+    if (!cleanName) return "";
+    const cleanQty = String(qty || "").trim();
+    if (!cleanQty) return cleanName;
+    return `${cleanName} x${cleanQty}`;
   };
 
-  const handleUpdateInclusionCategory = (index, category) => {
-    const newInclusions = [...(form.inclusions || [])];
-    newInclusions[index].category = category;
-    setForm({ ...form, inclusions: newInclusions });
+  const formatInclusionLine = (category, item, qty) => {
+    const cleanCategory = String(category || "").trim();
+    const cleanItem = String(item || "").trim();
+    if (!cleanCategory || !cleanItem) return "";
+    const base = `${cleanCategory} - ${cleanItem}`;
+    return formatQtyLine(base, qty);
   };
 
-  const handleAddInclusionItem = (categoryIndex) => {
-    const newInclusions = [...(form.inclusions || [])];
-    newInclusions[categoryIndex].items.push({ name: "", quantity: 1 });
-    setForm({ ...form, inclusions: newInclusions });
+  const addInclusion = () => {
+    if (!inclusionDraft.category) return;
+    const line = formatInclusionLine(inclusionDraft.category, inclusionDraft.item, inclusionDraft.qty);
+    if (!line) return;
+    const next = [...(form.inclusions || []), line];
+    setForm({ ...form, inclusions: next });
+    setInclusionDraft({ category: inclusionDraft.category, item: "", qty: "" });
   };
 
-  const handleUpdateInclusionItem = (categoryIndex, itemIndex, field, value) => {
-    const newInclusions = [...(form.inclusions || [])];
-    newInclusions[categoryIndex].items[itemIndex][field] = field === "quantity" ? Number(value) : value;
-    setForm({ ...form, inclusions: newInclusions });
+  const removeInclusion = (index) => {
+    const next = (form.inclusions || []).filter((_, i) => i !== index);
+    setForm({ ...form, inclusions: next });
   };
 
-  const handleRemoveInclusionItem = (categoryIndex, itemIndex) => {
-    const newInclusions = [...(form.inclusions || [])];
-    newInclusions[categoryIndex].items.splice(itemIndex, 1);
-    setForm({ ...form, inclusions: newInclusions });
+  const addAddOn = () => {
+    const line = formatQtyLine(addOnDraft.name, addOnDraft.qty);
+    if (!line) return;
+    const next = [...(form.add_ons || []), line];
+    setForm({ ...form, add_ons: next });
+    setAddOnDraft({ name: "", qty: "" });
   };
 
-  const handleRemoveInclusionCategory = (index) => {
-    const newInclusions = (form.inclusions || []).filter((_, i) => i !== index);
-    setForm({ ...form, inclusions: newInclusions });
-  };
+  const categorizedInclusions = (() => {
+    const base = {
+      "Event Setup & Furniture": [],
+      "Dining & Service Inventory": []
+    };
 
-  const handleAddAddOn = () => {
-    const newAddOns = [...(form.add_ons || []), { name: "", quantity: 1 }];
-    setForm({ ...form, add_ons: newAddOns });
-  };
+    (form.inclusions || []).forEach((line, index) => {
+      const raw = String(line || "");
+      const split = raw.split(" - ");
+      const category = split[0];
+      const rest = split.length > 1 ? split.slice(1).join(" - ") : raw;
+      if (base[category]) {
+        base[category].push({ text: rest, index });
+      }
+    });
 
-  const handleUpdateAddOn = (index, field, value) => {
-    const newAddOns = [...(form.add_ons || [])];
-    newAddOns[index][field] = field === "quantity" ? Number(value) : value;
-    setForm({ ...form, add_ons: newAddOns });
-  };
+    return base;
+  })();
 
-  const handleRemoveAddOn = (index) => {
-    const newAddOns = (form.add_ons || []).filter((_, i) => i !== index);
-    setForm({ ...form, add_ons: newAddOns });
+  const removeAddOn = (index) => {
+    const next = (form.add_ons || []).filter((_, i) => i !== index);
+    setForm({ ...form, add_ons: next });
   };
 
   const submit = async () => {
     const data = new FormData();
 
-    Object.entries(form).forEach(([k, v]) => {
+    const allowedKeys = [
+      "name",
+      "size",
+      "description",
+      "fullDescription",
+      "price_min",
+      "price_max",
+      "available",
+      "inclusions",
+      "add_ons"
+    ];
+
+    allowedKeys.forEach((k) => {
+      const v = form[k];
       if (v === undefined || v === null) return;
-      if (k === "inclusions" || k === "add_ons") {
-        data.append(k, JSON.stringify(v));
-      } else {
-        data.append(k, v);
+      if ((k === "inclusions" || k === "add_ons") && Array.isArray(v)) {
+        data.append(k, v.join(", "));
+        return;
       }
+      data.append(k, v);
     });
 
     if (file) data.append("image", file);
@@ -133,6 +160,8 @@ export default function AdminPackages() {
       inclusions: Array.isArray(p.inclusions) ? p.inclusions : [],
       add_ons: Array.isArray(p.add_ons) ? p.add_ons : []
     });
+    setInclusionDraft({ category: "", item: "", qty: "" });
+    setAddOnDraft({ name: "", qty: "" });
     setShow(true);
   };
 
@@ -154,6 +183,32 @@ export default function AdminPackages() {
 
   const list = packages;
 
+  const formatMoney = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toLocaleString("en-PH") : "0";
+  };
+
+  const formatPrice = (pkg) => {
+    const min = Number(pkg?.price_min);
+    const max = Number(pkg?.price_max);
+    if (Number.isFinite(min) && Number.isFinite(max) && min === max) return `₱${formatMoney(min)}`;
+    if (Number.isFinite(min) && Number.isFinite(max)) return `₱${formatMoney(min)} - ${formatMoney(max)}`;
+    if (Number.isFinite(min)) return `₱${formatMoney(min)}`;
+    if (Number.isFinite(max)) return `₱${formatMoney(max)}`;
+    return "₱0";
+  };
+
+  const getInclusionPreview = (pkg) => {
+    const inclusions = Array.isArray(pkg?.inclusions) ? pkg.inclusions : [];
+    const prefix = "Event Setup & Furniture - ";
+    const filtered = inclusions
+      .filter((item) => String(item || "").startsWith(prefix))
+      .map((item) => String(item || "").slice(prefix.length));
+    const preview = filtered.slice(0, 4);
+    if (preview.length >= 4) return preview;
+    return [...preview, ...Array.from({ length: 4 - preview.length }, () => "—")];
+  };
+
   return (
     <AdminLayout>
       <div className="admin-page-head">
@@ -167,6 +222,8 @@ export default function AdminPackages() {
             onClick={() => {
               setForm(initialFormState);
               setFile(null);
+              setInclusionDraft({ category: "", item: "", qty: "" });
+              setAddOnDraft({ name: "", qty: "" });
               setShow(true);
             }}
           >
@@ -176,36 +233,75 @@ export default function AdminPackages() {
       </div>
 
       {error && <p className="auth-error">{error}</p>}
-      <div className="admin-card-grid">
+      <div className="admin-card-grid package-grid">
         {list.length === 0 && <p>No packages yet.</p>}
         {list.map((p) => (
-          <div className="package-tile" key={p._id}>
-            {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="package-thumb" />}
-            <div className="package-meta">
-              <h4>{p.name}</h4>
-              <p>Size: {p.size || "-"}</p>
-              <p>
-                PHP {p.price_min || 0} - {p.price_max || 0}
-              </p>
+          <div className="package-card" key={p._id}>
+            <div className="package-card-media">
+              {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="package-thumb" />}
+              <div className="package-card-statusbar">
+                <div className="package-card-status-text">
+                  <div className="package-card-status-label">Current Status</div>
+                  <div className="package-card-status-sub">
+                    {p.available === false ? "Unavailable Package" : "Available Package"}
+                  </div>
+                </div>
+                <label className="switch" aria-label="Toggle package availability">
+                  <input
+                    type="checkbox"
+                    checked={p.available !== false}
+                    onChange={() => toggleAvailability(p)}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+
+              <div className="package-card-hero">
+                <h3 className="package-card-title">{p.name}</h3>
+                <p className="package-card-desc">{p.description || ""}</p>
+              </div>
             </div>
-            <div className="tile-actions">
-              <button className="edit" type="button" onClick={() => edit(p)}>
-                Edit
-              </button>
-              <button className="edit" type="button" onClick={() => toggleAvailability(p)}>
-                {p.available === false ? "Enable" : "Disable"}
-              </button>
-              <button className="delete" type="button" onClick={() => remove(p._id)}>
-                Delete
-              </button>
+
+            <div className="package-card-body">
+              <div className="package-card-kv">
+                <div className="package-card-kv-row">
+                  <span className="package-card-k">Size:</span>
+                  <span className="package-card-v">{p.size || "-"}</span>
+                </div>
+                <div className="package-card-kv-row">
+                  <span className="package-card-v">{formatPrice(p)}</span>
+                </div>
+              </div>
+
+              <div className="package-card-inclusions">
+                <div className="package-card-inclusions-title">Packages included:</div>
+                <div className="package-card-inclusions-grid">
+                  {getInclusionPreview(p).map((item, index) => (
+                    <div className="package-card-inclusion" key={`${p._id}-inc-${index}`}>
+                      <span className="package-card-check">✓</span>
+                      <span className="package-card-inc-text">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="package-card-actions">
+                <button className="pkg-action edit" type="button" onClick={() => edit(p)} aria-label="Edit package">✎</button>
+                <button className="pkg-action delete" type="button" onClick={() => remove(p._id)} aria-label="Delete package">🗑</button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       {show && (
-        <Modal title={form._id ? "Edit Package" : "Add New Package"} onClose={() => setShow(false)}>
+        <Modal
+          title={form._id ? "Edit Package" : "Add New Package"}
+          onClose={() => setShow(false)}
+          className="modal-wide"
+        >
           <div className="admin-modal package-form-modal">
+            <p className="modal-subtitle">Create a new event package and define its inclusions.</p>
             <div className="form-section">
               <h4>Basic Information</h4>
               <div className="form-grid-2">
@@ -238,38 +334,36 @@ export default function AdminPackages() {
             </div>
 
             <div className="form-section">
-              <h4>Pricing and Status</h4>
               <div className="form-grid-2">
                 <div className="form-group">
-                  <label>Price (Min)</label>
+                  <label>Price</label>
                   <input
                     type="number"
                     placeholder="15000"
                     value={form.price_min || ""}
-                    onChange={(e) => setForm({ ...form, price_min: e.target.value })}
+                    onChange={(e) => setForm({ ...form, price_min: e.target.value, price_max: e.target.value })}
                   />
                 </div>
+
                 <div className="form-group">
-                  <label>Price (Max)</label>
-                  <input
-                    type="number"
-                    placeholder="20000"
-                    value={form.price_max || ""}
-                    onChange={(e) => setForm({ ...form, price_max: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="form-group toggle-row">
-                <label>Current Status</label>
-                <div className="toggle-control">
-                  <select
-                    value={form.available === false ? "no" : "yes"}
-                    onChange={(e) => setForm({ ...form, available: e.target.value === "yes" })}
-                    className="status-select"
-                  >
-                    <option value="yes">Available</option>
-                    <option value="no">Unavailable</option>
-                  </select>
+                  <label>Current Status</label>
+                  <div className="status-row">
+                    <div className="status-meta">
+                      <div className={`badge-status ${form.available === false ? "inactive" : "active"}`}>
+                        {form.available === false ? "Unavailable" : "Available"}
+                      </div>
+                      <div className="status-hint">Package availability</div>
+                    </div>
+
+                    <label className="switch" aria-label="Toggle package availability">
+                      <input
+                        type="checkbox"
+                        checked={form.available !== false}
+                        onChange={(e) => setForm({ ...form, available: e.target.checked })}
+                      />
+                      <span className="slider" />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -285,156 +379,126 @@ export default function AdminPackages() {
                   rows="4"
                 />
               </div>
-              <div className="form-group">
-                <label>Booking Requirements</label>
-                <textarea
-                  placeholder="Enter booking requirements..."
-                  value={form.booking_requirements || ""}
-                  onChange={(e) => setForm({ ...form, booking_requirements: e.target.value })}
-                  rows="3"
-                />
-              </div>
-              <div className="form-group">
-                <label>Cancellation Policy</label>
-                <textarea
-                  placeholder="Enter cancellation policy..."
-                  value={form.cancellation_policy || ""}
-                  onChange={(e) => setForm({ ...form, cancellation_policy: e.target.value })}
-                  rows="3"
-                />
-              </div>
             </div>
 
             <div className="form-section">
               <h4>Services, Inclusions and Add-Ons</h4>
 
               <div className="subsection">
-                <h5>Services and Inclusions</h5>
-                <p className="subsection-hint">
-                  Add items with categories and quantities (e.g., Plates, Stage Setup)
-                </p>
+                <div className="subsection-card">
+                  <div className="subsection-card-head">
+                    <h5>Services &amp; Inclusions</h5>
+                    <p className="subsection-hint">
+                      Add items with categories and quantities (e.g., Plates, Stage Setup)
+                    </p>
+                  </div>
 
-                {form.inclusions && form.inclusions.length > 0
-                  ? form.inclusions.map((category, catIndex) => (
-                      <div key={catIndex} className="inclusion-category">
-                        <div className="form-group">
-                          <label>Category</label>
-                          <input
-                            placeholder="e.g., Venue, Catering, Entertainment"
-                            value={category.category || ""}
-                            onChange={(e) => handleUpdateInclusionCategory(catIndex, e.target.value)}
-                          />
-                        </div>
+                  <div className="inline-add-row inclusion-row">
+                    <select
+                      value={inclusionDraft.category}
+                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, category: e.target.value }))}
+                    >
+                      <option value="">Category</option>
+                      <option value="Event Setup & Furniture">Event Setup &amp; Furniture</option>
+                      <option value="Dining & Service Inventory">Dining &amp; Service Inventory</option>
+                    </select>
 
-                        <div className="category-items">
-                          {category.items && category.items.length > 0
-                            ? category.items.map((item, itemIndex) => (
-                                <div key={itemIndex} className="form-grid-2 item-row">
-                                  <input
-                                    placeholder="Item name"
-                                    value={item.name || ""}
-                                    onChange={(e) =>
-                                      handleUpdateInclusionItem(catIndex, itemIndex, "name", e.target.value)
-                                    }
-                                  />
-                                  <div className="qty-input-group">
-                                    <input
-                                      type="number"
-                                      placeholder="Qty"
-                                      min="1"
-                                      value={item.quantity || 1}
-                                      onChange={(e) =>
-                                        handleUpdateInclusionItem(
-                                          catIndex,
-                                          itemIndex,
-                                          "quantity",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="qty-input"
-                                    />
-                                    <button
-                                      type="button"
-                                      className="btn-small-delete"
-                                      onClick={() => handleRemoveInclusionItem(catIndex, itemIndex)}
-                                    >
-                                      x
-                                    </button>
-                                  </div>
+                    <input
+                      placeholder="Item name"
+                      value={inclusionDraft.item}
+                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, item: e.target.value }))}
+                    />
+
+                    <input
+                      type="number"
+                      placeholder="Qty"
+                      min="1"
+                      value={inclusionDraft.qty}
+                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, qty: e.target.value }))}
+                    />
+
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={addInclusion}
+                      disabled={!inclusionDraft.category || !String(inclusionDraft.item || "").trim()}
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {inclusionCategories.some((category) => categorizedInclusions[category]?.length) && (
+                    <div className="inclusion-groups">
+                      {inclusionCategories.map((category) => (
+                        categorizedInclusions[category]?.length ? (
+                          <div className="inclusion-group" key={category}>
+                            <div className="inclusion-group-title">{category}</div>
+                            <div className="chip-list">
+                              {categorizedInclusions[category].map((item) => (
+                                <div className="chip" key={`${category}-${item.index}`}>
+                                  <span>{item.text}</span>
+                                  <button type="button" className="chip-x" onClick={() => removeInclusion(item.index)}>×</button>
                                 </div>
-                              ))
-                            : null}
-                        </div>
-
-                        <button
-                          type="button"
-                          className="btn-add-item"
-                          onClick={() => handleAddInclusionItem(catIndex)}
-                        >
-                          + Add Item
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn-remove-category"
-                          onClick={() => handleRemoveInclusionCategory(catIndex)}
-                        >
-                          Remove Category
-                        </button>
-                      </div>
-                    ))
-                  : null}
-
-                <button type="button" className="btn-outline" onClick={handleAddInclusionCategory}>
-                  + Add Category
-                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="subsection">
-                <h5>Add-Ons</h5>
-                <p className="subsection-hint">
-                  Optional items that can be added (e.g., Videoke, Candy Corner)
-                </p>
+                <div className="subsection-card">
+                  <div className="subsection-card-head">
+                    <h5>Add-Ons</h5>
+                    <p className="subsection-hint">
+                      Optional items that can be added (e.g., Videoke, Candy Corner)
+                    </p>
+                  </div>
 
-                {form.add_ons && form.add_ons.length > 0
-                  ? form.add_ons.map((addOn, index) => (
-                      <div key={index} className="form-grid-2 addon-row">
-                        <input
-                          placeholder="Add-on name"
-                          value={addOn.name || ""}
-                          onChange={(e) => handleUpdateAddOn(index, "name", e.target.value)}
-                        />
-                        <div className="qty-input-group">
-                          <input
-                            type="number"
-                            placeholder="Qty"
-                            min="1"
-                            value={addOn.quantity || 1}
-                            onChange={(e) => handleUpdateAddOn(index, "quantity", e.target.value)}
-                            className="qty-input"
-                          />
-                          <button
-                            type="button"
-                            className="btn-small-delete"
-                            onClick={() => handleRemoveAddOn(index)}
-                          >
-                            x
-                          </button>
+                  <div className="inline-add-row addon-row">
+                    <input
+                      placeholder="Add-on name"
+                      value={addOnDraft.name}
+                      onChange={(e) => setAddOnDraft((prev) => ({ ...prev, name: e.target.value }))}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Qty"
+                      min="1"
+                      value={addOnDraft.qty}
+                      onChange={(e) => setAddOnDraft((prev) => ({ ...prev, qty: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={addAddOn}
+                      disabled={!String(addOnDraft.name || "").trim()}
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {Array.isArray(form.add_ons) && form.add_ons.length > 0 && (
+                    <div className="chip-list">
+                      {form.add_ons.map((item, index) => (
+                        <div className="chip" key={`${item}-${index}`}>
+                          <span>{item}</span>
+                          <button type="button" className="chip-x" onClick={() => removeAddOn(index)}>×</button>
                         </div>
-                      </div>
-                    ))
-                  : null}
-
-                <button type="button" className="btn-outline" onClick={handleAddAddOn}>
-                  + Add Add-On
-                </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="form-section">
               <h4>Media Upload</h4>
               <label className="upload-box">
-                <div className="upload-icon">Upload</div>
+                <div className="upload-icon">📷</div>
                 <div className="upload-text">
                   <p className="upload-main">Drag and drop or click to upload cover image</p>
                   <p className="upload-hint">Landscape banner format recommended (PNG, JPG up to 10MB)</p>

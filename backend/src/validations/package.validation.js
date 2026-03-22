@@ -3,6 +3,7 @@ const Joi = require("joi");
 exports.packageSchema = Joi.object({
   name: Joi.string().required(),
   description: Joi.string().required(),
+  fullDescription: Joi.string().optional(),
   size: Joi.string().required(),
   price_min: Joi.number().required(),
   price_max: Joi.number().required(),
@@ -22,6 +23,7 @@ exports.packageSchema = Joi.object({
 exports.packageUpdateSchema = Joi.object({
   name: Joi.string().optional(),
   description: Joi.string().optional(),
+  fullDescription: Joi.string().optional(),
   size: Joi.string().optional(),
   price_min: Joi.number().optional(),
   price_max: Joi.number().optional(),

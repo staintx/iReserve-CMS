@@ -203,7 +203,7 @@ export default function Landing() {
         <div className="landing-hero-content">
           <h1>{heroSlides[activeSlide].title}</h1>
           <p>{heroSlides[activeSlide].description}</p>
-          <button className="btn" onClick={() => navigate("/customer/book")}>Get Started</button>
+          <button className="btn" type="button" onClick={() => navigate("/packages")}>Get Started</button>
           <div className="landing-dots">
             {heroSlides.map((slide, index) => (
               <button
@@ -410,7 +410,7 @@ export default function Landing() {
       <section className="section landing-cta-surface">
         <h2>Ready to Plan Your Event?</h2>
         <p>Let's create an unforgettable experience together.</p>
-        <button className="btn" onClick={() => navigate("/customer/book")}>Get Started Now</button>
+        <button className="btn" type="button" onClick={() => navigate("/packages")}>Get Started Now</button>
       </section>
 
       <footer id="contact" className="landing-footer">

@@ -6,19 +6,28 @@ import useToast from "../../hooks/useToast";
 
 export default function AdminGallery() {
   const [items, setItems] = useState([]);
-  const [foods, setFoods] = useState([]);
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
   const { notify } = useToast();
 
   const load = () => AdminAPI.getGallery().then((res) => setItems(Array.isArray(res.data) ? res.data : []));
-  const loadFoods = () => AdminAPI.getMenu().then((res) => setFoods(Array.isArray(res.data) ? res.data : []));
-  useEffect(() => { load(); loadFoods(); }, []);
+  useEffect(() => { load(); }, []);
 
   const submit = async () => {
+    const rawTitle = (form.title || "").trim();
+    const safeTitle = rawTitle.split(/\s+/)[0] || "";
+    if (!safeTitle) {
+      notify("Please add a 1-word caption.", "error");
+      return;
+    }
+    if (!form._id && !file) {
+      notify("Please upload a photo.", "error");
+      return;
+    }
+
     const data = new FormData();
-    Object.entries(form).forEach(([k, v]) => data.append(k, v));
+    data.append("title", safeTitle);
     if (file) data.append("image", file);
 
     try {
@@ -37,7 +46,7 @@ export default function AdminGallery() {
     setShow(false); setForm({}); setFile(null); load();
   };
 
-  const edit = (g) => { setForm(g); setShow(true); };
+  const edit = (g) => { setForm(g); setFile(null); setShow(true); };
   const remove = (id) =>
     AdminAPI.deleteGallery(id)
       .then(() => {
@@ -47,7 +56,13 @@ export default function AdminGallery() {
       .catch((err) => notify(err.response?.data?.message || "We could not delete the gallery item. Please try again.", "error"));
 
   const list = items;
-  const foodList = foods;
+  const handlePick = (picked) => {
+    const selected = picked?.[0];
+    if (!selected) return;
+    setForm({ title: "" });
+    setFile(selected);
+    setShow(true);
+  };
 
   return (
     <AdminLayout>
@@ -56,17 +71,17 @@ export default function AdminGallery() {
           <h1>Gallery Management</h1>
           <p>Update landing page photo gallery</p>
         </div>
-        <div className="admin-actions">
-          <button className="btn" onClick={() => setShow(true)}>+ Add Photo</button>
-        </div>
       </div>
 
-      <div className="upload-box" style={{ marginBottom: "16px" }}>
-        Click to upload photo for landing page cover
-      </div>
+      <label className="gallery-upload-box">
+        <span className="gallery-upload-icon">↑</span>
+        <span className="gallery-upload-title">Click to upload Multiple photo for Landing Page carousel</span>
+        <span className="gallery-upload-hint">PNG, JPG, PDF up to 50MB</span>
+        <input type="file" onChange={(e) => handlePick(e.target.files)} />
+      </label>
 
-      <h3>Our Gallery</h3>
-      <div className="gallery-grid" style={{ marginTop: "12px" }}>
+      <h3 className="gallery-section-title">Our Gallery</h3>
+      <div className="gallery-grid">
         {list.length === 0 && <p>No gallery items yet.</p>}
         {list.map((g) => (
           <div className="gallery-card" key={g._id}>
@@ -77,38 +92,33 @@ export default function AdminGallery() {
             )}
             <div className="gallery-card-body">
               <strong>{g.title}</strong>
-              <div className="actions">
-                <button className="btn-outline" onClick={() => edit(g)}>Edit</button>
-                <button className="btn-danger" onClick={() => remove(g._id)}>Delete</button>
+              <div className="gallery-card-actions">
+                <button type="button" className="gallery-icon-btn" onClick={() => edit(g)} aria-label="Edit">✎</button>
+                <button type="button" className="gallery-icon-btn danger" onClick={() => remove(g._id)} aria-label="Delete">🗑</button>
               </div>
             </div>
           </div>
         ))}
-      </div>
 
-      <h3 style={{ marginTop: "18px" }}>Our Food</h3>
-      <div className="gallery-grid" style={{ marginTop: "12px" }}>
-        {foodList.length === 0 && <p>No menu items available.</p>}
-        {foodList.map((food) => (
-          <div className="gallery-card" key={food._id}>
-            {food.image_url ? (
-              <img src={food.image_url} alt={food.name} />
-            ) : (
-              <div className="thumb" />
-            )}
-            <div className="gallery-card-body">
-              <strong>{food.name}</strong>
-            </div>
+        <label className="gallery-card gallery-upload-tile">
+          <div className="gallery-upload-inner">
+            <span className="gallery-upload-icon">↑</span>
+            <span className="gallery-upload-title">Click to upload photo</span>
+            <span className="gallery-upload-hint">PNG, JPG, PDF up to 10MB</span>
+            <input type="file" onChange={(e) => handlePick(e.target.files)} />
           </div>
-        ))}
+          <div className="gallery-upload-caption">Add a caption</div>
+        </label>
       </div>
 
       {show && (
         <Modal title="Gallery Item" onClose={() => setShow(false)}>
           <div className="admin-modal">
-            <input placeholder="Title" value={form.title || ""} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <input placeholder="Category" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-            <textarea placeholder="Description" value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <input
+              placeholder="Caption (1 word)"
+              value={form.title || ""}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
             <label className="upload-box">
               Upload image
               <input type="file" onChange={(e) => setFile(e.target.files[0])} />

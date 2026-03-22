@@ -239,7 +239,7 @@ export default function Landing() {
           </div>
         ) : (
           <>
-            <div className="grid items-start gap-6 mt-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex flex-wrap items-start justify-center gap-4 mt-6">
               {packages.slice(0, 4).map((pkg) => (
                 <div key={pkg._id || pkg.name} className="landing-package-card">
                   <div className="landing-package-title">{pkg.name}</div>
@@ -266,7 +266,7 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            {packages.length >= 4 && (
+            {packages.length > 4 && (
               <div className="flex justify-center mt-6">
                 <button className="btn-outline" onClick={() => navigate("/packages")}>See all</button>
               </div>
@@ -344,7 +344,7 @@ export default function Landing() {
             No Photos yet
           </div>
         ) : (
-          <div className="grid mt-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="gallery-preview-grid mt-6">
             {galleryItems.slice(0, 6).map((item) => (
               <div
                 key={item._id || item.image_url}
@@ -375,9 +375,11 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            <div className="flex justify-center mt-6">
-              <button className="btn-outline" onClick={() => navigate("/menu")}>See all</button>
-            </div>
+            {menuItems.length > 8 && (
+              <div className="flex justify-center mt-6">
+                <button className="btn-outline" onClick={() => navigate("/menu")}>See all</button>
+              </div>
+            )}
           </>
         )}
       </section>

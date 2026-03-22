@@ -21,7 +21,7 @@ export default function Packages() {
         <p>Choose from our carefully curated packages.</p>
       </div>
 
-      <div className="grid package-grid">
+      <div className="package-grid">
         {packages.map((p) => (
           <div className="card package-card" key={p._id}>
             <img src={p.image_url} alt={p.name} />

@@ -196,7 +196,7 @@
 }
 
 /* Cards / Grid */
-.grid {
+:where(.grid) {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -272,6 +272,16 @@ input.search {
   max-width: 95vw;
 }
 
+.modal.menu-form-modal {
+  width: 640px;
+  max-width: 92vw;
+}
+
+.modal.inventory-form-modal {
+  width: 640px;
+  max-width: 92vw;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -300,6 +310,7 @@ input.search {
   overflow-x: hidden;
   flex: 1;
   padding-right: 4px;
+  padding-bottom: 12px;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge legacy */
 }
@@ -313,6 +324,253 @@ input.search {
   background: transparent;
   border: none;
   font-size: 18px;
+}
+
+.modal-actions-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* Inventory page */
+.view-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.view-toggle button {
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-toggle button.active {
+  background: #f3f4f6;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+.inventory-section-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 18px 0 10px;
+  color: #111827;
+}
+
+.inventory-group {
+  margin-top: 14px;
+}
+
+.inventory-group-title {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0 0 10px;
+  color: #111827;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1200px) {
+  .inventory-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .inventory-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .inventory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .inventory-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inventory-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 10px 8px;
+  background: #fff;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.inventory-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inventory-item-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-qty {
+  font-size: 28px;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1;
+}
+
+.inventory-units {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.inventory-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.inv-action {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.inv-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.inv-action.edit {
+  color: #1e3a8a;
+}
+
+.inv-action.delete {
+  color: #dc2626;
+}
+
+/* Make inventory toggles black like screenshot */
+.inventory-card .switch input:checked + .slider {
+  background: #111827;
+}
+
+/* Calendar */
+.calendar-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.calendar-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.calendar-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-month {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  min-width: 110px;
+  text-align: center;
+}
+
+.calendar-nav-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.calendar-weekday {
+  font-size: 10px;
+  font-weight: 800;
+  color: #6b7280;
+  padding: 6px 6px 2px;
+}
+
+.calendar-cell {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  min-height: 76px;
+  padding: 6px;
+  background: #fff;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.calendar-cell.is-empty {
+  background: #f9fafb;
+  border-color: #f3f4f6;
+}
+
+.calendar-day {
+  font-size: 10px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.calendar-event {
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Admin UI refresh */
@@ -493,6 +751,29 @@ input.search {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
+}
+
+/* Food menu grid: aim for 4 cards per row on wide screens */
+.admin-card-grid.menu-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1280px) {
+  .admin-card-grid.menu-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .admin-card-grid.menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-card-grid.menu-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Packages grid: aim for 4 cards per row on wide screens */
@@ -770,6 +1051,11 @@ input.search {
   max-width: 95vw;
 }
 
+.admin-modal.menu-modal {
+  width: 100%;
+  max-width: 100%;
+}
+
 /* Wider, scrollable overlay for package form */
 .package-form-modal {
   width: 100%;
@@ -830,6 +1116,37 @@ input.search {
 .status-hint {
   font-size: 11px;
   color: #6b7280;
+}
+
+.status-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-value {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-value.is-on {
+  color: #16a34a;
+}
+
+.status-value.is-off {
+  color: #6b7280;
+}
+
+.form-field {
+  margin-top: 10px;
+}
+
+.form-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
 }
 
 .switch {
@@ -959,6 +1276,59 @@ input.search {
   margin: 10px auto 0;
 }
 
+.menu-upload {
+  position: relative;
+  border: 1px dashed #cbd5f5;
+  border-radius: 12px;
+  padding: 26px 18px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.menu-upload-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.menu-upload-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  display: grid;
+  place-items: center;
+  color: #6b7280;
+}
+
+.menu-upload-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.menu-upload-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.menu-upload-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.menu-upload-file {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #111827;
+  font-weight: 600;
+  word-break: break-word;
+}
+
 .tab-row {
   display: inline-flex;
   gap: 6px;
@@ -998,6 +1368,7 @@ input.search {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
+  margin-top: 12px;
 }
 
 .gallery-card {
@@ -1005,6 +1376,7 @@ input.search {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e5e7eb;
 }
 
 .gallery-card img,
@@ -1017,6 +1389,107 @@ input.search {
 
 .gallery-card-body {
   padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.gallery-section-title {
+  margin-top: 10px;
+}
+
+.gallery-card-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.gallery-icon-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #111827;
+}
+
+.gallery-icon-btn.danger {
+  color: #dc2626;
+}
+
+.gallery-upload-box {
+  border: 1px dashed #cbd5f5;
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+
+.gallery-upload-box input {
+  display: none;
+}
+
+.gallery-upload-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  color: #94a3b8;
+  font-size: 16px;
+}
+
+.gallery-upload-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.gallery-upload-hint {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.gallery-upload-tile {
+  padding: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  display: grid;
+  gap: 0;
+  cursor: pointer;
+}
+
+.gallery-upload-inner {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 18px 12px 16px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.gallery-upload-inner input {
+  display: none;
+}
+
+.gallery-upload-caption {
+  padding: 10px 12px;
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: left;
 }
 
 .admin-quote-page {

@@ -510,7 +510,6 @@
     @apply flex flex-col gap-2;
     width: 100%;
     max-width: 240px;
-    justify-self: start;
   }
 
   .landing-package-title {

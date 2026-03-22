@@ -500,7 +500,7 @@ export default function AdminPackages() {
               <label className="upload-box">
                 <div className="upload-icon">📷</div>
                 <div className="upload-text">
-                  <p className="upload-main">Drag and drop or click to upload cover image</p>
+                  <p className="upload-main">Drag and drp or click to upload cover image</p>
                   <p className="upload-hint">Landscape banner format recommended (PNG, JPG up to 10MB)</p>
                 </div>
                 <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />

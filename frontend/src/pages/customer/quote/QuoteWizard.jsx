@@ -189,6 +189,68 @@ export default function QuoteWizard() {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
 
+  const buildInquiryPayload = () => {
+    const serviceLookup = {
+      food: { include_food: true, label: "Food Only" },
+      event: { include_food: false, label: "Event Setup Only" },
+      full: { include_food: true, label: "Food & Event Setup" }
+    };
+    const serviceConfig = serviceLookup[form.service_type] || serviceLookup.full;
+
+    const nameParts = String(form.full_name || "").trim().split(/\s+/).filter(Boolean);
+    const contactFirstName = nameParts[0] || "";
+    const contactLastName = nameParts.slice(1).join(" ");
+
+    const additionalServices = [
+      ...(form.furniture_setup || []),
+      ...(form.dining_inventory || []),
+      ...(form.add_ons || []),
+      ...(form.lighting_options || []),
+      ...(form.decor_options || [])
+    ].filter(Boolean);
+    const uniqueAdditionalServices = Array.from(new Set(additionalServices));
+
+    const specialNotes = [
+      form.menu_other && `Menu notes: ${form.menu_other}`,
+      form.delivery_instructions && `Delivery instructions: ${form.delivery_instructions}`,
+      form.best_time_to_call && `Best time to call: ${form.best_time_to_call}`,
+      form.inspiration_links && `Inspiration links: ${form.inspiration_links}`,
+      form.notes && `Notes: ${form.notes}`,
+      form.venue_size && `Venue size: ${form.venue_size}`
+    ].filter(Boolean).join("\n");
+
+    return {
+      customer_id: form.customer_id,
+      event_type: form.event_type,
+      event_theme: form.event_theme,
+      event_date: form.event_date,
+      start_time: form.start_time,
+      guest_count: parseNumber(form.guest_count),
+      duration_hours: parseNumber(form.duration_hours),
+      include_food: serviceConfig.include_food,
+      service_type: serviceConfig.label,
+      venue_type: form.venue_type,
+      indoor_outdoor: form.indoor_outdoor,
+      province: form.province,
+      municipality: form.municipality,
+      barangay: form.barangay,
+      street: form.street,
+      landmark: form.landmark,
+      zip_code: form.zip_code,
+      selected_menu: form.selected_menu || [],
+      dietary_restrictions: form.dietary_restrictions,
+      allergies: form.allergies,
+      special_requests: specialNotes || undefined,
+      additional_services: uniqueAdditionalServices,
+      contact_first_name: contactFirstName,
+      contact_last_name: contactLastName,
+      contact_email: form.email,
+      contact_phone: form.phone,
+      contact_method: form.contact_method,
+      status: "pending"
+    };
+  };
+
   const fieldLabels = {
     event_type: "Event type",
     event_date: "Event date",
@@ -311,16 +373,11 @@ export default function QuoteWizard() {
       return;
     }
     try {
-      const payload = {
-        ...form,
-        guest_count: parseNumber(form.guest_count),
-        duration_hours: parseNumber(form.duration_hours)
-      };
-
-      const res = await CustomerAPI.submitQuote(payload);
-      setBookingRef(res?.data?.reference || "");
+      const inquiryPayload = buildInquiryPayload();
+      const res = await CustomerAPI.submitInquiry(inquiryPayload);
+      setBookingRef(res?.data?._id || "");
       setShowSuccessModal(true);
-      notify("Quote submitted.", "success");
+      notify("Inquiry submitted.", "success");
     } catch (err) {
       const backendErrors = mapBackendErrors(err.response?.data?.errors);
       if (Object.keys(backendErrors).length > 0) {
@@ -328,7 +385,7 @@ export default function QuoteWizard() {
         setError("Please complete the required fields below.");
         return;
       }
-      const message = err.response?.data?.message || "We could not submit your quote. Please try again.";
+      const message = err.response?.data?.message || "We could not submit your inquiry. Please try again.";
       setError(message);
       notify(message, "error");
     }
@@ -353,7 +410,7 @@ export default function QuoteWizard() {
               </div>
               <p style={{marginBottom: 8}}>A confirmation email has been sent to {form.email || "your email"}.</p>
               {bookingRef && (
-                <p style={{marginBottom: 16}}>Booking Reference: <b>{bookingRef}</b></p>
+                <p style={{marginBottom: 16}}>Inquiry Reference: <b>{bookingRef}</b></p>
               )}
               <div style={{display: "flex", gap: 12, justifyContent: "center"}}>
                 <button className="btn" onClick={() => { setShowSuccessModal(false); navigate("/"); }}>Return to Home</button>

@@ -1,14 +1,14 @@
 import ManagerSidebar from "./ManagerSidebar";
 import ManagerHeader from "./ManagerHeader";
 
-export default function ManagerLayout({ children, onCalendar }) {
+export default function ManagerLayout({ children }) {
   return (
     <div className="page-shell">
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-slate-50">
         <ManagerSidebar />
         <div className="flex-1">
-          <ManagerHeader onCalendar={onCalendar} />
-          <div className="px-6 pb-12 pt-8 sm:px-10">{children}</div>
+          <ManagerHeader />
+          <div className="px-6 pt-8 pb-12 sm:px-10">{children}</div>
         </div>
       </div>
     </div>

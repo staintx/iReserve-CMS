@@ -14,3 +14,21 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+---
+
+# iReserve CMS Frontend Deployment Notes
+
+## Render Deployment Checklist
+- Set up a new Static Site on Render, connect to your GitHub repo.
+- Set environment variable VITE_API_BASE_URL to your backend Render URL + `/api`
+- Build command: `npm run build`
+- Publish directory: `dist`
+
+## Local Development
+- Copy `.env.example` to `.env` and set VITE_API_BASE_URL to your local backend (e.g., http://localhost:5000/api)
+- Start frontend: `npm run dev`
+
+## Notes
+- The frontend uses VITE_API_BASE_URL for all API requests.
+- Make sure your backend CORS allows the frontend Render domain.

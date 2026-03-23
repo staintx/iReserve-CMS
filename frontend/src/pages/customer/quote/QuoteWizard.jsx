@@ -478,7 +478,7 @@ export default function QuoteWizard() {
                       </label>
                       <label className="field">
                         <span>Event Date</span>
-                        <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        <input type="date" min={new Date().toISOString().split('T')[0]} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
                         {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">
@@ -545,7 +545,7 @@ export default function QuoteWizard() {
                       <div className="booking-grid">
                         <label className="field">
                           <span>Delivery Date</span>
-                          <input type="date" value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
+                          <input type="date" min={new Date().toISOString().split('T')[0]} value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
                           {errors.delivery_date && <p className="auth-error">{errors.delivery_date}</p>}
                         </label>
                         <label className="field">
@@ -582,6 +582,7 @@ export default function QuoteWizard() {
                           <span>Pickup Date</span>
                           <input
                             type="date"
+                            min={new Date().toISOString().split('T')[0]}
                             value={form.pickup_date}
                             disabled={form.delivery_method !== "pickup"}
                             onChange={(e) => setForm({ ...form, pickup_date: e.target.value })}

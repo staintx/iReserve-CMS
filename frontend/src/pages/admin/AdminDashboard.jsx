@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
+import AdminEventCalendar from "../../components/dashboard/AdminEventCalendar";
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState({
@@ -35,6 +36,8 @@ export default function AdminDashboard() {
         <DashboardStatCard label="Pending Inquiries" value={summary.pendingInquiries || 0} />
         <DashboardStatCard label="Total Revenue" value={formatCurrency(summary.totalRevenue)} />
       </div>
+
+      <AdminEventCalendar />
 
       <div className="panel">
         <h3>Recent Activity</h3>

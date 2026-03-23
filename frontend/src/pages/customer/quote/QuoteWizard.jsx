@@ -4,6 +4,7 @@ import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import useToast from "../../../hooks/useToast";
+import Modal from "../../../components/common/Modal";
 
 const stepsByService = {
   food: ["Event Information", "Delivery Address", "Menu Selection", "Dietary Needs", "Contact"],
@@ -81,6 +82,8 @@ export default function QuoteWizard() {
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
   const { notify } = useToast();
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
   const [form, setForm] = useState({
     customer_id: user?._id || "",
     service_type: "food",
@@ -314,7 +317,9 @@ export default function QuoteWizard() {
         duration_hours: parseNumber(form.duration_hours)
       };
 
-      await CustomerAPI.submitQuote(payload);
+      const res = await CustomerAPI.submitQuote(payload);
+      setBookingRef(res?.data?.reference || "");
+      setShowSuccessModal(true);
       notify("Quote submitted.", "success");
     } catch (err) {
       const backendErrors = mapBackendErrors(err.response?.data?.errors);
@@ -332,6 +337,31 @@ export default function QuoteWizard() {
   return (
     <CustomerLayout>
       <div className="booking-page quote-page">
+        {showSuccessModal && (
+          <Modal title="Custom Quote Request Submitted!" onClose={() => setShowSuccessModal(false)}>
+            <div style={{textAlign: "center"}}>
+              <div style={{fontSize: 48, color: "#4BB543", marginBottom: 16}}>✔️</div>
+              <p>Thank you for your detailed submission! Our team is excited to create a personalized proposal for your event.</p>
+              <div style={{background: "#f6f6f6", borderRadius: 12, padding: 16, margin: "24px 0"}}>
+                <strong>What You Can Expect:</strong>
+                <ol style={{textAlign: "left", margin: "16px 0 0 16px"}}>
+                  <li><b>Event Date:</b> We'll review your requirements and contact you to schedule a consultation</li>
+                  <li><b>Consultation Call:</b> 30-60 minute discussion to understand your vision and answer questions</li>
+                  <li><b>Custom Proposal (3-5 days):</b> Detailed quote with other options, pricing breakdown, and recommendations</li>
+                  <li><b>Refinement & Booking:</b> We'll work together to perfect every detail before confirming your booking</li>
+                </ol>
+              </div>
+              <p style={{marginBottom: 8}}>A confirmation email has been sent to {form.email || "your email"}.</p>
+              {bookingRef && (
+                <p style={{marginBottom: 16}}>Booking Reference: <b>{bookingRef}</b></p>
+              )}
+              <div style={{display: "flex", gap: 12, justifyContent: "center"}}>
+                <button className="btn" onClick={() => { setShowSuccessModal(false); navigate("/"); }}>Return to Home</button>
+                <button className="btn-outline" onClick={() => { setShowSuccessModal(false); navigate("/customer/inquiries"); }}>View My Inquiry</button>
+              </div>
+            </div>
+          </Modal>
+        )}
         {stage === "service" ? (
           <>
             <div className="quote-topbar">

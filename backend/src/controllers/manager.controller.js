@@ -1,10 +1,33 @@
 const Booking = require("../models/Booking");
 const User = require("../models/User");
+const StaffAvailability = require("../models/StaffAvailability");
 const asyncHandler = require("../utils/asyncHandler");
 
 const getAssignedBookingsQuery = (userId) => ({ manager_id: userId });
 
 const hasAssignments = (booking) => Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0;
+
+const parseMonth = (month) => {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
+  const [year, monthIndex] = month.split("-").map((value) => Number(value));
+  return {
+    start: new Date(year, monthIndex - 1, 1),
+    end: new Date(year, monthIndex, 0, 23, 59, 59, 999)
+  };
+};
+
+const parseDateKey = (value) => {
+  const [year, monthIndex, day] = String(value).split("-").map((v) => Number(v));
+  if (!year || !monthIndex || !day) return null;
+  return new Date(year, monthIndex - 1, day);
+};
+
+const toDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 exports.getSummary = asyncHandler(async (req, res) => {
   const query = getAssignedBookingsQuery(req.user._id);
@@ -196,5 +219,58 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
       date: booking.event_date,
       status: booking.status
     }))
+  });
+});
+
+exports.getMyAvailability = asyncHandler(async (req, res) => {
+  const month = String(req.query.month || "").trim();
+  const range = parseMonth(month);
+
+  if (!range) {
+    return res.status(400).json({ message: "Month must be YYYY-MM" });
+  }
+
+  const availability = await StaffAvailability.find({
+    user_id: req.user._id,
+    date: { $gte: range.start, $lte: range.end }
+  }).select("date");
+
+  res.json({
+    month,
+    unavailable: availability.map((item) => toDateKey(item.date))
+  });
+});
+
+exports.setMyAvailability = asyncHandler(async (req, res) => {
+  const month = String(req.body.month || "").trim();
+  const range = parseMonth(month);
+
+  if (!range) {
+    return res.status(400).json({ message: "Month must be YYYY-MM" });
+  }
+
+  const rawDates = Array.isArray(req.body.dates) ? req.body.dates : [];
+  const uniqueDates = Array.from(new Set(rawDates.map((value) => String(value))));
+  const parsedDates = uniqueDates
+    .map(parseDateKey)
+    .filter((date) => date && date >= range.start && date <= range.end);
+
+  await StaffAvailability.deleteMany({
+    user_id: req.user._id,
+    date: { $gte: range.start, $lte: range.end }
+  });
+
+  if (parsedDates.length > 0) {
+    await StaffAvailability.insertMany(
+      parsedDates.map((date) => ({
+        user_id: req.user._id,
+        date
+      }))
+    );
+  }
+
+  res.json({
+    month,
+    unavailable: parsedDates.map((date) => toDateKey(date))
   });
 });

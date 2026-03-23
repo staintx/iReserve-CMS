@@ -18,8 +18,12 @@ export default function Login() {
       const loggedInUser = await login(email, password);
       const role = loggedInUser?.role;
 
-      if (role === "admin" || role === "manager" || role === "staff") {
+      if (role === "admin") {
         navigate("/admin/dashboard", { replace: true });
+      } else if (role === "manager") {
+        navigate("/manager/dashboard", { replace: true });
+      } else if (role === "staff") {
+        navigate("/staff/dashboard", { replace: true });
       } else {
         navigate("/", { replace: true });
       }

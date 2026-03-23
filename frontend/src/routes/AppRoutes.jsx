@@ -49,25 +49,43 @@ import AdminInquiryQuote from "../pages/admin/AdminInquiryQuote";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
+import StaffDashboard from "../pages/staff/StaffDashboard";
 
-const adminRoles = ["admin", "manager", "staff"];
+const adminRoles = ["admin", "manager"];
 const managerRoles = ["admin", "manager"];
 const adminOnly = ["admin"];
+const staffRoles = ["staff"];
 
 export default function AppRoutes() {
   const { user } = useAuth();
   const isAdmin = adminRoles.includes(user?.role);
   const isManager = user?.role === "manager";
+  const isStaff = user?.role === "staff";
 
   return (
     <BrowserRouter>
       <Routes>
         {/* Public pages */}
-        <Route path="/" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Landing />} />
-        <Route path="/packages" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Packages />} />
-        <Route path="/packages/:id" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <PackageDetails />} />
-        <Route path="/menu" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Menu />} />
-        <Route path="/gallery" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Gallery />} />
+        <Route
+          path="/"
+          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Landing />)}
+        />
+        <Route
+          path="/packages"
+          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Packages />)}
+        />
+        <Route
+          path="/packages/:id"
+          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <PackageDetails />)}
+        />
+        <Route
+          path="/menu"
+          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Menu />)}
+        />
+        <Route
+          path="/gallery"
+          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Gallery />)}
+        />
 
         {/* Auth */}
         <Route path="/login" element={<Login />} />
@@ -117,7 +135,10 @@ export default function AppRoutes() {
         <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
         <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerStaff /></ProtectedRoute>} />
 
-        <Route path="*" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : <Landing />} />
+        {/* Staff (protected by role) */}
+        <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={staffRoles}><StaffDashboard /></ProtectedRoute>} />
+
+        <Route path="*" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Landing />)} />
       </Routes>
     </BrowserRouter>
   );

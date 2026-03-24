@@ -75,6 +75,7 @@ const decorOptions = [
 export default function QuoteWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const today = new Date().toISOString().split("T")[0];
   const [stage, setStage] = useState("service");
   const [step, setStep] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
@@ -88,6 +89,7 @@ export default function QuoteWizard() {
     customer_id: user?._id || "",
     service_type: "food",
     event_type: "",
+    event_type_other: "",
     event_theme: "",
     event_date: "",
     start_time: "",
@@ -189,6 +191,11 @@ export default function QuoteWizard() {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
 
+  const getEventTypeValue = () =>
+    form.event_type === "Other"
+      ? String(form.event_type_other || "").trim()
+      : String(form.event_type || "").trim();
+
   const buildInquiryPayload = () => {
     const serviceLookup = {
       food: { include_food: true, label: "Food Only" },
@@ -221,7 +228,7 @@ export default function QuoteWizard() {
 
     return {
       customer_id: form.customer_id,
-      event_type: form.event_type,
+      event_type: getEventTypeValue(),
       event_theme: form.event_theme,
       event_date: form.event_date,
       start_time: form.start_time,
@@ -303,7 +310,11 @@ export default function QuoteWizard() {
       }
     };
 
-    setRequired("event_type", "Event type");
+    if (isEmpty(form.event_type)) {
+      nextErrors.event_type = "Event type is required.";
+    } else if (form.event_type === "Other" && isEmpty(form.event_type_other)) {
+      nextErrors.event_type_other = "Please specify the event type.";
+    }
     setRequired("event_date", "Event date");
     setRequired("start_time", "Event start time");
 
@@ -526,16 +537,40 @@ export default function QuoteWizard() {
                     <div className="booking-grid">
                       <label className="field">
                         <span>Event Type</span>
-                        <input placeholder="Birthday" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
+                        <select
+                          value={form.event_type}
+                          onChange={(e) => setForm({
+                            ...form,
+                            event_type: e.target.value,
+                            event_type_other: e.target.value === "Other" ? form.event_type_other : ""
+                          })}
+                        >
+                          <option value="">Select event type</option>
+                          <option value="Birthday">Birthday</option>
+                          <option value="Wedding">Wedding</option>
+                          <option value="Corporate">Corporate</option>
+                          <option value="Other">Others (please specify)</option>
+                        </select>
                         {errors.event_type && <p className="auth-error">{errors.event_type}</p>}
                       </label>
+                      {form.event_type === "Other" && (
+                        <label className="field">
+                          <span>Please Specify</span>
+                          <input
+                            placeholder="Anniversary, Christening, etc."
+                            value={form.event_type_other}
+                            onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
+                          />
+                          {errors.event_type_other && <p className="auth-error">{errors.event_type_other}</p>}
+                        </label>
+                      )}
                       <label className="field">
                         <span>Event Theme or Colors</span>
                         <input placeholder="Navy and Gold, Rustic Garden" value={form.event_theme} onChange={(e) => setForm({ ...form, event_theme: e.target.value })} />
                       </label>
                       <label className="field">
                         <span>Event Date</span>
-                        <input type="date" min={new Date().toISOString().split('T')[0]} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
                         {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">
@@ -602,7 +637,7 @@ export default function QuoteWizard() {
                       <div className="booking-grid">
                         <label className="field">
                           <span>Delivery Date</span>
-                          <input type="date" min={new Date().toISOString().split('T')[0]} value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
+                          <input type="date" min={today} value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
                           {errors.delivery_date && <p className="auth-error">{errors.delivery_date}</p>}
                         </label>
                         <label className="field">
@@ -639,7 +674,7 @@ export default function QuoteWizard() {
                           <span>Pickup Date</span>
                           <input
                             type="date"
-                            min={new Date().toISOString().split('T')[0]}
+                            min={today}
                             value={form.pickup_date}
                             disabled={form.delivery_method !== "pickup"}
                             onChange={(e) => setForm({ ...form, pickup_date: e.target.value })}
@@ -898,16 +933,40 @@ export default function QuoteWizard() {
                     <div className="booking-grid">
                       <label className="field">
                         <span>Event Type</span>
-                        <input placeholder="Birthday" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
+                        <select
+                          value={form.event_type}
+                          onChange={(e) => setForm({
+                            ...form,
+                            event_type: e.target.value,
+                            event_type_other: e.target.value === "Other" ? form.event_type_other : ""
+                          })}
+                        >
+                          <option value="">Select event type</option>
+                          <option value="Birthday">Birthday</option>
+                          <option value="Wedding">Wedding</option>
+                          <option value="Corporate">Corporate</option>
+                          <option value="Other">Others (please specify)</option>
+                        </select>
                         {errors.event_type && <p className="auth-error">{errors.event_type}</p>}
                       </label>
+                      {form.event_type === "Other" && (
+                        <label className="field">
+                          <span>Please Specify</span>
+                          <input
+                            placeholder="Anniversary, Christening, etc."
+                            value={form.event_type_other}
+                            onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
+                          />
+                          {errors.event_type_other && <p className="auth-error">{errors.event_type_other}</p>}
+                        </label>
+                      )}
                       <label className="field">
                         <span>Event Theme or Colors</span>
                         <input placeholder="Navy and Gold, Rustic Garden" value={form.event_theme} onChange={(e) => setForm({ ...form, event_theme: e.target.value })} />
                       </label>
                       <label className="field">
                         <span>Event Date</span>
-                        <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
                         {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">

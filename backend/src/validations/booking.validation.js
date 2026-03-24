@@ -1,5 +1,14 @@
 const Joi = require("joi");
 
+const noPastDate = (value, helpers) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return helpers.error("date.base");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date < today) return helpers.error("date.min");
+  return value;
+};
+
 exports.bookingSchema = Joi.object({
   customer_id: Joi.string().required(),
   package_id: Joi.string().optional(),
@@ -8,7 +17,13 @@ exports.bookingSchema = Joi.object({
   inquiry_id: Joi.string().optional(),
   event_type: Joi.string().required(),
   event_theme: Joi.string().optional(),
-  event_date: Joi.date().required(),
+  event_date: Joi.date()
+    .required()
+    .custom(noPastDate, "no past dates")
+    .messages({
+      "date.base": "Event date must be a valid date.",
+      "date.min": "Event date must be today or later."
+    }),
   start_time: Joi.string().optional(),
   guest_count: Joi.number().required(),
   duration_hours: Joi.number().optional(),

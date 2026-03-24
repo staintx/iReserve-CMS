@@ -7,8 +7,10 @@ import useToast from "../../hooks/useToast";
 export default function CustomerInquiry() {
   const { user } = useAuth();
   const { notify } = useToast();
+  const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({
     event_type: "",
+    event_type_other: "",
     event_date: "",
     start_time: "",
     guest_count: "",
@@ -41,9 +43,23 @@ export default function CustomerInquiry() {
       .filter(Boolean);
 
   const submit = async () => {
+    if (form.event_date && form.event_date < today) {
+      notify("Please choose a future date for the event.", "error");
+      return;
+    }
+
+    const eventTypeValue = form.event_type === "Other"
+      ? String(form.event_type_other || "").trim()
+      : String(form.event_type || "").trim();
+    if (!eventTypeValue) {
+      notify(form.event_type === "Other" ? "Please specify the event type." : "Please choose an event type.", "error");
+      return;
+    }
+
     const includeFood = form.service_type !== "event_setup";
     const payload = {
       ...form,
+      event_type: eventTypeValue,
       customer_id: user._id,
       include_food: includeFood,
       service_type: includeFood ? "Food & Event Setup" : "Event Setup Only",
@@ -66,8 +82,28 @@ export default function CustomerInquiry() {
     <CustomerLayout>
       <h1>Submit Inquiry</h1>
       <div className="form-card">
-        <input placeholder="Event Type" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
-        <input type="date" min={new Date().toISOString().split('T')[0]} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+        <select
+          value={form.event_type}
+          onChange={(e) => setForm({
+            ...form,
+            event_type: e.target.value,
+            event_type_other: e.target.value === "Other" ? form.event_type_other : ""
+          })}
+        >
+          <option value="">Select event type</option>
+          <option value="Birthday">Birthday</option>
+          <option value="Wedding">Wedding</option>
+          <option value="Corporate">Corporate</option>
+          <option value="Other">Others (please specify)</option>
+        </select>
+        {form.event_type === "Other" && (
+          <input
+            placeholder="Please specify event type"
+            value={form.event_type_other}
+            onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
+          />
+        )}
+        <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
         <input placeholder="Start Time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
         <input placeholder="Guest Count" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
         <input placeholder="Duration (hours)" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />

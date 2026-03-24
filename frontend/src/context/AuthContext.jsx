@@ -5,10 +5,18 @@ export const AuthContext = createContext();
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("user");
-    if (saved) setUser(JSON.parse(saved));
+    if (saved) {
+      try {
+        setUser(JSON.parse(saved));
+      } catch (err) {
+        localStorage.removeItem("user");
+      }
+    }
+    setIsReady(true);
   }, []);
 
   const login = async (email, password) => {
@@ -26,7 +34,7 @@ export default function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, isReady }}>
       {children}
     </AuthContext.Provider>
   );

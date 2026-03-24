@@ -22,7 +22,7 @@ export default function BookingWizard() {
   const { notify } = useToast();
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [form, setForm] = useState({
-    customer_id: user._id,
+    customer_id: user?._id || "",
     event_type: "",
     event_type_other: "",
     event_theme: "",
@@ -56,6 +56,15 @@ export default function BookingWizard() {
     contact_method: "email",
     payment_method: ""
   });
+
+  useEffect(() => {
+    if (!user) return;
+    setForm((prev) => ({
+      ...prev,
+      customer_id: prev.customer_id || user._id,
+      contact_email: prev.contact_email || user.email || ""
+    }));
+  }, [user]);
 
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
@@ -140,6 +149,11 @@ export default function BookingWizard() {
   const submit = async () => {
     setError("");
     try {
+      if (!user?._id) {
+        setError("Your session expired. Please log in again.");
+        return;
+      }
+
       if (form.event_date && form.event_date < today) {
         setError("Please choose a future date for the event.");
         return;
@@ -165,6 +179,7 @@ export default function BookingWizard() {
 
       const payload = {
         ...form,
+        customer_id: user._id,
         event_type: eventTypeValue,
         guest_count: parseNumber(form.guest_count),
         duration_hours: parseNumber(form.duration_hours),

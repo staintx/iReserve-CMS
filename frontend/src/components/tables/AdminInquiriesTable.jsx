@@ -11,13 +11,13 @@ const statusClass = (status) => {
 const statusLabel = (status) => {
   if (!status) return "Pending";
   if (status === "quoted") return "Awaiting Payment";
-  if (status === "approved") return "Payment Confirmed";
+  if (status === "approved") return "Approved";
   if (status === "rejected") return "Rejected";
   if (status === "cancelled") return "Cancelled";
   return status;
 };
 
-export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onConvert, onApprove, onReject }) {
+export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onReject }) {
   return (
     <table className="table">
       <thead>
@@ -57,16 +57,7 @@ export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onCo
                     <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Edit</button>
                   </>
                 )}
-                {inq.status === "approved" && (
-                  <>
-                    <button className="action-chip success" type="button" onClick={() => onConvert(inq)}>Convert</button>
-                    <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Reject</button>
-                  </>
-                )}
-                {inq.status !== "approved" && (
-                  <button className="action-chip success" type="button" onClick={() => onApprove(inq)}>Approve</button>
-                )}
-                {inq.status !== "approved" && (
+                {inq.status !== "rejected" && inq.status !== "cancelled" && (
                   <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Reject</button>
                 )}
                 <button className="action-link" type="button" onClick={() => onSelect(inq)}>View</button>

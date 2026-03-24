@@ -5,10 +5,12 @@ import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminInquiriesTable from "../../components/tables/AdminInquiriesTable";
 import useToast from "../../hooks/useToast";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function AdminInquiries() {
   const [inquiries, setInquiries] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { notify } = useToast();
@@ -27,6 +29,10 @@ export default function AdminInquiries() {
   }, []);
 
   const updateStatus = (id, status) => {
+    if (!id) {
+      notify("Missing inquiry ID. Please refresh and try again.", "error");
+      return;
+    }
     AdminAPI.updateInquiry(id, { status })
       .then(() => {
         notify(`Inquiry ${status}.`, "success");
@@ -56,7 +62,7 @@ export default function AdminInquiries() {
       <div className="admin-page-head">
         <div className="admin-title">
           <h1>Inquiry Management</h1>
-          <p>Convert paid inquiries into active bookings</p>
+          <p>Review and quote customer inquiries</p>
         </div>
       </div>
       <div className="admin-actions" style={{ marginBottom: "12px" }}>
@@ -68,8 +74,7 @@ export default function AdminInquiries() {
         <select className="admin-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All</option>
           <option value="pending">Pending</option>
-          <option value="quoted">Quoted</option>
-          <option value="approved">Approved</option>
+          <option value="quoted">Awaiting Payment</option>
           <option value="rejected">Rejected</option>
           <option value="cancelled">Cancelled</option>
         </select>
@@ -79,10 +84,18 @@ export default function AdminInquiries() {
           inquiries={filtered}
           onSelect={(inq) => setSelected(inq)}
           onQuote={openQuotePage}
-          onConvert={openQuotePage}
-          onApprove={(inq) => updateStatus(inq._id, "approved")}
-          onReject={(inq) => updateStatus(inq._id, "rejected")}
+          onReject={(inq) => setRejectTarget(inq)}
         />
+        {rejectTarget && (
+          <ConfirmDialog
+            message={`Reject inquiry ${rejectTarget._id?.slice(-6) || ""}? This cannot be undone.`}
+            onConfirm={() => {
+              updateStatus(rejectTarget._id, "rejected");
+              setRejectTarget(null);
+            }}
+            onCancel={() => setRejectTarget(null)}
+          />
+        )}
         <div className="table-footer">
           <span>{summaryText}</span>
           <div className="pager">

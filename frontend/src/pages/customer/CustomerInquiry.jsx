@@ -43,6 +43,11 @@ export default function CustomerInquiry() {
       .filter(Boolean);
 
   const submit = async () => {
+    if (!user?._id) {
+      notify("Your session expired. Please log in again.", "error");
+      return;
+    }
+
     if (form.event_date && form.event_date < today) {
       notify("Please choose a future date for the event.", "error");
       return;

@@ -18,7 +18,7 @@ export default function AuthLoginForm({ email, password, error, onEmailChange, o
           <Link className="text-brand-700" to="/forgot-password">Forgot Password?</Link>
         </div>
         <button className="w-full btn" type="submit">Login now</button>
-        <p className="text-sm text-slate-500">Don't have an account? <Link className="text-brand-700" to="/signup">Sign up</Link></p>
+        <p className="text-sm text-slate-500">Don't have an account? <Link className="text-brand-700" to="/signup">Register</Link></p>
       </form>
     </>
   );

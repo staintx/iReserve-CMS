@@ -1,5 +1,14 @@
 const Joi = require("joi");
 
+const noPastDate = (value, helpers) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return helpers.error("date.base");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date < today) return helpers.error("date.min");
+  return value;
+};
+
 const menuItemSchema = Joi.object({
   name: Joi.string().required(),
   image_url: Joi.string().allow("").optional(),
@@ -18,14 +27,20 @@ exports.inquirySchema = Joi.object({
   package_id: Joi.string().optional(),
   event_type: Joi.string().required(),
   event_theme: Joi.string().optional(),
-  event_date: Joi.date().required(),
+  event_date: Joi.date()
+    .required()
+    .custom(noPastDate, "no past dates")
+    .messages({
+      "date.base": "Event date must be a valid date.",
+      "date.min": "Event date must be today or later."
+    }),
   start_time: Joi.string().optional(),
   guest_count: Joi.number().required(),
   duration_hours: Joi.number().empty("").optional(),
   include_food: Joi.boolean().optional(),
   service_type: Joi.string().optional(),
-  venue_type: Joi.string().optional(),
-  indoor_outdoor: Joi.string().optional(),
+  venue_type: Joi.string().allow("").optional(),
+  indoor_outdoor: Joi.string().allow("").optional(),
   province: Joi.string().optional(),
   municipality: Joi.string().optional(),
   barangay: Joi.string().optional(),
@@ -61,14 +76,21 @@ exports.inquiryUpdateSchema = Joi.object({
   package_id: Joi.string().optional(),
   event_type: Joi.string().optional(),
   event_theme: Joi.string().optional(),
-  event_date: Joi.date().empty("").optional(),
+  event_date: Joi.date()
+    .empty("")
+    .optional()
+    .custom(noPastDate, "no past dates")
+    .messages({
+      "date.base": "Event date must be a valid date.",
+      "date.min": "Event date must be today or later."
+    }),
   start_time: Joi.string().optional(),
   guest_count: Joi.number().empty("").optional(),
   duration_hours: Joi.number().empty("").optional(),
   include_food: Joi.boolean().optional(),
   service_type: Joi.string().optional(),
-  venue_type: Joi.string().optional(),
-  indoor_outdoor: Joi.string().optional(),
+  venue_type: Joi.string().allow("").optional(),
+  indoor_outdoor: Joi.string().allow("").optional(),
   province: Joi.string().optional(),
   municipality: Joi.string().optional(),
   barangay: Joi.string().optional(),

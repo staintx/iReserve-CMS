@@ -15,6 +15,7 @@ export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  const today = new Date().toISOString().split("T")[0];
   const [menuItems, setMenuItems] = useState([]);
   const [error, setError] = useState("");
   const [availability, setAvailability] = useState({ status: "idle", message: "" });
@@ -23,6 +24,7 @@ export default function BookingWizard() {
   const [form, setForm] = useState({
     customer_id: user._id,
     event_type: "",
+    event_type_other: "",
     event_theme: "",
     event_date: "",
     start_time: "",
@@ -138,6 +140,19 @@ export default function BookingWizard() {
   const submit = async () => {
     setError("");
     try {
+      if (form.event_date && form.event_date < today) {
+        setError("Please choose a future date for the event.");
+        return;
+      }
+
+      const eventTypeValue = form.event_type === "Other"
+        ? String(form.event_type_other || "").trim()
+        : String(form.event_type || "").trim();
+      if (!eventTypeValue) {
+        setError(form.event_type === "Other" ? "Please specify the event type." : "Please choose an event type.");
+        return;
+      }
+
       if (!agreements.terms || !agreements.privacy) {
         setError("Please accept the terms and privacy policy to continue.");
         return;
@@ -150,6 +165,7 @@ export default function BookingWizard() {
 
       const payload = {
         ...form,
+        event_type: eventTypeValue,
         guest_count: parseNumber(form.guest_count),
         duration_hours: parseNumber(form.duration_hours),
         budget_min: parseNumber(form.budget_min),
@@ -202,15 +218,38 @@ export default function BookingWizard() {
             <div className="booking-grid">
               <label className="field">
                 <span>Event Type</span>
-                <input placeholder="Birthday" value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
+                <select
+                  value={form.event_type}
+                  onChange={(e) => setForm({
+                    ...form,
+                    event_type: e.target.value,
+                    event_type_other: e.target.value === "Other" ? form.event_type_other : ""
+                  })}
+                >
+                  <option value="">Select event type</option>
+                  <option value="Birthday">Birthday</option>
+                  <option value="Wedding">Wedding</option>
+                  <option value="Corporate">Corporate</option>
+                  <option value="Other">Others (please specify)</option>
+                </select>
               </label>
+              {form.event_type === "Other" && (
+                <label className="field">
+                  <span>Please Specify</span>
+                  <input
+                    placeholder="Anniversary, Christening, etc."
+                    value={form.event_type_other}
+                    onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
+                  />
+                </label>
+              )}
               <label className="field">
                 <span>Event Theme or Colors</span>
                 <input placeholder="Navy and Gold, Rustic Garden" value={form.event_theme} onChange={(e) => setForm({ ...form, event_theme: e.target.value })} />
               </label>
               <label className="field">
                 <span>Event Date</span>
-                <input type="date" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
               </label>
               <label className="field">
                 <span>Event Start Time</span>

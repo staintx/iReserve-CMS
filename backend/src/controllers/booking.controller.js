@@ -20,6 +20,14 @@ const parseTimeToMinutes = (timeValue) => {
 	return hours * 60 + minutes;
 };
 
+const getDateStatus = (value) => {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return { valid: false, past: false };
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+	return { valid: true, past: date < today };
+};
+
 const normalizeText = (value) =>
 	String(value || "")
 		.trim()
@@ -83,6 +91,14 @@ const findBookingConflict = async ({ eventDate, startTime, durationHours, exclud
 };
 
 exports.create = asyncHandler(async (req, res) => {
+	const dateStatus = getDateStatus(req.body.event_date);
+	if (!dateStatus.valid) {
+		return res.status(400).json({ message: "Event date is invalid" });
+	}
+	if (dateStatus.past) {
+		return res.status(400).json({ message: "Event date must be today or later" });
+	}
+
 	const conflict = await findBookingConflict({
 		eventDate: req.body.event_date,
 		startTime: req.body.start_time,
@@ -103,6 +119,13 @@ exports.create = asyncHandler(async (req, res) => {
 exports.createFromInquiry = asyncHandler(async (req, res) => {
 	const inquiry = await Inquiry.findById(req.params.id);
 	if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+	const dateStatus = getDateStatus(inquiry.event_date);
+	if (!dateStatus.valid) {
+		return res.status(400).json({ message: "Event date is invalid" });
+	}
+	if (dateStatus.past) {
+		return res.status(400).json({ message: "Event date must be today or later" });
+	}
 	if (req.body.total_price === undefined) {
 		return res.status(400).json({ message: "Total price is required" });
 	}
@@ -182,6 +205,15 @@ exports.getById = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
 	const current = await Booking.findById(req.params.id);
 	if (!current) return res.status(404).json({ message: "Booking not found" });
+	if (req.body.event_date) {
+		const dateStatus = getDateStatus(req.body.event_date);
+		if (!dateStatus.valid) {
+			return res.status(400).json({ message: "Event date is invalid" });
+		}
+		if (dateStatus.past) {
+			return res.status(400).json({ message: "Event date must be today or later" });
+		}
+	}
 
 	const nextEventDate = req.body.event_date || current.event_date;
 	const nextStartTime = req.body.start_time || current.start_time;

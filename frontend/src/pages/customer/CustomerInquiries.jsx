@@ -59,49 +59,71 @@ export default function CustomerInquiries() {
       title="My Inquiries"
       subtitle="Track all your pending inquiries"
     >
-      <div className="customer-form-grid">
+      <div className="inquiry-list">
         {inquiries.map((inq) => (
-          <div key={inq._id} className="table-card">
-            <div className="tile-header">
+          <div key={inq._id} className="inquiry-card">
+            <div className="inquiry-header">
               <div>
-                <strong>{inq.event_type}</strong>
-                <div><small>Submitted on {inq.createdAt ? new Date(inq.createdAt).toLocaleDateString() : ""}</small></div>
+                <div className="inquiry-id">INQ-{inq._id?.slice(-3).toUpperCase() || "000"}</div>
+                <div className="inquiry-date">Submitted on {inq.createdAt ? new Date(inq.createdAt).toLocaleDateString() : ""}</div>
               </div>
-              <div className="actions">
-                <button className="btn-outline" type="button" onClick={() => navigate("/customer/messages")}>Message</button>
+              <div className="inquiry-actions">
+                <button
+                  className="icon-btn"
+                  type="button"
+                  onClick={() => openQuote(inq)}
+                  title="View"
+                >
+                  👁
+                </button>
+                <button
+                  className="icon-btn edit"
+                  type="button"
+                  disabled
+                  title="Edit (coming soon)"
+                >
+                  Edit
+                </button>
                 {inq.status !== "cancelled" && (
-                  <button className="btn-danger" type="button" onClick={() => cancelInquiry(inq._id)}>Cancel</button>
+                  <button
+                    className="icon-btn cancel"
+                    type="button"
+                    onClick={() => cancelInquiry(inq._id)}
+                    title="Cancel"
+                  >
+                    Cancel
+                  </button>
                 )}
               </div>
             </div>
-            <div className="grid sm:grid-cols-5">
-              <div>
-                <small>Event Type</small>
-                <div>{inq.event_type}</div>
+            <div className="inquiry-meta-grid">
+              <div className="inquiry-meta-item">
+                <span>Event Type</span>
+                <strong>{inq.event_type || "-"}</strong>
               </div>
-              <div>
-                <small>Event Date</small>
-                <div>{inq.event_date ? new Date(inq.event_date).toLocaleDateString() : ""}</div>
+              <div className="inquiry-meta-item">
+                <span>Event Date</span>
+                <strong>{inq.event_date ? new Date(inq.event_date).toLocaleDateString() : ""}</strong>
               </div>
-              <div>
-                <small>Venue Type</small>
-                <div>{inq.venue_type || "-"}</div>
+              <div className="inquiry-meta-item">
+                <span>Venue Type</span>
+                <strong>{inq.venue_type || "-"}</strong>
               </div>
-              <div>
-                <small>Service Type</small>
-                <div>{inq.service_type || (inq.include_food ? "Food & Event" : "Event Setup")}</div>
+              <div className="inquiry-meta-item">
+                <span>Service Type</span>
+                <strong>{inq.service_type || (inq.include_food ? "Food & Event" : "Event Setup")}</strong>
               </div>
-              <div>
-                <small>Contact</small>
-                <div>{inq.contact_phone || "-"}</div>
+              <div className="inquiry-meta-item">
+                <span>Contact</span>
+                <strong>{inq.contact_phone || "-"}</strong>
               </div>
             </div>
-            <div className="actions" style={{ marginTop: "12px" }}>
-              <button className="btn" type="button" onClick={() => navigate("/customer/messages")}>Send Message</button>
+            <div className="inquiry-footer">
+              <button className="inquiry-primary" type="button" onClick={() => navigate("/customer/messages")}>Send Message</button>
               {inq.quote_amount ? (
-                <button className="btn-outline" type="button" onClick={() => openQuote(inq)}>View Quoted</button>
+                <button className="inquiry-secondary" type="button" onClick={() => openQuote(inq)}>View Quoted</button>
               ) : (
-                <span className="pill">Wait for Quote</span>
+                <button className="inquiry-wait" type="button" disabled>Wait for Quote</button>
               )}
             </div>
           </div>

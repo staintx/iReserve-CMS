@@ -26,6 +26,7 @@ exports.inquirySchema = Joi.object({
   customer_id: Joi.string().optional(),
   package_id: Joi.string().optional(),
   event_type: Joi.string().required(),
+  event_type_other: Joi.string().allow("").optional(),
   event_theme: Joi.string().optional(),
   event_date: Joi.date()
     .required()
@@ -62,7 +63,7 @@ exports.inquirySchema = Joi.object({
   contact_last_name: Joi.string().optional(),
   contact_email: Joi.string().email().optional(),
   contact_phone: Joi.string().pattern(/^[0-9+\-\s]{7,15}$/).optional(),
-  contact_alt_phone: Joi.string().pattern(/^[0-9+\-\s]{7,15}$/).optional(),
+  contact_alt_phone: Joi.string().allow("").pattern(/^[0-9+\-\s]{7,15}$/).optional(),
   contact_method: Joi.string().optional(),
   payment_method: Joi.string().optional(),
   package_amount: Joi.number().empty("").optional(),
@@ -75,6 +76,7 @@ exports.inquiryUpdateSchema = Joi.object({
   customer_id: Joi.string().optional(),
   package_id: Joi.string().optional(),
   event_type: Joi.string().optional(),
+  event_type_other: Joi.string().allow("").optional(),
   event_theme: Joi.string().optional(),
   event_date: Joi.date()
     .empty("")
@@ -112,7 +114,7 @@ exports.inquiryUpdateSchema = Joi.object({
   contact_last_name: Joi.string().optional(),
   contact_email: Joi.string().email().optional(),
   contact_phone: Joi.string().pattern(/^[0-9+\-\s]{7,15}$/).optional(),
-  contact_alt_phone: Joi.string().pattern(/^[0-9+\-\s]{7,15}$/).optional(),
+  contact_alt_phone: Joi.string().allow("").pattern(/^[0-9+\-\s]{7,15}$/).optional(),
   contact_method: Joi.string().optional(),
   payment_method: Joi.string().optional(),
   package_amount: Joi.number().empty("").optional(),

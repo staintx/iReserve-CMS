@@ -5,8 +5,16 @@ import { useNavigate } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
 import useToast from "../../../hooks/useToast";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
+import Modal from "../../../components/common/Modal";
 
-const steps = ["Event Details", "Venue Information", "Menu Options", "Additional Services", "Contact Info", "Review & Payment"];
+const stepLabels = {
+  event: "Event Details",
+  venue: "Venue Information",
+  menu: "Menu Options",
+  services: "Additional Services",
+  contact: "Contact Info",
+  review: "Review & Payment"
+};
 
 const furnitureOptions = ["Couch", "Balloon", "Cake Table", "Round Tables", "Monoblock Chairs", "Other"];
 const diningOptions = ["Food Warmer", "Serving Spoons", "Plates", "Glasses", "Ice Cooler"];
@@ -22,6 +30,8 @@ export default function BookingWizard() {
   const [availability, setAvailability] = useState({ status: "idle", message: "" });
   const { notify } = useToast();
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [form, setForm] = useState({
     customer_id: user?._id || "",
     event_type: "",
@@ -67,8 +77,25 @@ export default function BookingWizard() {
     }));
   }, [user]);
 
+  const stepKeys = useMemo(
+    () => (form.include_food
+      ? ["event", "venue", "menu", "services", "contact", "review"]
+      : ["event", "venue", "services", "contact", "review"]),
+    [form.include_food]
+  );
+  const steps = stepKeys.map((key) => stepLabels[key]);
+  const currentStep = stepKeys[step];
+
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
+
+  useEffect(() => {
+    if (form.include_food) return;
+    if (currentStep === "menu") {
+      const nextIndex = stepKeys.indexOf("services");
+      setStep(nextIndex === -1 ? 0 : nextIndex);
+    }
+  }, [form.include_food, currentStep, stepKeys]);
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(
@@ -194,6 +221,11 @@ export default function BookingWizard() {
         budget_max: parseNumber(form.budget_max)
       };
 
+      delete payload.event_type_other;
+      if (!payload.contact_alt_phone) {
+        delete payload.contact_alt_phone;
+      }
+
       await CustomerAPI.submitInquiry(payload);
       notify("Inquiry submitted.", "success");
       navigate("/customer/booking-success");
@@ -232,7 +264,7 @@ export default function BookingWizard() {
           })}
         </div>
 
-        {step === 0 && (
+        {currentStep === "event" && (
           <div className="booking-card">
             <div className="booking-card-header">
               <h3>Event Details</h3>
@@ -329,7 +361,7 @@ export default function BookingWizard() {
           </div>
         )}
 
-        {step === 1 && (
+        {currentStep === "venue" && (
           <div className="booking-card">
             <div className="booking-card-header">
               <h3>Venue Information</h3>
@@ -421,7 +453,7 @@ export default function BookingWizard() {
           </div>
         )}
 
-        {step === 2 && (
+        {currentStep === "menu" && (
           <div className="booking-card">
             <div className="booking-card-header">
               <h3>Menu Options</h3>
@@ -496,7 +528,7 @@ export default function BookingWizard() {
           </div>
         )}
 
-        {step === 3 && (
+        {currentStep === "services" && (
           <div className="booking-card">
             <div className="booking-card-header">
               <h3>Additional Services</h3>
@@ -555,7 +587,7 @@ export default function BookingWizard() {
           </div>
         )}
 
-        {step === 4 && (
+        {currentStep === "contact" && (
           <div className="booking-card">
             <div className="booking-card-header">
               <h3>Contact Information</h3>
@@ -621,7 +653,7 @@ export default function BookingWizard() {
           </div>
         )}
 
-        {step === 5 && (
+        {currentStep === "review" && (
           <div className="booking-card">
             <div className="booking-card-header">
               <h3>Review & Payment</h3>
@@ -661,7 +693,12 @@ export default function BookingWizard() {
                   checked={agreements.terms}
                   onChange={(e) => setAgreements({ ...agreements, terms: e.target.checked })}
                 />
-                I agree to the Terms & Conditions
+                <span className="choice-text">
+                  I agree to the
+                  <button className="action-link" type="button" onClick={() => setShowTerms(true)}>
+                    Terms & Conditions
+                  </button>
+                </span>
               </label>
               <label className="choice">
                 <input
@@ -669,7 +706,12 @@ export default function BookingWizard() {
                   checked={agreements.privacy}
                   onChange={(e) => setAgreements({ ...agreements, privacy: e.target.checked })}
                 />
-                I agree to the Privacy Policy
+                <span className="choice-text">
+                  I agree to the
+                  <button className="action-link" type="button" onClick={() => setShowPrivacy(true)}>
+                    Privacy Policy
+                  </button>
+                </span>
               </label>
             </div>
             <div className="booking-tip info">
@@ -686,6 +728,48 @@ export default function BookingWizard() {
           </div>
         )}
       </div>
+
+      {showTerms && (
+        <Modal title="Terms and Conditions" onClose={() => setShowTerms(false)}>
+          <div className="policy-content">
+            <h4>Booking & Reservation</h4>
+            <p>All bookings are subject to availability. A reservation is only considered confirmed once the client has provided the necessary event details and paid the required deposit.</p>
+
+            <h4>Payment Terms</h4>
+            <ul>
+              <li><strong>Deposit:</strong> A 20% down payment is required to reserve the date.</li>
+              <li><strong>Final Payment:</strong> The remaining balance must be paid a day before the event date.</li>
+            </ul>
+
+            <h4>Cancellation & Refund Policy</h4>
+            <p><strong>IMPORTANT:</strong> All deposits made are non-refundable and non-transferable. If a booking is canceled by the client for any reason, the deposit will be forfeited to cover administrative costs and lost business opportunities.</p>
+
+            <h4>Lost or Damaged Equipment</h4>
+            <p>The client is responsible for the safekeeping of all catering equipment and materials provided during the event. The client will be billed and held financially responsible for the replacement cost of any items that are lost, missing, or damaged during the event.</p>
+
+            <h4>Liability</h4>
+            <p>Caezelle's Catering Service is not responsible for any delays or failures in performance due to circumstances beyond our control (e.g., natural disasters, extreme weather, or government restrictions).</p>
+          </div>
+        </Modal>
+      )}
+
+      {showPrivacy && (
+        <Modal title="Privacy Policy" onClose={() => setShowPrivacy(false)}>
+          <div className="policy-content">
+            <h4>Data Collection</h4>
+            <p>We collect personal information such as your name, contact number, email address, and event details to facilitate your booking and provide our services.</p>
+
+            <h4>Use of Information</h4>
+            <p>Your data is used strictly for: processing your catering orders and payments, communicating regarding event logistics, and improving our system's user experience.</p>
+
+            <h4>Data Security</h4>
+            <p>We implement secure protocols to protect your information from unauthorized access. We do not sell or share your personal data with third-party marketers.</p>
+
+            <h4>Consent</h4>
+            <p>By using this system and paying the deposit, you agree to the collection of your data and acknowledge the No-Refund Policy stated in our Terms and Conditions.</p>
+          </div>
+        </Modal>
+      )}
     </CustomerLayout>
   );
 }

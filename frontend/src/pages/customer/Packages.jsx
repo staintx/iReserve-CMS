@@ -7,6 +7,19 @@ export default function Packages() {
   const [packages, setPackages] = useState([]);
   const navigate = useNavigate();
 
+  const formatMoney = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toLocaleString("en-PH") : value || "";
+  };
+
+  const getPackagePrice = (data) => {
+    const min = Number(data?.price_min);
+    const max = Number(data?.price_max);
+    if (Number.isFinite(min)) return min;
+    if (Number.isFinite(max)) return max;
+    return null;
+  };
+
   useEffect(() => {
     CustomerAPI.getPackages().then((res) => {
       const next = Array.isArray(res.data) ? res.data : [];
@@ -27,7 +40,7 @@ export default function Packages() {
             <img src={p.image_url} alt={p.name} />
             <h3>{p.name}</h3>
             <p>{p.description}</p>
-            <small>₱{p.price_min} - ₱{p.price_max}</small>
+            <small>₱{formatMoney(getPackagePrice(p))}</small>
             <div className="actions">
               <button className="btn-outline" onClick={() => navigate(`/packages/${p._id}`)}>View Full Details</button>
               <button className="btn" onClick={() => navigate("/customer/book")}>Book Now</button>

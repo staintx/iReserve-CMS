@@ -118,7 +118,18 @@ export default function CustomerDashboard() {
                     Event Date: {inq.event_date ? new Date(inq.event_date).toLocaleDateString() : "TBD"}
                   </div>
                 </div>
-                <span className="pill">{inq.status}</span>
+                <div className="dash-inquiry-actions">
+                  <span className="pill">{inq.status}</span>
+                  {inq.status === "quoted" && (
+                    <button
+                      className="action-link"
+                      type="button"
+                      onClick={() => navigate("/customer/inquiries", { state: { openQuoteId: inq._id } })}
+                    >
+                      View Quote
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             {activeInquiries.length === 0 && <p className="dash-empty">No pending inquiries.</p>}

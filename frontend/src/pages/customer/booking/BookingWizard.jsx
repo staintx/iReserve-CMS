@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
 import useToast from "../../../hooks/useToast";
+import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 
 const steps = ["Event Details", "Venue Information", "Menu Options", "Additional Services", "Contact Info", "Review & Payment"];
 
@@ -35,7 +36,7 @@ export default function BookingWizard() {
     budget_max: "",
     venue_type: "",
     indoor_outdoor: "",
-    province: "",
+    province: BATANGAS_PROVINCE,
     municipality: "",
     barangay: "",
     street: "",
@@ -68,6 +69,12 @@ export default function BookingWizard() {
 
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
+
+  const municipalities = useMemo(() => getBatangasMunicipalities(), []);
+  const barangays = useMemo(
+    () => getBatangasBarangays(form.municipality),
+    [form.municipality]
+  );
 
   useEffect(() => {
     CustomerAPI.getMenu()
@@ -357,15 +364,34 @@ export default function BookingWizard() {
               </div>
               <label className="field">
                 <span>Province</span>
-                <input placeholder="Nueva Ecija" value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
+                <select value={form.province} disabled>
+                  <option value={BATANGAS_PROVINCE}>{BATANGAS_PROVINCE}</option>
+                </select>
               </label>
               <label className="field">
                 <span>Municipality</span>
-                <input placeholder="General M. Natividad" value={form.municipality} onChange={(e) => setForm({ ...form, municipality: e.target.value })} />
+                <select
+                  value={form.municipality}
+                  onChange={(e) => setForm({ ...form, municipality: e.target.value, barangay: "" })}
+                >
+                  <option value="">Select Municipality</option>
+                  {municipalities.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 <span>Barangay</span>
-                <input placeholder="Mataas Na Kahoy" value={form.barangay} onChange={(e) => setForm({ ...form, barangay: e.target.value })} />
+                <select
+                  value={form.barangay}
+                  disabled={!form.municipality}
+                  onChange={(e) => setForm({ ...form, barangay: e.target.value })}
+                >
+                  <option value="">Select Barangay</option>
+                  {barangays.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 <span>Street Name</span>

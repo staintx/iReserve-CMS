@@ -37,6 +37,16 @@ export default function PackageDetails() {
     return Number.isFinite(number) ? number.toLocaleString("en-PH") : value || "";
   };
 
+  const getPackagePrice = (data) => {
+    const min = Number(data?.price_min);
+    const max = Number(data?.price_max);
+    if (Number.isFinite(min)) return min;
+    if (Number.isFinite(max)) return max;
+    return null;
+  };
+
+  const packagePrice = getPackagePrice(pkg);
+
   const inclusions = Array.isArray(pkg.inclusions) ? pkg.inclusions : [];
   const addOns = Array.isArray(pkg.add_ons) ? pkg.add_ons : [];
   const cancellationPolicy = pkg.cancellation_policy || "Flexible rescheduling within 7 days of the event date.";
@@ -55,7 +65,7 @@ export default function PackageDetails() {
             <p className="package-hero-subtitle">{pkg.description}</p>
             <div className="package-hero-meta">
               <span className="package-pill">Size: {pkg.size || "Custom"}</span>
-              <span className="package-pill">From ₱{formatMoney(pkg.price_min)}</span>
+              <span className="package-pill">₱{formatMoney(packagePrice)}</span>
               <span className="package-pill">{pkg.rating || "4.5"} ★</span>
             </div>
           </div>
@@ -120,7 +130,7 @@ export default function PackageDetails() {
           <aside className="package-side">
             <div className="price-card">
               <p className="price-label">Package Price</p>
-              <h2>₱{formatMoney(pkg.price_min)} - ₱{formatMoney(pkg.price_max)}</h2>
+              <h2>₱{formatMoney(packagePrice)}</h2>
               <div className="price-meta">
                 <div className="price-meta-item">
                   <span>Serving Size</span>

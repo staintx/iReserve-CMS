@@ -1124,6 +1124,7 @@
   margin: 0;
   font-family: "Playfair Display", "Times New Roman", serif;
   font-size: clamp(28px, 4vw, 44px);
+  color: #fff;
 }
 
 .package-hero-subtitle {
@@ -1272,13 +1273,15 @@
   letter-spacing: 0.2em;
   font-size: 11px;
   margin: 0 0 8px;
-  opacity: 0.7;
+  opacity: 0.8;
+  color: #fff;
 }
 
 .price-card h2 {
   margin: 0 0 14px;
   font-family: "Playfair Display", "Times New Roman", serif;
   font-size: 26px;
+  color: #fff;
 }
 
 .price-meta {
@@ -1947,4 +1950,8 @@
   .dash-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.package-cta h2 {
+  color: #fff;
 }

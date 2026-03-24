@@ -6,15 +6,19 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import AdminInquiriesTable from "../../components/tables/AdminInquiriesTable";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import Modal from "../../components/common/Modal";
 
 export default function AdminInquiries() {
   const [inquiries, setInquiries] = useState([]);
   const [selected, setSelected] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
+  const [viewTarget, setViewTarget] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { notify } = useToast();
   const navigate = useNavigate();
+
+  const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
   const load = () =>
     AdminAPI.getInquiries().then((res) => {
@@ -82,7 +86,10 @@ export default function AdminInquiries() {
       <div className="admin-table-wrap">
         <AdminInquiriesTable
           inquiries={filtered}
-          onSelect={(inq) => setSelected(inq)}
+          onSelect={(inq) => {
+            setSelected(inq);
+            setViewTarget(inq);
+          }}
           onQuote={openQuotePage}
           onReject={(inq) => setRejectTarget(inq)}
         />
@@ -95,6 +102,164 @@ export default function AdminInquiries() {
             }}
             onCancel={() => setRejectTarget(null)}
           />
+        )}
+        {viewTarget && (
+          <Modal title="Inquiry Details" onClose={() => setViewTarget(null)} className="modal-wide">
+            <div className="quote-card">
+              <div className="quote-section">
+                <h3>Inquiry Summary</h3>
+                <div className="quote-info-grid">
+                  <div className="info-line">
+                    <span className="info-label">Inquiry ID:</span>
+                    <span>{viewTarget._id?.slice(-6) || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Status:</span>
+                    <span>{viewTarget.status || "pending"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Service Type:</span>
+                    <span>{viewTarget.service_type || (viewTarget.include_food ? "Food & Event" : "Event Setup")}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Submitted:</span>
+                    <span>{formatDate(viewTarget.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="quote-section">
+                <h3>Contact Information</h3>
+                <div className="quote-info-grid">
+                  <div className="info-line">
+                    <span className="info-label">First Name:</span>
+                    <span>{viewTarget.contact_first_name || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Last Name:</span>
+                    <span>{viewTarget.contact_last_name || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Email Address:</span>
+                    <span>{viewTarget.contact_email || viewTarget.customer_id?.email || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Phone Number:</span>
+                    <span>{viewTarget.contact_phone || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Preferred Contact:</span>
+                    <span>{viewTarget.contact_method || "-"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="quote-section">
+                <h3>Event Details</h3>
+                <div className="quote-info-grid">
+                  <div className="info-line">
+                    <span className="info-label">Event Type:</span>
+                    <span>{viewTarget.event_type || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Event Theme:</span>
+                    <span>{viewTarget.event_theme || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Event Date:</span>
+                    <span>{formatDate(viewTarget.event_date)}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Start Time:</span>
+                    <span>{viewTarget.start_time || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Guest Count:</span>
+                    <span>{viewTarget.guest_count || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Duration (hours):</span>
+                    <span>{viewTarget.duration_hours || "-"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="quote-section">
+                <h3>Venue Information</h3>
+                <div className="quote-info-grid">
+                  <div className="info-line">
+                    <span className="info-label">Venue Type:</span>
+                    <span>{viewTarget.venue_type || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Indoor/Outdoor:</span>
+                    <span>{viewTarget.indoor_outdoor || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Province:</span>
+                    <span>{viewTarget.province || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Municipality:</span>
+                    <span>{viewTarget.municipality || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Barangay:</span>
+                    <span>{viewTarget.barangay || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Street:</span>
+                    <span>{viewTarget.street || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Landmark:</span>
+                    <span>{viewTarget.landmark || "-"}</span>
+                  </div>
+                  <div className="info-line">
+                    <span className="info-label">Zip Code:</span>
+                    <span>{viewTarget.zip_code || "-"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="quote-section">
+                <h3>Menu Selection</h3>
+                {Array.isArray(viewTarget.selected_menu) && viewTarget.selected_menu.length > 0 ? (
+                  <div className="quote-grid">
+                    {viewTarget.selected_menu.map((item) => (
+                      <div key={item} className="summary-line">
+                        <span>{item}</span>
+                        <span>—</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="dash-empty">No menu selections.</p>
+                )}
+              </div>
+
+              <div className="quote-section">
+                <h3>Additional Services</h3>
+                {Array.isArray(viewTarget.additional_services) && viewTarget.additional_services.length > 0 ? (
+                  <div className="quote-grid">
+                    {viewTarget.additional_services.map((item) => (
+                      <div key={item} className="summary-line">
+                        <span>{item}</span>
+                        <span>—</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="dash-empty">No additional services.</p>
+                )}
+              </div>
+
+              <div className="quote-section">
+                <h3>Special Requests</h3>
+                <p>{viewTarget.special_requests || "N/A"}</p>
+              </div>
+            </div>
+          </Modal>
         )}
         <div className="table-footer">
           <span>{summaryText}</span>

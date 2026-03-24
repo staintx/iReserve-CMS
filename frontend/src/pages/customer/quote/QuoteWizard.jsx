@@ -85,6 +85,8 @@ export default function QuoteWizard() {
   const [errors, setErrors] = useState({});
   const { notify } = useToast();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
   const [form, setForm] = useState({
     customer_id: user?._id || "",
@@ -434,6 +436,46 @@ export default function QuoteWizard() {
                 <button className="btn" onClick={() => { setShowSuccessModal(false); navigate("/"); }}>Return to Home</button>
                 <button className="btn-outline" onClick={() => { setShowSuccessModal(false); navigate("/customer/inquiries"); }}>View My Inquiry</button>
               </div>
+            </div>
+          </Modal>
+        )}
+        {showTerms && (
+          <Modal title="Terms and Conditions" onClose={() => setShowTerms(false)}>
+            <div className="policy-content">
+              <h4>Booking & Reservation</h4>
+              <p>All bookings are subject to availability. A reservation is only considered confirmed once the client has provided the necessary event details and paid the required deposit.</p>
+
+              <h4>Payment Terms</h4>
+              <ul>
+                <li><strong>Deposit:</strong> A 20% down payment is required to reserve the date.</li>
+                <li><strong>Final Payment:</strong> The remaining balance must be paid a day before the event date.</li>
+              </ul>
+
+              <h4>Cancellation & Refund Policy</h4>
+              <p><strong>IMPORTANT:</strong> All deposits made are non-refundable and non-transferable. If a booking is canceled by the client for any reason, the deposit will be forfeited to cover administrative costs and lost business opportunities.</p>
+
+              <h4>Lost or Damaged Equipment</h4>
+              <p>The client is responsible for the safekeeping of all catering equipment and materials provided during the event. The client will be billed and held financially responsible for the replacement cost of any items that are lost, missing, or damaged during the event.</p>
+
+              <h4>Liability</h4>
+              <p>Caezelle's Catering Service is not responsible for any delays or failures in performance due to circumstances beyond our control (e.g., natural disasters, extreme weather, or government restrictions).</p>
+            </div>
+          </Modal>
+        )}
+        {showPrivacy && (
+          <Modal title="Privacy Policy" onClose={() => setShowPrivacy(false)}>
+            <div className="policy-content">
+              <h4>Data Collection</h4>
+              <p>We collect personal information such as your name, contact number, email address, and event details to facilitate your booking and provide our services.</p>
+
+              <h4>Use of Information</h4>
+              <p>Your data is used strictly for: processing your catering orders and payments, communicating regarding event logistics, and improving our system's user experience.</p>
+
+              <h4>Data Security</h4>
+              <p>We implement secure protocols to protect your information from unauthorized access. We do not sell or share your personal data with third-party marketers.</p>
+
+              <h4>Consent</h4>
+              <p>By using this system and paying the deposit, you agree to the collection of your data and acknowledge the No-Refund Policy stated in our Terms and Conditions.</p>
             </div>
           </Modal>
         )}
@@ -923,7 +965,13 @@ export default function QuoteWizard() {
                           checked={form.agree_terms}
                           onChange={(e) => setForm({ ...form, agree_terms: e.target.checked })}
                         />
-                        I agree to the Terms and Conditions and understand that this is a request for a quote, not a confirmed booking.
+                        <span className="choice-text">
+                          I agree to the
+                          <button className="action-link" type="button" onClick={() => setShowTerms(true)}>
+                            Terms and Conditions
+                          </button>
+                          and understand that this is a request for a quote, not a confirmed booking.
+                        </span>
                       </label>
                       {errors.agree_terms && <p className="auth-error">{errors.agree_terms}</p>}
                       <label className="choice">
@@ -932,7 +980,12 @@ export default function QuoteWizard() {
                           checked={form.agree_privacy}
                           onChange={(e) => setForm({ ...form, agree_privacy: e.target.checked })}
                         />
-                        I have read the Privacy Policy.
+                        <span className="choice-text">
+                          I have read the
+                          <button className="action-link" type="button" onClick={() => setShowPrivacy(true)}>
+                            Privacy Policy
+                          </button>.
+                        </span>
                       </label>
                       {errors.agree_privacy && <p className="auth-error">{errors.agree_privacy}</p>}
                     </div>

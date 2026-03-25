@@ -22,7 +22,7 @@ export default function ManagerSidebar() {
   })();
 
   return (
-    <aside className="hidden w-72 flex-col bg-ink-900 text-white lg:flex">
+    <aside className="sticky top-0 self-start hidden h-screen w-72 flex-col overflow-y-auto bg-ink-900 text-white lg:flex">
       <div className="flex items-center gap-3 px-6 py-6">
         <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-white/10">
           <img src={logo} alt="Caezelle's logo" className="h-full w-full object-cover" />

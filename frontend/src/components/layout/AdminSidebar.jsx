@@ -88,7 +88,7 @@ export default function AdminSidebar() {
 
   return (
     <aside
-      className={`flex flex-col h-screen text-white bg-ink-900 transition-all duration-300 ease-in-out border-r border-white/5 z-50 shrink-0 ${
+      className={`sticky top-0 self-start flex flex-col h-screen overflow-y-auto text-white bg-ink-900 transition-all duration-300 ease-in-out border-r border-white/5 z-50 shrink-0 ${
         isCollapsed ? "w-20" : "w-72"
       }`}
     >

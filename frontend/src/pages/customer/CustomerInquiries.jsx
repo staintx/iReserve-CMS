@@ -4,6 +4,7 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import Modal from "../../components/common/Modal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 const formatCurrency = (value) => {
   if (value === undefined || value === null || value === "") return "TBD";
@@ -17,6 +18,7 @@ export default function CustomerInquiries() {
   const location = useLocation();
   const [inquiries, setInquiries] = useState([]);
   const [activeQuote, setActiveQuote] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
   const { notify } = useToast();
 
   const load = () => {
@@ -88,7 +90,7 @@ export default function CustomerInquiries() {
                   <button
                     className="icon-btn cancel"
                     type="button"
-                    onClick={() => cancelInquiry(inq._id)}
+                    onClick={() => setCancelTarget(inq)}
                     title="Cancel"
                   >
                     Cancel
@@ -130,6 +132,17 @@ export default function CustomerInquiries() {
         ))}
         {inquiries.length === 0 && <div className="tile">No inquiries yet.</div>}
       </div>
+
+        {cancelTarget && (
+          <ConfirmDialog
+            message={`Cancel inquiry INQ-${cancelTarget._id?.slice(-3).toUpperCase() || "000"}? This cannot be undone.`}
+            onConfirm={() => {
+              cancelInquiry(cancelTarget._id);
+              setCancelTarget(null);
+            }}
+            onCancel={() => setCancelTarget(null)}
+          />
+        )}
 
       {activeQuote && (() => {
         const menuItems = Array.isArray(activeQuote.menu_items) ? activeQuote.menu_items : [];

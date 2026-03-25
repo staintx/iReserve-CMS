@@ -1,6 +1,8 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
+import ConfirmDialog from "../common/ConfirmDialog";
 
 const navItems = [
   { to: "/customer/dashboard", label: "Dashboard", desc: "Overview of your events" },
@@ -14,6 +16,7 @@ const navItems = [
 export default function CustomerDashboardLayout({ title, subtitle, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const initials = (() => {
     const name = user?.full_name || user?.email || "";
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -61,7 +64,7 @@ export default function CustomerDashboardLayout({ title, subtitle, children }) {
           </div>
           <div className="topbar-actions">
             <button className="topbar-icon" type="button" aria-label="Notifications">🔔</button>
-            <button className="topbar-link" type="button" onClick={logout}>Sign out</button>
+            <button className="topbar-link" type="button" onClick={() => setShowLogoutConfirm(true)}>Sign out</button>
           </div>
         </header>
 
@@ -75,6 +78,16 @@ export default function CustomerDashboardLayout({ title, subtitle, children }) {
           {children}
         </main>
       </div>
+      {showLogoutConfirm && (
+        <ConfirmDialog
+          message="Are you sure you want to log out?"
+          onCancel={() => setShowLogoutConfirm(false)}
+          onConfirm={() => {
+            setShowLogoutConfirm(false);
+            logout();
+          }}
+        />
+      )}
     </div>
   );
 }

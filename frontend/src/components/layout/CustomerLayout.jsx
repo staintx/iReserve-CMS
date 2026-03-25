@@ -2,11 +2,13 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
+import ConfirmDialog from "../common/ConfirmDialog";
 
 export default function CustomerLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const navClass = ({ isActive }) =>
@@ -50,6 +52,11 @@ export default function CustomerLayout({ children }) {
     }
 
     scrollToSection(sectionId);
+  };
+
+  const handleLogoutClick = () => {
+    setMenuOpen(false);
+    setShowLogoutConfirm(true);
   };
   const initials = (() => {
     const name = user?.full_name || user?.email || "";
@@ -113,7 +120,7 @@ export default function CustomerLayout({ children }) {
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/payments")}>Payment History</button>
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/messages")}>Messages</button>
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/profile")}>Profile</button>
-                    <button className="dropdown-link logout" type="button" onClick={logout}>Logout</button>
+                    <button className="dropdown-link logout" type="button" onClick={handleLogoutClick}>Logout</button>
                   </div>
                 )}
               </div>
@@ -124,6 +131,16 @@ export default function CustomerLayout({ children }) {
 
       <main className="max-w-6xl px-6 pt-10 pb-16 mx-auto sm:px-10">{children}</main>
       <button className="chat-fab" type="button">💬</button>
+      {showLogoutConfirm && (
+        <ConfirmDialog
+          message="Are you sure you want to log out?"
+          onCancel={() => setShowLogoutConfirm(false)}
+          onConfirm={() => {
+            setShowLogoutConfirm(false);
+            logout();
+          }}
+        />
+      )}
     </div>
   );
 }

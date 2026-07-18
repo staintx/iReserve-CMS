@@ -52,7 +52,7 @@ export default function AdminMenu() {
       })
       .catch((err) => notify(err.response?.data?.message || "We could not delete the menu item. Please try again.", "error"));
   const toggleAvailability = (item) =>
-    AdminAPI.updateMenu(item._id, { ...item, available: !item.available })
+    AdminAPI.updateMenu(item._id, { available: !item.available })
       .then(() => {
         notify(item.available ? "Menu item disabled." : "Menu item enabled.", "success");
         load();

@@ -52,6 +52,8 @@ const InquirySchema = new mongoose.Schema({
   package_amount: Number,
   quote_amount: Number,
   quote_notes: String,
+  reviewed_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  reviewed_at: { type: Date },
   status: { type: String, default: "pending" }
 }, { timestamps: true });
 

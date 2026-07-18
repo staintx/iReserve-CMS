@@ -47,6 +47,7 @@ import AdminRatings from "../pages/admin/AdminRatings";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
 import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
 import AdminInquiryQuote from "../pages/admin/AdminInquiryQuote";
+import AdminInquiryReview from "../pages/admin/AdminInquiryReview";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
@@ -115,6 +116,7 @@ export default function AppRoutes() {
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />
         <Route path="/admin/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
+        <Route path="/admin/inquiries/:id/review" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiryReview /></ProtectedRoute>} />
         <Route path="/admin/inquiries/:id/quote" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiryQuote /></ProtectedRoute>} />
         <Route path="/admin/payment-approvals" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPaymentApprovals /></ProtectedRoute>} />
         <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />

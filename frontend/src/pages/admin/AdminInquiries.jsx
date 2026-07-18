@@ -61,6 +61,10 @@ export default function AdminInquiries() {
     navigate(`/admin/inquiries/${inq._id}/quote`);
   };
 
+  const openReviewPage = (inq) => {
+    navigate(`/admin/inquiries/${inq._id}/review`);
+  };
+
   return (
     <AdminLayout>
       <div className="admin-page-head">
@@ -77,6 +81,7 @@ export default function AdminInquiries() {
         <select className="admin-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All</option>
           <option value="pending">Pending</option>
+          <option value="reviewed">Reviewed</option>
           <option value="quoted">Awaiting Payment</option>
           <option value="rejected">Rejected</option>
           <option value="cancelled">Cancelled</option>
@@ -91,6 +96,7 @@ export default function AdminInquiries() {
           }}
           onQuote={openQuotePage}
           onReject={(inq) => setRejectTarget(inq)}
+          onReview={openReviewPage}
         />
         {rejectTarget && (
           <ConfirmDialog

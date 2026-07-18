@@ -1,6 +1,6 @@
 module.exports = {
   USER_ROLES: ["admin", "manager", "staff", "customer"],
-  INQUIRY_STATUS: ["pending", "quoted", "approved", "rejected"],
+  INQUIRY_STATUS: ["pending", "reviewed", "quoted", "approved", "rejected"],
   BOOKING_STATUS: ["active", "completed", "cancelled"],
   PAYMENT_STATUS: ["pending", "approved", "rejected"],
   SERVICE_TYPES: ["Food Only", "Event Setup Only", "Food & Event Setup"],

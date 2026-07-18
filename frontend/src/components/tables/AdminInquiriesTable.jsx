@@ -2,6 +2,7 @@ const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-
 
 const statusClass = (status) => {
   if (!status) return "pending";
+  if (status === "reviewed") return "info";
   if (status === "quoted") return "warning";
   if (["approved", "confirmed"].includes(status)) return "approved";
   if (["rejected", "cancelled"].includes(status)) return "rejected";
@@ -10,6 +11,7 @@ const statusClass = (status) => {
 
 const statusLabel = (status) => {
   if (!status) return "Pending";
+  if (status === "reviewed") return "Reviewed";
   if (status === "quoted") return "Awaiting Payment";
   if (status === "approved") return "Approved";
   if (status === "rejected") return "Rejected";
@@ -17,7 +19,7 @@ const statusLabel = (status) => {
   return status;
 };
 
-export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onReject }) {
+export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onReject, onReview }) {
   return (
     <table className="table">
       <thead>
@@ -49,6 +51,9 @@ export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onRe
             <td>
               <div className="table-actions">
                 {inq.status === "pending" && (
+                  <button className="action-chip review-chip" type="button" onClick={() => onReview(inq)}>Review</button>
+                )}
+                {inq.status === "reviewed" && (
                   <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Make a Quote</button>
                 )}
                 {inq.status === "quoted" && (
@@ -57,7 +62,7 @@ export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onRe
                     <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Edit</button>
                     </>
                 )}
-                {["pending", "quoted"].includes(inq.status) && (
+                {["reviewed", "quoted"].includes(inq.status) && (
                   <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Reject</button>
                 )}
                 <button className="action-link" type="button" onClick={() => onSelect(inq)}>View</button>

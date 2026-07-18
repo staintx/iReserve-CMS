@@ -120,7 +120,7 @@ exports.inquiryUpdateSchema = Joi.object({
   package_amount: Joi.number().empty("").optional(),
   quote_amount: Joi.number().optional(),
   quote_notes: Joi.string().optional(),
-  status: Joi.string().optional()
+  status: Joi.string().valid("pending", "reviewed", "quoted", "approved", "rejected", "cancelled").optional()
 });
 
 exports.inquiryStatusSchema = Joi.object({

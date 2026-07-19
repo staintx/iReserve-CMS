@@ -1,20 +1,24 @@
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "-");
 
 const statusClass = (status) => {
-  if (!status) return "pending";
-  if (status === "reviewed") return "info";
-  if (status === "quoted") return "warning";
-  if (["approved", "confirmed"].includes(status)) return "approved";
-  if (["rejected", "cancelled"].includes(status)) return "rejected";
+  if (!status || status === "new") return "pending";
+  if (status === "under review" || status === "negotiating") return "info";
+  if (status === "awaiting confirmation") return "warning";
+  if (status === "confirmed") return "approved";
+  if (["declined", "abandoned", "expired", "spam", "cancelled"].includes(status)) return "rejected";
   return "pending";
 };
 
 const statusLabel = (status) => {
-  if (!status) return "Pending";
-  if (status === "reviewed") return "Reviewed";
-  if (status === "quoted") return "Awaiting Payment";
-  if (status === "approved") return "Approved";
-  if (status === "rejected") return "Rejected";
+  if (!status || status === "new") return "New";
+  if (status === "under review") return "Under Review";
+  if (status === "awaiting confirmation") return "Awaiting Confirmation";
+  if (status === "negotiating") return "Negotiating";
+  if (status === "confirmed") return "Confirmed";
+  if (status === "declined") return "Declined";
+  if (status === "abandoned") return "Abandoned";
+  if (status === "expired") return "Expired";
+  if (status === "spam") return "Spam";
   if (status === "cancelled") return "Cancelled";
   return status;
 };
@@ -50,20 +54,20 @@ export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onRe
             </td>
             <td>
               <div className="table-actions">
-                {inq.status === "pending" && (
+                {inq.status === "new" && (
                   <button className="action-chip review-chip" type="button" onClick={() => onReview(inq)}>Review</button>
                 )}
-                {inq.status === "reviewed" && (
+                {inq.status === "under review" && (
                   <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Make a Quote</button>
                 )}
-                {inq.status === "quoted" && (
+                {["awaiting confirmation", "negotiating"].includes(inq.status) && (
                   <>
                     <button className="action-chip muted" type="button">Quoted</button>
                     <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Edit</button>
                     </>
                 )}
-                {["reviewed", "quoted"].includes(inq.status) && (
-                  <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Reject</button>
+                {["under review", "awaiting confirmation", "negotiating"].includes(inq.status) && (
+                  <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Decline</button>
                 )}
                 <button className="action-link" type="button" onClick={() => onSelect(inq)}>View</button>
               </div>

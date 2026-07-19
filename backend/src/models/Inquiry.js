@@ -54,7 +54,7 @@ const InquirySchema = new mongoose.Schema({
   quote_notes: String,
   reviewed_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   reviewed_at: { type: Date },
-  status: { type: String, default: "pending" }
+  status: { type: String, default: "new" }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Inquiry", InquirySchema);

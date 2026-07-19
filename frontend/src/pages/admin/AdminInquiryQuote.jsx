@@ -161,7 +161,7 @@ export default function AdminInquiryQuote() {
       quote_notes: quoteNotes,
       package_amount: basePackageAmount || undefined,
       payment_method: paymentMethod,
-      status: "quoted",
+      status: "awaiting confirmation",
       menu_items: menuPayload,
       service_items: servicePayload,
       selected_menu: menuPayload.map((item) => item.name),
@@ -184,7 +184,7 @@ export default function AdminInquiryQuote() {
     }
     const finalAmount = Number(quoteAmount || computedTotalWithPackage || 0);
 
-    AdminAPI.updateInquiry(inquiry._id, { ...buildPayload(), status: "approved" })
+    AdminAPI.updateInquiry(inquiry._id, { ...buildPayload(), status: "confirmed" })
       .then(() =>
         AdminAPI.createBookingFromInquiry(inquiry._id, {
           total_price: finalAmount,

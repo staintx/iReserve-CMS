@@ -6,7 +6,7 @@ exports.create = asyncHandler(async (req, res) => {
   const payload = {
     ...req.body,
     customer_id: req.user?._id || req.body.customer_id,
-    status: req.body.status || "pending"
+    status: req.body.status || "new"
   };
 
   res.status(201).json(await Inquiry.create(payload));
@@ -35,11 +35,11 @@ exports.review = asyncHandler(async (req, res) => {
   const inquiry = await Inquiry.findById(req.params.id);
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
-  if (inquiry.status !== "pending") {
-    return res.status(400).json({ message: "Only pending inquiries can be reviewed" });
+  if (inquiry.status !== "new") {
+    return res.status(400).json({ message: "Only new inquiries can be reviewed" });
   }
 
-  inquiry.status = "reviewed";
+  inquiry.status = "under review";
   inquiry.reviewed_by = req.user._id;
   inquiry.reviewed_at = new Date();
   await inquiry.save();
@@ -63,7 +63,7 @@ exports.update = asyncHandler(async (req, res) => {
   const current = await Inquiry.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Inquiry not found" });
 
-  if (current.status === "pending") {
+  if (current.status === "new") {
     return res.status(400).json({ message: "Inquiry must be reviewed before it can be updated" });
   }
 

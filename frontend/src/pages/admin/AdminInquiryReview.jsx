@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import useToast from "../../hooks/useToast";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function AdminInquiryReview() {
   const { id } = useParams();
@@ -10,6 +11,7 @@ export default function AdminInquiryReview() {
   const { notify } = useToast();
   const [inquiry, setInquiry] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(false);
 
   useEffect(() => {
     AdminAPI.getInquiry(id)
@@ -345,6 +347,16 @@ export default function AdminInquiryReview() {
               {submitting ? "Marking…" : "✓ Mark as Reviewed"}
             </button>
           )}
+          {isAlreadyReviewed && ["under review", "awaiting confirmation", "negotiating"].includes(inquiry.status) && (
+            <button
+              className="btn-outline danger"
+              type="button"
+              onClick={() => setRejectTarget(true)}
+              style={{ borderColor: "#ef4444", color: "#ef4444" }}
+            >
+              Decline Inquiry
+            </button>
+          )}
           {isAlreadyReviewed && inquiry.status === "under review" && (
             <button
               className="btn"
@@ -354,8 +366,46 @@ export default function AdminInquiryReview() {
               Proceed to Quote →
             </button>
           )}
+          {isAlreadyReviewed && ["awaiting confirmation", "negotiating"].includes(inquiry.status) && (
+            <button
+              className="btn"
+              type="button"
+              onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
+            >
+              Edit Quote →
+            </button>
+          )}
+          {isAlreadyReviewed && inquiry.status === "confirmed" && (
+            <button
+              className="btn success"
+              type="button"
+              style={{ backgroundColor: "#10b981", borderColor: "#10b981", color: "#fff" }}
+              onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
+            >
+              Create Booking →
+            </button>
+          )}
         </div>
       </div>
+      {rejectTarget && (
+        <ConfirmDialog
+          message={`Decline inquiry ${inquiryCode}? This cannot be undone.`}
+          onConfirm={() => {
+            setSubmitting(true);
+            AdminAPI.updateInquiry(inquiry._id, { status: "declined" })
+              .then(() => {
+                notify("Inquiry declined.", "success");
+                navigate("/admin/inquiries");
+              })
+              .catch((err) => {
+                notify(err.response?.data?.message || "Could not decline inquiry.", "error");
+                setSubmitting(false);
+                setRejectTarget(false);
+              });
+          }}
+          onCancel={() => setRejectTarget(false)}
+        />
+      )}
     </AdminLayout>
   );
 }

@@ -23,7 +23,7 @@ const statusLabel = (status) => {
   return status;
 };
 
-export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onReject, onReview }) {
+export default function AdminInquiriesTable({ inquiries, onReview }) {
   return (
     <table className="table">
       <thead>
@@ -54,25 +54,7 @@ export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onRe
             </td>
             <td>
               <div className="table-actions">
-                {inq.status === "new" && (
-                  <button className="action-chip review-chip" type="button" onClick={() => onReview(inq)}>Review</button>
-                )}
-                {inq.status === "under review" && (
-                  <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Make a Quote</button>
-                )}
-                {["awaiting confirmation", "negotiating"].includes(inq.status) && (
-                  <>
-                    <button className="action-chip muted" type="button">Quoted</button>
-                    <button className="action-chip" type="button" onClick={() => onQuote(inq)}>Edit</button>
-                    </>
-                )}
-                {["under review", "awaiting confirmation", "negotiating"].includes(inq.status) && (
-                  <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Decline</button>
-                )}
-                {inq.status === "confirmed" && (
-                  <button className="action-chip success" type="button" onClick={() => onQuote(inq)}>Create Booking</button>
-                )}
-                <button className="action-link" type="button" onClick={() => onSelect(inq)}>View</button>
+                <button className="action-chip review-chip" type="button" onClick={() => onReview(inq)}>Review</button>
               </div>
             </td>
           </tr>

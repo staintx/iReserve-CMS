@@ -22,6 +22,11 @@ const serviceItemSchema = Joi.object({
   price: Joi.number().empty("").optional()
 });
 
+const additionalChargeSchema = Joi.object({
+  name: Joi.string().required(),
+  amount: Joi.number().empty("").optional()
+});
+
 exports.inquirySchema = Joi.object({
   customer_id: Joi.string().optional(),
   package_id: Joi.string().optional(),
@@ -59,6 +64,7 @@ exports.inquirySchema = Joi.object({
   special_requests: Joi.string().optional(),
   additional_services: Joi.array().items(Joi.string()).optional(),
   service_items: Joi.array().items(serviceItemSchema).optional(),
+  additional_charges: Joi.array().items(additionalChargeSchema).optional(),
   contact_first_name: Joi.string().optional(),
   contact_last_name: Joi.string().optional(),
   contact_email: Joi.string().email().optional(),
@@ -110,6 +116,7 @@ exports.inquiryUpdateSchema = Joi.object({
   special_requests: Joi.string().optional(),
   additional_services: Joi.array().items(Joi.string()).optional(),
   service_items: Joi.array().items(serviceItemSchema).optional(),
+  additional_charges: Joi.array().items(additionalChargeSchema).optional(),
   contact_first_name: Joi.string().optional(),
   contact_last_name: Joi.string().optional(),
   contact_email: Joi.string().email().optional(),
@@ -124,5 +131,5 @@ exports.inquiryUpdateSchema = Joi.object({
 });
 
 exports.inquiryStatusSchema = Joi.object({
-  status: Joi.string().valid("cancelled").required()
+  status: Joi.string().valid("cancelled", "confirmed").required()
 });

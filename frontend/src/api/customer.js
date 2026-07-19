@@ -24,6 +24,7 @@ export const CustomerAPI = {
   checkAvailability: (params) => api.get("/bookings/availability", { params }),
   getInquiries: () => api.get("/inquiries/me"),
   cancelInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "cancelled" }),
+  acceptInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "confirmed" }),
   getBookings: () => api.get("/bookings/me"),
   createBooking: (data) => api.post("/bookings", data),
 

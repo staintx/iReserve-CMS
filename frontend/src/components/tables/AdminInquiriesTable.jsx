@@ -69,6 +69,9 @@ export default function AdminInquiriesTable({ inquiries, onSelect, onQuote, onRe
                 {["under review", "awaiting confirmation", "negotiating"].includes(inq.status) && (
                   <button className="action-chip danger" type="button" onClick={() => onReject(inq)}>Decline</button>
                 )}
+                {inq.status === "confirmed" && (
+                  <button className="action-chip success" type="button" onClick={() => onQuote(inq)}>Create Booking</button>
+                )}
                 <button className="action-link" type="button" onClick={() => onSelect(inq)}>View</button>
               </div>
             </td>

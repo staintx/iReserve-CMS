@@ -42,6 +42,12 @@ const InquirySchema = new mongoose.Schema({
       price: Number
     }
   ],
+  additional_charges: [
+    {
+      name: String,
+      amount: Number
+    }
+  ],
   contact_first_name: String,
   contact_last_name: String,
   contact_email: String,

@@ -52,7 +52,10 @@ export default function AdminInquiryReview() {
   if (!inquiry) {
     return (
       <AdminLayout>
-        <div className="p-6">Loading inquiry details...</div>
+        <div className="ir-review-loading">
+          <div className="ir-loading-spinner" />
+          <p>Loading inquiry details...</p>
+        </div>
       </AdminLayout>
     );
   }
@@ -61,353 +64,309 @@ export default function AdminInquiryReview() {
     inquiry.status
   );
 
+  const statusClass = inquiry.status === "new"
+    ? "pending"
+    : inquiry.status === "under review"
+      ? "info"
+      : inquiry.status === "declined"
+        ? "rejected"
+        : "approved";
+
   return (
     <AdminLayout>
-      <div className="admin-quote-page" style={{ maxWidth: "1200px", margin: "0 auto", paddingBottom: "40px" }}>
-        {/* Header & Actions */}
-        <div className="quote-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px", marginBottom: "20px" }}>
-          <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-            <button className="btn-ghost" type="button" onClick={() => navigate(-1)} style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer" }}>
-              ← Back
-            </button>
-            <div className="quote-title">
-              <h1>Review Inquiry — {clientName} {inquiryCode}</h1>
-              <p>Review all details below before taking action on this inquiry</p>
-            </div>
-          </div>
-          
-          <div className="review-action-bar" style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-            {["new", "under review", "awaiting confirmation", "negotiating"].includes(inquiry.status) && (
-              <button
-                className="btn-outline danger"
-                type="button"
-                onClick={() => setRejectTarget(true)}
-                style={{ borderColor: "#ef4444", color: "#ef4444", padding: "8px 16px" }}
-              >
-                Decline Inquiry
-              </button>
-            )}
-            {!isAlreadyReviewed && (
-              <button
-                className="btn review-btn"
-                type="button"
-                onClick={handleMarkReviewed}
-                disabled={submitting}
-                style={{ padding: "8px 16px" }}
-              >
-                {submitting ? "Marking…" : "✓ Begin Review"}
-              </button>
-            )}
-            {inquiry.status === "under review" && (
-              <button
-                className="btn"
-                type="button"
-                onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
-                style={{ padding: "8px 16px" }}
-              >
-                Proceed to Quote →
-              </button>
-            )}
-            {["awaiting confirmation", "negotiating"].includes(inquiry.status) && (
-              <button
-                className="btn"
-                type="button"
-                onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
-                style={{ padding: "8px 16px" }}
-              >
-                Edit Quote →
-              </button>
-            )}
-            {inquiry.status === "confirmed" && (
-              <button
-                className="btn success"
-                type="button"
-                style={{ backgroundColor: "#10b981", borderColor: "#10b981", color: "#fff", padding: "8px 16px" }}
-                onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
-              >
-                Create Booking →
-              </button>
-            )}
-          </div>
+      <div className="ir-review-page">
+        {/* ── Top Navigation ── */}
+        <div className="ir-review-topbar">
+          <button className="ir-back-btn" type="button" onClick={() => navigate(-1)}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Back
+          </button>
+          <span className="ir-breadcrumb">Inquiries / <strong>Review</strong></span>
         </div>
 
-        {/* Review banner */}
-        {!isAlreadyReviewed && (
-          <div className="review-banner" style={{ background: "#fef3c7", padding: "16px", borderRadius: "12px", display: "flex", gap: "12px", alignItems: "center", marginBottom: "18px", border: "1px solid #fde68a" }}>
-            <span className="review-banner-icon" style={{ fontSize: "24px" }}>📋</span>
-            <div>
-              <strong style={{ color: "#92400e" }}>This inquiry has not been reviewed yet.</strong>
-              <p style={{ margin: "4px 0 0", color: "#b45309", fontSize: "13px" }}>Please review all the details below, then click "Begin Review" to proceed.</p>
+        {/* ── Header Card ── */}
+        <div className="ir-review-header-card">
+          <div className="ir-review-header-top">
+            <div className="ir-review-header-info">
+              <div className="ir-review-header-avatar">
+                {clientName.charAt(0).toUpperCase()}
+              </div>
+              <div className="ir-review-header-text">
+                <h1 className="ir-review-title">{clientName}</h1>
+                <div className="ir-review-meta">
+                  <span className="ir-review-code">{inquiryCode}</span>
+                  <span className="ir-review-meta-sep">·</span>
+                  <span className={`status-pill ${statusClass}`}>{inquiry.status || "new"}</span>
+                  <span className="ir-review-meta-sep">·</span>
+                  <span className="ir-review-date">Submitted {formatDate(inquiry.createdAt)}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-        {isAlreadyReviewed && inquiry.status !== "declined" && (
-          <div className="review-banner review-banner-done" style={{ background: "#f0fdf4", padding: "16px", borderRadius: "12px", display: "flex", gap: "12px", alignItems: "center", marginBottom: "18px", border: "1px solid #bbf7d0" }}>
-            <span className="review-banner-icon" style={{ fontSize: "24px" }}>✅</span>
-            <div>
-              <strong style={{ color: "#166534" }}>This inquiry has already been reviewed.</strong>
-              <p style={{ margin: "4px 0 0", color: "#15803d", fontSize: "13px" }}>Status: {inquiry.status}{inquiry.reviewed_at ? ` · Reviewed on ${formatDate(inquiry.reviewed_at)}` : ""}</p>
-            </div>
-          </div>
-        )}
-        {inquiry.status === "declined" && (
-          <div className="review-banner" style={{ background: "#fef2f2", padding: "16px", borderRadius: "12px", display: "flex", gap: "12px", alignItems: "center", marginBottom: "18px", border: "1px solid #fecaca" }}>
-            <span className="review-banner-icon" style={{ fontSize: "24px" }}>❌</span>
-            <div>
-              <strong style={{ color: "#b91c1c" }}>This inquiry was declined.</strong>
-              <p style={{ margin: "4px 0 0", color: "#dc2626", fontSize: "13px" }}>No further actions can be taken.</p>
-            </div>
-          </div>
-        )}
 
-        {/* Content card */}
-        <div className="quote-card" style={{ width: "100%", boxSizing: "border-box" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "40px" }}>
-            
-            {/* LEFT COLUMN */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-              {/* Inquiry Summary */}
-              <div className="quote-section" style={{ paddingTop: 0, paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
+            <div className="ir-review-actions">
+              {["new", "under review", "awaiting confirmation", "negotiating"].includes(inquiry.status) && (
+                <button
+                  className="ir-action-btn ir-action-decline"
+                  type="button"
+                  onClick={() => setRejectTarget(true)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  Decline
+                </button>
+              )}
+              {!isAlreadyReviewed && (
+                <button
+                  className="ir-action-btn ir-action-review"
+                  type="button"
+                  onClick={handleMarkReviewed}
+                  disabled={submitting}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11.5 4L5.5 10L2.5 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  {submitting ? "Marking…" : "Begin Review"}
+                </button>
+              )}
+              {inquiry.status === "under review" && (
+                <button
+                  className="ir-action-btn ir-action-primary"
+                  type="button"
+                  onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
+                >
+                  Proceed to Quote
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              )}
+              {["awaiting confirmation", "negotiating"].includes(inquiry.status) && (
+                <button
+                  className="ir-action-btn ir-action-primary"
+                  type="button"
+                  onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
+                >
+                  Edit Quote
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              )}
+              {inquiry.status === "confirmed" && (
+                <button
+                  className="ir-action-btn ir-action-success"
+                  type="button"
+                  onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
+                >
+                  Create Booking
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Status Banners ── */}
+          {!isAlreadyReviewed && (
+            <div className="ir-review-banner ir-banner-warning">
+              <span className="ir-banner-icon">📋</span>
+              <div>
+                <strong>This inquiry has not been reviewed yet.</strong>
+                <p>Please review all the details below, then click "Begin Review" to proceed.</p>
+              </div>
+            </div>
+          )}
+          {isAlreadyReviewed && inquiry.status !== "declined" && (
+            <div className="ir-review-banner ir-banner-success">
+              <span className="ir-banner-icon">✅</span>
+              <div>
+                <strong>This inquiry has been reviewed.</strong>
+                <p>Status: {inquiry.status}{inquiry.reviewed_at ? ` · Reviewed on ${formatDate(inquiry.reviewed_at)}` : ""}</p>
+              </div>
+            </div>
+          )}
+          {inquiry.status === "declined" && (
+            <div className="ir-review-banner ir-banner-danger">
+              <span className="ir-banner-icon">❌</span>
+              <div>
+                <strong>This inquiry was declined.</strong>
+                <p>No further actions can be taken.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Content Grid ── */}
+        <div className="ir-review-grid">
+          {/* LEFT COLUMN */}
+          <div className="ir-review-col">
+            {/* Inquiry Summary */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="blue">📄</span>
                 <h3>Inquiry Summary</h3>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">Inquiry ID:</span>
-                    <span>{inquiry._id?.slice(-6) || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Status:</span>
-                    <span className={`status-pill ${inquiry.status === "new" ? "pending" : inquiry.status === "under review" ? "info" : inquiry.status === "declined" ? "rejected" : "approved"}`}>
-                      {inquiry.status || "new"}
-                    </span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Service Type:</span>
-                    <span>{inquiry.service_type || (inquiry.include_food ? "Food & Event" : "Event Setup")}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Submitted:</span>
-                    <span>{formatDate(inquiry.createdAt)}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Selected Package:</span>
-                    <span>{inquiry.package_id?.name || "Custom"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Payment Method:</span>
-                    <span>{inquiry.payment_method || "-"}</span>
-                  </div>
-                </div>
               </div>
-
-              {/* Event Details */}
-              <div className="quote-section" style={{ paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
-                <h3>Event Details</h3>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">Event Type:</span>
-                    <span>{inquiry.event_type || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Event Theme:</span>
-                    <span>{inquiry.event_theme || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Event Date:</span>
-                    <span>{formatDate(inquiry.event_date)}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Start Time:</span>
-                    <span>{inquiry.start_time || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Guest Count:</span>
-                    <span>{inquiry.guest_count || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Duration (hours):</span>
-                    <span>{inquiry.duration_hours || "-"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Venue Information */}
-              <div className="quote-section" style={{ borderBottom: "none" }}>
-                <h3>Venue Information</h3>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">Venue Type:</span>
-                    <span>{inquiry.venue_type || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Indoor/Outdoor:</span>
-                    <span>{inquiry.indoor_outdoor || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Province:</span>
-                    <span>{inquiry.province || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Municipality:</span>
-                    <span>{inquiry.municipality || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Barangay:</span>
-                    <span>{inquiry.barangay || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Street:</span>
-                    <span>{inquiry.street || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Landmark:</span>
-                    <span>{inquiry.landmark || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Zip Code:</span>
-                    <span>{inquiry.zip_code || "-"}</span>
-                  </div>
-                </div>
-
-                <div className="quote-subtitle">Venue Contact Person</div>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">Name:</span>
-                    <span>{inquiry.venue_contact_name || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Contact Number:</span>
-                    <span>{inquiry.venue_contact_phone || "-"}</span>
-                  </div>
-                </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="Inquiry ID" value={inquiry._id?.slice(-6) || "-"} />
+                <DetailRow label="Status">
+                  <span className={`status-pill ${statusClass}`}>{inquiry.status || "new"}</span>
+                </DetailRow>
+                <DetailRow label="Service Type" value={inquiry.service_type || (inquiry.include_food ? "Food & Event" : "Event Setup")} />
+                <DetailRow label="Submitted" value={formatDate(inquiry.createdAt)} />
+                <DetailRow label="Selected Package" value={inquiry.package_id?.name || "Custom"} />
+                <DetailRow label="Payment Method" value={inquiry.payment_method || "-"} />
               </div>
             </div>
 
-            {/* RIGHT COLUMN */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-              {/* Contact Information */}
-              <div className="quote-section" style={{ paddingTop: 0, paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
+            {/* Event Details */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="purple">🎉</span>
+                <h3>Event Details</h3>
+              </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="Event Type" value={inquiry.event_type || "-"} />
+                <DetailRow label="Event Theme" value={inquiry.event_theme || "-"} />
+                <DetailRow label="Event Date" value={formatDate(inquiry.event_date)} />
+                <DetailRow label="Start Time" value={inquiry.start_time || "-"} />
+                <DetailRow label="Guest Count" value={inquiry.guest_count || "-"} />
+                <DetailRow label="Duration (hrs)" value={inquiry.duration_hours || "-"} />
+              </div>
+            </div>
+
+            {/* Venue Information */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="green">📍</span>
+                <h3>Venue Information</h3>
+              </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="Venue Type" value={inquiry.venue_type || "-"} />
+                <DetailRow label="Indoor/Outdoor" value={inquiry.indoor_outdoor || "-"} />
+                <DetailRow label="Province" value={inquiry.province || "-"} />
+                <DetailRow label="Municipality" value={inquiry.municipality || "-"} />
+                <DetailRow label="Barangay" value={inquiry.barangay || "-"} />
+                <DetailRow label="Street" value={inquiry.street || "-"} />
+                <DetailRow label="Landmark" value={inquiry.landmark || "-"} />
+                <DetailRow label="Zip Code" value={inquiry.zip_code || "-"} />
+              </div>
+
+              {(inquiry.venue_contact_name || inquiry.venue_contact_phone) && (
+                <>
+                  <div className="ir-sub-heading">Venue Contact Person</div>
+                  <div className="ir-detail-grid">
+                    <DetailRow label="Name" value={inquiry.venue_contact_name || "-"} />
+                    <DetailRow label="Contact Number" value={inquiry.venue_contact_phone || "-"} />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="ir-review-col">
+            {/* Contact Information */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="teal">👤</span>
                 <h3>Contact Information</h3>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">First Name:</span>
-                    <span>{inquiry.contact_first_name || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Last Name:</span>
-                    <span>{inquiry.contact_last_name || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Email Address:</span>
-                    <span>{inquiry.contact_email || inquiry.customer_id?.email || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Phone Number:</span>
-                    <span>{inquiry.contact_phone || "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Alt. Phone:</span>
-                    <span>{inquiry.contact_alt_phone || "N/A"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Preferred Contact:</span>
-                    <span>{inquiry.contact_method || "-"}</span>
-                  </div>
-                </div>
               </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="First Name" value={inquiry.contact_first_name || "-"} />
+                <DetailRow label="Last Name" value={inquiry.contact_last_name || "-"} />
+                <DetailRow label="Email" value={inquiry.contact_email || inquiry.customer_id?.email || "-"} />
+                <DetailRow label="Phone" value={inquiry.contact_phone || "-"} />
+                <DetailRow label="Alt. Phone" value={inquiry.contact_alt_phone || "N/A"} />
+                <DetailRow label="Preferred Contact" value={inquiry.contact_method || "-"} />
+              </div>
+            </div>
 
-              {/* Budget Range */}
-              <div className="quote-section" style={{ paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
+            {/* Budget */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="gold">💰</span>
                 <h3>Budget Information</h3>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">Budget Min:</span>
-                    <span>{inquiry.budget_min ? `PHP ${Number(inquiry.budget_min).toLocaleString()}` : "-"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Budget Max:</span>
-                    <span>{inquiry.budget_max ? `PHP ${Number(inquiry.budget_max).toLocaleString()}` : "-"}</span>
-                  </div>
-                </div>
               </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="Budget Min" value={inquiry.budget_min ? `PHP ${Number(inquiry.budget_min).toLocaleString()}` : "-"} />
+                <DetailRow label="Budget Max" value={inquiry.budget_max ? `PHP ${Number(inquiry.budget_max).toLocaleString()}` : "-"} />
+              </div>
+            </div>
 
-              {/* Menu Selection */}
-              <div className="quote-section" style={{ paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
+            {/* Menu Selection */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="orange">🍽️</span>
                 <h3>Menu Selection</h3>
-                {Array.isArray(inquiry.selected_menu) && inquiry.selected_menu.length > 0 ? (
-                  <div className="review-tag-list" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
-                    {inquiry.selected_menu.map((item) => (
-                      <span key={item} className="review-tag" style={{ background: "#f3f4f6", padding: "4px 10px", borderRadius: "16px", fontSize: "12px", border: "1px solid #e5e7eb" }}>{item}</span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="dash-empty" style={{ color: "#6b7280", fontSize: "13px" }}>No menu selections.</p>
-                )}
-                {Array.isArray(inquiry.menu_items) && inquiry.menu_items.length > 0 && (
-                  <>
-                    <div className="quote-subtitle">Menu Items Detail</div>
-                    <div className="quote-info-grid">
-                      {inquiry.menu_items.map((item, idx) => (
-                        <div className="info-line" key={`mi-${idx}`}>
-                          <span className="info-label">{item.name}:</span>
-                          <span>{item.note || "-"}{item.price ? ` · PHP ${Number(item.price).toLocaleString()}` : ""}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
               </div>
-
-              {/* Dietary Info */}
-              <div className="quote-section" style={{ paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
-                <h3>Dietary Restrictions & Allergies</h3>
-                <div className="quote-info-grid">
-                  <div className="info-line">
-                    <span className="info-label">Dietary Restrictions:</span>
-                    <span>{inquiry.dietary_restrictions || "None"}</span>
-                  </div>
-                  <div className="info-line">
-                    <span className="info-label">Allergies:</span>
-                    <span>{inquiry.allergies || "None"}</span>
-                  </div>
+              {Array.isArray(inquiry.selected_menu) && inquiry.selected_menu.length > 0 ? (
+                <div className="ir-tag-list">
+                  {inquiry.selected_menu.map((item) => (
+                    <span key={item} className="ir-tag">{item}</span>
+                  ))}
                 </div>
-              </div>
-
-              {/* Additional Services */}
-              <div className="quote-section" style={{ paddingBottom: "24px", borderBottom: "1px solid #e5e7eb" }}>
-                <h3>Additional Services</h3>
-                {Array.isArray(inquiry.additional_services) && inquiry.additional_services.length > 0 ? (
-                  <div className="review-tag-list" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
-                    {inquiry.additional_services.map((item) => (
-                      <span key={item} className="review-tag" style={{ background: "#f3f4f6", padding: "4px 10px", borderRadius: "16px", fontSize: "12px", border: "1px solid #e5e7eb" }}>{item}</span>
+              ) : (
+                <p className="ir-empty-text">No menu selections.</p>
+              )}
+              {Array.isArray(inquiry.menu_items) && inquiry.menu_items.length > 0 && (
+                <>
+                  <div className="ir-sub-heading">Menu Items Detail</div>
+                  <div className="ir-detail-grid">
+                    {inquiry.menu_items.map((item, idx) => (
+                      <DetailRow key={`mi-${idx}`} label={item.name}>
+                        {item.note || "-"}{item.price ? ` · PHP ${Number(item.price).toLocaleString()}` : ""}
+                      </DetailRow>
                     ))}
                   </div>
-                ) : (
-                  <p className="dash-empty" style={{ color: "#6b7280", fontSize: "13px" }}>No additional services.</p>
-                )}
-                {Array.isArray(inquiry.service_items) && inquiry.service_items.length > 0 && (
-                  <>
-                    <div className="quote-subtitle">Service Items Detail</div>
-                    <div className="quote-info-grid">
-                      {inquiry.service_items.map((item, idx) => (
-                        <div className="info-line" key={`si-${idx}`}>
-                          <span className="info-label">{item.name}:</span>
-                          <span>Qty {item.quantity || 0}{item.price ? ` · PHP ${Number(item.price).toLocaleString()}` : ""}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+                </>
+              )}
+            </div>
 
-              {/* Special Requests */}
-              <div className="quote-section" style={{ borderBottom: "none" }}>
-                <h3>Special Requests</h3>
-                <p style={{ background: "#f9fafb", padding: "12px", borderRadius: "8px", border: "1px solid #f3f4f6", fontSize: "13px" }}>{inquiry.special_requests || "N/A"}</p>
+            {/* Dietary Restrictions */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="red">🥗</span>
+                <h3>Dietary Restrictions & Allergies</h3>
               </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="Dietary Restrictions" value={inquiry.dietary_restrictions || "None"} />
+                <DetailRow label="Allergies" value={inquiry.allergies || "None"} />
+              </div>
+            </div>
+
+            {/* Additional Services */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="indigo">⚙️</span>
+                <h3>Additional Services</h3>
+              </div>
+              {Array.isArray(inquiry.additional_services) && inquiry.additional_services.length > 0 ? (
+                <div className="ir-tag-list">
+                  {inquiry.additional_services.map((item) => (
+                    <span key={item} className="ir-tag">{item}</span>
+                  ))}
+                </div>
+              ) : (
+                <p className="ir-empty-text">No additional services.</p>
+              )}
+              {Array.isArray(inquiry.service_items) && inquiry.service_items.length > 0 && (
+                <>
+                  <div className="ir-sub-heading">Service Items Detail</div>
+                  <div className="ir-detail-grid">
+                    {inquiry.service_items.map((item, idx) => (
+                      <DetailRow key={`si-${idx}`} label={item.name}>
+                        Qty {item.quantity || 0}{item.price ? ` · PHP ${Number(item.price).toLocaleString()}` : ""}
+                      </DetailRow>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Special Requests */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="pink">📝</span>
+                <h3>Special Requests</h3>
+              </div>
+              <p className="ir-special-requests">{inquiry.special_requests || "N/A"}</p>
             </div>
           </div>
         </div>
       </div>
+
       {rejectTarget && (
         <ConfirmDialog
           message={`Decline inquiry ${inquiryCode}? This cannot be undone.`}
@@ -428,5 +387,15 @@ export default function AdminInquiryReview() {
         />
       )}
     </AdminLayout>
+  );
+}
+
+/* ── Reusable detail row component ── */
+function DetailRow({ label, value, children }) {
+  return (
+    <div className="ir-detail-row">
+      <span className="ir-detail-label">{label}</span>
+      <span className="ir-detail-value">{children ?? value}</span>
+    </div>
   );
 }

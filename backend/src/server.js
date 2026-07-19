@@ -32,8 +32,10 @@ const userRoutes = require("./routes/user.routes");
 const quoteRoutes = require("./routes/quote.routes");
 const messageRoutes = require("./routes/message.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const startCronJobs = require("./jobs/cron");
 
 connectDB();
+startCronJobs();
 
 const app = express();
 const allowedOrigins = process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : ["http://localhost:5173"];

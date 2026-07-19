@@ -96,17 +96,19 @@ exports.updateMineStatus = asyncHandler(async (req, res) => {
 
   const blockedStatuses = ["approved", "booked", "completed"];
   if (blockedStatuses.includes(inquiry.status)) {
-    return res.status(400).json({ message: "Inquiry can no longer be cancelled" });
+    return res.status(400).json({ message: "Inquiry status can no longer be changed" });
   }
 
   inquiry.status = req.body.status;
   await inquiry.save();
   const io = req.app.get("io");
+  
+  const isConfirmed = req.body.status === "confirmed";
   await createNotification({
     userId: req.user._id,
-    title: "Inquiry cancelled",
-    body: "Your inquiry has been cancelled.",
-    type: "info",
+    title: isConfirmed ? "Quotation Accepted" : "Inquiry Cancelled",
+    body: isConfirmed ? "You have accepted the quotation. The admin will create your booking shortly." : "Your inquiry has been cancelled.",
+    type: isConfirmed ? "success" : "info",
     link: "/customer/inquiries",
     meta: { inquiry_id: inquiry._id }
   }, io);

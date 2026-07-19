@@ -19,6 +19,7 @@ export default function CustomerInquiries() {
   const [inquiries, setInquiries] = useState([]);
   const [activeQuote, setActiveQuote] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [confirmAccept, setConfirmAccept] = useState(false);
   const { notify } = useToast();
 
   const load = () => {
@@ -44,6 +45,16 @@ export default function CustomerInquiries() {
         load();
       })
       .catch((err) => notify(err.response?.data?.message || "We could not cancel the inquiry. Please try again.", "error"));
+  };
+
+  const acceptInquiry = (id) => {
+    CustomerAPI.acceptInquiry(id)
+      .then(() => {
+        notify("Quotation accepted! The admin will create your booking shortly.", "success");
+        load();
+        setActiveQuote(null);
+      })
+      .catch((err) => notify(err.response?.data?.message || "We could not accept the quotation. Please try again.", "error"));
   };
 
   const openQuote = (inq) => {
@@ -144,13 +155,26 @@ export default function CustomerInquiries() {
           />
         )}
 
+        {confirmAccept && activeQuote && (
+          <ConfirmDialog
+            message="Are you sure you want to accept this quotation? Your booking will be processed."
+            onConfirm={() => {
+              acceptInquiry(activeQuote._id);
+              setConfirmAccept(false);
+            }}
+            onCancel={() => setConfirmAccept(false)}
+          />
+        )}
+
       {activeQuote && (() => {
         const menuItems = Array.isArray(activeQuote.menu_items) ? activeQuote.menu_items : [];
         const serviceItems = Array.isArray(activeQuote.service_items) ? activeQuote.service_items : [];
+        const additionalCharges = Array.isArray(activeQuote.additional_charges) ? activeQuote.additional_charges : [];
         const menuTotal = menuItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
         const serviceTotal = serviceItems.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
+        const additionalTotal = additionalCharges.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
         const packageAmount = Number(activeQuote.package_amount || 0);
-        const computedTotal = packageAmount + menuTotal + serviceTotal;
+        const computedTotal = packageAmount + menuTotal + serviceTotal + additionalTotal;
         const totalAmount = Number(activeQuote.quote_amount || computedTotal || 0);
         const depositAmount = totalAmount * 0.2;
 
@@ -348,6 +372,17 @@ export default function CustomerInquiries() {
                       </div>
                     )}
                   </div>
+                  {additionalCharges.length > 0 && (
+                    <div className="summary-block">
+                      <div className="summary-head">Additional Charges</div>
+                      {additionalCharges.map((item, index) => (
+                        <div key={`${item.name}-${index}`} className="summary-line small">
+                          <span>{item.name}</span>
+                          <span>{formatCurrency(item.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="summary-total">
                     <span>Grand Total</span>
                     <strong>{formatCurrency(totalAmount)}</strong>
@@ -357,6 +392,13 @@ export default function CustomerInquiries() {
                   </div>
                 </div>
               </div>
+              
+              {activeQuote.status === "awaiting confirmation" && (
+                <div className="quote-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem" }}>
+                  <button className="btn-outline" type="button" onClick={() => setCancelTarget(activeQuote)}>Decline Quotation</button>
+                  <button className="btn" type="button" onClick={() => setConfirmAccept(true)}>Accept Quotation</button>
+                </div>
+              )}
             </div>
           </Modal>
         );

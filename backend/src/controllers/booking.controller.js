@@ -158,6 +158,7 @@ exports.createFromInquiry = asyncHandler(async (req, res) => {
 		special_requests: inquiry.special_requests,
 		additional_services: inquiry.additional_services,
 		service_items: inquiry.service_items,
+		additional_charges: inquiry.additional_charges,
 		contact_first_name: inquiry.contact_first_name,
 		contact_last_name: inquiry.contact_last_name,
 		contact_email: inquiry.contact_email,

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import useToast from "../../hooks/useToast";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 const buildMenuPricing = (menuItems, inquiry) => {
   const saved = Array.isArray(inquiry?.menu_items) ? inquiry.menu_items : [];
@@ -49,6 +50,8 @@ export default function AdminInquiryQuote() {
   const [paymentMethod, setPaymentMethod] = useState("gcash");
   const [packageAmount, setPackageAmount] = useState("");
   const [managerId, setManagerId] = useState("");
+  const [additionalCharges, setAdditionalCharges] = useState([]);
+  const [confirmSend, setConfirmSend] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -70,6 +73,7 @@ export default function AdminInquiryQuote() {
         setPaymentMethod(inquiryData.payment_method || "gcash");
         setPackageAmount(inquiryData.package_amount ?? "");
         setManagerId(inquiryData.manager_id?._id || inquiryData.manager_id || "");
+        setAdditionalCharges(Array.isArray(inquiryData.additional_charges) ? inquiryData.additional_charges : []);
       })
       .catch((err) => {
         notify(err.response?.data?.message || "We could not load the inquiry. Please refresh and try again.", "error");
@@ -90,7 +94,11 @@ export default function AdminInquiryQuote() {
     () => servicePricing.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0),
     [servicePricing]
   );
-  const computedTotal = menuTotal + serviceTotal;
+  const additionalTotal = useMemo(
+    () => additionalCharges.reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
+    [additionalCharges]
+  );
+  const computedTotal = menuTotal + serviceTotal + additionalTotal;
   const packageDetails = useMemo(() => {
     if (!inquiry) return null;
     return packages.find((item) => item._id === inquiry.package_id) || null;
@@ -164,6 +172,7 @@ export default function AdminInquiryQuote() {
       status: "awaiting confirmation",
       menu_items: menuPayload,
       service_items: servicePayload,
+      additional_charges: additionalCharges.filter(c => c.name).map(c => ({ name: c.name, amount: c.amount })),
       selected_menu: menuPayload.map((item) => item.name),
       additional_services: servicePayload.map((item) => item.name)
     };
@@ -172,8 +181,12 @@ export default function AdminInquiryQuote() {
   const saveQuote = () => {
     if (!inquiry) return;
     AdminAPI.updateInquiry(inquiry._id, buildPayload())
-      .then(() => notify("Quote saved.", "success"))
-      .catch((err) => notify(err.response?.data?.message || "We could not save the quote. Please try again.", "error"));
+      .then(() => {
+        notify("Quotation sent to customer for approval.", "success");
+        setConfirmSend(false);
+        navigate("/admin/inquiries");
+      })
+      .catch((err) => notify(err.response?.data?.message || "We could not send the quote. Please try again.", "error"));
   };
 
   const submitBooking = () => {
@@ -438,6 +451,61 @@ export default function AdminInquiryQuote() {
           </div>
 
           <div className="quote-section">
+            <h3>Additional Charges</h3>
+            {additionalCharges.length > 0 && (
+              <div className="quote-row quote-row-head">
+                <div>Charge Name</div>
+                <div>Amount</div>
+                <div>Actions</div>
+              </div>
+            )}
+            {additionalCharges.map((charge, index) => (
+              <div className="quote-row" key={index}>
+                <input
+                  className="quote-input"
+                  placeholder="Charge Name (e.g., Out of Town Fee)"
+                  value={charge.name}
+                  onChange={(e) => {
+                    const next = [...additionalCharges];
+                    next[index].name = e.target.value;
+                    setAdditionalCharges(next);
+                  }}
+                />
+                <input
+                  className="quote-input"
+                  placeholder="Amount"
+                  type="number"
+                  value={charge.amount}
+                  onChange={(e) => {
+                    const next = [...additionalCharges];
+                    next[index].amount = e.target.value;
+                    setAdditionalCharges(next);
+                  }}
+                />
+                <button
+                  className="btn-outline"
+                  type="button"
+                  onClick={() => {
+                    const next = [...additionalCharges];
+                    next.splice(index, 1);
+                    setAdditionalCharges(next);
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              className="btn-outline"
+              type="button"
+              style={{ marginTop: "1rem" }}
+              onClick={() => setAdditionalCharges([...additionalCharges, { name: "", amount: "" }])}
+            >
+              + Add Custom Charge
+            </button>
+          </div>
+
+          <div className="quote-section">
             <h3>Special Request or Notes</h3>
             <p>{inquiry.special_requests || "N/A"}</p>
           </div>
@@ -488,6 +556,17 @@ export default function AdminInquiryQuote() {
                   </div>
                 ))}
               </div>
+              {additionalCharges.length > 0 && (
+                <div className="summary-block">
+                  <div className="summary-head">Additional Charges</div>
+                  {additionalCharges.filter(c => c.name).map((item, index) => (
+                    <div className="summary-line small" key={`charge-${index}`}>
+                      <span>{item.name}</span>
+                      <span>PHP {(Number(item.amount) || 0).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="summary-total">
                 <div>
                   <strong>Grand Total:</strong>
@@ -518,11 +597,21 @@ export default function AdminInquiryQuote() {
 
           <div className="quote-actions">
             <button className="btn-outline" type="button" onClick={() => navigate(-1)}>Cancel</button>
-            <button className="btn-outline" type="button" onClick={saveQuote}>Save Quote</button>
-            <button className="btn" type="button" onClick={submitBooking}>Submit</button>
+            <button className="btn-outline" type="button" onClick={() => setConfirmSend(true)}>Send Quotation to Customer</button>
+            {inquiry.status === "confirmed" && (
+              <button className="btn" type="button" onClick={submitBooking}>Submit Booking</button>
+            )}
           </div>
         </div>
       </div>
+      
+      {confirmSend && (
+        <ConfirmDialog
+          message="Are you sure you want to send this quotation to the customer for approval?"
+          onConfirm={saveQuote}
+          onCancel={() => setConfirmSend(false)}
+        />
+      )}
     </AdminLayout>
   );
 }

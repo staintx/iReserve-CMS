@@ -22,7 +22,7 @@ export default function CustomerDashboard() {
   }, []);
 
   const now = useMemo(() => new Date(), []);
-  const activeInquiries = inquiries.filter((inq) => inq.status === "pending" || inq.status === "quoted");
+  const activeInquiries = inquiries.filter((inq) => ["new", "under review", "awaiting confirmation", "negotiating"].includes(inq.status));
   const upcomingBookings = bookings.filter((b) => b.status === "active" && new Date(b.event_date) >= now);
   const completedBookings = bookings.filter((b) => b.status === "completed");
   const unreadCount = mockMessages.filter((m) => m.unread).length;
@@ -120,7 +120,7 @@ export default function CustomerDashboard() {
                 </div>
                 <div className="dash-inquiry-actions">
                   <span className="pill">{inq.status}</span>
-                  {inq.status === "quoted" && (
+                  {inq.status === "awaiting confirmation" && (
                     <button
                       className="action-link"
                       type="button"

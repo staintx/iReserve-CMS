@@ -55,7 +55,7 @@ export default function AdminInquiryReview() {
     );
   }
 
-  const isAlreadyReviewed = inquiry.status !== "pending";
+  const isAlreadyReviewed = inquiry.status !== "new";
 
   return (
     <AdminLayout>
@@ -103,8 +103,8 @@ export default function AdminInquiryReview() {
               </div>
               <div className="info-line">
                 <span className="info-label">Status:</span>
-                <span className={`status-pill ${inquiry.status === "pending" ? "pending" : inquiry.status === "reviewed" ? "info" : "approved"}`}>
-                  {inquiry.status || "pending"}
+                <span className={`status-pill ${inquiry.status === "new" ? "pending" : inquiry.status === "under review" ? "info" : "approved"}`}>
+                  {inquiry.status || "new"}
                 </span>
               </div>
               <div className="info-line">
@@ -345,7 +345,7 @@ export default function AdminInquiryReview() {
               {submitting ? "Marking…" : "✓ Mark as Reviewed"}
             </button>
           )}
-          {isAlreadyReviewed && inquiry.status === "reviewed" && (
+          {isAlreadyReviewed && inquiry.status === "under review" && (
             <button
               className="btn"
               type="button"

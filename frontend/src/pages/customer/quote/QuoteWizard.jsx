@@ -267,7 +267,7 @@ export default function QuoteWizard() {
       contact_email: form.email,
       contact_phone: form.phone,
       contact_method: contactMethods.join(", ") || undefined,
-      status: "pending"
+      status: "new"
     };
   };
 

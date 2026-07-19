@@ -222,7 +222,7 @@ const seed = async () => {
         package_amount: 35000,
         quote_amount: 38000,
         quote_notes: "Includes styling add-on.",
-        status: "approved"
+        status: "confirmed"
       },
       {
         customer_id: customerUser._id,
@@ -262,7 +262,7 @@ const seed = async () => {
         package_amount: 100000,
         quote_amount: 118000,
         quote_notes: "Pending final menu.",
-        status: "pending"
+        status: "new"
       },
       {
         customer_id: customerUser._id,
@@ -299,7 +299,7 @@ const seed = async () => {
         package_amount: 28000,
         quote_amount: 30000,
         quote_notes: "Budget too low for requested add-ons.",
-        status: "rejected"
+        status: "declined"
       }
     ]);
 

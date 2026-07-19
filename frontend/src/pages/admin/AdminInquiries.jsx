@@ -157,10 +157,15 @@ export default function AdminInquiries() {
         </div>
         <select className="admin-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="reviewed">Reviewed</option>
-          <option value="quoted">Awaiting Payment</option>
-          <option value="rejected">Rejected</option>
+          <option value="new">New</option>
+          <option value="under review">Under Review</option>
+          <option value="awaiting confirmation">Awaiting Confirmation</option>
+          <option value="negotiating">Negotiating</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="declined">Declined</option>
+          <option value="abandoned">Abandoned</option>
+          <option value="expired">Expired</option>
+          <option value="spam">Spam</option>
           <option value="cancelled">Cancelled</option>
         </select>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -226,9 +231,9 @@ export default function AdminInquiries() {
         />
         {rejectTarget && (
           <ConfirmDialog
-            message={`Reject inquiry ${rejectTarget._id?.slice(-6) || ""}? This cannot be undone.`}
+            message={`Decline inquiry ${rejectTarget._id?.slice(-6) || ""}? This cannot be undone.`}
             onConfirm={() => {
-              updateStatus(rejectTarget._id, "rejected");
+              updateStatus(rejectTarget._id, "declined");
               setRejectTarget(null);
             }}
             onCancel={() => setRejectTarget(null)}
@@ -246,7 +251,7 @@ export default function AdminInquiries() {
                   </div>
                   <div className="info-line">
                     <span className="info-label">Status:</span>
-                    <span>{viewTarget.status || "pending"}</span>
+                    <span>{viewTarget.status || "new"}</span>
                   </div>
                   <div className="info-line">
                     <span className="info-label">Service Type:</span>

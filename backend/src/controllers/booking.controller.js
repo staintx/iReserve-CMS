@@ -1,5 +1,6 @@
 const Booking = require("../models/Booking");
 const Inquiry = require("../models/Inquiry");
+const SystemLog = require("../models/SystemLog");
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification } = require("../utils/notify");
 
@@ -291,20 +292,37 @@ exports.update = asyncHandler(async (req, res) => {
 
 	const updated = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
+	if (req.user) {
+		await SystemLog.create({
+			user_id: req.user._id,
+			action: "booking_update",
+			details: `Updated booking ${updated._id} - Fields: ${Object.keys(req.body).join(", ")}`
+		});
+	}
+
 	if (updated?.customer_id && req.user?.role !== "customer") {
 		const statusChanged = current.status !== updated.status;
 		const paymentChanged = current.payment_status !== updated.payment_status;
-		if (statusChanged || paymentChanged) {
+		const otherChanged = Object.keys(req.body).some((key) => !["status", "payment_status", "payment_method"].includes(key));
+
+		if (statusChanged || paymentChanged || otherChanged) {
+			let label = "Booking Updated";
+			let message = "Your booking details have been updated.";
+			if (statusChanged) {
+				label = "Booking Status Update";
+				message = `Your booking status is now: ${updated.status}.`;
+			} else if (paymentChanged) {
+				label = "Payment Status Update";
+				message = `Your payment status is now: ${updated.payment_status}.`;
+			}
+			
 			const io = req.app.get("io");
 			await createNotification({
 				userId: updated.customer_id,
-				title: "Booking update",
-				body: statusChanged
-					? `Your booking status is now ${updated.status}.`
-					: `Payment status is now ${updated.payment_status}.`,
-				type: statusChanged ? "info" : "success",
-				link: "/customer/bookings",
-				meta: { booking_id: updated._id }
+				title: label,
+				body: message,
+				type: "info",
+				link: "/customer/bookings"
 			}, io);
 		}
 	}

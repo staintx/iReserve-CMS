@@ -9,6 +9,8 @@ export default function AdminPackages() {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
+  const [galleryFiles, setGalleryFiles] = useState([]);
+  const [galleryToRemove, setGalleryToRemove] = useState([]);
   const [inclusionDraft, setInclusionDraft] = useState({ category: "", item: "", qty: "" });
   const [addOnDraft, setAddOnDraft] = useState({ name: "", qty: "" });
   const [error, setError] = useState("");
@@ -24,8 +26,11 @@ export default function AdminPackages() {
     price_min: "",
     price_max: "",
     available: true,
+    event_type: "",
+    max_guests: "",
     inclusions: [],
-    add_ons: []
+    add_ons: [],
+    gallery: []
   };
 
   const load = () =>
@@ -119,6 +124,8 @@ export default function AdminPackages() {
       "price_min",
       "price_max",
       "available",
+      "event_type",
+      "max_guests",
       "inclusions",
       "add_ons"
     ];
@@ -134,6 +141,14 @@ export default function AdminPackages() {
     });
 
     if (file) data.append("image", file);
+    
+    galleryFiles.forEach((gf) => {
+      data.append("gallery", gf);
+    });
+
+    if (galleryToRemove.length > 0) {
+      data.append("gallery_to_remove", galleryToRemove.join(", "));
+    }
 
     try {
       if (form._id) {
@@ -151,6 +166,8 @@ export default function AdminPackages() {
     setShow(false);
     setForm(initialFormState);
     setFile(null);
+    setGalleryFiles([]);
+    setGalleryToRemove([]);
     load();
   };
 
@@ -158,10 +175,14 @@ export default function AdminPackages() {
     setForm({
       ...p,
       inclusions: Array.isArray(p.inclusions) ? p.inclusions : [],
-      add_ons: Array.isArray(p.add_ons) ? p.add_ons : []
+      add_ons: Array.isArray(p.add_ons) ? p.add_ons : [],
+      gallery: Array.isArray(p.gallery) ? p.gallery : []
     });
     setInclusionDraft({ category: "", item: "", qty: "" });
     setAddOnDraft({ name: "", qty: "" });
+    setFile(null);
+    setGalleryFiles([]);
+    setGalleryToRemove([]);
     setShow(true);
   };
 
@@ -222,6 +243,8 @@ export default function AdminPackages() {
             onClick={() => {
               setForm(initialFormState);
               setFile(null);
+              setGalleryFiles([]);
+              setGalleryToRemove([]);
               setInclusionDraft({ category: "", item: "", qty: "" });
               setAddOnDraft({ name: "", qty: "" });
               setShow(true);
@@ -319,6 +342,25 @@ export default function AdminPackages() {
                     placeholder="20x70"
                     value={form.size || ""}
                     onChange={(e) => setForm({ ...form, size: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="form-grid-2">
+                <div className="form-group">
+                  <label>Event Type</label>
+                  <input
+                    placeholder="e.g. Wedding, Birthday, Corporate"
+                    value={form.event_type || ""}
+                    onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Max Guests</label>
+                  <input
+                    type="number"
+                    placeholder="150"
+                    value={form.max_guests || ""}
+                    onChange={(e) => setForm({ ...form, max_guests: e.target.value })}
                   />
                 </div>
               </div>
@@ -506,6 +548,42 @@ export default function AdminPackages() {
                 <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
               </label>
               {file && <p className="upload-selected">Selected: {file.name}</p>}
+
+              <h4 style={{ marginTop: '20px' }}>Gallery Images</h4>
+              {form.gallery && form.gallery.length > 0 && (
+                <div className="admin-gallery-preview" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  {form.gallery.map((url, i) => {
+                    const isRemoved = galleryToRemove.includes(url);
+                    return (
+                      <div key={i} style={{ position: 'relative', opacity: isRemoved ? 0.3 : 1 }}>
+                        <img src={url} alt="Gallery" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px' }} />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            if (isRemoved) {
+                              setGalleryToRemove(prev => prev.filter(item => item !== url));
+                            } else {
+                              setGalleryToRemove(prev => [...prev, url]);
+                            }
+                          }}
+                          style={{ position: 'absolute', top: 0, right: 0, background: isRemoved ? 'green' : 'red', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '50%' }}
+                        >
+                          {isRemoved ? '⟲' : '×'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <label className="upload-box">
+                <div className="upload-icon">🖼️</div>
+                <div className="upload-text">
+                  <p className="upload-main">Upload gallery images</p>
+                  <p className="upload-hint">Select multiple images to showcase your package</p>
+                </div>
+                <input type="file" accept="image/*" multiple onChange={(e) => setGalleryFiles(Array.from(e.target.files))} />
+              </label>
+              {galleryFiles.length > 0 && <p className="upload-selected">Selected {galleryFiles.length} files</p>}
             </div>
 
             <div className="actions">

@@ -5,6 +5,7 @@ import { CustomerAPI } from "../../api/customer";
 
 export default function Packages() {
   const [packages, setPackages] = useState([]);
+  const [filterType, setFilterType] = useState("All");
   const navigate = useNavigate();
 
   const formatMoney = (value) => {
@@ -27,6 +28,9 @@ export default function Packages() {
     });
   }, []);
 
+  const eventTypes = ["All", ...new Set(packages.map(p => p.event_type).filter(Boolean))];
+  const filteredPackages = packages.filter(p => filterType === "All" || p.event_type === filterType);
+
   return (
     <CustomerLayout>
       <div className="banner">
@@ -34,8 +38,21 @@ export default function Packages() {
         <p>Choose from our carefully curated packages.</p>
       </div>
 
+      <div style={{ display: "flex", justifyContent: "center", gap: "10px", margin: "20px 0", flexWrap: "wrap" }}>
+        {eventTypes.map(type => (
+          <button 
+            key={type} 
+            className={filterType === type ? "btn" : "btn-outline"}
+            onClick={() => setFilterType(type)}
+            style={{ borderRadius: "20px", padding: "5px 15px", fontSize: "14px" }}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+
       <div className="package-grid">
-        {packages.map((p) => (
+        {filteredPackages.map((p) => (
           <div className="card package-card" key={p._id}>
             <img src={p.image_url} alt={p.name} />
             <h3>{p.name}</h3>

@@ -12,7 +12,10 @@ const PackageSchema = new mongoose.Schema({
   cancellation_policy: String,
   inclusions: [String],
   add_ons: [String],
-  image_url: String
+  image_url: String,
+  gallery: [String],
+  event_type: String,
+  max_guests: Number
 }, { timestamps: true });
 
 module.exports = mongoose.model("Package", PackageSchema);

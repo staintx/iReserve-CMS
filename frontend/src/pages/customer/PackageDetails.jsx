@@ -107,25 +107,39 @@ export default function PackageDetails() {
               </div>
             </div>
 
-            <div className="package-section">
-              <div className="package-section-header">
-                <h2>Add Ons</h2>
-                <span>{addOns.length || "0"} options</span>
+              <div className="package-section">
+                <div className="package-section-header">
+                  <h2>Add Ons</h2>
+                  <span>{addOns.length || "0"} options</span>
+                </div>
+                <div className="package-list-grid">
+                  {addOns.length ? (
+                    addOns.map((item) => (
+                      <div className="package-list-item" key={item}>
+                        <span className="package-dot" />
+                        <span>{item}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="package-empty">Let us know if you want additional services or items.</div>
+                  )}
+                </div>
               </div>
-              <div className="package-list-grid">
-                {addOns.length ? (
-                  addOns.map((item) => (
-                    <div className="package-list-item" key={item}>
-                      <span className="package-dot" />
-                      <span>{item}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="package-empty">Let us know if you want additional services or items.</div>
-                )}
-              </div>
-            </div>
-          </section>
+
+              {pkg.gallery && pkg.gallery.length > 0 && (
+                <div className="package-section">
+                  <div className="package-section-header">
+                    <h2>Gallery</h2>
+                    <span>{pkg.gallery.length} photos</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                    {pkg.gallery.map((imgUrl, idx) => (
+                      <img key={idx} src={imgUrl} alt={`Gallery ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
 
           <aside className="package-side">
             <div className="price-card">
@@ -136,6 +150,18 @@ export default function PackageDetails() {
                   <span>Serving Size</span>
                   <strong>{pkg.size || "Custom"}</strong>
                 </div>
+                {pkg.max_guests && (
+                  <div className="price-meta-item">
+                    <span>Max Guests</span>
+                    <strong>{pkg.max_guests}</strong>
+                  </div>
+                )}
+                {pkg.event_type && (
+                  <div className="price-meta-item">
+                    <span>Event Type</span>
+                    <strong>{pkg.event_type}</strong>
+                  </div>
+                )}
                 <div className="price-meta-item">
                   <span>Duration</span>
                   <strong>{pkg.duration || "4 hours"}</strong>

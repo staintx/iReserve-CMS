@@ -207,7 +207,7 @@ export default function AdminBookingDetails() {
         {/* ── Top Navigation ── */}
         <div className="ir-review-topbar">
           <button className="ir-back-btn" type="button" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Back
           </button>
           <span className="ir-breadcrumb">Bookings / <strong>Details</strong></span>
@@ -245,7 +245,7 @@ export default function AdminBookingDetails() {
                       onClick={() => handleStatusChange(next)}
                       disabled={submitting}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       {submitting ? "Updating…" : `Mark ${getStatusLabel(next)}`}
                     </button>
                   ))}
@@ -256,7 +256,7 @@ export default function AdminBookingDetails() {
                       onClick={() => setCancelTarget(true)}
                       disabled={submitting}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                       Cancel Booking
                     </button>
                   )}
@@ -268,7 +268,7 @@ export default function AdminBookingDetails() {
                       onClick={openEditModal}
                       disabled={submitting}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 3.5l1 1M11.5 2.5a1.414 1.414 0 010 2L4 12H2v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 3.5l1 1M11.5 2.5a1.414 1.414 0 010 2L4 12H2v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       Edit Details
                     </button>
                   )}

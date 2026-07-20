@@ -17,15 +17,26 @@ const canViewUnavailable = (user) => {
 
 exports.create = async (req, res) => {
   let image_url = "";
-  if (req.file) {
-    const result = await uploadToCloudinary(req.file.buffer, "packages");
-    image_url = result.secure_url;
+  let gallery = [];
+  
+  if (req.files) {
+    if (req.files.image && req.files.image[0]) {
+      const result = await uploadToCloudinary(req.files.image[0].buffer, "packages");
+      image_url = result.secure_url;
+    }
+    
+    if (req.files.gallery && req.files.gallery.length > 0) {
+      const uploadPromises = req.files.gallery.map(file => uploadToCloudinary(file.buffer, "packages"));
+      const results = await Promise.all(uploadPromises);
+      gallery = results.map(r => r.secure_url);
+    }
   }
   const payload = {
     ...req.body,
     inclusions: normalizeList(req.body.inclusions),
     add_ons: normalizeList(req.body.add_ons),
-    image_url
+    image_url,
+    gallery
   };
   res.status(201).json(await Package.create(payload));
 };
@@ -49,15 +60,31 @@ exports.update = async (req, res) => {
   let data = {
     ...req.body,
     inclusions: req.body.inclusions ? normalizeList(req.body.inclusions) : undefined,
-    add_ons: req.body.add_ons ? normalizeList(req.body.add_ons) : undefined
+    add_ons: req.body.add_ons ? normalizeList(req.body.add_ons) : undefined,
+    gallery_to_remove: req.body.gallery_to_remove ? normalizeList(req.body.gallery_to_remove) : []
   };
 
   if (data.inclusions === undefined) delete data.inclusions;
   if (data.add_ons === undefined) delete data.add_ons;
-  if (req.file) {
-    const result = await uploadToCloudinary(req.file.buffer, "packages");
-    data.image_url = result.secure_url;
+  
+  if (req.files) {
+    if (req.files.image && req.files.image[0]) {
+      const result = await uploadToCloudinary(req.files.image[0].buffer, "packages");
+      data.image_url = result.secure_url;
+    }
+    
+    if (req.files.gallery && req.files.gallery.length > 0) {
+      const uploadPromises = req.files.gallery.map(file => uploadToCloudinary(file.buffer, "packages"));
+      const results = await Promise.all(uploadPromises);
+      data.$push = { gallery: { $each: results.map(r => r.secure_url) } };
+    }
   }
+
+  // Handle gallery removals
+  if (data.gallery_to_remove.length > 0) {
+    data.$pull = { gallery: { $in: data.gallery_to_remove } };
+  }
+  delete data.gallery_to_remove;
   res.json(await Package.findByIdAndUpdate(req.params.id, data, { new: true }));
 };
 

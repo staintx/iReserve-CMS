@@ -233,6 +233,27 @@ exports.getById = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
 	const current = await Booking.findById(req.params.id);
 	if (!current) return res.status(404).json({ message: "Booking not found" });
+
+	const msUntilEvent = new Date(current.event_date).getTime() - Date.now();
+	const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+
+	if (msUntilEvent <= threeDaysMs) {
+		const allowedLateFields = [
+			"status",
+			"payment_status",
+			"payment_method",
+			"manager_id",
+			"staff_ids",
+			"staff_assignments",
+			"equipment_assignments",
+			"equipment_returned"
+		];
+		const hasDisallowedFields = Object.keys(req.body).some((key) => !allowedLateFields.includes(key));
+		if (hasDisallowedFields) {
+			return res.status(400).json({ message: "Booking details cannot be changed 3 days before the event." });
+		}
+	}
+
 	if (req.body.event_date) {
 		const dateStatus = getDateStatus(req.body.event_date);
 		if (!dateStatus.valid) {

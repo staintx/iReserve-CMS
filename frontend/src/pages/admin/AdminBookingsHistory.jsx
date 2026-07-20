@@ -12,7 +12,7 @@ export default function AdminBookingsHistory() {
   useEffect(() => {
     AdminAPI.getBookings()
       .then((res) => {
-        setBookings(res.data.filter((b) => b.status !== "active"));
+        setBookings(res.data.filter((b) => ["completed", "cancelled"].includes(b.status)));
       })
       .catch(() => setBookings([]));
   }, []);

@@ -52,5 +52,5 @@ exports.bookingSchema = Joi.object({
   total_price: Joi.number().required(),
   payment_method: Joi.string().optional(),
   payment_status: Joi.string().optional(),
-  status: Joi.string().optional()
+  status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled").optional()
 });

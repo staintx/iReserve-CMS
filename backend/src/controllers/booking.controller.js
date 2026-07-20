@@ -66,7 +66,7 @@ const findBookingConflict = async ({ eventDate, startTime, durationHours, exclud
 	dayEnd.setHours(23, 59, 59, 999);
 
 	const query = {
-		status: "active",
+		status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
 		event_date: { $gte: dayStart, $lte: dayEnd }
 	};
 	if (excludeId) query._id = { $ne: excludeId };
@@ -170,7 +170,7 @@ exports.createFromInquiry = asyncHandler(async (req, res) => {
 		package_id: req.body.package_id || inquiry.package_id,
 		manager_id: req.body.manager_id,
 		staff_ids: req.body.staff_ids,
-		status: req.body.status || "active"
+		status: req.body.status || "pending deposit"
 	};
 
 	const conflict = await findBookingConflict({

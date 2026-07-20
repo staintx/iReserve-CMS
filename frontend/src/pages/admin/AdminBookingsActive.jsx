@@ -16,7 +16,7 @@ export default function AdminBookingsActive() {
 
   const load = () => {
     AdminAPI.getBookings()
-      .then((res) => setBookings(res.data.filter((b) => b.status === "active")))
+      .then((res) => setBookings(res.data.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status))))
       .catch((err) => {
         notify(err.response?.data?.message || "We could not load bookings. Please try again.", "error");
       });

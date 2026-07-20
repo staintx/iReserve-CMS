@@ -19,7 +19,7 @@ export default function CustomerBookings() {
   }, []);
 
   const upcoming = useMemo(
-    () => bookings.filter((b) => b.status === "active"),
+    () => bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status)),
     [bookings]
   );
   const completed = useMemo(

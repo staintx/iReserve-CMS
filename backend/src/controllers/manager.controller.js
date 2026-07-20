@@ -67,11 +67,11 @@ exports.getBookings = asyncHandler(async (req, res) => {
   if (!status) return res.json(bookings);
 
   if (status === "pending") {
-    return res.json(bookings.filter((b) => b.status === "active" && !hasAssignments(b)));
+    return res.json(bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status) && !hasAssignments(b)));
   }
 
   if (status === "upcoming") {
-    return res.json(bookings.filter((b) => b.status === "active" && hasAssignments(b)));
+    return res.json(bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status) && hasAssignments(b)));
   }
 
   if (status === "completed") {

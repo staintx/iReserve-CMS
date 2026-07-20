@@ -23,7 +23,7 @@ export default function CustomerDashboard() {
 
   const now = useMemo(() => new Date(), []);
   const activeInquiries = inquiries.filter((inq) => ["new", "under review", "awaiting confirmation", "negotiating"].includes(inq.status));
-  const upcomingBookings = bookings.filter((b) => b.status === "active" && new Date(b.event_date) >= now);
+  const upcomingBookings = bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
   const completedBookings = bookings.filter((b) => b.status === "completed");
   const unreadCount = mockMessages.filter((m) => m.unread).length;
 

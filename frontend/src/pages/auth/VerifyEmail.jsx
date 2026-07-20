@@ -53,16 +53,24 @@ export default function VerifyEmail() {
   return (
     <div className="auth-page">
       <div className="auth-left">
-        <div className="logo-card">
-          <img src={logo} alt="Caezelle's logo" className="object-cover w-full h-full rounded-2xl" />
+        <div className="brand-hero">
+          <div className="logo-badge">
+            <img src={logo} alt="Caezelle's logo" className="object-cover w-full h-full rounded-full" />
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/70">Caezelle's</p>
+            <p className="text-sm text-white/70">Food, Catering & Services</p>
+          </div>
         </div>
-        <h2 className="mt-6 text-3xl font-semibold">Confirm your account in minutes.</h2>
-        <p className="mt-4 text-sm text-white/70">
-          Verify your email to unlock bookings, messages, and payment tracking.
-        </p>
+        <div className="hero-copy">
+          <h2 className="text-4xl font-semibold">Confirm your account in minutes.</h2>
+          <p className="mt-4 text-sm text-white/70">
+            Verify your email to unlock bookings, messages, and payment tracking.
+          </p>
+        </div>
       </div>
       <div className="bg-white auth-right">
-        <div className="p-10 surface">
+        <div className="auth-card surface p-10">
           <AuthVerifyEmailForm
             email={email}
             otp={otp}
@@ -75,6 +83,7 @@ export default function VerifyEmail() {
             onResendOtp={resendOtp}
           />
         </div>
+        <div className="auth-footer">© 2026 Caezelle's Food, Catering & Services. All rights reserved.</div>
       </div>
     </div>
   );

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminBookingsHistoryTable from "../../components/tables/AdminBookingsHistoryTable";
-import Modal from "../../components/common/Modal";
 
 export default function AdminBookingsHistory() {
   const [bookings, setBookings] = useState([]);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     AdminAPI.getBookings()
@@ -31,24 +31,11 @@ export default function AdminBookingsHistory() {
         </div>
       </div>
       <div className="panel">
-        <AdminBookingsHistoryTable bookings={filtered} onView={setSelected} />
+        <AdminBookingsHistoryTable
+          bookings={filtered}
+          onView={(booking) => navigate(`/admin/bookings/${booking._id}/details`)}
+        />
       </div>
-
-      {selected && (
-        <Modal title="Booking Details" onClose={() => setSelected(null)}>
-          <div className="admin-modal">
-            <p><strong>Event:</strong> {selected.event_type}</p>
-            <p><strong>Date:</strong> {selected.event_date ? new Date(selected.event_date).toLocaleDateString() : "-"}</p>
-            <p><strong>Venue:</strong> {selected.venue_type || "-"}</p>
-            <p><strong>Customer:</strong> {selected.customer_id?.full_name || "Customer"}</p>
-            <p><strong>Guests:</strong> {selected.guest_count || "-"}</p>
-            <p><strong>Status:</strong> {selected.status}</p>
-            <div className="actions">
-              <button className="btn-outline" type="button" onClick={() => setSelected(null)}>Close</button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </AdminLayout>
   );
 }

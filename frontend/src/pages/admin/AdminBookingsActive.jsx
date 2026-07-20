@@ -4,13 +4,11 @@ import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminBookingsActiveTable from "../../components/tables/AdminBookingsActiveTable";
 import useToast from "../../hooks/useToast";
-import Modal from "../../components/common/Modal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function AdminBookingsActive() {
   const [bookings, setBookings] = useState([]);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(null);
   const [completeTarget, setCompleteTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const { notify } = useToast();
@@ -60,27 +58,12 @@ export default function AdminBookingsActive() {
       <div className="panel">
         <AdminBookingsActiveTable
           bookings={filtered}
-          onView={setSelected}
+          onView={(booking) => navigate(`/admin/bookings/${booking._id}/details`)}
           onMarkDone={(booking) => setCompleteTarget(booking)}
           onCancel={(booking) => setCancelTarget(booking)}
         />
       </div>
 
-      {selected && (
-        <Modal title="Booking Details" onClose={() => setSelected(null)}>
-          <div className="admin-modal">
-            <p><strong>Event:</strong> {selected.event_type}</p>
-            <p><strong>Date:</strong> {selected.event_date ? new Date(selected.event_date).toLocaleDateString() : "-"}</p>
-            <p><strong>Venue:</strong> {selected.venue_type || "-"}</p>
-            <p><strong>Customer:</strong> {selected.customer_id?.full_name || "Customer"}</p>
-            <p><strong>Guests:</strong> {selected.guest_count || "-"}</p>
-            <p><strong>Status:</strong> {selected.status}</p>
-            <div className="actions">
-              <button className="btn-outline" type="button" onClick={() => setSelected(null)}>Close</button>
-            </div>
-          </div>
-        </Modal>
-      )}
       {completeTarget && (
         <ConfirmDialog
           message={`Mark booking ${completeTarget._id?.slice(-6) || ""} as completed?`}

@@ -36,13 +36,22 @@ export default function AdminBookingDetails() {
   const { notify } = useToast();
   const [booking, setBooking] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({});
 
   const load = () => {
     AdminAPI.getBooking(id)
-      .then((res) => setBooking(res.data))
-      .catch(() => notify("Could not load booking details. Please try again.", "error"));
+      .then((res) => {
+        setBooking(res.data);
+        setLoading(false);
+      })
+      .catch(() => {
+        notify("Could not load booking details. Please try again.", "error");
+        setLoading(false);
+      });
 
     AdminAPI.getPayments()
       .then((res) => {
@@ -76,6 +85,37 @@ export default function AdminBookingDetails() {
       return `${booking.contact_first_name} ${booking.contact_last_name || ""}`.trim();
     return booking.customer_id?.full_name || "Client";
   }, [booking]);
+
+  const openEditModal = () => {
+    setEditForm({
+      guest_count: booking.guest_count || "",
+      venue_type: booking.venue_type || "",
+      event_date: booking.event_date ? new Date(booking.event_date).toISOString().split("T")[0] : "",
+      start_time: booking.start_time || "",
+      contact_first_name: booking.contact_first_name || "",
+      contact_last_name: booking.contact_last_name || "",
+      contact_email: booking.contact_email || "",
+      contact_phone: booking.contact_phone || "",
+      special_requests: booking.special_requests || "",
+      total_price: booking.total_price || 0
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    AdminAPI.updateBooking(booking._id, editForm)
+      .then((res) => {
+        setBooking(res.data);
+        setShowEditModal(false);
+        notify("Booking details updated.", "success");
+      })
+      .catch((err) => {
+        notify(err.response?.data?.message || "Could not update booking details.", "error");
+      })
+      .finally(() => setSubmitting(false));
+  };
 
   const handleStatusChange = (newStatus) => {
     if (!booking || submitting) return;
@@ -144,6 +184,10 @@ export default function AdminBookingDetails() {
 
   const totalPrice = Number(booking.total_price) || 0;
   const balance = totalPrice - totalPaid;
+
+  const msUntilEvent = new Date(booking.event_date).getTime() - Date.now();
+  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+  const isLockedOut = msUntilEvent <= threeDaysMs;
 
   /* Determine which statuses admin can transition to */
   const getNextStatuses = () => {
@@ -214,6 +258,18 @@ export default function AdminBookingDetails() {
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                       Cancel Booking
+                    </button>
+                  )}
+                  {!isLockedOut && (
+                    <button
+                      className="ir-action-btn ir-action-primary"
+                      style={{ background: "#475569" }}
+                      type="button"
+                      onClick={openEditModal}
+                      disabled={submitting}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 3.5l1 1M11.5 2.5a1.414 1.414 0 010 2L4 12H2v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      Edit Details
                     </button>
                   )}
                 </>
@@ -602,6 +658,66 @@ export default function AdminBookingDetails() {
           onConfirm={handleCancel}
           onCancel={() => setCancelTarget(false)}
         />
+      )}
+
+      {showEditModal && (
+        <Modal title="Edit Booking Details" onClose={() => setShowEditModal(false)}>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label>Event Date</label>
+                <input type="date" value={editForm.event_date} onChange={(e) => setEditForm({ ...editForm, event_date: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>Start Time</label>
+                <input type="time" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label>Guest Count</label>
+                <input type="number" value={editForm.guest_count} onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Venue Type</label>
+                <input type="text" value={editForm.venue_type} onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label>Contact First Name</label>
+                <input type="text" value={editForm.contact_first_name} onChange={(e) => setEditForm({ ...editForm, contact_first_name: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Contact Last Name</label>
+                <input type="text" value={editForm.contact_last_name} onChange={(e) => setEditForm({ ...editForm, contact_last_name: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label>Email</label>
+                <input type="email" value={editForm.contact_email} onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>Phone</label>
+                <input type="text" value={editForm.contact_phone} onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Special Requests</label>
+              <textarea value={editForm.special_requests} onChange={(e) => setEditForm({ ...editForm, special_requests: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Total Price Override (PHP)</label>
+              <input type="number" value={editForm.total_price} onChange={(e) => setEditForm({ ...editForm, total_price: e.target.value })} min="0" />
+              <p className="text-xs text-slate-500 mt-1">Modifying this will automatically update the remaining balance.</p>
+            </div>
+            <div className="actions">
+              <button className="btn" type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</button>
+              <button className="btn-outline" type="button" onClick={() => setShowEditModal(false)}>Cancel</button>
+            </div>
+          </form>
+        </Modal>
       )}
     </AdminLayout>
   );

@@ -17,7 +17,9 @@ exports.packageSchema = Joi.object({
   add_ons: Joi.alternatives().try(
     Joi.array().items(Joi.string()),
     Joi.string()
-  ).optional()
+  ).optional(),
+  event_type: Joi.string().optional().allow(''),
+  max_guests: Joi.number().optional().allow(null)
 });
 
 exports.packageUpdateSchema = Joi.object({
@@ -35,6 +37,12 @@ exports.packageUpdateSchema = Joi.object({
     Joi.string()
   ).optional(),
   add_ons: Joi.alternatives().try(
+    Joi.array().items(Joi.string()),
+    Joi.string()
+  ).optional(),
+  event_type: Joi.string().optional().allow(''),
+  max_guests: Joi.number().optional().allow(null),
+  gallery_to_remove: Joi.alternatives().try(
     Joi.array().items(Joi.string()),
     Joi.string()
   ).optional()

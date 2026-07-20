@@ -4,6 +4,7 @@ import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import Modal from "../../components/common/Modal";
 
 /* ── Status helpers ── */
 const ACTIVE_STATUSES = ["pending deposit", "confirmed", "preparing", "ongoing"];
@@ -41,6 +42,7 @@ export default function AdminBookingDetails() {
   const [cancelTarget, setCancelTarget] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [packages, setPackages] = useState([]);
 
   const load = () => {
     AdminAPI.getBooking(id)
@@ -58,6 +60,10 @@ export default function AdminBookingDetails() {
         setPayments(res.data.filter((p) => String(p.booking_id?._id || p.booking_id) === id));
       })
       .catch(() => setPayments([]));
+
+    AdminAPI.getPackages()
+      .then((res) => setPackages(res.data))
+      .catch(() => setPackages([]));
   };
 
   useEffect(() => {
@@ -90,13 +96,25 @@ export default function AdminBookingDetails() {
     setEditForm({
       guest_count: booking.guest_count || "",
       venue_type: booking.venue_type || "",
+      indoor_outdoor: booking.indoor_outdoor || "",
+      province: booking.province || "",
+      municipality: booking.municipality || "",
+      barangay: booking.barangay || "",
+      street: booking.street || "",
+      landmark: booking.landmark || "",
+      zip_code: booking.zip_code || "",
       event_date: booking.event_date ? new Date(booking.event_date).toISOString().split("T")[0] : "",
       start_time: booking.start_time || "",
       contact_first_name: booking.contact_first_name || "",
       contact_last_name: booking.contact_last_name || "",
       contact_email: booking.contact_email || "",
       contact_phone: booking.contact_phone || "",
+      contact_alt_phone: booking.contact_alt_phone || "",
       special_requests: booking.special_requests || "",
+      event_theme: booking.event_theme || "",
+      package_id: booking.package_id?._id || booking.package_id || "",
+      selected_menu: booking.selected_menu?.join(", ") || "",
+      additional_services: booking.additional_services?.join(", ") || "",
       total_price: booking.total_price || 0
     });
     setShowEditModal(true);
@@ -105,7 +123,17 @@ export default function AdminBookingDetails() {
   const handleEditSubmit = (e) => {
     e.preventDefault();
     setSubmitting(true);
-    AdminAPI.updateBooking(booking._id, editForm)
+    
+    const payload = { ...editForm };
+    if (typeof payload.selected_menu === 'string') {
+        payload.selected_menu = payload.selected_menu.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    if (typeof payload.additional_services === 'string') {
+        payload.additional_services = payload.additional_services.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    delete payload.event_date; // Prevent altering event_date
+
+    AdminAPI.updateBooking(booking._id, payload)
       .then((res) => {
         setBooking(res.data);
         setShowEditModal(false);
@@ -207,7 +235,7 @@ export default function AdminBookingDetails() {
         {/* ── Top Navigation ── */}
         <div className="ir-review-topbar">
           <button className="ir-back-btn" type="button" onClick={() => navigate(-1)}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Back
           </button>
           <span className="ir-breadcrumb">Bookings / <strong>Details</strong></span>
@@ -245,7 +273,7 @@ export default function AdminBookingDetails() {
                       onClick={() => handleStatusChange(next)}
                       disabled={submitting}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       {submitting ? "Updating…" : `Mark ${getStatusLabel(next)}`}
                     </button>
                   ))}
@@ -256,7 +284,7 @@ export default function AdminBookingDetails() {
                       onClick={() => setCancelTarget(true)}
                       disabled={submitting}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                       Cancel Booking
                     </button>
                   )}
@@ -268,7 +296,7 @@ export default function AdminBookingDetails() {
                       onClick={openEditModal}
                       disabled={submitting}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 3.5l1 1M11.5 2.5a1.414 1.414 0 010 2L4 12H2v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 3.5l1 1M11.5 2.5a1.414 1.414 0 010 2L4 12H2v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       Edit Details
                     </button>
                   )}
@@ -662,59 +690,127 @@ export default function AdminBookingDetails() {
 
       {showEditModal && (
         <Modal title="Edit Booking Details" onClose={() => setShowEditModal(false)}>
-          <form onSubmit={handleEditSubmit} className="space-y-4">
+          <form onSubmit={handleEditSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto px-1">
+            
+            <div className="font-semibold text-slate-700 mt-0">Event Details</div>
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
-                <label>Event Date</label>
-                <input type="date" value={editForm.event_date} onChange={(e) => setEditForm({ ...editForm, event_date: e.target.value })} required />
+                <label>Event Date (Unalterable)</label>
+                <input type="date" value={editForm.event_date} disabled className="bg-slate-100 cursor-not-allowed text-slate-500 w-full p-2 border rounded" />
               </div>
               <div className="form-group">
                 <label>Start Time</label>
-                <input type="time" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required />
+                <input type="time" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required className="w-full p-2 border rounded" />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
                 <label>Guest Count</label>
-                <input type="number" value={editForm.guest_count} onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} />
+                <input type="number" value={editForm.guest_count} onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} className="w-full p-2 border rounded" />
               </div>
+              <div className="form-group">
+                <label>Event Theme</label>
+                <input type="text" value={editForm.event_theme} onChange={(e) => setEditForm({ ...editForm, event_theme: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+            </div>
+
+            <div className="font-semibold text-slate-700 mt-4 border-t pt-4">Venue Details</div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
                 <label>Venue Type</label>
-                <input type="text" value={editForm.venue_type} onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="form-group">
-                <label>Contact First Name</label>
-                <input type="text" value={editForm.contact_first_name} onChange={(e) => setEditForm({ ...editForm, contact_first_name: e.target.value })} />
+                <input type="text" value={editForm.venue_type} onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} className="w-full p-2 border rounded" />
               </div>
               <div className="form-group">
-                <label>Contact Last Name</label>
-                <input type="text" value={editForm.contact_last_name} onChange={(e) => setEditForm({ ...editForm, contact_last_name: e.target.value })} />
+                <label>Indoor / Outdoor</label>
+                <select value={editForm.indoor_outdoor} onChange={(e) => setEditForm({ ...editForm, indoor_outdoor: e.target.value })} className="w-full p-2 border rounded">
+                  <option value="">Select...</option>
+                  <option value="indoor">Indoor</option>
+                  <option value="outdoor">Outdoor</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Province</label>
+                <input type="text" value={editForm.province} onChange={(e) => setEditForm({ ...editForm, province: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Municipality</label>
+                <input type="text" value={editForm.municipality} onChange={(e) => setEditForm({ ...editForm, municipality: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Barangay</label>
+                <input type="text" value={editForm.barangay} onChange={(e) => setEditForm({ ...editForm, barangay: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Street</label>
+                <input type="text" value={editForm.street} onChange={(e) => setEditForm({ ...editForm, street: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Landmark</label>
+                <input type="text" value={editForm.landmark} onChange={(e) => setEditForm({ ...editForm, landmark: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Zip Code</label>
+                <input type="text" value={editForm.zip_code} onChange={(e) => setEditForm({ ...editForm, zip_code: e.target.value })} className="w-full p-2 border rounded" />
               </div>
             </div>
+
+            <div className="font-semibold text-slate-700 mt-4 border-t pt-4">Package & Menu</div>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="form-group">
+                <label>Package</label>
+                <select value={editForm.package_id} onChange={(e) => setEditForm({ ...editForm, package_id: e.target.value })} className="w-full p-2 border rounded">
+                  <option value="">No Package (Custom)</option>
+                  {packages.map(p => (
+                    <option key={p._id} value={p._id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Selected Menu (Comma separated)</label>
+                <input type="text" value={editForm.selected_menu} onChange={(e) => setEditForm({ ...editForm, selected_menu: e.target.value })} placeholder="e.g. Adobo, Sinigang, Lechon" className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Add-ons / Additional Services (Comma separated)</label>
+                <input type="text" value={editForm.additional_services} onChange={(e) => setEditForm({ ...editForm, additional_services: e.target.value })} placeholder="e.g. Photo Booth, Extra Tables" className="w-full p-2 border rounded" />
+              </div>
+            </div>
+
+            <div className="font-semibold text-slate-700 mt-4 border-t pt-4">Contact Information</div>
             <div className="grid grid-cols-2 gap-4">
+              <div className="form-group">
+                <label>First Name</label>
+                <input type="text" value={editForm.contact_first_name} onChange={(e) => setEditForm({ ...editForm, contact_first_name: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Last Name</label>
+                <input type="text" value={editForm.contact_last_name} onChange={(e) => setEditForm({ ...editForm, contact_last_name: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
               <div className="form-group">
                 <label>Email</label>
-                <input type="email" value={editForm.contact_email} onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })} />
+                <input type="email" value={editForm.contact_email} onChange={(e) => setEditForm({ ...editForm, contact_email: e.target.value })} className="w-full p-2 border rounded" />
               </div>
               <div className="form-group">
-                <label>Phone</label>
-                <input type="text" value={editForm.contact_phone} onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })} />
+                <label>Primary Phone</label>
+                <input type="text" value={editForm.contact_phone} onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })} className="w-full p-2 border rounded" />
+              </div>
+              <div className="form-group">
+                <label>Alt. Phone</label>
+                <input type="text" value={editForm.contact_alt_phone} onChange={(e) => setEditForm({ ...editForm, contact_alt_phone: e.target.value })} className="w-full p-2 border rounded" />
               </div>
             </div>
+
+            <div className="font-semibold text-slate-700 mt-4 border-t pt-4">Other</div>
             <div className="form-group">
               <label>Special Requests</label>
-              <textarea value={editForm.special_requests} onChange={(e) => setEditForm({ ...editForm, special_requests: e.target.value })} />
+              <textarea value={editForm.special_requests} onChange={(e) => setEditForm({ ...editForm, special_requests: e.target.value })} className="w-full p-2 border rounded" />
             </div>
             <div className="form-group">
               <label>Total Price Override (PHP)</label>
-              <input type="number" value={editForm.total_price} onChange={(e) => setEditForm({ ...editForm, total_price: e.target.value })} min="0" />
+              <input type="number" value={editForm.total_price} onChange={(e) => setEditForm({ ...editForm, total_price: e.target.value })} min="0" className="w-full p-2 border rounded" />
               <p className="text-xs text-slate-500 mt-1">Modifying this will automatically update the remaining balance.</p>
             </div>
-            <div className="actions">
-              <button className="btn" type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</button>
-              <button className="btn-outline" type="button" onClick={() => setShowEditModal(false)}>Cancel</button>
+            
+            <div className="actions pt-4 mt-6 border-t flex gap-2">
+              <button className="btn bg-blue-600 text-white px-4 py-2 rounded" type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save Changes"}</button>
+              <button className="btn-outline border border-gray-300 px-4 py-2 rounded hover:bg-gray-50" type="button" onClick={() => setShowEditModal(false)}>Cancel</button>
             </div>
           </form>
         </Modal>

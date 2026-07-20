@@ -13,6 +13,7 @@ export const AdminAPI = {
 
   // Bookings
   getBookings: () => api.get("/bookings"),
+  getBooking: (id) => api.get(`/bookings/${id}`),
   createBooking: (data) => api.post("/bookings", data),
   createBookingFromInquiry: (id, data) => api.post(`/bookings/from-inquiry/${id}`, data),
   updateBooking: (id, data) => api.put(`/bookings/${id}`, data),

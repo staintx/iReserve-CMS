@@ -2812,3 +2812,93 @@ input.search {
     justify-content: center;
   }
 }
+
+/* ── Booking Details page specific ── */
+.status-pill.info {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+/* Payment records */
+.bd-payment-records {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bd-payment-record {
+  border: 1px solid #f3f4f6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  transition: border-color 0.15s ease;
+}
+
+.bd-payment-record:hover {
+  border-color: #d1d5db;
+}
+
+.bd-payment-record-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.bd-payment-type {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: capitalize;
+}
+
+.bd-payment-record-details {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.bd-payment-date {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* Notes & reports list */
+.bd-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bd-note-item {
+  background: #f9fafb;
+  border: 1px solid #f3f4f6;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.bd-note-meta {
+  margin-bottom: 6px;
+}
+
+.bd-note-text {
+  margin: 0;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bd-note-date {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9ca3af;
+}

@@ -11,11 +11,13 @@ const formatCurrency = (value) => {
 
 export default function CustomerBookings() {
   const [bookings, setBookings] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [payingBookingId, setPayingBookingId] = useState(null);
   const { notify } = useToast();
 
   useEffect(() => {
     CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
+    CustomerAPI.getPayments().then((res) => setPayments(res.data)).catch(() => setPayments([]));
   }, []);
 
   const upcoming = useMemo(
@@ -33,10 +35,27 @@ export default function CustomerBookings() {
 
   const nextEvent = upcoming[0];
 
-  const startPayment = async (booking) => {
+  const nextEventPaid = useMemo(() => {
+    if (!nextEvent) return 0;
+    return payments
+      .filter((p) => String(p.booking_id?._id || p.booking_id) === String(nextEvent._id) && p.status === "approved")
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, [nextEvent, payments]);
+
+  const nextEventBalance = useMemo(() => {
+    if (!nextEvent) return 0;
+    const total = Number(nextEvent.total_price || 0);
+    return Math.max(0, total - nextEventPaid);
+  }, [nextEvent, nextEventPaid]);
+
+  const startPayment = async (booking, isBalance = false) => {
     if (!booking?._id) return;
 
-    const amount = Number(booking.total_price || 0);
+    let amount = Number(booking.total_price || 0);
+    if (isBalance) {
+      amount = nextEventBalance;
+    }
+    
     if (!Number.isFinite(amount) || amount <= 0) {
       notify("This booking does not have a valid payable amount yet.", "error");
       return;
@@ -47,7 +66,7 @@ export default function CustomerBookings() {
       const response = await CustomerAPI.createPaymentCheckout({
         booking_id: booking._id,
         amount,
-        payment_type: "deposit"
+        payment_type: isBalance ? "balance" : "deposit"
       });
       const checkoutUrl = response.data?.checkout_url;
       if (!checkoutUrl) {
@@ -79,7 +98,7 @@ export default function CustomerBookings() {
         <div className="table-card">
           <div className="tile-header">
             <h3>{nextEvent.event_type}</h3>
-            <span className="badge confirmed">Confirmed</span>
+            <span className="badge confirmed">{nextEvent.status}</span>
           </div>
           <div className="grid sm:grid-cols-4">
             <div>
@@ -107,16 +126,16 @@ export default function CustomerBookings() {
                 <div>{formatCurrency(nextEvent.total_price)}</div>
               </div>
               <div>
-                <small>Deposit Paid</small>
-                <div>PHP 0</div>
+                <small>Total Paid</small>
+                <div>{formatCurrency(nextEventPaid)}</div>
               </div>
               <div>
                 <small>Balance Due</small>
-                <div>{formatCurrency(nextEvent.total_price)}</div>
+                <div>{formatCurrency(nextEventBalance)}</div>
               </div>
               <div>
-                <small>Status</small>
-                <div className="badge pending">On Going</div>
+                <small>Payment Status</small>
+                <div className={`badge ${nextEvent.payment_status === "paid" ? "confirmed" : "pending"}`}>{nextEvent.payment_status || "pending"}</div>
               </div>
             </div>
           </div>
@@ -125,10 +144,10 @@ export default function CustomerBookings() {
             <button
               className="btn-outline"
               type="button"
-              onClick={() => startPayment(nextEvent)}
-              disabled={payingBookingId === nextEvent._id}
+              onClick={() => startPayment(nextEvent, nextEventPaid > 0)}
+              disabled={payingBookingId === nextEvent._id || nextEventBalance <= 0}
             >
-              {payingBookingId === nextEvent._id ? "Opening PayMongo..." : "Pay Balance"}
+              {payingBookingId === nextEvent._id ? "Opening PayMongo..." : nextEventBalance <= 0 ? "Fully Paid" : "Pay Balance"}
             </button>
           </div>
         </div>

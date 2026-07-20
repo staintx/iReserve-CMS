@@ -69,24 +69,20 @@ export default function AdminGallery() {
       return;
     }
 
-    let uploaded = 0;
+    const data = new FormData();
     for (const fileItem of files) {
-      const baseName = String(fileItem?.name || "").replace(/\.[^.]+$/, "").trim();
-      const caption = baseName || "Gallery";
-      const data = new FormData();
-      data.append("title", caption);
-      data.append("image", fileItem);
-      try {
-        await AdminAPI.createGallery(data);
-        uploaded += 1;
-      } catch (err) {
-        notify(err.response?.data?.message || "We could not upload some photos. Please try again.", "error");
-        break;
-      }
+      data.append("images", fileItem);
     }
-    if (uploaded > 0) {
-      notify(`Uploaded ${uploaded} photo${uploaded > 1 ? "s" : ""}.`, "success");
-      load();
+
+    try {
+      const res = await AdminAPI.createGalleryBulk(data);
+      const uploaded = res.data?.length || 0;
+      if (uploaded > 0) {
+        notify(`Uploaded ${uploaded} photo${uploaded > 1 ? "s" : ""}.`, "success");
+        load();
+      }
+    } catch (err) {
+      notify(err.response?.data?.message || "We could not upload the photos. Please try again.", "error");
     }
   };
 

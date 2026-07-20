@@ -5,6 +5,7 @@ const { protect } = require("../middleware/auth.middleware");
 const { authorize } = require("../middleware/role.middleware");
 
 router.post("/", protect, authorize("admin"), upload.single("image"), ctrl.create);
+router.post("/bulk", protect, authorize("admin"), upload.array("images", 50), ctrl.createBulk);
 router.get("/", ctrl.getAll);
 router.get("/:id", ctrl.getById);
 router.put("/:id", protect, authorize("admin"), upload.single("image"), ctrl.update);

@@ -471,15 +471,105 @@
   }
 
   .auth-left, .auth-right {
-    @apply flex flex-col justify-center px-10 py-16;
+    @apply flex flex-col justify-center px-8 py-14;
   }
 
   .auth-left {
-    @apply text-white bg-ink-900;
+    @apply text-white;
+    position: relative;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('../assets/images/img-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: #ffffff;
   }
 
-  .logo-card {
-    @apply grid text-xl font-semibold bg-white h-44 w-44 place-items-center rounded-3xl text-ink-900 shadow-soft;
+  .auth-left-copy {
+    @apply max-w-xl space-y-10;
+  }
+
+  .brand-hero {
+    position: absolute;
+    top: 1.75rem;
+    left: 1.75rem;
+    @apply flex items-center gap-2.5 text-white;
+    z-index: 20;
+  }
+
+  .logo-badge {
+    @apply flex items-center justify-center w-14 h-14 rounded-full shadow-soft;
+    position: relative;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .hero-copy h2 {
+    @apply text-4xl font-semibold leading-tight text-white;
+  }
+
+  .hero-copy {
+    position: absolute;
+    left: 2rem;
+    bottom: 3rem;
+    z-index: 20;
+    max-width: 44rem;
+    color: #ffffff;
+  }
+
+  .hero-copy-right {
+    left: auto;
+    right: 2rem;
+    text-align: right;
+  }
+
+  .auth-right {
+    @apply items-center bg-slate-50;
+    position: relative;
+  }
+
+  .auth-card {
+    @apply w-full max-w-md mx-auto;
+  }
+
+  .auth-footer {
+    position: absolute;
+    bottom: 1.25rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #9aa4ae;
+    font-size: 13px;
+    z-index: 10;
+  }
+
+  .auth-left::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.55));
+    pointer-events: none;
+  }
+
+  .auth-input-label {
+    @apply block mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400;
+  }
+
+  .auth-form p:not(.auth-form-footer),
+  .auth-form div:not(.auth-form-footer):not(.auth-form-resend) {
+    text-align: left;
+  }
+
+  .auth-form-footer {
+    text-align: center !important;
+    margin-top: 0.75rem;
+  }
+
+  .auth-form-row {
+    @apply flex flex-wrap items-center justify-between gap-3 text-sm;
+  }
+
+  .auth-form-link {
+    @apply text-slate-500 transition hover:text-ink-900;
   }
 
   .auth-error {

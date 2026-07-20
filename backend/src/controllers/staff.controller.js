@@ -70,7 +70,7 @@ exports.getMyBookings = asyncHandler(async (req, res) => {
   if (!status) return res.json(bookings);
 
   if (status === "active") {
-    return res.json(bookings.filter((b) => b.status === "active"));
+    return res.json(bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status)));
   }
 
   if (status === "completed") {

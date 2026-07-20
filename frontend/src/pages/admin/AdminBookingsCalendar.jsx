@@ -8,7 +8,7 @@ export default function AdminBookingsCalendar() {
 
   useEffect(() => {
     AdminAPI.getBookings()
-      .then((res) => setBookings(res.data.filter((booking) => booking.status === "active")))
+      .then((res) => setBookings(res.data.filter((booking) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(booking.status))))
       .catch(() => setBookings([]));
   }, []);
 

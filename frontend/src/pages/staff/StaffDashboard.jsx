@@ -5,6 +5,27 @@ import useAuth from "../../hooks/useAuth";
 import useToast from "../../hooks/useToast";
 import Modal from "../../components/common/Modal";
 
+const STATUS_LABELS = {
+  "pending deposit": "Pending Deposit",
+  confirmed: "Confirmed",
+  preparing: "Preparing",
+  ongoing: "Ongoing",
+  completed: "Completed",
+  cancelled: "Cancelled"
+};
+
+const STATUS_CLASS_MAP = {
+  "pending deposit": "text-yellow-700 border-yellow-200 bg-yellow-50",
+  confirmed: "text-emerald-700 border-emerald-200 bg-emerald-50",
+  preparing: "text-blue-700 border-blue-200 bg-blue-50",
+  ongoing: "text-indigo-700 border-indigo-200 bg-indigo-50",
+  completed: "text-emerald-700 border-emerald-200 bg-emerald-50",
+  cancelled: "text-red-700 border-red-200 bg-red-50"
+};
+
+const getStatusLabel = (status) => STATUS_LABELS[status] || status || "Pending";
+const getStatusClass = (status) => STATUS_CLASS_MAP[status] || "text-slate-700 border-slate-200 bg-slate-50";
+
 const buildCalendar = (year, monthIndex) => {
   const firstDay = new Date(year, monthIndex, 1);
   const lastDay = new Date(year, monthIndex + 1, 0);
@@ -144,9 +165,9 @@ export default function StaffDashboard() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-3 py-2 mt-4 text-xs text-blue-700 border border-blue-200 rounded-2xl bg-blue-50">
-              <span>Status: {booking.status || "Upcoming"}</span>
-              <span>Event has not started yet</span>
+            <div className={`flex items-center justify-between px-3 py-2 mt-4 text-xs border rounded-2xl ${getStatusClass(booking.status)}`}>
+              <span>Status: {getStatusLabel(booking.status)}</span>
+              <span>{booking.status === "ongoing" ? "Event is happening" : "Event has not started yet"}</span>
             </div>
 
             <div className="actions">

@@ -5,6 +5,31 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
+/* ── Status helpers ── */
+const ACTIVE_STATUSES = ["pending deposit", "confirmed", "preparing", "ongoing"];
+const ALL_STATUSES = ["pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled"];
+
+const STATUS_LABELS = {
+  "pending deposit": "Pending Deposit",
+  confirmed: "Confirmed",
+  preparing: "Preparing",
+  ongoing: "Ongoing",
+  completed: "Completed",
+  cancelled: "Cancelled"
+};
+
+const STATUS_CLASS_MAP = {
+  "pending deposit": "warning",
+  confirmed: "approved",
+  preparing: "info",
+  ongoing: "ongoing",
+  completed: "approved",
+  cancelled: "rejected"
+};
+
+const getStatusClass = (status) => STATUS_CLASS_MAP[status] || "pending";
+const getStatusLabel = (status) => STATUS_LABELS[status] || status;
+
 export default function AdminBookingDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -12,10 +37,9 @@ export default function AdminBookingDetails() {
   const [booking, setBooking] = useState(null);
   const [payments, setPayments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [completeTarget, setCompleteTarget] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
     AdminAPI.getBooking(id)
       .then((res) => setBooking(res.data))
       .catch(() => notify("Could not load booking details. Please try again.", "error"));
@@ -25,7 +49,11 @@ export default function AdminBookingDetails() {
         setPayments(res.data.filter((p) => String(p.booking_id?._id || p.booking_id) === id));
       })
       .catch(() => setPayments([]));
-  }, [id, notify]);
+  };
+
+  useEffect(() => {
+    load();
+  }, [id]);
 
   const formatDate = (value) =>
     value ? new Date(value).toLocaleDateString() : "-";
@@ -49,18 +77,20 @@ export default function AdminBookingDetails() {
     return booking.customer_id?.full_name || "Client";
   }, [booking]);
 
-  const handleMarkComplete = () => {
-    if (!booking) return;
+  const handleStatusChange = (newStatus) => {
+    if (!booking || submitting) return;
     setSubmitting(true);
-    AdminAPI.updateBooking(booking._id, { status: "completed" })
-      .then(() => {
-        notify("Booking marked as completed.", "success");
-        navigate("/admin/bookings/active");
+    const payload = { status: newStatus };
+    if (newStatus === "completed") payload.completed_at = new Date().toISOString();
+    AdminAPI.updateBooking(booking._id, payload)
+      .then((res) => {
+        notify(`Status updated to "${getStatusLabel(newStatus)}".`, "success");
+        setBooking(res.data);
+        setSubmitting(false);
       })
       .catch((err) => {
-        notify(err.response?.data?.message || "Could not mark as completed.", "error");
+        notify(err.response?.data?.message || "Could not update status.", "error");
         setSubmitting(false);
-        setCompleteTarget(false);
       });
   };
 
@@ -90,14 +120,8 @@ export default function AdminBookingDetails() {
     );
   }
 
-  const statusClass =
-    booking.status === "active"
-      ? "approved"
-      : booking.status === "completed"
-        ? "info"
-        : booking.status === "cancelled"
-          ? "rejected"
-          : "pending";
+  const statusClass = getStatusClass(booking.status);
+  const isTerminal = ["completed", "cancelled"].includes(booking.status);
 
   const paymentStatusClass =
     booking.payment_status === "approved" || booking.payment_status === "paid"
@@ -120,6 +144,18 @@ export default function AdminBookingDetails() {
 
   const totalPrice = Number(booking.total_price) || 0;
   const balance = totalPrice - totalPaid;
+
+  /* Determine which statuses admin can transition to */
+  const getNextStatuses = () => {
+    switch (booking.status) {
+      case "pending deposit": return ["confirmed", "cancelled"];
+      case "confirmed": return ["preparing", "cancelled"];
+      case "preparing": return ["ongoing", "cancelled"];
+      case "ongoing": return ["completed"];
+      default: return [];
+    }
+  };
+  const nextStatuses = getNextStatuses();
 
   return (
     <AdminLayout>
@@ -145,7 +181,7 @@ export default function AdminBookingDetails() {
                 <div className="ir-review-meta">
                   <span className="ir-review-code">{bookingCode}</span>
                   <span className="ir-review-meta-sep">·</span>
-                  <span className={`status-pill ${statusClass}`}>{booking.status}</span>
+                  <span className={`status-pill ${statusClass}`}>{getStatusLabel(booking.status)}</span>
                   <span className="ir-review-meta-sep">·</span>
                   <span className={`status-pill ${paymentStatusClass}`}>Payment: {booking.payment_status || "pending"}</span>
                   <span className="ir-review-meta-sep">·</span>
@@ -155,44 +191,76 @@ export default function AdminBookingDetails() {
             </div>
 
             <div className="ir-review-actions">
-              {booking.status === "active" && (
+              {!isTerminal && (
                 <>
-                  <button
-                    className="ir-action-btn ir-action-decline"
-                    type="button"
-                    onClick={() => setCancelTarget(true)}
-                    disabled={submitting}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                    Cancel Booking
-                  </button>
-                  <button
-                    className="ir-action-btn ir-action-success"
-                    type="button"
-                    onClick={() => setCompleteTarget(true)}
-                    disabled={submitting}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11.5 4L5.5 10L2.5 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    Mark Completed
-                  </button>
+                  {nextStatuses.filter((s) => s !== "cancelled").map((next) => (
+                    <button
+                      key={next}
+                      className={`ir-action-btn ${next === "completed" ? "ir-action-success" : "ir-action-primary"}`}
+                      type="button"
+                      onClick={() => handleStatusChange(next)}
+                      disabled={submitting}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      {submitting ? "Updating…" : `Mark ${getStatusLabel(next)}`}
+                    </button>
+                  ))}
+                  {nextStatuses.includes("cancelled") && (
+                    <button
+                      className="ir-action-btn ir-action-decline"
+                      type="button"
+                      onClick={() => setCancelTarget(true)}
+                      disabled={submitting}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M10.5 3.5L3.5 10.5M3.5 3.5l7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                      Cancel Booking
+                    </button>
+                  )}
                 </>
               )}
             </div>
           </div>
 
           {/* ── Status Banners ── */}
-          {booking.status === "active" && (
-            <div className="ir-review-banner ir-banner-success">
-              <span className="ir-banner-icon">📅</span>
+          {booking.status === "pending deposit" && (
+            <div className="ir-review-banner ir-banner-warning">
+              <span className="ir-banner-icon">💳</span>
               <div>
-                <strong>Active Booking</strong>
-                <p>Event is scheduled for {formatDate(booking.event_date)}. Review all details below.</p>
+                <strong>Awaiting Deposit Payment</strong>
+                <p>This booking is waiting for the customer to pay the deposit. Once received, mark it as "Confirmed".</p>
+              </div>
+            </div>
+          )}
+          {booking.status === "confirmed" && (
+            <div className="ir-review-banner ir-banner-success">
+              <span className="ir-banner-icon">✅</span>
+              <div>
+                <strong>Booking Confirmed</strong>
+                <p>Deposit received. Event is scheduled for {formatDate(booking.event_date)}. Move to "Preparing" when the team begins setup.</p>
+              </div>
+            </div>
+          )}
+          {booking.status === "preparing" && (
+            <div className="ir-review-banner ir-banner-info">
+              <span className="ir-banner-icon">🔧</span>
+              <div>
+                <strong>Preparation In Progress</strong>
+                <p>The team is actively preparing for the event on {formatDate(booking.event_date)}.</p>
+              </div>
+            </div>
+          )}
+          {booking.status === "ongoing" && (
+            <div className="ir-review-banner ir-banner-info">
+              <span className="ir-banner-icon">🎉</span>
+              <div>
+                <strong>Event In Progress</strong>
+                <p>The event is currently happening. Mark as "Completed" when finished.</p>
               </div>
             </div>
           )}
           {booking.status === "completed" && (
             <div className="ir-review-banner ir-banner-success">
-              <span className="ir-banner-icon">✅</span>
+              <span className="ir-banner-icon">🏁</span>
               <div>
                 <strong>Booking Completed</strong>
                 <p>This event was completed{booking.completed_at ? ` on ${formatDate(booking.completed_at)}` : ""}.</p>
@@ -206,6 +274,26 @@ export default function AdminBookingDetails() {
                 <strong>Booking Cancelled</strong>
                 <p>This booking has been cancelled.</p>
               </div>
+            </div>
+          )}
+
+          {/* ── Status Progress Tracker ── */}
+          {!isTerminal && (
+            <div className="bd-status-tracker">
+              {ACTIVE_STATUSES.map((s, idx) => {
+                const currentIdx = ACTIVE_STATUSES.indexOf(booking.status);
+                const isPast = idx < currentIdx;
+                const isCurrent = idx === currentIdx;
+                return (
+                  <div key={s} className={`bd-status-step ${isPast ? "past" : ""} ${isCurrent ? "current" : ""}`}>
+                    <div className="bd-status-dot">
+                      {isPast ? "✓" : idx + 1}
+                    </div>
+                    <span className="bd-status-label">{getStatusLabel(s)}</span>
+                    {idx < ACTIVE_STATUSES.length - 1 && <div className={`bd-status-line ${isPast ? "past" : ""}`} />}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -223,7 +311,7 @@ export default function AdminBookingDetails() {
               <div className="ir-detail-grid">
                 <DetailRow label="Booking ID" value={booking._id?.slice(-6)?.toUpperCase() || "-"} />
                 <DetailRow label="Status">
-                  <span className={`status-pill ${statusClass}`}>{booking.status}</span>
+                  <span className={`status-pill ${statusClass}`}>{getStatusLabel(booking.status)}</span>
                 </DetailRow>
                 <DetailRow label="Package" value={booking.package_id?.name || "Custom"} />
                 <DetailRow label="Total Price" value={formatCurrency(booking.total_price)} />
@@ -508,13 +596,6 @@ export default function AdminBookingDetails() {
         </div>
       </div>
 
-      {completeTarget && (
-        <ConfirmDialog
-          message={`Mark booking ${bookingCode} as completed?`}
-          onConfirm={handleMarkComplete}
-          onCancel={() => setCompleteTarget(false)}
-        />
-      )}
       {cancelTarget && (
         <ConfirmDialog
           message={`Cancel booking ${bookingCode}? This cannot be undone.`}

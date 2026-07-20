@@ -2819,6 +2819,105 @@ input.search {
   color: #075985;
 }
 
+.status-pill.ongoing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-pill.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Info banner variant (for preparing / ongoing) */
+.ir-banner-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.ir-banner-info strong {
+  color: #1e40af;
+}
+
+.ir-banner-info p {
+  color: #2563eb;
+}
+
+/* ── Status Progress Tracker ── */
+.bd-status-tracker {
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+  padding: 16px 0 4px;
+  border-top: 1px solid #f3f4f6;
+  overflow-x: auto;
+}
+
+.bd-status-step {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.bd-status-dot {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid #e5e7eb;
+  background: #fff;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+}
+
+.bd-status-step.past .bd-status-dot {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #fff;
+}
+
+.bd-status-step.current .bd-status-dot {
+  background: #fff;
+  border-color: #2563eb;
+  color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.bd-status-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.bd-status-step.past .bd-status-label {
+  color: #1e3a8a;
+}
+
+.bd-status-step.current .bd-status-label {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.bd-status-line {
+  width: 40px;
+  height: 2px;
+  background: #e5e7eb;
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+.bd-status-line.past {
+  background: #1e3a8a;
+}
+
 /* Payment records */
 .bd-payment-records {
   display: flex;

@@ -68,6 +68,7 @@ export default function Landing() {
   const swipeStartXRef = useRef(null);
   const [packages, setPackages] = useState([]);
   const [galleryItems, setGalleryItems] = useState([]);
+  const [galleryLightboxIndex, setGalleryLightboxIndex] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [businessInfo, setBusinessInfo] = useState(DEFAULT_BUSINESS_INFO);
@@ -379,17 +380,38 @@ export default function Landing() {
             No Photos yet
           </div>
         ) : (
-          <div className="gallery-preview-grid mt-6">
-            {galleryItems.slice(0, 6).map((item) => (
-              <div
-                key={item._id || item.image_url}
-                className="image-card tall"
-                style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
-              />
-            ))}
-          </div>
+          <>
+            <div className="gallery-preview-grid mt-6">
+              {galleryItems.slice(0, 6).map((item, index) => (
+                <div
+                  key={item._id || item.image_url}
+                  className="image-card tall"
+                  style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setGalleryLightboxIndex(index)}
+                  onKeyDown={(event) => event.key === "Enter" && setGalleryLightboxIndex(index)}
+                />
+              ))}
+            </div>
+            <div className="flex justify-center mt-6">
+              <button className="btn-outline" type="button" onClick={() => navigate("/gallery")}>See All</button>
+            </div>
+          </>
         )}
       </section>
+
+      {galleryLightboxIndex !== null && galleryItems[galleryLightboxIndex] && (
+        <div className="lightbox-overlay" onClick={() => setGalleryLightboxIndex(null)}>
+          <button className="lightbox-close" type="button" onClick={() => setGalleryLightboxIndex(null)}>×</button>
+          <img
+            src={galleryItems[galleryLightboxIndex].image_url}
+            alt={galleryItems[galleryLightboxIndex].title}
+            className="lightbox-image"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
 
       <section id="foods" className="section landing-section">
         <h2>Our Foods</h2>

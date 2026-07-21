@@ -30,8 +30,9 @@ export default function CustomerLayout({ children }) {
     const activeHash = location.hash || "";
 
     const isActive =
-      isLanding &&
-      ((sectionId === "top" && (!activeHash || activeHash === "#top")) || activeHash === `#${sectionId}`);
+      (isLanding &&
+        ((sectionId === "top" && (!activeHash || activeHash === "#top")) || activeHash === `#${sectionId}`)) ||
+      (location.pathname === "/gallery" && sectionId === "gallery");
 
     return navClass({ isActive });
   };
@@ -42,6 +43,11 @@ export default function CustomerLayout({ children }) {
 
     if (sectionId === "packages") {
       navigate("/packages");
+      return;
+    }
+
+    if (sectionId === "gallery") {
+      navigate("/gallery");
       return;
     }
 
@@ -96,8 +102,8 @@ export default function CustomerLayout({ children }) {
 
           <nav className="items-center hidden gap-6 md:flex">
             <a href="/#top" className={sectionLinkClass("top")} onClick={handleSectionNav("top")}>Home</a>
-            <a href="/#packages" className={sectionLinkClass("packages")} onClick={handleSectionNav("packages")}>Packages</a>
-            <a href="/#gallery" className={sectionLinkClass("gallery")} onClick={handleSectionNav("gallery")}>Gallery</a>
+            <a href="/packages" className={sectionLinkClass("packages")} onClick={handleSectionNav("packages")}>Packages</a>
+            <a href="/gallery" className={sectionLinkClass("gallery")} onClick={handleSectionNav("gallery")}>Gallery</a>
             <a href="/#testimonials" className={sectionLinkClass("testimonials")} onClick={handleSectionNav("testimonials")}>About Us</a>
             <a href="/#contact" className={sectionLinkClass("contact")} onClick={handleSectionNav("contact")}>Contact</a>
           </nav>

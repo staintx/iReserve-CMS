@@ -1,6 +1,6 @@
 const Inquiry = require("../models/Inquiry");
 const asyncHandler = require("../utils/asyncHandler");
-const { createNotification } = require("../utils/notify");
+const { createNotification, notifyAdmins } = require("../utils/notify");
 
 exports.create = asyncHandler(async (req, res) => {
   const payload = {
@@ -9,7 +9,18 @@ exports.create = asyncHandler(async (req, res) => {
     status: req.body.status || "new"
   };
 
-  res.status(201).json(await Inquiry.create(payload));
+  const inquiry = await Inquiry.create(payload);
+
+  const io = req.app.get("io");
+  await notifyAdmins({
+    title: "New Inquiry Received",
+    body: `A new inquiry has been submitted by ${req.user ? req.user.full_name || req.user.email : "a customer"}.`,
+    type: "info",
+    link: "/admin/inquiries",
+    meta: { inquiry_id: inquiry._id }
+  }, io);
+
+  res.status(201).json(inquiry);
 });
 
 exports.getAll = asyncHandler(async (req, res) => {
@@ -112,6 +123,17 @@ exports.updateMineStatus = asyncHandler(async (req, res) => {
     link: "/customer/inquiries",
     meta: { inquiry_id: inquiry._id }
   }, io);
+
+  if (isConfirmed) {
+    await notifyAdmins({
+      title: "Quotation Accepted",
+      body: `Quotation for inquiry ${inquiry._id} has been accepted by ${req.user.full_name || req.user.email}.`,
+      type: "success",
+      link: "/admin/inquiries",
+      meta: { inquiry_id: inquiry._id }
+    }, io);
+  }
+
   res.json(inquiry);
 });
 

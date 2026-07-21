@@ -2,6 +2,7 @@ import { useState } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
+import NotificationBell from "../common/NotificationBell";
 
 export default function AdminHeader() {
   const { logout } = useAuth();
@@ -15,6 +16,7 @@ export default function AdminHeader() {
           <span className="text-sm font-semibold">Caezelle's Catering</span>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <button className="btn" onClick={() => setShowLogoutConfirm(true)} type="button">Sign out</button>
         </div>
       </header>

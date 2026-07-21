@@ -10,12 +10,12 @@ export default function AuthLoginForm({ email, password, error, onEmailChange, o
 
       <form className="mt-8 space-y-5" onSubmit={onSubmit}>
         <div className="form-field">
-          <label className="auth-input-label" htmlFor="login-email">EMAIL ADDRESS</label>
+          <label className="auth-input-label" htmlFor="login-email">EMAIL OR USERNAME</label>
           <input
             id="login-email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
+            type="text"
+            autoComplete="email username"
+            placeholder="Email or Username"
             value={email}
             onChange={onEmailChange}
           />

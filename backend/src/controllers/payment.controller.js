@@ -155,8 +155,9 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 		});
 	}
 
+	const io = req.app.get("io");
+
 	if (payment.customer_id) {
-		const io = req.app.get("io");
 		const statusLabel = payment.status === "approved" ? "Payment approved" : "Payment update";
 		const body = payment.status === "approved"
 			? "Your payment has been approved."
@@ -169,6 +170,17 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 			body,
 			type: payment.status === "approved" ? "success" : payment.status === "rejected" ? "error" : "info",
 			link: "/customer/payments",
+			meta: { payment_id: payment._id, booking_id: payment.booking_id }
+		}, io);
+	}
+
+	if (payment.status === "approved") {
+		const { notifyAdmins } = require("../utils/notify");
+		await notifyAdmins({
+			title: "Deposit Received",
+			body: `Payment of ₱${(payment.amount / 100).toFixed(2)} has been approved for booking.`,
+			type: "success",
+			link: "/admin/payments",
 			meta: { payment_id: payment._id, booking_id: payment.booking_id }
 		}, io);
 	}

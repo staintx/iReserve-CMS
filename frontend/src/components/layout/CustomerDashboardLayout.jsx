@@ -10,8 +10,7 @@ const navItems = [
   { to: "/customer/inquiries", label: "My Inquiries", desc: "View quote requests" },
   { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status" },
   { to: "/customer/payments", label: "Payment History", desc: "View transactions" },
-  { to: "/customer/messages", label: "Messages", desc: "Chat with our team" },
-  { to: "/customer/profile", label: "Profile", desc: "Manage your account" }
+  { to: "/customer/messages", label: "Messages", desc: "Chat with our team" }
 ];
 
 export default function CustomerDashboardLayout({ title, subtitle, children }) {
@@ -51,7 +50,14 @@ export default function CustomerDashboardLayout({ title, subtitle, children }) {
             </NavLink>
           ))}
         </nav>
-        <div className="customer-profile-chip">
+        <div 
+          className="customer-profile-chip" 
+          onClick={() => navigate('/customer/profile')}
+          style={{ cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/customer/profile')}
+        >
           <div className="chip-avatar">{initials}</div>
           <div>
             <div className="chip-name">{user?.full_name || "Customer"}</div>

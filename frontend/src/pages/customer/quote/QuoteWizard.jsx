@@ -92,12 +92,13 @@ export default function QuoteWizard() {
 
   const initialEventType = location.state?.eventType || "";
   const validEventTypes = ["Birthday", "Wedding", "Corporate"];
-  const isOther = initialEventType && !validEventTypes.includes(initialEventType);
+  const matchedType = validEventTypes.find(t => t.toLowerCase() === initialEventType.toLowerCase());
+  const isOther = initialEventType && !matchedType;
 
   const [form, setForm] = useState({
     customer_id: user?._id || "",
     service_type: "food",
-    event_type: isOther ? "Other" : initialEventType,
+    event_type: matchedType || (isOther ? "Other" : ""),
     event_type_other: isOther ? initialEventType : "",
     event_theme: "",
     event_date: "",
@@ -603,6 +604,7 @@ export default function QuoteWizard() {
                             event_type: e.target.value,
                             event_type_other: e.target.value === "Other" ? form.event_type_other : ""
                           })}
+                          disabled={!!initialEventType}
                         >
                           <option value="">Select event type</option>
                           <option value="Birthday">Birthday</option>
@@ -619,6 +621,7 @@ export default function QuoteWizard() {
                             placeholder="Anniversary, Christening, etc."
                             value={form.event_type_other}
                             onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
+                            disabled={!!initialEventType}
                           />
                           {errors.event_type_other && <p className="auth-error">{errors.event_type_other}</p>}
                         </label>

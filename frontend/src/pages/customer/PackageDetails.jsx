@@ -7,6 +7,7 @@ export default function PackageDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [pkg, setPkg] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -134,12 +135,29 @@ export default function PackageDetails() {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px', marginTop: '15px' }}>
                     {pkg.gallery.map((imgUrl, idx) => (
-                      <img key={idx} src={imgUrl} alt={`Gallery ${idx + 1}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'} />
+                      <img 
+                        key={idx} 
+                        src={imgUrl} 
+                        alt={`Gallery ${idx + 1}`} 
+                        style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', transition: 'transform 0.2s' }} 
+                        onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'} 
+                        onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'} 
+                        onClick={() => setLightboxIndex(idx)}
+                      />
                     ))}
                   </div>
                 </div>
               )}
             </section>
+
+          {lightboxIndex !== null && (
+            <div className="lightbox-overlay" onClick={() => setLightboxIndex(null)}>
+              <button className="lightbox-close" onClick={() => setLightboxIndex(null)}>×</button>
+              <button className="lightbox-nav prev" onClick={(e) => { e.stopPropagation(); setLightboxIndex((lightboxIndex - 1 + pkg.gallery.length) % pkg.gallery.length); }}>‹</button>
+              <img src={pkg.gallery[lightboxIndex]} alt="Gallery Expanded" className="lightbox-image" onClick={e => e.stopPropagation()} />
+              <button className="lightbox-nav next" onClick={(e) => { e.stopPropagation(); setLightboxIndex((lightboxIndex + 1) % pkg.gallery.length); }}>›</button>
+            </div>
+          )}
 
           <aside className="package-side">
             <div className="price-card">

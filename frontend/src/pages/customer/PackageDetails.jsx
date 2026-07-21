@@ -46,7 +46,17 @@ export default function PackageDetails() {
     return null;
   };
 
+  const getEventType = (data) => {
+    if (data?.event_type) return data.event_type;
+    const name = (data?.name || "").toLowerCase();
+    if (name.includes("birthday")) return "Birthday";
+    if (name.includes("wedding")) return "Wedding";
+    if (name.includes("corporate")) return "Corporate";
+    return "";
+  };
+
   const packagePrice = getPackagePrice(pkg);
+  const derivedEventType = getEventType(pkg);
 
   const inclusions = Array.isArray(pkg.inclusions) ? pkg.inclusions : [];
   const addOns = Array.isArray(pkg.add_ons) ? pkg.add_ons : [];
@@ -189,8 +199,8 @@ export default function PackageDetails() {
                   <strong>{pkg.available ? "Open" : "Limited"}</strong>
                 </div>
               </div>
-              <button className="btn" onClick={() => navigate("/customer/book")}>Book Now</button>
-              <button className="btn-outline" onClick={() => navigate("/customer/quote")}>Request Custom Quote</button>
+              <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: derivedEventType } })}>Book Now</button>
+              <button className="btn-outline" onClick={() => navigate("/customer/quote", { state: { eventType: derivedEventType } })}>Request Custom Quote</button>
             </div>
 
             <div className="package-note-card">
@@ -207,8 +217,8 @@ export default function PackageDetails() {
             <p>We will confirm availability and secure your date within 24 hours.</p>
           </div>
           <div className="package-cta-actions">
-            <button className="btn" onClick={() => navigate("/customer/book")}>Book Now</button>
-            <button className="btn-outline" onClick={() => navigate("/customer/quote")}>Request Custom Quote</button>
+            <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: derivedEventType } })}>Book Now</button>
+            <button className="btn-outline" onClick={() => navigate("/customer/quote", { state: { eventType: derivedEventType } })}>Request Custom Quote</button>
           </div>
         </section>
       </div>

@@ -1,5 +1,6 @@
 const Package = require("../models/Package");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
+const logAction = require("../utils/logAction");
 
 const normalizeList = (value) => {
   if (!value) return [];
@@ -38,7 +39,18 @@ exports.create = async (req, res) => {
     image_url,
     gallery
   };
-  res.status(201).json(await Package.create(payload));
+  const pkg = await Package.create(payload);
+
+  await logAction({
+    user_id: req.user._id,
+    action: "package_created",
+    entity_type: "package",
+    entity_id: pkg._id,
+    details: `Created package "${pkg.name}"`,
+    ip_address: req.ip
+  });
+
+  res.status(201).json(pkg);
 };
 
 exports.getAll = async (req, res) => {
@@ -57,6 +69,9 @@ exports.getById = async (req, res) => {
 };
 
 exports.update = async (req, res) => {
+  const current = await Package.findById(req.params.id);
+  if (!current) return res.status(404).json({ message: "Package not found" });
+
   let data = {
     ...req.body,
     inclusions: req.body.inclusions ? normalizeList(req.body.inclusions) : undefined,
@@ -85,7 +100,49 @@ exports.update = async (req, res) => {
     data.$pull = { gallery: { $in: data.gallery_to_remove } };
   }
   delete data.gallery_to_remove;
-  res.json(await Package.findByIdAndUpdate(req.params.id, data, { new: true }));
+
+  const updated = await Package.findByIdAndUpdate(req.params.id, data, { new: true });
+
+  // Build changes object for the log
+  const trackFields = ["name", "description", "fullDescription", "size", "price_min", "price_max", "available", "event_type", "max_guests", "booking_requirements", "cancellation_policy"];
+  const changes = {};
+  for (const field of trackFields) {
+    if (req.body[field] !== undefined && String(current[field]) !== String(req.body[field])) {
+      changes[field] = { from: current[field], to: req.body[field] };
+    }
+  }
+
+  const changedFieldNames = Object.keys(changes);
+  const detailParts = changedFieldNames.length > 0
+    ? changedFieldNames.join(", ")
+    : Object.keys(req.body).join(", ");
+
+  await logAction({
+    user_id: req.user._id,
+    action: "package_updated",
+    entity_type: "package",
+    entity_id: updated._id,
+    details: `Updated package "${updated.name}" — Fields: ${detailParts}`,
+    changes: Object.keys(changes).length > 0 ? changes : undefined,
+    ip_address: req.ip
+  });
+
+  res.json(updated);
 };
 
-exports.remove = async (req, res) => { await Package.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); };
+exports.remove = async (req, res) => {
+  const pkg = await Package.findById(req.params.id);
+  const pkgName = pkg ? pkg.name : req.params.id;
+  await Package.findByIdAndDelete(req.params.id);
+
+  await logAction({
+    user_id: req.user._id,
+    action: "package_deleted",
+    entity_type: "package",
+    entity_id: req.params.id,
+    details: `Deleted package "${pkgName}"`,
+    ip_address: req.ip
+  });
+
+  res.json({ message: "Deleted" });
+};

@@ -72,5 +72,5 @@ export const AdminAPI = {
   updateBusinessInfo: (data) => api.put("/business-info", data),
 
   // Logs
-  getLogs: () => api.get("/systemlogs")
+  getLogs: (params = {}) => api.get("/systemlogs", { params })
 };

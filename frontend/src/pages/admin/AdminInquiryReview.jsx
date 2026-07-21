@@ -141,7 +141,7 @@ export default function AdminInquiryReview() {
                   type="button"
                   onClick={() => navigate(`/admin/inquiries/${inquiry._id}/quote`)}
                 >
-                  Edit Quote
+                  {inquiry.status === "awaiting confirmation" ? "View Quote" : "Edit Quote"}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 7h7M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </button>
               )}

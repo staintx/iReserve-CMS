@@ -40,6 +40,11 @@ export default function CustomerLayout({ children }) {
     event.preventDefault();
     setMenuOpen(false);
 
+    if (sectionId === "packages") {
+      navigate("/packages");
+      return;
+    }
+
     const destination = sectionId === "top" ? "/#top" : `/#${sectionId}`;
 
     if (location.pathname !== "/") {

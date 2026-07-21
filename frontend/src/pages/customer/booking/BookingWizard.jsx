@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
 import useToast from "../../../hooks/useToast";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
@@ -25,6 +25,7 @@ const inventoryCategoryKeywords = {
 export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState(0);
   const today = new Date().toISOString().split("T")[0];
   const [menuItems, setMenuItems] = useState([]);
@@ -35,10 +36,15 @@ export default function BookingWizard() {
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  
+  const initialEventType = location.state?.eventType || "";
+  const validEventTypes = ["Birthday", "Wedding", "Corporate"];
+  const isOther = initialEventType && !validEventTypes.includes(initialEventType);
+
   const [form, setForm] = useState({
     customer_id: user?._id || "",
-    event_type: "",
-    event_type_other: "",
+    event_type: isOther ? "Other" : initialEventType,
+    event_type_other: isOther ? initialEventType : "",
     event_theme: "",
     event_date: "",
     start_time: "",

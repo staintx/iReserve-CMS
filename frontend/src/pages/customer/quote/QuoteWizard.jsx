@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import useToast from "../../../hooks/useToast";
 import Modal from "../../../components/common/Modal";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
@@ -76,6 +76,7 @@ const decorOptions = [
 export default function QuoteWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const today = new Date().toISOString().split("T")[0];
   const [stage, setStage] = useState("service");
   const [step, setStep] = useState(0);
@@ -88,11 +89,16 @@ export default function QuoteWizard() {
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [bookingRef, setBookingRef] = useState("");
+
+  const initialEventType = location.state?.eventType || "";
+  const validEventTypes = ["Birthday", "Wedding", "Corporate"];
+  const isOther = initialEventType && !validEventTypes.includes(initialEventType);
+
   const [form, setForm] = useState({
     customer_id: user?._id || "",
     service_type: "food",
-    event_type: "",
-    event_type_other: "",
+    event_type: isOther ? "Other" : initialEventType,
+    event_type_other: isOther ? initialEventType : "",
     event_theme: "",
     event_date: "",
     start_time: "",

@@ -161,7 +161,7 @@ exports.updateMineStatus = asyncHandler(async (req, res) => {
   });
 
   const io = req.app.get("io");
-  
+
   const isConfirmed = req.body.status === "confirmed";
   await createNotification({
     userId: req.user._id,

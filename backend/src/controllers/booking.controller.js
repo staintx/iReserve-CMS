@@ -1,8 +1,8 @@
 const Booking = require("../models/Booking");
 const Inquiry = require("../models/Inquiry");
-const SystemLog = require("../models/SystemLog");
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification } = require("../utils/notify");
+const logAction = require("../utils/logAction");
 
 const parseTimeToMinutes = (timeValue) => {
 	if (!timeValue) return null;
@@ -115,7 +115,18 @@ exports.create = asyncHandler(async (req, res) => {
 		});
 	}
 
-	res.status(201).json(await Booking.create(req.body));
+	const booking = await Booking.create(req.body);
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_created",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Created booking for ${booking.event_type || "event"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}`,
+		ip_address: req.ip
+	});
+
+	res.status(201).json(booking);
 });
 
 exports.createFromInquiry = asyncHandler(async (req, res) => {
@@ -190,6 +201,17 @@ exports.createFromInquiry = asyncHandler(async (req, res) => {
 
 	const booking = await Booking.create(bookingPayload);
 	await Inquiry.findByIdAndUpdate(inquiry._id, { status: "approved" }, { new: true });
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_created_from_inquiry",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Created booking from inquiry #${inquiry._id} — ${booking.event_type || "event"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}`,
+		changes: { inquiry_id: String(inquiry._id) },
+		ip_address: req.ip
+	});
+
 	const io = req.app.get("io");
 	await createNotification({
 		userId: booking.customer_id,
@@ -292,11 +314,29 @@ exports.update = asyncHandler(async (req, res) => {
 
 	const updated = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
+	// Build changes object for the log
+	const trackFields = ["status", "payment_status", "payment_method", "event_type", "event_theme", "event_date", "start_time", "guest_count", "duration_hours", "total_price", "manager_id", "venue_type", "province", "municipality", "barangay", "street"];
+	const changes = {};
+	for (const field of trackFields) {
+		if (req.body[field] !== undefined && String(current[field] ?? "") !== String(req.body[field] ?? "")) {
+			changes[field] = { from: current[field], to: req.body[field] };
+		}
+	}
+
+	const changedFieldNames = Object.keys(changes);
+	const detailParts = changedFieldNames.length > 0
+		? changedFieldNames.join(", ")
+		: Object.keys(req.body).join(", ");
+
 	if (req.user) {
-		await SystemLog.create({
+		await logAction({
 			user_id: req.user._id,
-			action: "booking_update",
-			details: `Updated booking ${updated._id} - Fields: ${Object.keys(req.body).join(", ")}`
+			action: "booking_updated",
+			entity_type: "booking",
+			entity_id: updated._id,
+			details: `Updated booking #${updated._id} — Fields: ${detailParts}`,
+			changes: Object.keys(changes).length > 0 ? changes : undefined,
+			ip_address: req.ip
 		});
 	}
 
@@ -331,7 +371,22 @@ exports.update = asyncHandler(async (req, res) => {
 });
 
 exports.remove = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	const bookingLabel = booking ? `${booking.event_type || "booking"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}` : req.params.id;
+
 	await Booking.findByIdAndDelete(req.params.id);
+
+	if (req.user) {
+		await logAction({
+			user_id: req.user._id,
+			action: "booking_deleted",
+			entity_type: "booking",
+			entity_id: req.params.id,
+			details: `Deleted booking — ${bookingLabel}`,
+			ip_address: req.ip
+		});
+	}
+
 	res.json({ message: "Deleted" });
 });
 

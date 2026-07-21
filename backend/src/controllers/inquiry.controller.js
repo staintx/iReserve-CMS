@@ -1,6 +1,7 @@
 const Inquiry = require("../models/Inquiry");
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification, notifyAdmins } = require("../utils/notify");
+const logAction = require("../utils/logAction");
 
 exports.create = asyncHandler(async (req, res) => {
   const payload = {
@@ -50,10 +51,21 @@ exports.review = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Only new inquiries can be reviewed" });
   }
 
+  const previousStatus = inquiry.status;
   inquiry.status = "under review";
   inquiry.reviewed_by = req.user._id;
   inquiry.reviewed_at = new Date();
   await inquiry.save();
+
+  await logAction({
+    user_id: req.user._id,
+    action: "inquiry_reviewed",
+    entity_type: "inquiry",
+    entity_id: inquiry._id,
+    details: `Reviewed inquiry #${inquiry._id} — Status changed from "${previousStatus}" to "under review"`,
+    changes: { status: { from: previousStatus, to: "under review" } },
+    ip_address: req.ip
+  });
 
   if (inquiry.customer_id) {
     const io = req.app.get("io");
@@ -79,6 +91,30 @@ exports.update = asyncHandler(async (req, res) => {
   }
 
   const updated = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+  // Build changes for the log
+  const trackFields = ["status", "quote_amount", "quote_notes", "event_type", "event_theme", "event_date", "guest_count", "duration_hours", "start_time"];
+  const changes = {};
+  for (const field of trackFields) {
+    if (req.body[field] !== undefined && String(current[field] ?? "") !== String(req.body[field] ?? "")) {
+      changes[field] = { from: current[field], to: req.body[field] };
+    }
+  }
+
+  const changedFieldNames = Object.keys(changes);
+  const detailParts = changedFieldNames.length > 0
+    ? changedFieldNames.join(", ")
+    : Object.keys(req.body).join(", ");
+
+  await logAction({
+    user_id: req.user._id,
+    action: "inquiry_updated",
+    entity_type: "inquiry",
+    entity_id: updated._id,
+    details: `Updated inquiry #${updated._id} — Fields: ${detailParts}`,
+    changes: Object.keys(changes).length > 0 ? changes : undefined,
+    ip_address: req.ip
+  });
 
   if (updated?.customer_id && req.user?.role !== "customer") {
     const statusChanged = current.status !== updated.status;
@@ -110,8 +146,20 @@ exports.updateMineStatus = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Inquiry status can no longer be changed" });
   }
 
+  const previousStatus = inquiry.status;
   inquiry.status = req.body.status;
   await inquiry.save();
+
+  await logAction({
+    user_id: req.user._id,
+    action: "inquiry_customer_status_update",
+    entity_type: "inquiry",
+    entity_id: inquiry._id,
+    details: `Customer ${req.body.status === "confirmed" ? "accepted" : "cancelled"} inquiry #${inquiry._id} — Status changed from "${previousStatus}" to "${req.body.status}"`,
+    changes: { status: { from: previousStatus, to: req.body.status } },
+    ip_address: req.ip
+  });
+
   const io = req.app.get("io");
   
   const isConfirmed = req.body.status === "confirmed";

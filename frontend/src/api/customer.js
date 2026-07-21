@@ -31,6 +31,7 @@ export const CustomerAPI = {
   // profile
   getProfile: () => api.get("/users/me"),
   updateProfile: (data) => api.put("/users/me", data),
+  changePassword: (data) => api.put("/users/me/password", data),
 
   // payments
   getPayments: () => api.get("/payments/me"),

@@ -1,6 +1,11 @@
 import api from "./axios";
 
 export const AdminAPI = {
+  // Profile
+  getProfile: () => api.get("/users/me"),
+  updateProfile: (data) => api.put("/users/me", data),
+  changePassword: (data) => api.put("/users/me/password", data),
+
   // Dashboard
   getSummary: () => api.get("/reports/summary"),
   getMetrics: () => api.get("/reports/metrics"),

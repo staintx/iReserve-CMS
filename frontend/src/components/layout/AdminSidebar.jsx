@@ -250,17 +250,17 @@ export default function AdminSidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-white/5">
-        <div className={`flex items-center gap-3 p-2 rounded-2xl bg-white/5 transition-all ${isCollapsed ? "justify-center" : ""}`}>
+        <NavLink to="/admin/profile" className={`flex items-center gap-3 p-2 rounded-2xl bg-white/5 hover:bg-white/10 transition-all ${isCollapsed ? "justify-center" : ""}`}>
           <div className="grid w-10 h-10 font-bold bg-white rounded-full shrink-0 place-items-center text-ink-900">
             {initials}
           </div>
           {!isCollapsed && (
             <div className="overflow-hidden">
-              <strong className="block text-sm truncate">{user?.full_name || "Admin"}</strong>
+              <strong className="block text-sm truncate text-white">{user?.full_name || "Admin"}</strong>
               <small className="text-xs capitalize truncate text-slate-300">{user?.role || "admin"}</small>
             </div>
           )}
-        </div>
+        </NavLink>
       </div>
     </aside>
   );

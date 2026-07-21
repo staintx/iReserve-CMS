@@ -2,40 +2,49 @@ const Booking = require("../models/Booking");
 const Inquiry = require("../models/Inquiry");
 const Payment = require("../models/Payment");
 const Package = require("../models/Package");
+const Quote = require("../models/Quote");
 const asyncHandler = require("../utils/asyncHandler");
 
 exports.dashboardSummary = asyncHandler(async (req, res) => {
-  const [totalBookings, activeBookings, completedBookings, pendingInquiries, totalRevenue] = await Promise.all([
-    Booking.countDocuments(),
-    Booking.countDocuments({ status: "active" }),
-    Booking.countDocuments({ status: "completed" }),
-    Inquiry.countDocuments({ status: "pending" }),
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const [totalInquiries, pendingQuotations, upcomingBookings, monthlyRevenueAggr, completedEvents] = await Promise.all([
+    Inquiry.countDocuments(),
+    Quote.countDocuments({ status: "pending" }),
+    Booking.countDocuments({ event_date: { $gte: new Date() }, status: { $ne: "cancelled" } }),
     Payment.aggregate([
-      { $match: { status: "approved" } },
+      { $match: { status: "approved", createdAt: { $gte: startOfMonth } } },
       { $group: { _id: null, sum: { $sum: "$amount" } } }
-    ])
+    ]),
+    Booking.countDocuments({ status: "completed" })
   ]);
 
   res.json({
-    totalBookings,
-    activeBookings,
-    completedBookings,
-    pendingInquiries,
-    totalRevenue: totalRevenue[0]?.sum || 0
+    totalInquiries,
+    pendingQuotations,
+    upcomingBookings,
+    monthlyRevenue: monthlyRevenueAggr[0]?.sum || 0,
+    completedEvents
   });
 });
 
 exports.dashboardMetrics = asyncHandler(async (req, res) => {
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
   const [summary, monthlyRevenue, bookingStatus, eventTypes, topPackages, recentBookings, recentInquiries] = await Promise.all([
     Promise.all([
-      Booking.countDocuments(),
-      Booking.countDocuments({ status: "active" }),
-      Booking.countDocuments({ status: "completed" }),
-      Inquiry.countDocuments({ status: "pending" }),
+      Inquiry.countDocuments(),
+      Quote.countDocuments({ status: "pending" }),
+      Booking.countDocuments({ event_date: { $gte: new Date() }, status: { $ne: "cancelled" } }),
       Payment.aggregate([
-        { $match: { status: "approved" } },
+        { $match: { status: "approved", createdAt: { $gte: startOfMonth } } },
         { $group: { _id: null, sum: { $sum: "$amount" } } }
-      ])
+      ]),
+      Booking.countDocuments({ status: "completed" })
     ]),
     Payment.aggregate([
       { $match: { status: "approved" } },
@@ -75,8 +84,8 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
     Inquiry.find().sort({ createdAt: -1 }).limit(5).select("event_type status createdAt")
   ]);
 
-  const [totalBookings, activeBookings, completedBookings, pendingInquiries, totalRevenue] = summary;
-  const revenueValue = totalRevenue[0]?.sum || 0;
+  const [totalInquiries, pendingQuotations, upcomingBookings, monthlyRevenueAggr, completedEvents] = summary;
+  const revenueValue = monthlyRevenueAggr[0]?.sum || 0;
 
   const formattedRevenue = monthlyRevenue.map((item) => ({
     month: `${item._id.year}-${String(item._id.month).padStart(2, "0")}`,
@@ -120,11 +129,11 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
 
   res.json({
     summary: {
-      totalBookings,
-      activeBookings,
-      completedBookings,
-      pendingInquiries,
-      totalRevenue: revenueValue
+      totalInquiries,
+      pendingQuotations,
+      upcomingBookings,
+      monthlyRevenue: revenueValue,
+      completedEvents
     },
     monthlyRevenue: formattedRevenue,
     bookingStatus: formattedStatus,

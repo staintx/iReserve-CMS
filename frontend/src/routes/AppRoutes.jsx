@@ -49,6 +49,7 @@ import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
 import AdminInquiryQuote from "../pages/admin/AdminInquiryQuote";
 import AdminInquiryReview from "../pages/admin/AdminInquiryReview";
 import AdminBookingDetails from "../pages/admin/AdminBookingDetails";
+import AdminProfile from "../pages/admin/AdminProfile";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
@@ -137,6 +138,7 @@ export default function AppRoutes() {
         <Route path="/admin/ratings" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRatings /></ProtectedRoute>} />
         <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
         <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
+        <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />
 
         {/* Manager (protected by role) */}
         <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />

@@ -352,7 +352,13 @@ export default function AdminPackages() {
                     placeholder="e.g. Wedding, Birthday, Corporate"
                     value={form.event_type || ""}
                     onChange={(e) => setForm({ ...form, event_type: e.target.value })}
+                    list="admin-event-types"
                   />
+                  <datalist id="admin-event-types">
+                    <option value="Birthday" />
+                    <option value="Wedding" />
+                    <option value="Corporate" />
+                  </datalist>
                 </div>
                 <div className="form-group">
                   <label>Max Guests</label>

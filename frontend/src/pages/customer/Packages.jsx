@@ -60,7 +60,7 @@ export default function Packages() {
             <small>₱{formatMoney(getPackagePrice(p))}</small>
             <div className="actions">
               <button className="btn-outline" onClick={() => navigate(`/packages/${p._id}`)}>View Full Details</button>
-              <button className="btn" onClick={() => navigate("/customer/book")}>Book Now</button>
+              <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: p.event_type } })}>Book Now</button>
             </div>
           </div>
         ))}

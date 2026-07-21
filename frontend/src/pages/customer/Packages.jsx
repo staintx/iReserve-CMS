@@ -21,6 +21,15 @@ export default function Packages() {
     return null;
   };
 
+  const getEventType = (data) => {
+    if (data?.event_type) return data.event_type;
+    const name = (data?.name || "").toLowerCase();
+    if (name.includes("birthday")) return "Birthday";
+    if (name.includes("wedding")) return "Wedding";
+    if (name.includes("corporate")) return "Corporate";
+    return "";
+  };
+
   useEffect(() => {
     CustomerAPI.getPackages().then((res) => {
       const next = Array.isArray(res.data) ? res.data : [];
@@ -60,7 +69,7 @@ export default function Packages() {
             <small>₱{formatMoney(getPackagePrice(p))}</small>
             <div className="actions">
               <button className="btn-outline" onClick={() => navigate(`/packages/${p._id}`)}>View Full Details</button>
-              <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: p.event_type } })}>Book Now</button>
+              <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: getEventType(p) } })}>Book Now</button>
             </div>
           </div>
         ))}

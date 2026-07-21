@@ -52,6 +52,7 @@ export default function AdminInquiryQuote() {
   const [managerId, setManagerId] = useState("");
   const [additionalCharges, setAdditionalCharges] = useState([]);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -74,6 +75,7 @@ export default function AdminInquiryQuote() {
         setPackageAmount(inquiryData.package_amount ?? "");
         setManagerId(inquiryData.manager_id?._id || inquiryData.manager_id || "");
         setAdditionalCharges(Array.isArray(inquiryData.additional_charges) ? inquiryData.additional_charges : []);
+        setIsEditing(["new", "under review", "negotiating"].includes(inquiryData.status));
       })
       .catch((err) => {
         notify(err.response?.data?.message || "We could not load the inquiry. Please refresh and try again.", "error");
@@ -151,6 +153,16 @@ export default function AdminInquiryQuote() {
   }, [servicePricing]);
 
   const managers = useMemo(() => staff.filter((person) => person.role === "manager"), [staff]);
+
+  const handleEdit = () => {
+    AdminAPI.updateInquiry(inquiry._id, { status: "negotiating" })
+      .then(() => {
+        setInquiry((prev) => ({ ...prev, status: "negotiating" }));
+        setIsEditing(true);
+        notify("Inquiry is now in negotiation state.", "success");
+      })
+      .catch((err) => notify(err.response?.data?.message || "Could not change state to negotiating.", "error"));
+  };
 
   const handleQuantityChange = (index, delta) => {
     const next = [...servicePricing];
@@ -247,6 +259,7 @@ export default function AdminInquiryQuote() {
               <div className="quote-input-row">
                 <label>Custom Package Amount</label>
                 <input
+                  disabled={!isEditing}
                   value={packageAmount}
                   onChange={(e) => setPackageAmount(e.target.value)}
                   placeholder="Enter amount"
@@ -385,6 +398,7 @@ export default function AdminInquiryQuote() {
                   <span>{item.name}</span>
                 </div>
                 <input
+                  disabled={!isEditing}
                   className="quote-input"
                   placeholder="Input Note"
                   value={item.note}
@@ -395,6 +409,7 @@ export default function AdminInquiryQuote() {
                   }}
                 />
                 <input
+                  disabled={!isEditing}
                   className="quote-input"
                   placeholder="Input Price"
                   value={item.price}
@@ -424,8 +439,9 @@ export default function AdminInquiryQuote() {
                   <span>{item.name}</span>
                 </div>
                 <div className="quote-quantity">
-                  <button type="button" onClick={() => handleQuantityChange(index, -1)}>-</button>
+                  <button type="button" disabled={!isEditing} onClick={() => handleQuantityChange(index, -1)}>-</button>
                   <input
+                    disabled={!isEditing}
                     value={item.quantity}
                     placeholder="0"
                     onChange={(e) => {
@@ -434,9 +450,10 @@ export default function AdminInquiryQuote() {
                       setServicePricing(next);
                     }}
                   />
-                  <button type="button" onClick={() => handleQuantityChange(index, 1)}>+</button>
+                  <button type="button" disabled={!isEditing} onClick={() => handleQuantityChange(index, 1)}>+</button>
                 </div>
                 <input
+                  disabled={!isEditing}
                   className="quote-input"
                   placeholder="Input Price"
                   value={item.price}
@@ -462,6 +479,7 @@ export default function AdminInquiryQuote() {
             {additionalCharges.map((charge, index) => (
               <div className="quote-row" key={index}>
                 <input
+                  disabled={!isEditing}
                   className="quote-input"
                   placeholder="Charge Name (e.g., Out of Town Fee)"
                   value={charge.name}
@@ -472,6 +490,7 @@ export default function AdminInquiryQuote() {
                   }}
                 />
                 <input
+                  disabled={!isEditing}
                   className="quote-input"
                   placeholder="Amount"
                   type="number"
@@ -482,27 +501,31 @@ export default function AdminInquiryQuote() {
                     setAdditionalCharges(next);
                   }}
                 />
-                <button
-                  className="btn-outline"
-                  type="button"
-                  onClick={() => {
-                    const next = [...additionalCharges];
-                    next.splice(index, 1);
-                    setAdditionalCharges(next);
-                  }}
-                >
-                  Remove
-                </button>
+                {isEditing && (
+                  <button
+                    className="btn-outline"
+                    type="button"
+                    onClick={() => {
+                      const next = [...additionalCharges];
+                      next.splice(index, 1);
+                      setAdditionalCharges(next);
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
-            <button
-              className="btn-outline"
-              type="button"
-              style={{ marginTop: "1rem" }}
-              onClick={() => setAdditionalCharges([...additionalCharges, { name: "", amount: "" }])}
-            >
-              + Add Custom Charge
-            </button>
+            {isEditing && (
+              <button
+                className="btn-outline"
+                type="button"
+                style={{ marginTop: "1rem" }}
+                onClick={() => setAdditionalCharges([...additionalCharges, { name: "", amount: "" }])}
+              >
+                + Add Custom Charge
+              </button>
+            )}
           </div>
 
           <div className="quote-section">
@@ -514,16 +537,18 @@ export default function AdminInquiryQuote() {
             <h3>Pricing & Computation</h3>
             <div className="quote-payment">
               <span>Payment Method:</span>
-              <label className={`payment-pill ${paymentMethod === "gcash" ? "active" : ""}`}>
+              <label className={`payment-pill ${paymentMethod === "gcash" ? "active" : ""} ${!isEditing ? "disabled" : ""}`}>
                 <input
+                  disabled={!isEditing}
                   type="checkbox"
                   checked={paymentMethod === "gcash"}
                   onChange={() => setPaymentMethod("gcash")}
                 />
                 GCash
               </label>
-              <label className={`payment-pill ${paymentMethod === "cash" ? "active" : ""}`}>
+              <label className={`payment-pill ${paymentMethod === "cash" ? "active" : ""} ${!isEditing ? "disabled" : ""}`}>
                 <input
+                  disabled={!isEditing}
                   type="checkbox"
                   checked={paymentMethod === "cash"}
                   onChange={() => setPaymentMethod("cash")}
@@ -577,15 +602,15 @@ export default function AdminInquiryQuote() {
             </div>
             <div className="quote-input-row">
               <label>Quote Amount</label>
-              <input value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)} />
+              <input disabled={!isEditing} value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)} />
             </div>
             <div className="quote-input-row">
               <label>Quote Notes</label>
-              <textarea value={quoteNotes} onChange={(e) => setQuoteNotes(e.target.value)} />
+              <textarea disabled={!isEditing} value={quoteNotes} onChange={(e) => setQuoteNotes(e.target.value)} />
             </div>
             <div className="quote-input-row">
               <label>Assign Manager</label>
-              <select value={managerId} onChange={(e) => setManagerId(e.target.value)}>
+              <select disabled={!isEditing && inquiry.status !== "confirmed"} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
                 <option value="">Select Manager</option>
                 {managers.map((manager) => (
                   <option key={manager._id} value={manager._id}>{manager.full_name}</option>
@@ -597,7 +622,12 @@ export default function AdminInquiryQuote() {
 
           <div className="quote-actions">
             <button className="btn-outline" type="button" onClick={() => navigate(-1)}>Cancel</button>
-            <button className="btn-outline" type="button" onClick={() => setConfirmSend(true)}>Send Quotation to Customer</button>
+            {!isEditing && inquiry.status === "awaiting confirmation" && (
+              <button className="btn" type="button" onClick={handleEdit}>Edit</button>
+            )}
+            {isEditing && (
+              <button className="btn-outline" type="button" onClick={() => setConfirmSend(true)}>Send quotation</button>
+            )}
             {inquiry.status === "confirmed" && (
               <button className="btn" type="button" onClick={submitBooking}>Submit Booking</button>
             )}

@@ -18,7 +18,7 @@ exports.create = asyncHandler(async (req, res) => {
     title: "New Inquiry Received",
     body: `A new inquiry has been submitted by ${req.user ? req.user.full_name || req.user.email : "a customer"}.`,
     type: "info",
-    link: "/admin/inquiries",
+    link: `/admin/inquiries/${inquiry._id}/review`,
     meta: { inquiry_id: inquiry._id }
   }, io);
 
@@ -242,7 +242,7 @@ exports.updateMineStatus = asyncHandler(async (req, res) => {
       title: "Quotation Accepted",
       body: `Quotation for inquiry ${inquiry._id} has been accepted by ${req.user.full_name || req.user.email}.`,
       type: "success",
-      link: booking?._id ? `/admin/bookings/${booking._id}/details` : "/admin/inquiries",
+      link: booking?._id ? `/admin/bookings/${booking._id}/details` : `/admin/inquiries/${inquiry._id}/review`,
       meta: { inquiry_id: inquiry._id, booking_id: booking?._id || null }
     }, io);
 
@@ -296,7 +296,7 @@ exports.updateMineDate = asyncHandler(async (req, res) => {
     title: "Customer updated event date",
     body: `${req.user.full_name || req.user.email || "A customer"} updated the event date for inquiry ${inquiry._id}.`,
     type: "info",
-    link: "/admin/inquiries",
+    link: `/admin/inquiries/${inquiry._id}/review`,
     meta: { inquiry_id: inquiry._id, event_date: inquiry.event_date }
   }, io);
 
@@ -336,7 +336,7 @@ exports.updateQuoteChange = asyncHandler(async (req, res) => {
     title: "Customer requested quote change",
     body: `${req.user.full_name || req.user.email || "A customer"} requested changes for quotation ${inquiry._id}.`,
     type: "warning",
-    link: "/admin/inquiries",
+    link: `/admin/inquiries/${inquiry._id}/review`,
     meta: { inquiry_id: inquiry._id }
   }, io);
 

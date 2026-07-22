@@ -72,7 +72,11 @@ export default function NotificationBell() {
       await markRead(notification._id);
     }
     if (notification.link) {
-      navigate(notification.link);
+      const state = { ...notification.meta };
+      if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
+      if (state.booking_id) state.openBookingId = state.booking_id;
+      
+      navigate(notification.link, { state });
       setOpen(false);
     }
   };

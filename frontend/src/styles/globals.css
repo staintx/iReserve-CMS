@@ -580,6 +580,33 @@
     @apply mt-2 text-sm text-emerald-600;
   }
 
+  .auth-processing {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f0f5ff;
+    border: 1px solid #c7d7fe;
+    border-radius: 8px;
+    color: #3b5bdb;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .auth-processing-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #c7d7fe;
+    border-top-color: #3b5bdb;
+    border-radius: 50%;
+    animation: auth-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes auth-spin {
+    to { transform: rotate(360deg); }
+  }
+
   .user-menu {
     position: relative;
   }

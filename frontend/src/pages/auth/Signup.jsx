@@ -8,13 +8,16 @@ export default function Signup() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ full_name: "", email: "", password: "", confirm: "" });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     if (form.password !== form.confirm) {
       setError("Passwords do not match. Please re-enter them.");
+      setLoading(false);
       return;
     }
 
@@ -29,6 +32,8 @@ export default function Signup() {
       });
     } catch (err) {
       setError(err.response?.data?.message || "We could not create your account. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -40,6 +45,7 @@ export default function Signup() {
             form={form}
             setForm={setForm}
             error={error}
+            loading={loading}
             onSubmit={submit}
           />
         </div>

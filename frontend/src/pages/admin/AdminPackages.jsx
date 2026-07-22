@@ -27,6 +27,7 @@ export default function AdminPackages() {
     price_max: "",
     available: true,
     event_type: "",
+    package_type: "",
     max_guests: "",
     inclusions: [],
     add_ons: [],
@@ -125,6 +126,7 @@ export default function AdminPackages() {
       "price_max",
       "available",
       "event_type",
+      "package_type",
       "max_guests",
       "inclusions",
       "add_ons"
@@ -292,6 +294,10 @@ export default function AdminPackages() {
                   <span className="package-card-v">{p.size || "-"}</span>
                 </div>
                 <div className="package-card-kv-row">
+                  <span className="package-card-k">Type:</span>
+                  <span className="package-card-v">{p.package_type || "-"}</span>
+                </div>
+                <div className="package-card-kv-row">
                   <span className="package-card-v">{formatPrice(p)}</span>
                 </div>
               </div>
@@ -360,6 +366,20 @@ export default function AdminPackages() {
                     <option value="Corporate" />
                   </datalist>
                 </div>
+                <div className="form-group">
+                  <label>Package Type</label>
+                  <select
+                    value={form.package_type || ""}
+                    onChange={(e) => setForm({ ...form, package_type: e.target.value })}
+                  >
+                    <option value="">Select Package Type</option>
+                    <option value="Food Only">Food Only</option>
+                    <option value="Event Setup Only">Event Setup Only</option>
+                    <option value="Food + Event Setup">Food + Event Setup</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-grid-2">
                 <div className="form-group">
                   <label>Max Guests</label>
                   <input

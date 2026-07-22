@@ -15,7 +15,8 @@ const PackageSchema = new mongoose.Schema({
   image_url: String,
   gallery: [String],
   event_type: String,
-  max_guests: Number
+  max_guests: Number,
+  package_type: { type: String, enum: ["Food Only", "Event Setup Only", "Food + Event Setup"] }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Package", PackageSchema);

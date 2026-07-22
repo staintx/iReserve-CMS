@@ -43,6 +43,15 @@ export default function AdminBookingDetails() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [packages, setPackages] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignment, setAssignment] = useState({
+    headCook: "",
+    servers: [""],
+    setupCrew: ["", ""],
+    assistants: [""],
+    extraAssistants: [{ name: "", phone: "" }]
+  });
 
   const load = () => {
     AdminAPI.getBooking(id)
@@ -64,6 +73,10 @@ export default function AdminBookingDetails() {
     AdminAPI.getPackages()
       .then((res) => setPackages(res.data))
       .catch(() => setPackages([]));
+
+    AdminAPI.getStaff()
+      .then((res) => setStaffList(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setStaffList([]));
   };
 
   useEffect(() => {
@@ -175,6 +188,132 @@ export default function AdminBookingDetails() {
         setSubmitting(false);
         setCancelTarget(false);
       });
+  };
+
+  const staffMap = useMemo(() => {
+    const map = {};
+    staffList.forEach((person) => {
+      map[person._id] = person;
+    });
+    return map;
+  }, [staffList]);
+
+  const openAssign = () => {
+    setAssignment({
+      headCook: "",
+      servers: [""],
+      setupCrew: ["", ""],
+      assistants: [""],
+      extraAssistants: [{ name: "", phone: "" }]
+    });
+    setShowAssignModal(true);
+  };
+
+  const addAssignmentSlot = (key) => {
+    setAssignment((prev) => ({
+      ...prev,
+      [key]: [...prev[key], ""]
+    }));
+  };
+
+  const addExtraAssistant = () => {
+    setAssignment((prev) => ({
+      ...prev,
+      extraAssistants: [...prev.extraAssistants, { name: "", phone: "" }]
+    }));
+  };
+
+  const updateAssignment = (key, index, value) => {
+    setAssignment((prev) => {
+      const next = [...prev[key]];
+      next[index] = value;
+      return { ...prev, [key]: next };
+    });
+  };
+
+  const updateExtraAssistant = (index, field, value) => {
+    setAssignment((prev) => {
+      const next = prev.extraAssistants.map((item, idx) =>
+        idx === index ? { ...item, [field]: value } : item
+      );
+      return { ...prev, extraAssistants: next };
+    });
+  };
+
+  const submitAssignment = () => {
+    if (!booking) return;
+    const staffAssignments = [];
+    if (assignment.headCook) {
+      staffAssignments.push({
+        role: "Head Cook",
+        user_id: assignment.headCook,
+        name: staffMap[assignment.headCook]?.full_name,
+        phone: staffMap[assignment.headCook]?.phone
+      });
+    }
+    assignment.servers.filter(Boolean).forEach((id) => {
+      staffAssignments.push({
+        role: "Server",
+        user_id: id,
+        name: staffMap[id]?.full_name,
+        phone: staffMap[id]?.phone
+      });
+    });
+    assignment.setupCrew.filter(Boolean).forEach((id) => {
+      staffAssignments.push({
+        role: "Setup Crew",
+        user_id: id,
+        name: staffMap[id]?.full_name,
+        phone: staffMap[id]?.phone
+      });
+    });
+    assignment.assistants.filter(Boolean).forEach((id) => {
+      staffAssignments.push({
+        role: "Assistant",
+        user_id: id,
+        name: staffMap[id]?.full_name,
+        phone: staffMap[id]?.phone
+      });
+    });
+    assignment.extraAssistants
+      .filter((extra) => extra.name || extra.phone)
+      .forEach((extra) => {
+        staffAssignments.push({
+          role: "Assistant",
+          name: extra.name,
+          phone: extra.phone
+        });
+      });
+
+    if (staffAssignments.length === 0) {
+      notify("Please assign at least one staff member.", "error");
+      return;
+    }
+
+    AdminAPI.assignStaff(booking._id, { staff_assignments: staffAssignments })
+      .then(() => {
+        notify("Staff assignment saved.", "success");
+        setShowAssignModal(false);
+        load();
+      })
+      .catch((err) => {
+        notify(err.response?.data?.message || "We could not assign staff. Please try again.", "error");
+      });
+  };
+
+  const getServiceTypeLabel = () => {
+    if (!booking) return "Event";
+    const inquiryService = booking.inquiry_id?.service_type;
+    if (inquiryService === "food_only") return "Food Only";
+    if (inquiryService === "event_only") return "Event Setup Only";
+    if (inquiryService === "food_event") return "Food & Event Setup";
+
+    const hasServices =
+      (Array.isArray(booking.additional_services) && booking.additional_services.length > 0) ||
+      (Array.isArray(booking.service_items) && booking.service_items.length > 0);
+    if (booking.include_food && hasServices) return "Food & Event Setup";
+    if (booking.include_food) return "Food Only";
+    return "Event Setup Only";
   };
 
   if (!booking) {
@@ -299,6 +438,17 @@ export default function AdminBookingDetails() {
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 3.5l1 1M11.5 2.5a1.414 1.414 0 010 2L4 12H2v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       Edit Details
+                    </button>
+                  )}
+                  {!isTerminal && (
+                    <button
+                      className="ir-action-btn ir-action-primary"
+                      type="button"
+                      onClick={openAssign}
+                      disabled={submitting}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.5 7.5c1.5 0 2.5 1 2.5 2.5V11a.5.5 0 0 1-.5.5H1.5a.5.5 0 0 1-.5-.5v-1c0-1.5 1-2.5 2.5-2.5h7z"/><circle cx="7" cy="4" r="2.5"/></svg>
+                      Assign Team
                     </button>
                   )}
                 </>
@@ -824,6 +974,134 @@ export default function AdminBookingDetails() {
               <button className="btn-outline border border-gray-300 px-4 py-2 rounded hover:bg-gray-50" type="button" onClick={() => setShowEditModal(false)}>Cancel</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {showAssignModal && (
+        <Modal title="Staff Assignment" onClose={() => setShowAssignModal(false)}>
+          <div className="space-y-6 text-sm px-1 max-h-[70vh] overflow-y-auto">
+            <div className="p-4 border rounded-2xl border-slate-200 bg-slate-50">
+              <div className="flex flex-wrap justify-between gap-4 text-xs text-slate-600">
+                <div>
+                  <div className="font-semibold text-ink-900">Customer</div>
+                  <div>{booking.customer_id?.full_name || "Customer"}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-ink-900">Date</div>
+                  <div>{formatDate(booking.event_date)}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-ink-900">Service Type</div>
+                  <span className="chip">{getServiceTypeLabel()}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Kitchen Staff</div>
+              <div className="p-3 mt-2 border rounded-2xl border-slate-200">
+                <label className="text-xs font-semibold text-slate-500">Assign Head Cook</label>
+                <select
+                  className="w-full p-2 mt-2 border rounded"
+                  value={assignment.headCook}
+                  onChange={(event) => setAssignment((prev) => ({ ...prev, headCook: event.target.value }))}
+                >
+                  <option value="">Select Head Cook</option>
+                  {staffList.map((person) => (
+                    <option key={person._id} value={person._id}>{person.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Servers</div>
+              <div className="p-3 mt-2 space-y-2 border rounded-2xl border-slate-200">
+                {assignment.servers.map((value, index) => (
+                  <select
+                    key={`server-${index}`}
+                    className="w-full p-2 border rounded"
+                    value={value}
+                    onChange={(event) => updateAssignment("servers", index, event.target.value)}
+                  >
+                    <option value="">Select Server</option>
+                    {staffList.map((person) => (
+                      <option key={person._id} value={person._id}>{person.full_name}</option>
+                    ))}
+                  </select>
+                ))}
+                <button className="btn-outline w-full p-2 mt-2 border rounded hover:bg-slate-50" type="button" onClick={() => addAssignmentSlot("servers")}>+ Add Server</button>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Setup Crew</div>
+              <div className="p-3 mt-2 space-y-2 border rounded-2xl border-slate-200">
+                {assignment.setupCrew.map((value, index) => (
+                  <select
+                    key={`setup-${index}`}
+                    className="w-full p-2 border rounded"
+                    value={value}
+                    onChange={(event) => updateAssignment("setupCrew", index, event.target.value)}
+                  >
+                    <option value="">Select Setup Crew</option>
+                    {staffList.map((person) => (
+                      <option key={person._id} value={person._id}>{person.full_name}</option>
+                    ))}
+                  </select>
+                ))}
+                <button className="btn-outline w-full p-2 mt-2 border rounded hover:bg-slate-50" type="button" onClick={() => addAssignmentSlot("setupCrew")}>+ Add Setup Crew</button>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Assistants</div>
+              <div className="p-3 mt-2 space-y-2 border rounded-2xl border-slate-200">
+                {assignment.assistants.map((value, index) => (
+                  <select
+                    key={`assistant-${index}`}
+                    className="w-full p-2 border rounded"
+                    value={value}
+                    onChange={(event) => updateAssignment("assistants", index, event.target.value)}
+                  >
+                    <option value="">Select Assistant</option>
+                    {staffList.map((person) => (
+                      <option key={person._id} value={person._id}>{person.full_name}</option>
+                    ))}
+                  </select>
+                ))}
+                <button className="btn-outline w-full p-2 mt-2 border rounded hover:bg-slate-50" type="button" onClick={() => addAssignmentSlot("assistants")}>+ Add Assistant</button>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Extra Assistants (Not in System)</div>
+              <div className="p-3 mt-2 space-y-2 border rounded-2xl border-slate-200">
+                {assignment.extraAssistants.map((item, index) => (
+                  <div key={`extra-${index}`} className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      className="w-full p-2 border rounded"
+                      placeholder="Name"
+                      value={item.name}
+                      onChange={(event) => updateExtraAssistant(index, "name", event.target.value)}
+                    />
+                    <input
+                      className="w-full p-2 border rounded"
+                      placeholder="Contact Number"
+                      value={item.phone}
+                      onChange={(event) => updateExtraAssistant(index, "phone", event.target.value)}
+                    />
+                  </div>
+                ))}
+                <button className="btn-outline w-full p-2 mt-2 border rounded hover:bg-slate-50" type="button" onClick={addExtraAssistant}>+ Add Extra Assistant</button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
+              <button className="btn-outline px-4 py-2 rounded hover:bg-slate-50" type="button" onClick={() => setShowAssignModal(false)}>Cancel</button>
+              <button className="btn bg-blue-600 text-white px-4 py-2 rounded" type="button" onClick={submitAssignment}>Finalize Team</button>
+            </div>
+          </div>
         </Modal>
       )}
     </AdminLayout>

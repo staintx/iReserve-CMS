@@ -15,7 +15,6 @@ export default function CustomerInquiry() {
     event_date: "",
     start_time: "",
     guest_count: "",
-    duration_hours: "",
     service_type: "food_event",
     venue_type: "",
     indoor_outdoor: "",
@@ -76,7 +75,6 @@ export default function CustomerInquiry() {
       include_food: includeFood,
       service_type: includeFood ? "Food & Event Setup" : "Event Setup Only",
       guest_count: Number(form.guest_count || 0),
-      duration_hours: form.duration_hours ? Number(form.duration_hours) : undefined,
       budget_min: form.budget_min ? Number(form.budget_min) : undefined,
       budget_max: form.budget_max ? Number(form.budget_max) : undefined,
       selected_menu: form.selected_menu ? parseMenuItems(form.selected_menu) : []
@@ -118,7 +116,6 @@ export default function CustomerInquiry() {
         <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
         <input placeholder="Start Time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
         <input placeholder="Guest Count" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
-        <input placeholder="Duration (hours)" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
         <select value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })}>
           <option value="food_event">Food & Event Setup</option>
           <option value="event_setup">Event Setup Only</option>

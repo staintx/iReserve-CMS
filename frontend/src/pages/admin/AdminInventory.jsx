@@ -20,10 +20,12 @@ export default function AdminInventory() {
   });
   const { notify } = useToast();
 
-  const load = () =>
-    AdminAPI.getInventory()
+  const load = () => {
+    const today = new Date().toISOString().split('T')[0];
+    AdminAPI.getInventoryAvailability(today)
       .then((res) => setItems(Array.isArray(res.data) ? res.data : []))
       .catch(() => setItems([]));
+  };
   useEffect(() => {
     load();
   }, []);
@@ -106,7 +108,7 @@ export default function AdminInventory() {
   const counts = useMemo(() => {
     const total = list.length;
     const available = list.filter((item) => item.available !== false).length;
-    const lowStock = list.filter((item) => Number(item.quantity || 0) > 0 && Number(item.quantity || 0) <= 10).length;
+    const lowStock = list.filter((item) => Number(item.available_quantity || 0) > 0 && Number(item.available_quantity || 0) <= 10).length;
     return { total, available, lowStock };
   }, [list]);
 
@@ -198,35 +200,40 @@ export default function AdminInventory() {
           </button>
         </div>
       </div>
-      <div className="admin-actions" style={{ marginBottom: "16px" }}>
-        <div className="admin-search">
-          <input placeholder="Search by item or category..." value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className="inv-filter-bar">
+        <div className="admin-search" style={{ margin: 0, flex: 1, minWidth: "220px" }}>
+          <span className="search-icon">🔍</span>
+          <input placeholder="Search inventory..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <select className="admin-filter" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-          <option value="all">All Categories</option>
-          <option value="Event Setup & Furniture">Event Setup & Furniture</option>
-          <option value="Dining & Services Inventory">Dining & Services Inventory</option>
-          <option value="Adds On">Adds On</option>
-        </select>
-        <select className="admin-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">All Statuses</option>
-          <option value="available">Available</option>
-          <option value="unavailable">Unavailable</option>
-        </select>
+        
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button type="button" className={`inv-pill ${categoryFilter === "all" ? "active" : ""}`} onClick={() => setCategoryFilter("all")}>All Items</button>
+          <button type="button" className={`inv-pill ${categoryFilter === "Event Setup & Furniture" ? "active" : ""}`} onClick={() => setCategoryFilter("Event Setup & Furniture")}>Event Setup</button>
+          <button type="button" className={`inv-pill ${categoryFilter === "Dining & Services Inventory" ? "active" : ""}`} onClick={() => setCategoryFilter("Dining & Services Inventory")}>Dining & Services</button>
+          <button type="button" className={`inv-pill ${categoryFilter === "Adds On" ? "active" : ""}`} onClick={() => setCategoryFilter("Adds On")}>Add-ons</button>
+        </div>
+
+        <div style={{ width: "1px", height: "24px", background: "#e2e8f0", margin: "0 8px" }}></div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button type="button" className={`inv-pill ${statusFilter === "all" ? "active" : ""}`} onClick={() => setStatusFilter("all")}>All Status</button>
+          <button type="button" className={`inv-pill ${statusFilter === "available" ? "active" : ""}`} onClick={() => setStatusFilter("available")}>Available</button>
+          <button type="button" className={`inv-pill ${statusFilter === "unavailable" ? "active" : ""}`} onClick={() => setStatusFilter("unavailable")}>Unavailable</button>
+        </div>
       </div>
 
-      <div className="kpi-grid" style={{ marginBottom: "16px" }}>
-        <div className="kpi-card">
-          <h4>Total Items</h4>
-          <p className="kpi-value">{counts.total}</p>
+      <div className="kpi-grid" style={{ marginBottom: "24px" }}>
+        <div className="inv-kpi-v2">
+          <div className="inv-kpi-title">Total Tracked Items</div>
+          <div className="inv-kpi-value">{counts.total}</div>
         </div>
-        <div className="kpi-card">
-          <h4>Available</h4>
-          <p className="kpi-value">{counts.available}</p>
+        <div className="inv-kpi-v2">
+          <div className="inv-kpi-title">Items Available</div>
+          <div className="inv-kpi-value" style={{ background: "linear-gradient(135deg, #b08c4d 0%, #8c6b36 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{counts.available}</div>
         </div>
-        <div className="kpi-card">
-          <h4>Low Stock</h4>
-          <p className="kpi-value">{counts.lowStock}</p>
+        <div className="inv-kpi-v2">
+          <div className="inv-kpi-title">Low Stock Alerts</div>
+          <div className="inv-kpi-value" style={{ background: counts.lowStock > 0 ? "linear-gradient(135deg, #f97316 0%, #dc2626 100%)" : "linear-gradient(135deg, #0f172a 0%, #334155 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{counts.lowStock}</div>
         </div>
       </div>
 
@@ -241,43 +248,56 @@ export default function AdminInventory() {
               <div className="inventory-grid">
                 {filteredList
                   .filter((item) => normalizeCategory(item.category) === g.key)
-                  .map((item) => (
-                  <div key={item._id} className="inventory-card">
-                    <div className="inventory-card-head">
-                      <div className="inventory-item-name">{item.item_name}</div>
-                      <label className="switch" aria-label="Toggle availability">
-                        <input
-                          type="checkbox"
-                          checked={item.available !== false}
-                          onChange={() => toggleAvailability(item)}
-                        />
-                        <span className="slider" />
-                      </label>
-                    </div>
+                  .map((item) => {
+                    const availableQty = Number(item.available_quantity) || 0;
+                    const isAvailable = item.available !== false;
+                    const reserved = item.reserved_quantity || 0;
+                    let badgeClass = "available";
+                    let badgeLabel = "Available";
+                    if (!isAvailable) {
+                      badgeClass = "unavailable";
+                      badgeLabel = "Unavailable";
+                    } else if (availableQty <= 10 && availableQty > 0) {
+                      badgeClass = "low-stock";
+                      badgeLabel = "Low Stock";
+                    } else if (availableQty === 0) {
+                      badgeClass = "unavailable";
+                      badgeLabel = "Out of Stock";
+                    }
 
-                    <div className="inventory-qty">{Number(item.quantity) || 0}</div>
-                    <div className="inventory-units">Units</div>
+                    return (
+                      <div key={item._id} className="inv-card-v2">
+                        <div className="inv-card-header">
+                          <div>
+                            <h3 className="inv-card-title">{item.item_name}</h3>
+                            <div className="inv-card-category">{g.title}</div>
+                          </div>
+                          <span className={`inv-badge ${badgeClass}`}>{badgeLabel}</span>
+                        </div>
 
-                    <div className="inventory-actions">
-                      <button
-                        type="button"
-                        className="inv-action edit"
-                        onClick={() => edit(item)}
-                        aria-label="Edit"
-                      >
-                        ✎
-                      </button>
-                      <button
-                        type="button"
-                        className="inv-action delete"
-                        onClick={() => remove(item._id)}
-                        aria-label="Delete"
-                      >
-                        🗑
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                        <div className="inv-card-stats">
+                          <span className="inv-stat-main">{availableQty}</span>
+                          <span className="inv-stat-sub">/ {Number(item.quantity) || 0} left</span>
+                        </div>
+
+                        <div className="inv-card-footer">
+                          <div className={`inv-usage ${reserved > 0 ? "active" : "idle"}`}>
+                            <span style={{ fontSize: "14px" }}>{reserved > 0 ? "🔥" : "📦"}</span>
+                            {reserved > 0 ? `${reserved} in use today` : "None in use"}
+                          </div>
+                          
+                          <div className="inv-hover-actions">
+                            <button className="inv-btn-icon edit" onClick={() => edit(item)} title="Edit item">
+                              ✎
+                            </button>
+                            <button className="inv-btn-icon delete" onClick={() => remove(item._id)} title="Delete item">
+                              🗑
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           ))}

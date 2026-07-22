@@ -24,6 +24,7 @@ export const AdminAPI = {
   updateBooking: (id, data) => api.put(`/bookings/${id}`, data),
   deleteBooking: (id) => api.delete(`/bookings/${id}`),
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),
+  verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),
@@ -44,6 +45,7 @@ export const AdminAPI = {
 
   // Inventory
   getInventory: () => api.get("/inventory"),
+  getInventoryAvailability: (date) => api.get(`/inventory/availability${date ? `?date=${date}` : ''}`),
   createInventory: (data) => api.post("/inventory", data),
   updateInventory: (id, data) => api.put(`/inventory/${id}`, data),
   deleteInventory: (id) => api.delete(`/inventory/${id}`),

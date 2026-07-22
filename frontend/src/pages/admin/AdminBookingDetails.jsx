@@ -52,6 +52,7 @@ export default function AdminBookingDetails() {
     assistants: [""],
     extraAssistants: [{ name: "", phone: "" }]
   });
+  const [returnsData, setReturnsData] = useState({});
 
   const load = () => {
     AdminAPI.getBooking(id)
@@ -82,6 +83,38 @@ export default function AdminBookingDetails() {
   useEffect(() => {
     load();
   }, [id]);
+
+  useEffect(() => {
+    if (booking && Array.isArray(booking.inventory_items)) {
+      const initial = {};
+      booking.inventory_items.forEach(item => {
+        const existingReturn = (booking.equipment_returns || []).find(r => r.inventory_id === item.inventory_id);
+        initial[item.inventory_id] = existingReturn && existingReturn.verified_at 
+          ? existingReturn.quantity_returned 
+          : item.quantity;
+      });
+      setReturnsData(initial);
+    }
+  }, [booking]);
+
+  const handleVerifyReturns = () => {
+    setSubmitting(true);
+    const payload = {
+      returns: Object.keys(returnsData).map(invId => ({
+        inventory_id: invId,
+        quantity_returned: parseInt(returnsData[invId] || 0, 10)
+      }))
+    };
+    AdminAPI.verifyEquipmentReturns(booking._id, payload)
+      .then(res => {
+        notify("Equipment returns verified.", "success");
+        setBooking(res.data);
+      })
+      .catch(err => {
+        notify(err.response?.data?.message || "Failed to verify returns", "error");
+      })
+      .finally(() => setSubmitting(false));
+  };
 
   const formatDate = (value) =>
     value ? new Date(value).toLocaleDateString() : "-";
@@ -789,6 +822,60 @@ export default function AdminBookingDetails() {
                 </>
               )}
             </div>
+
+            {/* Equipment Returns Verification */}
+            {Array.isArray(booking.inventory_items) && booking.inventory_items.length > 0 && (
+              <div className="ir-section-card">
+                <div className="ir-section-header">
+                  <span className="ir-section-icon" data-color="orange">📦</span>
+                  <h3>Equipment Returns</h3>
+                </div>
+                
+                <div className="bd-notes-list">
+                   {booking.inventory_items.map((item, idx) => {
+                       const returnRec = (booking.equipment_returns || []).find(r => r.inventory_id === item.inventory_id);
+                       const isVerified = returnRec && returnRec.verified_at;
+                       
+                       return (
+                          <div key={idx} className="bd-note-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                             <div>
+                               <div className="font-semibold text-slate-800">{item.name}</div>
+                               <div className="text-xs text-slate-500">Booked: {item.quantity}</div>
+                             </div>
+                             
+                             <div className="flex items-center gap-2">
+                               {isVerified && <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded">Verified</span>}
+                               {["ongoing", "completed"].includes(booking.status) ? (
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    max={item.quantity}
+                                    value={returnsData[item.inventory_id] ?? item.quantity}
+                                    onChange={(e) => setReturnsData({ ...returnsData, [item.inventory_id]: e.target.value })}
+                                    className="border rounded p-1 w-20 text-center"
+                                  />
+                               ) : (
+                                  <span className="font-semibold">{returnRec?.quantity_returned || (isVerified ? 0 : "Pending")} Returned</span>
+                               )}
+                             </div>
+                          </div>
+                       )
+                   })}
+                </div>
+                
+                {["ongoing", "completed"].includes(booking.status) && (
+                   <div className="mt-4 flex justify-end">
+                      <button 
+                         className="btn bg-blue-600 text-white px-4 py-2 rounded text-sm"
+                         onClick={handleVerifyReturns}
+                         disabled={submitting}
+                      >
+                         {submitting ? "Saving..." : "Verify & Save Returns"}
+                      </button>
+                   </div>
+                )}
+              </div>
+            )}
 
             {/* Special Requests */}
             <div className="ir-section-card">

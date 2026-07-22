@@ -167,7 +167,7 @@ export default function BookingWizard() {
       })
         .then((res) => {
           if (res.data.available) {
-            setAvailability({ status: "available", message: "Selected time is available." });
+            setAvailability({ status: "available", message: "Selected date is available." });
           } else {
             setAvailability({ status: "unavailable", message: "Selected time has a conflict. Please choose another schedule." });
           }

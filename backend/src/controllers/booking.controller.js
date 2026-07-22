@@ -480,3 +480,73 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
 		conflict_id: conflict?._id || null
 	});
 });
+
+exports.verifyReturns = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+	const { returns } = req.body;
+	if (!Array.isArray(returns)) {
+		return res.status(400).json({ message: "Returns data must be an array" });
+	}
+
+	const currentReturns = booking.equipment_returns || [];
+	const Inventory = require("../models/Inventory");
+
+	for (const returnData of returns) {
+		const { inventory_id, quantity_returned } = returnData;
+		
+		let existingRecord = currentReturns.find(r => r.inventory_id && r.inventory_id.toString() === inventory_id);
+		
+		if (!existingRecord) {
+			const bookedItem = (booking.inventory_items || []).find(i => i.inventory_id && i.inventory_id.toString() === inventory_id);
+			if (bookedItem) {
+				existingRecord = {
+					inventory_id: bookedItem.inventory_id,
+					name: bookedItem.name,
+					quantity_booked: bookedItem.quantity,
+					quantity_returned: 0
+				};
+				currentReturns.push(existingRecord);
+			}
+		}
+
+		if (existingRecord) {
+			const oldReturned = existingRecord.quantity_returned || 0;
+			const newReturned = Number(quantity_returned) || 0;
+			
+			let delta = 0;
+			if (!existingRecord.verified_at) {
+				delta = newReturned - (existingRecord.quantity_booked || 0);
+			} else {
+				delta = newReturned - oldReturned;
+			}
+
+			if (delta !== 0) {
+				const invItem = await Inventory.findById(inventory_id);
+				if (invItem) {
+					invItem.quantity = Math.max(0, (invItem.quantity || 0) + delta);
+					await invItem.save();
+				}
+			}
+			
+			existingRecord.quantity_returned = newReturned;
+			existingRecord.verified_at = new Date();
+			existingRecord.verified_by = req.user._id;
+		}
+	}
+
+	booking.equipment_returns = currentReturns;
+	await booking.save();
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_returns_verified",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Verified equipment returns for booking #${booking._id}`,
+		ip_address: req.ip
+	});
+
+	res.json(booking);
+});

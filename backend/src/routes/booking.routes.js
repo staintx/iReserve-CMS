@@ -8,6 +8,7 @@ const { bookingSchema } = require("../validations/booking.validation");
 router.post("/", protect, authorize("admin", "manager"), validate(bookingSchema), ctrl.create);
 router.post("/from-inquiry/:id", protect, authorize("admin", "manager"), ctrl.createFromInquiry);
 router.post("/:id/change-request", protect, authorize("customer"), ctrl.requestChange);
+router.post("/:id/verify-returns", protect, authorize("admin", "manager", "staff"), ctrl.verifyReturns);
 router.get("/availability", protect, ctrl.checkAvailability);
 router.get("/", protect, authorize("admin", "manager", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);

@@ -3,22 +3,25 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
   const isAvailable = form.available !== false;
 
   return (
-    <div className="admin-modal menu-modal">
-      <p className="modal-subtitle">Enter details for new equipment or supplies.</p>
+    <div className="admin-modal menu-modal" style={{ padding: "10px" }}>
+      <p className="modal-subtitle" style={{ marginBottom: "20px" }}>Enter details for new equipment or supplies.</p>
 
       <div className="form-section">
         <div className="form-field">
-          <label className="form-label">Item Name</label>
+          <label className="form-label" style={{ fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Item Name</label>
           <input
-            placeholder="e.g., Baso"
+            className="inv-form-input"
+            placeholder="e.g., Banquet Chair"
             value={form.item_name || ""}
             onChange={(e) => setForm({ ...form, item_name: e.target.value })}
           />
         </div>
 
         <div className="form-field">
-          <label className="form-label">Quantity Stock</label>
+          <label className="form-label" style={{ fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Quantity Stock</label>
           <input
+            className="inv-form-input"
+            type="number"
             placeholder="e.g., 150"
             value={form.quantity ?? ""}
             onChange={(e) => setForm({ ...form, quantity: e.target.value })}
@@ -26,8 +29,9 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
         </div>
 
         <div className="form-field">
-          <label className="form-label">Category</label>
+          <label className="form-label" style={{ fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Category</label>
           <select
+            className="inv-form-input"
             value={form.category || ""}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
           >
@@ -38,28 +42,30 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
           </select>
         </div>
 
-        <div className="status-row">
+        <div className="status-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
           <div className="status-meta">
-            <span className="status-title">Status</span>
-            <span className="status-hint">Toggle item availability</span>
+            <span className="status-title" style={{ fontWeight: 600, color: "#1e293b", display: "block" }}>Item Status</span>
+            <span className="status-hint" style={{ fontSize: "12px", color: "#64748b" }}>Toggle to make this item active or inactive</span>
           </div>
-          <div className="status-controls">
-            <span className={`status-value ${isAvailable ? "is-on" : "is-off"}`}>{isAvailable ? "Available" : "Unavailable"}</span>
-            <label className="switch" aria-label="Toggle availability">
+          <div className="status-controls" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: isAvailable ? "#10b981" : "#64748b" }}>
+              {isAvailable ? "Available" : "Unavailable"}
+            </span>
+            <label className="inv-switch-v2" aria-label="Toggle availability">
               <input
                 type="checkbox"
                 checked={isAvailable}
                 onChange={(e) => setForm({ ...form, available: e.target.checked })}
               />
-              <span className="slider" />
+              <span className="inv-slider-v2" />
             </label>
           </div>
         </div>
       </div>
 
-      <div className="modal-actions-right">
-        <button className="btn-outline" type="button" onClick={onCancel}>Cancel</button>
-        <button className="btn" type="button" onClick={onSubmit}>{submitLabel}</button>
+      <div className="modal-actions-right" style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px" }}>
+        <button className="btn-outline" type="button" onClick={onCancel} style={{ padding: "10px 24px", borderRadius: "12px", fontWeight: 600 }}>Cancel</button>
+        <button className="inv-btn-primary" type="button" onClick={onSubmit}>{submitLabel}</button>
       </div>
     </div>
   );

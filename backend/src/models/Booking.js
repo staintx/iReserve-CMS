@@ -86,10 +86,19 @@ const BookingSchema = new mongoose.Schema({
       created_at: { type: Date, default: Date.now }
     }
   ],
+  inventory_items: [
+    {
+      inventory_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inventory" },
+      name: String,
+      quantity: Number
+    }
+  ],
   equipment_returns: [
     {
+      inventory_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inventory" },
       name: String,
-      returned: { type: Boolean, default: false },
+      quantity_booked: Number,
+      quantity_returned: { type: Number, default: 0 },
       verified_at: Date,
       verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
     }

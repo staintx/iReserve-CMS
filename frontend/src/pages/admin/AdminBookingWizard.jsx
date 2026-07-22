@@ -54,13 +54,13 @@ export default function AdminBookingWizard() {
     contact_method: "email",
     payment_method: "cash",
     total_price: "",
-    manager_id: ""
+    manager_id: "",
+    inventory_items: []
   });
 
   useEffect(() => {
     AdminAPI.getPackages().then((res) => setPackages(Array.isArray(res.data) ? res.data : [])).catch(() => setPackages([]));
     AdminAPI.getMenu().then((res) => setMenuItems(Array.isArray(res.data) ? res.data : [])).catch(() => setMenuItems([]));
-    AdminAPI.getInventory().then((res) => setInventoryItems(Array.isArray(res.data) ? res.data : [])).catch(() => setInventoryItems([]));
     AdminAPI.getStaff().then((res) => setStaff(Array.isArray(res.data) ? res.data : [])).catch(() => setStaff([]));
     AdminAPI.getCustomers().then((res) => setCustomers(Array.isArray(res.data) ? res.data : [])).catch(() => setCustomers([]));
   }, []);
@@ -85,6 +85,39 @@ export default function AdminBookingWizard() {
     }));
   };
 
+  useEffect(() => {
+    if (step === 4) {
+      if (form.event_date) {
+        AdminAPI.getInventoryAvailability(form.event_date)
+          .then((res) => setInventoryItems(Array.isArray(res.data) ? res.data : []))
+          .catch(() => setInventoryItems([]));
+      } else {
+         AdminAPI.getInventoryAvailability()
+          .then((res) => setInventoryItems(Array.isArray(res.data) ? res.data : []))
+          .catch(() => setInventoryItems([]));
+      }
+    }
+  }, [step, form.event_date]);
+
+  const setInventoryQuantity = (inventory_id, name, qty) => {
+    setForm(prev => {
+      let items = [...(prev.inventory_items || [])];
+      const index = items.findIndex(i => i.inventory_id === inventory_id);
+      
+      const numQty = parseInt(qty, 10);
+      if (isNaN(numQty) || numQty <= 0) {
+        if (index > -1) items.splice(index, 1);
+      } else {
+        if (index > -1) {
+          items[index].quantity = numQty;
+        } else {
+          items.push({ inventory_id, name, quantity: numQty });
+        }
+      }
+      return { ...prev, inventory_items: items };
+    });
+  };
+
   const submit = async () => {
     if (!form.customer_id) {
       notify("Please select a customer.", "error");
@@ -106,7 +139,8 @@ export default function AdminBookingWizard() {
       package_id: form.package_type === "existing" ? form.package_id : undefined,
       include_food: form.include_food,
       selected_menu: form.include_food ? form.selected_menu : [],
-      additional_services: form.additional_services
+      additional_services: form.additional_services,
+      inventory_items: form.inventory_items || []
     };
 
     try {
@@ -284,18 +318,40 @@ export default function AdminBookingWizard() {
 
             <div className="form-section">
               <h4>Services & Equipment</h4>
-              <div className="check-grid">
-                {inventoryItems.map((item) => (
-                  <label key={item._id} className="check-item">
-                    <input
-                      type="checkbox"
-                      checked={form.additional_services.includes(item.item_name)}
-                      onChange={() => toggleValue("additional_services", item.item_name)}
-                    />
-                    <span>{item.item_name}</span>
-                  </label>
-                ))}
-                {inventoryItems.length === 0 && <p className="dash-empty">No inventory items.</p>}
+              {!form.event_date && <p style={{ color: "#ef4444", fontSize: "0.85rem", marginBottom: "8px" }}>Please select an Event Date in the previous step to see accurate availability.</p>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {inventoryItems.map((item) => {
+                  const bookedItem = (form.inventory_items || []).find(i => i.inventory_id === item._id);
+                  const qty = bookedItem ? bookedItem.quantity : "";
+                  const available = item.available_quantity || 0;
+                  
+                  return (
+                    <div key={item._id} className="p-3 border rounded flex items-center justify-between bg-white shadow-sm">
+                      <div>
+                        <strong className="block text-sm text-slate-800">{item.item_name}</strong>
+                        <div className="text-xs text-slate-500">Available: {available}</div>
+                      </div>
+                      <input 
+                        type="number" 
+                        min="0"
+                        max={available}
+                        value={qty}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value || 0, 10);
+                          if (val > available) {
+                            notify(`Only ${available} available for this date`, "error");
+                            return;
+                          }
+                          setInventoryQuantity(item._id, item.item_name, e.target.value);
+                        }}
+                        className="border border-slate-300 rounded p-1.5 w-20 text-center text-sm"
+                        placeholder="Qty"
+                        disabled={available <= 0}
+                      />
+                    </div>
+                  );
+                })}
+                {inventoryItems.length === 0 && <p className="dash-empty col-span-2">No inventory items.</p>}
               </div>
             </div>
           </div>
@@ -351,7 +407,7 @@ export default function AdminBookingWizard() {
               <h4>Summary</h4>
               <p><strong>Package:</strong> {form.package_type === "existing" ? (summaryPackage?.name || "Select a package") : "Custom Package"}</p>
               <p><strong>Menu Items:</strong> {form.selected_menu.length ? form.selected_menu.join(", ") : "None"}</p>
-              <p><strong>Services:</strong> {form.additional_services.length ? form.additional_services.join(", ") : "None"}</p>
+              <p><strong>Equipment:</strong> {form.inventory_items?.length ? form.inventory_items.map(i => `${i.name} (x${i.quantity})`).join(", ") : "None"}</p>
             </div>
           </div>
         )}

@@ -156,9 +156,7 @@ export default function AdminInquiryQuote() {
         };
       });
   }, [servicePricing]);
-
-  const managers = useMemo(() => staff.filter((person) => person.role === "manager"), [staff]);
-
+  const managers = useMemo(() => staff, [staff]);
   const handleEdit = () => {
     AdminAPI.updateInquiry(inquiry._id, { status: "negotiating" })
       .then(() => {

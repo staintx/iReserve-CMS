@@ -168,7 +168,7 @@ exports.markCompleted = asyncHandler(async (req, res) => {
 });
 
 exports.getStaffList = asyncHandler(async (req, res) => {
-  const staff = await User.find({ role: { $in: ["staff"] }, is_active: true }).select("full_name role email phone");
+  const staff = await User.find({ role: { $in: ["staff", "manager"] }, is_active: true }).select("full_name role email phone");
 
   const staffIds = staff.map((person) => person._id);
   const bookings = await Booking.find({

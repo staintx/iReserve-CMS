@@ -403,9 +403,7 @@ exports.requestChange = asyncHandler(async (req, res) => {
 		return res.status(400).json({ message: "Please describe the booking changes you want." });
 	}
 
-	if (booking.change_request?.status === "pending") {
-		return res.status(409).json({ message: "You already have a pending change request for this booking." });
-	}
+	const isUpdate = booking.change_request?.status === "pending";
 
 	booking.change_request = {
 		status: "pending",
@@ -427,8 +425,10 @@ exports.requestChange = asyncHandler(async (req, res) => {
 
 	const io = req.app.get("io");
 	await notifyAdmins({
-		title: "Booking change request",
-		body: `${req.user.full_name || req.user.email || "A customer"} requested a change for booking #${booking._id}.`,
+		title: isUpdate ? "Booking change request updated" : "Booking change request",
+		body: isUpdate
+			? `${req.user.full_name || req.user.email || "A customer"} updated the change request for booking #${booking._id}.`
+			: `${req.user.full_name || req.user.email || "A customer"} requested a change for booking #${booking._id}.`,
 		type: "info",
 		link: `/admin/bookings/${booking._id}/details`,
 		meta: {

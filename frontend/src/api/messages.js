@@ -19,3 +19,8 @@ export const sendMessage = async (id, body) => {
   const { data } = await api.post(`/messages/conversations/${id}/messages`, { body });
   return data;
 };
+
+export const createConversation = async (payload) => {
+  const { data } = await api.post("/messages/conversations", payload);
+  return data;
+};

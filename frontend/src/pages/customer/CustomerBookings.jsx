@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
+import { createConversation } from "../../api/messages";
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
 import useToast from "../../hooks/useToast";
 import Modal from "../../components/common/Modal";
@@ -13,6 +15,7 @@ const formatCurrency = (value) => {
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 export default function CustomerBookings() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
   const [payingBookingId, setPayingBookingId] = useState(null);
@@ -96,6 +99,21 @@ export default function CustomerBookings() {
     if (!nextEvent) return;
     setRequestingBooking(nextEvent);
     setRequestNote(nextEvent.change_request?.message || "");
+  };
+
+  const openCatererChat = async () => {
+    if (!nextEvent?._id) return;
+
+    try {
+      const conversation = await createConversation({ booking_id: nextEvent._id });
+      navigate(`/customer/messages/${conversation._id}`);
+    } catch (error) {
+      if (error.response?.status === 400 || error.response?.status === 404) {
+        notify(error.response?.data?.message || "This booking is not ready for chat yet.", "error");
+        return;
+      }
+      notify(error.response?.data?.message || "We could not open the conversation.", "error");
+    }
   };
 
   const submitChangeRequest = async (event) => {
@@ -183,12 +201,12 @@ export default function CustomerBookings() {
             </div>
           </div>
           <div className="actions">
-            <button className="btn" type="button">Message Caterer</button>
+            <button className="btn" type="button" onClick={openCatererChat}>Message Caterer</button>
             <button
               className="btn-outline"
               type="button"
               onClick={openChangeRequest}
-              disabled={!canRequestChange || nextEventChangeRequested}
+              disabled={!canRequestChange}
             >
               {nextEventChangeRequested ? "Change Request Sent" : canRequestChange ? "Change Booking Information" : "Locked 3 Days Before Event"}
             </button>

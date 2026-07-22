@@ -91,6 +91,14 @@ exports.update = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Inquiry must be reviewed before it can be updated" });
   }
 
+  // Auto-resolve quote_change_request if admin sends the quotation back to customer
+  if (current.quote_change_request && !current.quote_change_request.resolved_at && req.body.status === "awaiting confirmation") {
+    req.body.quote_change_request = {
+      ...current.quote_change_request,
+      resolved_at: new Date()
+    };
+  }
+
   const updated = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
   // Build changes for the log
@@ -294,6 +302,47 @@ exports.updateMineDate = asyncHandler(async (req, res) => {
 
   res.json(inquiry);
 });
+
+exports.updateQuoteChange = asyncHandler(async (req, res) => {
+  const inquiry = await Inquiry.findOne({ _id: req.params.id, customer_id: req.user._id });
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  if (inquiry.status !== "awaiting confirmation") {
+    return res.status(400).json({ message: "Can only request changes when quotation is awaiting confirmation." });
+  }
+
+  if (!req.body.message) {
+    return res.status(400).json({ message: "Change request message is required." });
+  }
+
+  inquiry.quote_change_request = {
+    message: req.body.message,
+    requested_at: new Date()
+  };
+  inquiry.status = "negotiating";
+  await inquiry.save();
+
+  const io = req.app.get("io");
+  await createNotification({
+    userId: req.user._id,
+    title: "Change request sent",
+    body: "Your quotation change request has been sent to the admin.",
+    type: "success",
+    link: "/customer/inquiries",
+    meta: { inquiry_id: inquiry._id }
+  }, io);
+
+  await notifyAdmins({
+    title: "Customer requested quote change",
+    body: `${req.user.full_name || req.user.email || "A customer"} requested changes for quotation ${inquiry._id}.`,
+    type: "warning",
+    link: "/admin/inquiries",
+    meta: { inquiry_id: inquiry._id }
+  }, io);
+
+  res.json(inquiry);
+});
+
 
 exports.remove = asyncHandler(async (req, res) => {
   await Inquiry.findByIdAndDelete(req.params.id);

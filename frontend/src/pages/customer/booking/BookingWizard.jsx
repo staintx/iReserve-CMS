@@ -150,7 +150,7 @@ export default function BookingWizard() {
   }, [inventoryItems]);
 
   useEffect(() => {
-    if (!form.event_date || !form.start_time || !form.duration_hours) {
+    if (!form.event_date || !form.start_time) {
       setAvailability({ status: "idle", message: "" });
       return;
     }
@@ -183,7 +183,6 @@ export default function BookingWizard() {
   }, [
     form.event_date,
     form.start_time,
-    form.duration_hours,
     form.venue_type,
     form.province,
     form.municipality,
@@ -256,7 +255,7 @@ export default function BookingWizard() {
         customer_id: user._id,
         event_type: eventTypeValue,
         guest_count: parseNumber(form.guest_count),
-        duration_hours: parseNumber(form.duration_hours),
+        // duration_hours removed
         budget_min: parseNumber(form.budget_min),
         budget_max: parseNumber(form.budget_max)
       };
@@ -354,10 +353,6 @@ export default function BookingWizard() {
               <label className="field">
                 <span>Estimated Guest Count</span>
                 <input type="number" min="1" placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
-              </label>
-              <label className="field">
-                <span>Event Duration (hours)</span>
-                <input type="number" min="1" step="0.5" placeholder="2" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
               </label>
             </div>
 

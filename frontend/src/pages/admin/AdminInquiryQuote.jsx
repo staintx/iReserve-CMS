@@ -652,16 +652,7 @@ export default function AdminInquiryQuote() {
               <label>Quote Notes</label>
               <textarea disabled={!isEditing} value={quoteNotes} onChange={(e) => setQuoteNotes(e.target.value)} />
             </div>
-            <div className="quote-input-row">
-              <label>Assign Manager</label>
-              <select disabled={!isEditing && inquiry.status !== "confirmed"} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
-                <option value="">Select Manager</option>
-                {managers.map((manager) => (
-                  <option key={manager._id} value={manager._id}>{manager.full_name}</option>
-                ))}
-              </select>
-              {managers.length === 0 && <small>No manager accounts available.</small>}
-            </div>
+
           </div>
 
           <div className="quote-actions">

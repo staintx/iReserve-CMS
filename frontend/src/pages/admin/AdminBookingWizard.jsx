@@ -371,14 +371,7 @@ export default function AdminBookingWizard() {
                     </option>
                   ))}
                 </select>
-                <select value={form.manager_id} onChange={(e) => setForm({ ...form, manager_id: e.target.value })}>
-                  <option value="">Assign Manager</option>
-                  {managers.map((manager) => (
-                    <option key={manager._id} value={manager._id}>
-                      {manager.full_name}
-                    </option>
-                  ))}
-                </select>
+
               </div>
               <div className="form-grid-2">
                 <input placeholder="First Name" value={form.contact_first_name} onChange={(e) => setForm({ ...form, contact_first_name: e.target.value })} />

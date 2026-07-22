@@ -50,7 +50,6 @@ export default function BookingWizard() {
     event_date: "",
     start_time: "",
     guest_count: "",
-    duration_hours: "",
     include_food: true,
     budget_min: "",
     budget_max: "",
@@ -160,7 +159,6 @@ export default function BookingWizard() {
       CustomerAPI.checkAvailability({
         event_date: form.event_date,
         start_time: form.start_time,
-        duration_hours: form.duration_hours,
         venue_type: form.venue_type,
         province: form.province,
         municipality: form.municipality,

@@ -288,10 +288,6 @@ export default function CustomerInquiries() {
                     <span>{activeQuote.guest_count || "-"}</span>
                   </div>
                   <div className="info-line">
-                    <span className="info-label">Event Duration (hours):</span>
-                    <span>{activeQuote.duration_hours || "-"}</span>
-                  </div>
-                  <div className="info-line">
                     <span className="info-label">Venue Type:</span>
                     <span>{activeQuote.venue_type || "-"}</span>
                   </div>

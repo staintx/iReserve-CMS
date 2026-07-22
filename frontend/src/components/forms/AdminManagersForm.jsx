@@ -16,6 +16,13 @@ export default function AdminManagersForm({ form, setForm, tab, onCancel, onSubm
         </div>
       </div>
       <div className="form-section">
+        <h4>Role Assignment</h4>
+        <select value={form.role || "staff"} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+          <option value="manager">Manager</option>
+          <option value="staff">Staff</option>
+        </select>
+      </div>
+      <div className="form-section">
         <h4>Login Credentials</h4>
         <div className="form-grid-2">
           <input placeholder="Username" value={form.username || ""} onChange={(e) => setForm({ ...form, username: e.target.value })} />

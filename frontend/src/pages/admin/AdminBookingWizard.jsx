@@ -64,9 +64,7 @@ export default function AdminBookingWizard() {
     AdminAPI.getStaff().then((res) => setStaff(Array.isArray(res.data) ? res.data : [])).catch(() => setStaff([]));
     AdminAPI.getCustomers().then((res) => setCustomers(Array.isArray(res.data) ? res.data : [])).catch(() => setCustomers([]));
   }, []);
-
-  const managers = staff.filter((m) => m.role === "manager");
-
+  const managers = staff;
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 

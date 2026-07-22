@@ -154,7 +154,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         title: "New message",
         body: `${senderName} sent you a message.`,
         type: "info",
-        link: "/customer/messages",
+        link: `/customer/messages/${conversation._id}`,
         meta: { conversation_id: conversation._id }
       }, io);
     }
@@ -165,7 +165,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         title: "New message",
         body: `${senderName} sent you a message.`,
         type: "info",
-        link: "/manager/messages",
+        link: `/manager/messages/${conversation._id}`,
         meta: { conversation_id: conversation._id }
       }, io);
     }

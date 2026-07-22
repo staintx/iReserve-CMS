@@ -210,6 +210,33 @@ export default function AdminInquiryReview() {
               </div>
             </div>
 
+            {/* Package Details */}
+            {inquiry.package_id && typeof inquiry.package_id === 'object' && (
+              <div className="ir-section-card">
+                <div className="ir-section-header">
+                  <span className="ir-section-icon" data-color="violet">📦</span>
+                  <h3>Selected Package Details</h3>
+                </div>
+                <div className="ir-detail-grid">
+                  <DetailRow label="Package Name" value={inquiry.package_id.name || "-"} />
+                  <DetailRow label="Description" value={inquiry.package_id.description || "-"} />
+                  <DetailRow label="Base Price" value={inquiry.package_id.price_min ? `PHP ${Number(inquiry.package_id.price_min).toLocaleString()}` : "-"} />
+                  <DetailRow label="Max Guests" value={inquiry.package_id.max_guests || "-"} />
+                </div>
+                
+                {Array.isArray(inquiry.package_id.inclusions) && inquiry.package_id.inclusions.length > 0 && (
+                  <>
+                    <div className="ir-sub-heading" style={{ marginTop: '1rem', marginBottom: '0.75rem', fontWeight: 600, fontSize: '0.85rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Inclusions</div>
+                    <div className="ir-tag-list">
+                      {inquiry.package_id.inclusions.map((item, idx) => (
+                        <span key={`inc-${idx}`} className="ir-tag">{item}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Event Details */}
             <div className="ir-section-card">
               <div className="ir-section-header">
@@ -269,7 +296,6 @@ export default function AdminInquiryReview() {
                 <DetailRow label="Email" value={inquiry.contact_email || inquiry.customer_id?.email || "-"} />
                 <DetailRow label="Phone" value={inquiry.contact_phone || "-"} />
                 <DetailRow label="Alt. Phone" value={inquiry.contact_alt_phone || "N/A"} />
-                <DetailRow label="Preferred Contact" value={inquiry.contact_method || "-"} />
               </div>
             </div>
 

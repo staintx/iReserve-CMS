@@ -26,7 +26,13 @@ export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => {
+    try {
+      const saved = localStorage.getItem("booking_wizard_step");
+      if (saved !== null) return parseInt(saved, 10);
+    } catch {}
+    return 0;
+  });
   const today = new Date().toISOString().split("T")[0];
   const [menuItems, setMenuItems] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -42,40 +48,54 @@ export default function BookingWizard() {
   const matchedType = validEventTypes.find(t => t.toLowerCase() === initialEventType.toLowerCase());
   const isOther = initialEventType && !matchedType;
 
-  const [form, setForm] = useState({
-    customer_id: user?._id || "",
-    event_type: matchedType || (isOther ? "Other" : ""),
-    event_type_other: isOther ? initialEventType : "",
-    event_theme: "",
-    event_date: "",
-    start_time: "",
-    guest_count: "",
-    include_food: true,
-    budget_min: "",
-    budget_max: "",
-    venue_type: "",
-    indoor_outdoor: "",
-    province: BATANGAS_PROVINCE,
-    municipality: "",
-    barangay: "",
-    street: "",
-    landmark: "",
-    zip_code: "",
-    venue_contact_name: "",
-    venue_contact_phone: "",
-    selected_menu: [],
-    dietary_restrictions: "",
-    allergies: "",
-    special_requests: "",
-    additional_services: [],
-    contact_first_name: "",
-    contact_last_name: "",
-    contact_email: user?.email || "",
-    contact_phone: "",
-    contact_alt_phone: "",
-    contact_method: "email",
-    payment_method: ""
+  const [form, setForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem("booking_wizard_form");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      customer_id: user?._id || "",
+      event_type: matchedType || (isOther ? "Other" : ""),
+      event_type_other: isOther ? initialEventType : "",
+      event_theme: "",
+      event_date: "",
+      start_time: "",
+      guest_count: "",
+      include_food: true,
+      budget_min: "",
+      budget_max: "",
+      venue_type: "",
+      indoor_outdoor: "",
+      province: BATANGAS_PROVINCE,
+      municipality: "",
+      barangay: "",
+      street: "",
+      landmark: "",
+      zip_code: "",
+      venue_contact_name: "",
+      venue_contact_phone: "",
+      selected_menu: [],
+      dietary_restrictions: "",
+      allergies: "",
+      special_requests: "",
+      additional_services: [],
+      contact_first_name: "",
+      contact_last_name: "",
+      contact_email: user?.email || "",
+      contact_phone: "",
+      contact_alt_phone: "",
+      contact_method: "email",
+      payment_method: ""
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem("booking_wizard_form", JSON.stringify(form));
+  }, [form]);
+
+  useEffect(() => {
+    localStorage.setItem("booking_wizard_step", step.toString());
+  }, [step]);
 
   useEffect(() => {
     if (!user) return;
@@ -264,6 +284,8 @@ export default function BookingWizard() {
       }
 
       await CustomerAPI.submitInquiry(payload);
+      localStorage.removeItem("booking_wizard_form");
+      localStorage.removeItem("booking_wizard_step");
       notify("Inquiry submitted.", "success");
       navigate("/customer/booking-success");
     } catch (err) {
@@ -521,15 +543,11 @@ export default function BookingWizard() {
 
                 <div className="booking-textareas">
                   <label className="field">
-                    <span>Dietary Restrictions</span>
-                    <textarea placeholder="Vegetarian, vegan, gluten-free" value={form.dietary_restrictions} onChange={(e) => setForm({ ...form, dietary_restrictions: e.target.value })} />
-                  </label>
-                  <label className="field">
-                    <span>Allergies & Intolerances</span>
+                    <span>Allergies & Intolerances (Optional)</span>
                     <textarea placeholder="List any allergies" value={form.allergies} onChange={(e) => setForm({ ...form, allergies: e.target.value })} />
                   </label>
                   <label className="field">
-                    <span>Food Preferences & Special Requests</span>
+                    <span>Food Preferences & Special Requests (Optional)</span>
                     <textarea placeholder="Share requests for the menu" value={form.special_requests} onChange={(e) => setForm({ ...form, special_requests: e.target.value })} />
                   </label>
                 </div>
@@ -661,38 +679,7 @@ export default function BookingWizard() {
                 <input placeholder="Optional" value={form.contact_alt_phone} onChange={(e) => setForm({ ...form, contact_alt_phone: e.target.value })} />
               </label>
             </div>
-            <div className="booking-toggle">
-              <p>Preferred Contact Method</p>
-              <div className="choice-row">
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="contact_method"
-                    checked={form.contact_method === "email"}
-                    onChange={() => setForm({ ...form, contact_method: "email" })}
-                  />
-                  Email
-                </label>
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="contact_method"
-                    checked={form.contact_method === "phone"}
-                    onChange={() => setForm({ ...form, contact_method: "phone" })}
-                  />
-                  Phone
-                </label>
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="contact_method"
-                    checked={form.contact_method === "sms"}
-                    onChange={() => setForm({ ...form, contact_method: "sms" })}
-                  />
-                  Text Message
-                </label>
-              </div>
-            </div>
+
             <div className="booking-actions split">
               <button className="btn-outline" onClick={back}>Back</button>
               <button className="btn" onClick={next}>Next Step</button>

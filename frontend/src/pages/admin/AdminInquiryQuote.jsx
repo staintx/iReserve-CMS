@@ -334,10 +334,6 @@ export default function AdminInquiryQuote() {
                 <span className="info-label">Email Address:</span>
                 <span>{inquiry.contact_email || "-"}</span>
               </div>
-              <div className="info-line">
-                <span className="info-label">Preferred Contact Method:</span>
-                <span>{inquiry.contact_method || "-"}</span>
-              </div>
             </div>
           </div>
 

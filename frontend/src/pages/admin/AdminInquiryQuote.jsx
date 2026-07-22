@@ -286,6 +286,14 @@ export default function AdminInquiryQuote() {
           </div>
         </div>
 
+        {inquiry.quote_change_request && !inquiry.quote_change_request.resolved_at && inquiry.status === "negotiating" && (
+          <div style={{ marginBottom: "2rem", padding: "1.5rem", background: "#fef3c7", borderLeft: "4px solid #f59e0b", borderRadius: "8px" }}>
+            <h3 style={{ marginTop: 0, color: "#d97706", fontSize: "1.1rem" }}>Customer Requested Changes</h3>
+            <p style={{ margin: "0.5rem 0 0", color: "#b45309" }}>{inquiry.quote_change_request.message}</p>
+            <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#b45309", opacity: 0.8 }}>Update the quotation and send it back to the customer. This alert will clear automatically.</p>
+          </div>
+        )}
+
         <div className="quote-card">
           <div className="quote-section">
             <h3>Select Package</h3>

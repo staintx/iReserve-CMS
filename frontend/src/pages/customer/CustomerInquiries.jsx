@@ -22,6 +22,8 @@ export default function CustomerInquiries() {
   const [confirmAccept, setConfirmAccept] = useState(false);
   const [changeDateTarget, setChangeDateTarget] = useState(null);
   const [changeDateValue, setChangeDateValue] = useState("");
+  const [changeQuoteTarget, setChangeQuoteTarget] = useState(null);
+  const [changeQuoteMessage, setChangeQuoteMessage] = useState("");
   const { notify } = useToast();
 
   const load = () => {
@@ -87,6 +89,20 @@ export default function CustomerInquiries() {
       })
       .catch((err) => notify(err.response?.data?.message || "We could not update the date. Please try again.", "error"));
   };
+
+  const submitQuoteChange = () => {
+    if (!changeQuoteTarget || !changeQuoteMessage.trim()) return;
+    CustomerAPI.requestInquiryQuoteChange(changeQuoteTarget._id, { message: changeQuoteMessage })
+      .then((res) => {
+        notify("Your change request has been sent to the admin.", "success");
+        setInquiries((prev) => prev.map((item) => (item._id === res.data._id ? res.data : item)));
+        setActiveQuote((prev) => (prev && prev._id === res.data._id ? res.data : prev));
+        setChangeQuoteTarget(null);
+        setChangeQuoteMessage("");
+      })
+      .catch((err) => notify(err.response?.data?.message || "We could not send the request. Please try again.", "error"));
+  };
+
 
   return (
     <CustomerDashboardLayout
@@ -426,6 +442,7 @@ export default function CustomerInquiries() {
               {activeQuote.status === "awaiting confirmation" && (
                 <div className="quote-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem" }}>
                   <button className="btn-outline" type="button" onClick={() => setCancelTarget(activeQuote)}>Decline Quotation</button>
+                  <button className="btn-outline" type="button" onClick={() => { setChangeQuoteTarget(activeQuote); setChangeQuoteMessage(""); }}>Request Changes</button>
                   <button className="btn" type="button" onClick={() => setConfirmAccept(true)}>Accept Quotation</button>
                 </div>
               )}
@@ -452,6 +469,30 @@ export default function CustomerInquiries() {
             <div className="quote-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
               <button className="btn-outline" type="button" onClick={() => setChangeDateTarget(null)}>Cancel</button>
               <button className="btn" type="button" onClick={submitDateChange}>Save Date</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {changeQuoteTarget && (
+        <Modal title="Request Quotation Changes" onClose={() => setChangeQuoteTarget(null)}>
+          <div className="quote-section" style={{ border: "none", paddingTop: 0 }}>
+            <p style={{ marginTop: 0 }}>
+              Please specify the changes you'd like to request for this quotation (e.g., adjust budget, change menu items).
+            </p>
+            <div className="quote-input-row">
+              <label>Message</label>
+              <textarea 
+                value={changeQuoteMessage} 
+                onChange={(e) => setChangeQuoteMessage(e.target.value)} 
+                rows={4}
+                style={{ width: "100%", padding: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "8px", fontFamily: "inherit" }}
+                placeholder="Type your request here..."
+              />
+            </div>
+            <div className="quote-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
+              <button className="btn-outline" type="button" onClick={() => setChangeQuoteTarget(null)}>Cancel</button>
+              <button className="btn" type="button" onClick={submitQuoteChange}>Send Request</button>
             </div>
           </div>
         </Modal>

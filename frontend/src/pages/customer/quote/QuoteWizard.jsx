@@ -253,7 +253,7 @@ export default function QuoteWizard() {
       event_date: form.event_date,
       start_time: form.start_time,
       guest_count: parseNumber(form.guest_count),
-      duration_hours: parseNumber(form.duration_hours),
+      // duration_hours removed
       include_food: serviceConfig.include_food,
       service_type: serviceConfig.label,
       venue_type: form.venue_type,
@@ -344,11 +344,7 @@ export default function QuoteWizard() {
       nextErrors.guest_count = "Enter a valid guest count.";
     }
 
-    if (isEmpty(form.duration_hours)) {
-      nextErrors.duration_hours = "Event duration is required.";
-    } else if (!Number.isFinite(parseNumber(form.duration_hours))) {
-      nextErrors.duration_hours = "Enter a valid duration.";
-    }
+
 
     if (form.service_type !== "food") {
       setRequired("venue_type", "Venue type");
@@ -645,11 +641,7 @@ export default function QuoteWizard() {
                         <input placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
                         {errors.guest_count && <p className="auth-error">{errors.guest_count}</p>}
                       </label>
-                      <label className="field">
-                        <span>Event Duration (hours)</span>
-                        <input placeholder="2 hours" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
-                        {errors.duration_hours && <p className="auth-error">{errors.duration_hours}</p>}
-                      </label>
+
                     </div>
                     <div className="booking-actions">
                       <button className="btn" onClick={next}>Next Step</button>
@@ -1075,11 +1067,7 @@ export default function QuoteWizard() {
                         <input placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
                         {errors.guest_count && <p className="auth-error">{errors.guest_count}</p>}
                       </label>
-                      <label className="field">
-                        <span>Event Duration (hours)</span>
-                        <input placeholder="2 hours" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
-                        {errors.duration_hours && <p className="auth-error">{errors.duration_hours}</p>}
-                      </label>
+
                     </div>
                     <div className="booking-actions split">
                       <button className="btn-outline" onClick={back}>Back</button>

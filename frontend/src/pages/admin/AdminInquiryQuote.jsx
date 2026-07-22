@@ -4,6 +4,7 @@ import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import Modal from "../../components/common/Modal";
 
 const buildMenuPricing = (menuItems, inquiry) => {
   const saved = Array.isArray(inquiry?.menu_items) ? inquiry.menu_items : [];
@@ -47,11 +48,14 @@ export default function AdminInquiryQuote() {
   const [servicePricing, setServicePricing] = useState([]);
   const [quoteNotes, setQuoteNotes] = useState("");
   const [quoteAmount, setQuoteAmount] = useState("");
+  const [eventDate, setEventDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("gcash");
   const [packageAmount, setPackageAmount] = useState("");
   const [managerId, setManagerId] = useState("");
   const [additionalCharges, setAdditionalCharges] = useState([]);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [showDateChangeRequest, setShowDateChangeRequest] = useState(false);
+  const [dateChangeNote, setDateChangeNote] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
@@ -71,6 +75,7 @@ export default function AdminInquiryQuote() {
         setStaff(Array.isArray(staffRes.data) ? staffRes.data : []);
         setQuoteNotes(inquiryData.quote_notes || "");
         setQuoteAmount(inquiryData.quote_amount || "");
+        setEventDate(inquiryData.event_date ? new Date(inquiryData.event_date).toISOString().split("T")[0] : "");
         setPaymentMethod(inquiryData.payment_method || "gcash");
         setPackageAmount(inquiryData.package_amount ?? "");
         setManagerId(inquiryData.manager_id?._id || inquiryData.manager_id || "");
@@ -179,6 +184,7 @@ export default function AdminInquiryQuote() {
     return {
       quote_amount: amountValue,
       quote_notes: quoteNotes,
+      event_date: eventDate || undefined,
       package_amount: basePackageAmount || undefined,
       payment_method: paymentMethod,
       status: "awaiting confirmation",
@@ -201,6 +207,30 @@ export default function AdminInquiryQuote() {
       .catch((err) => notify(err.response?.data?.message || "We could not send the quote. Please try again.", "error"));
   };
 
+  const requestDateChange = () => {
+    if (!inquiry) return;
+
+    const message = dateChangeNote.trim() || "The selected event date conflicts with an existing booking. Please choose a new date and reply with your preferred schedule.";
+
+    AdminAPI.updateInquiry(inquiry._id, {
+      ...buildPayload(),
+      status: "negotiating",
+      date_change_request: {
+        message,
+        current_date: eventDate || undefined,
+        requested_at: new Date().toISOString()
+      }
+    })
+      .then(() => {
+        notify("Date change request sent to the customer.", "success");
+        setShowDateChangeRequest(false);
+        setDateChangeNote("");
+      })
+      .catch((err) => {
+        notify(err.response?.data?.message || "We could not send the date change request.", "error");
+      });
+  };
+
   const submitBooking = () => {
     if (!inquiry) return;
     if (!managerId) {
@@ -213,6 +243,7 @@ export default function AdminInquiryQuote() {
       .then(() =>
         AdminAPI.createBookingFromInquiry(inquiry._id, {
           total_price: finalAmount,
+          event_date: eventDate || undefined,
           package_id: inquiry.package_id || undefined,
           manager_id: managerId
         })
@@ -223,6 +254,12 @@ export default function AdminInquiryQuote() {
       })
       .catch((err) => {
         const message = err?.response?.data?.message || "We could not create the booking. Please try again.";
+        if (err?.response?.status === 409) {
+          setDateChangeNote(
+            `The selected date ${eventDate ? new Date(eventDate + "T00:00:00").toLocaleDateString() : ""} conflicts with another booking. Please request the customer to choose a new date.`
+          );
+          setShowDateChangeRequest(true);
+        }
         notify(message, "error");
       });
   };
@@ -312,7 +349,12 @@ export default function AdminInquiryQuote() {
               </div>
               <div className="info-line">
                 <span className="info-label">Event Date:</span>
-                <span>{inquiry.event_date ? new Date(inquiry.event_date).toLocaleDateString() : "-"}</span>
+                <input
+                  disabled={!isEditing}
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                />
               </div>
               <div className="info-line">
                 <span className="info-label">Event Start Time:</span>
@@ -641,6 +683,33 @@ export default function AdminInquiryQuote() {
           onConfirm={saveQuote}
           onCancel={() => setConfirmSend(false)}
         />
+      )}
+
+      {showDateChangeRequest && (
+        <Modal title="Request a new date" onClose={() => setShowDateChangeRequest(false)} className="modal-wide">
+          <div className="quote-section" style={{ border: "none", paddingTop: 0 }}>
+            <p style={{ marginTop: 0 }}>
+              The selected date conflicts with an existing booking. Send the customer a date-change request so they can update the quotation.
+            </p>
+            <div className="quote-input-row">
+              <label>Request message</label>
+              <textarea
+                value={dateChangeNote}
+                onChange={(e) => setDateChangeNote(e.target.value)}
+                rows={5}
+                placeholder="Explain why the date needs to change and ask the customer to reply with a new one."
+              />
+            </div>
+            <div className="quote-actions" style={{ justifyContent: "flex-end" }}>
+              <button className="btn-outline" type="button" onClick={() => setShowDateChangeRequest(false)}>
+                Cancel
+              </button>
+              <button className="btn" type="button" onClick={requestDateChange}>
+                Send Request
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </AdminLayout>
   );

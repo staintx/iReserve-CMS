@@ -25,8 +25,10 @@ export const CustomerAPI = {
   getInquiries: () => api.get("/inquiries/me"),
   cancelInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "cancelled" }),
   acceptInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "confirmed" }),
+  updateInquiryDate: (id, data) => api.patch(`/inquiries/me/${id}/date`, data),
   getBookings: () => api.get("/bookings/me"),
   createBooking: (data) => api.post("/bookings", data),
+  requestBookingChange: (id, data) => api.post(`/bookings/${id}/change-request`, data),
 
   // profile
   getProfile: () => api.get("/users/me"),

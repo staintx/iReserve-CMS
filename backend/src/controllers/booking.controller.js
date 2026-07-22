@@ -1,7 +1,7 @@
 const Booking = require("../models/Booking");
 const Inquiry = require("../models/Inquiry");
 const asyncHandler = require("../utils/asyncHandler");
-const { createNotification } = require("../utils/notify");
+const { createNotification, notifyAdmins } = require("../utils/notify");
 const logAction = require("../utils/logAction");
 
 const parseTimeToMinutes = (timeValue) => {
@@ -28,6 +28,12 @@ const getDateStatus = (value) => {
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
 	return { valid: true, past: date < today };
+};
+
+const getThreeDayLockout = (eventDate) => {
+	const msUntilEvent = new Date(eventDate).getTime() - Date.now();
+	const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+	return msUntilEvent <= threeDaysMs;
 };
 
 const normalizeText = (value) =>
@@ -148,7 +154,7 @@ exports.createFromInquiry = asyncHandler(async (req, res) => {
 		inquiry_id: inquiry._id,
 		event_type: inquiry.event_type,
 		event_theme: inquiry.event_theme,
-		event_date: inquiry.event_date,
+		event_date: req.body.event_date || inquiry.event_date,
 		start_time: inquiry.start_time,
 		guest_count: inquiry.guest_count,
 		duration_hours: inquiry.duration_hours,
@@ -199,7 +205,13 @@ exports.createFromInquiry = asyncHandler(async (req, res) => {
 		});
 	}
 
-	const booking = await Booking.create(bookingPayload);
+	let booking = await Booking.findOne({ inquiry_id: inquiry._id });
+	if (booking) {
+		booking.set(bookingPayload);
+		await booking.save();
+	} else {
+		booking = await Booking.create(bookingPayload);
+	}
 	await Inquiry.findByIdAndUpdate(inquiry._id, { status: "approved" }, { new: true });
 
 	await logAction({
@@ -257,10 +269,7 @@ exports.update = asyncHandler(async (req, res) => {
 	const current = await Booking.findById(req.params.id);
 	if (!current) return res.status(404).json({ message: "Booking not found" });
 
-	const msUntilEvent = new Date(current.event_date).getTime() - Date.now();
-	const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-
-	if (msUntilEvent <= threeDaysMs) {
+	if (getThreeDayLockout(current.event_date)) {
 		const allowedLateFields = [
 			"status",
 			"payment_status",
@@ -365,9 +374,70 @@ exports.update = asyncHandler(async (req, res) => {
 				link: "/customer/bookings"
 			}, io);
 		}
+
+		if (otherChanged && updated.change_request?.status === "pending") {
+			updated.change_request = {
+				...updated.change_request.toObject?.(),
+				status: "approved",
+				resolved_at: new Date()
+			};
+			await updated.save();
+		}
 	}
 
 	res.json(updated);
+});
+
+exports.requestChange = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (String(booking.customer_id) !== String(req.user?._id)) {
+		return res.status(403).json({ message: "Forbidden" });
+	}
+	if (getThreeDayLockout(booking.event_date)) {
+		return res.status(400).json({ message: "Booking details cannot be changed 3 days before the event." });
+	}
+
+	const requestMessage = String(req.body.message || "").trim();
+	if (!requestMessage) {
+		return res.status(400).json({ message: "Please describe the booking changes you want." });
+	}
+
+	if (booking.change_request?.status === "pending") {
+		return res.status(409).json({ message: "You already have a pending change request for this booking." });
+	}
+
+	booking.change_request = {
+		status: "pending",
+		message: requestMessage,
+		requested_at: new Date(),
+		resolved_at: null
+	};
+	await booking.save();
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_change_requested",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Requested booking change for ${booking.event_type || "event"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}`,
+		changes: { change_request: { to: requestMessage } },
+		ip_address: req.ip
+	});
+
+	const io = req.app.get("io");
+	await notifyAdmins({
+		title: "Booking change request",
+		body: `${req.user.full_name || req.user.email || "A customer"} requested a change for booking #${booking._id}.`,
+		type: "info",
+		link: `/admin/bookings/${booking._id}/details`,
+		meta: {
+			booking_id: booking._id,
+			message: requestMessage
+		}
+	}, io);
+
+	res.json(booking);
 });
 
 exports.remove = asyncHandler(async (req, res) => {

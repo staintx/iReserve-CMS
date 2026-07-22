@@ -385,7 +385,7 @@ export default function Landing() {
               {galleryItems.slice(0, 6).map((item, index) => (
                 <div
                   key={item._id || item.image_url}
-                  className="image-card tall"
+                  className="image-card tall cursor-pointer hover:scale-[1.02] hover:shadow-lg transition-all duration-300 bg-cover bg-center"
                   style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
                   role="button"
                   tabIndex={0}

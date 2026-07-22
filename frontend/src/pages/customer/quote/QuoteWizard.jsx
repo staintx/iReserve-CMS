@@ -857,15 +857,7 @@ export default function QuoteWizard() {
                       <h3>Dietary Needs</h3>
                     </div>
                     <label className="field">
-                      <span>Dietary Restrictions</span>
-                      <textarea
-                        placeholder="Vegetarian, vegan, gluten-free, etc."
-                        value={form.dietary_restrictions}
-                        onChange={(e) => setForm({ ...form, dietary_restrictions: e.target.value })}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Allergies and Intolerances</span>
+                      <span>Allergies and Intolerances (Optional)</span>
                       <textarea
                         placeholder="Nut allergies, seafood allergies, lactose intolerance, etc."
                         value={form.allergies}
@@ -907,35 +899,7 @@ export default function QuoteWizard() {
                         </label>
                       )}
                     </div>
-                    <div className="booking-toggle">
-                      <p>Preferred Contact Method</p>
-                      <div className="choice-row">
-                        <label className="choice">
-                          <input
-                            type="checkbox"
-                            checked={form.contact_method.includes("email")}
-                            onChange={() => toggleValue("contact_method", "email")}
-                          />
-                          Email
-                        </label>
-                        <label className="choice">
-                          <input
-                            type="checkbox"
-                            checked={form.contact_method.includes("phone")}
-                            onChange={() => toggleValue("contact_method", "phone")}
-                          />
-                          Phone
-                        </label>
-                        <label className="choice">
-                          <input
-                            type="checkbox"
-                            checked={form.contact_method.includes("sms")}
-                            onChange={() => toggleValue("contact_method", "sms")}
-                          />
-                          Text Message
-                        </label>
-                      </div>
-                    </div>
+
                     {form.service_type === "event" && (
                       <>
                         <label className="field">

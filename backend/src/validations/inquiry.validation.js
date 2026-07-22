@@ -27,6 +27,13 @@ const additionalChargeSchema = Joi.object({
   amount: Joi.number().empty("").optional()
 });
 
+const dateChangeRequestSchema = Joi.object({
+  message: Joi.string().allow("").optional(),
+  current_date: Joi.date().optional(),
+  requested_at: Joi.date().optional(),
+  resolved_at: Joi.date().optional()
+});
+
 exports.inquirySchema = Joi.object({
   customer_id: Joi.string().optional(),
   package_id: Joi.string().optional(),
@@ -75,6 +82,7 @@ exports.inquirySchema = Joi.object({
   package_amount: Joi.number().empty("").optional(),
   quote_amount: Joi.number().optional(),
   quote_notes: Joi.string().optional(),
+  date_change_request: dateChangeRequestSchema.optional(),
   status: Joi.string().optional()
 });
 
@@ -127,6 +135,7 @@ exports.inquiryUpdateSchema = Joi.object({
   package_amount: Joi.number().empty("").optional(),
   quote_amount: Joi.number().optional(),
   quote_notes: Joi.string().optional(),
+  date_change_request: dateChangeRequestSchema.optional(),
   status: Joi.string().valid("new", "under review", "awaiting confirmation", "negotiating", "confirmed", "declined", "abandoned", "expired", "spam", "cancelled").optional()
 });
 

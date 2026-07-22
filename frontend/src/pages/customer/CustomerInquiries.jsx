@@ -20,6 +20,8 @@ export default function CustomerInquiries() {
   const [activeQuote, setActiveQuote] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [confirmAccept, setConfirmAccept] = useState(false);
+  const [changeDateTarget, setChangeDateTarget] = useState(null);
+  const [changeDateValue, setChangeDateValue] = useState("");
   const { notify } = useToast();
 
   const load = () => {
@@ -66,6 +68,25 @@ export default function CustomerInquiries() {
   };
 
   const closeQuote = () => setActiveQuote(null);
+
+  const openDateChange = () => {
+    if (!activeQuote) return;
+    const current = activeQuote.event_date ? new Date(activeQuote.event_date) : new Date();
+    setChangeDateValue(current.toISOString().split("T")[0]);
+    setChangeDateTarget(activeQuote);
+  };
+
+  const submitDateChange = () => {
+    if (!changeDateTarget || !changeDateValue) return;
+    CustomerAPI.updateInquiryDate(changeDateTarget._id, { event_date: changeDateValue })
+      .then((res) => {
+        notify("Your new event date was sent to the admin.", "success");
+        setInquiries((prev) => prev.map((item) => (item._id === res.data._id ? res.data : item)));
+        setActiveQuote((prev) => (prev && prev._id === res.data._id ? res.data : prev));
+        setChangeDateTarget(null);
+      })
+      .catch((err) => notify(err.response?.data?.message || "We could not update the date. Please try again.", "error"));
+  };
 
   return (
     <CustomerDashboardLayout
@@ -220,6 +241,15 @@ export default function CustomerInquiries() {
 
               <div className="quote-section">
                 <h3>Event & Venue Information</h3>
+                {activeQuote.date_change_request && activeQuote.status === "negotiating" && (
+                  <div className="ir-review-banner ir-banner-warning" style={{ marginBottom: "1rem" }}>
+                    <span className="ir-banner-icon">🕒</span>
+                    <div>
+                      <strong>Date change requested</strong>
+                      <p>{activeQuote.date_change_request.message || "Please choose a new event date."}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="quote-grid">
                   <div className="info-line">
                     <span className="info-label">Event Type:</span>
@@ -399,10 +429,33 @@ export default function CustomerInquiries() {
                   <button className="btn" type="button" onClick={() => setConfirmAccept(true)}>Accept Quotation</button>
                 </div>
               )}
+              {activeQuote.status === "negotiating" && activeQuote.date_change_request && (
+                <div className="quote-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem" }}>
+                  <button className="btn-outline" type="button" onClick={openDateChange}>Change Date</button>
+                </div>
+              )}
             </div>
           </Modal>
         );
       })()}
+
+      {changeDateTarget && (
+        <Modal title="Update event date" onClose={() => setChangeDateTarget(null)}>
+          <div className="quote-section" style={{ border: "none", paddingTop: 0 }}>
+            <p style={{ marginTop: 0 }}>
+              Choose the new event date requested by the admin.
+            </p>
+            <div className="quote-input-row">
+              <label>New event date</label>
+              <input type="date" value={changeDateValue} onChange={(e) => setChangeDateValue(e.target.value)} />
+            </div>
+            <div className="quote-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "1rem" }}>
+              <button className="btn-outline" type="button" onClick={() => setChangeDateTarget(null)}>Cancel</button>
+              <button className="btn" type="button" onClick={submitDateChange}>Save Date</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </CustomerDashboardLayout>
   );
 }

@@ -9,6 +9,7 @@ router.post("/", protect, validate(inquirySchema), ctrl.create);
 router.get("/", protect, authorize("admin", "manager"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);
 router.patch("/me/:id/status", protect, validate(inquiryStatusSchema), ctrl.updateMineStatus);
+router.patch("/me/:id/date", protect, ctrl.updateMineDate);
 router.patch("/:id/review", protect, authorize("admin", "manager"), ctrl.review);
 router.get("/:id", protect, ctrl.getById);
 router.put("/:id", protect, authorize("admin", "manager"), validate(inquiryUpdateSchema), ctrl.update);

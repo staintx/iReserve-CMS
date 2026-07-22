@@ -216,6 +216,7 @@ export default function AdminBookingDetails() {
   const msUntilEvent = new Date(booking.event_date).getTime() - Date.now();
   const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
   const isLockedOut = msUntilEvent <= threeDaysMs;
+  const changeRequest = booking.change_request?.status === "pending" ? booking.change_request : null;
 
   /* Determine which statuses admin can transition to */
   const getNextStatuses = () => {
@@ -357,6 +358,16 @@ export default function AdminBookingDetails() {
               <div>
                 <strong>Booking Cancelled</strong>
                 <p>This booking has been cancelled.</p>
+              </div>
+            </div>
+          )}
+          {changeRequest && (
+            <div className="ir-review-banner ir-banner-info">
+              <span className="ir-banner-icon">📝</span>
+              <div>
+                <strong>Customer change request</strong>
+                <p>{changeRequest.message}</p>
+                <p>Requested {formatDateTime(changeRequest.requested_at)}</p>
               </div>
             </div>
           )}

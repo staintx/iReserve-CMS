@@ -1,6 +1,6 @@
 export default function ConfirmDialog({ message, onConfirm, onCancel }) {
   return (
-    <div className="modal-backdrop">
+    <div className="modal-backdrop" style={{ zIndex: 80 }}>
       <div className="modal confirm-modal">
         <div className="confirm-header">
           <div className="confirm-icon">!</div>

@@ -58,6 +58,12 @@ const InquirySchema = new mongoose.Schema({
   package_amount: Number,
   quote_amount: Number,
   quote_notes: String,
+  date_change_request: {
+    message: String,
+    current_date: Date,
+    requested_at: Date,
+    resolved_at: Date
+  },
   reviewed_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   reviewed_at: { type: Date },
   status: { type: String, default: "new" }

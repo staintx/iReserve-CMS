@@ -3,16 +3,22 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
 import useToast from "../../hooks/useToast";
+import Modal from "../../components/common/Modal";
 
 const formatCurrency = (value) => {
   if (value === undefined || value === null || value === "") return "-";
   return `PHP ${Number(value).toLocaleString()}`;
 };
 
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
 export default function CustomerBookings() {
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
   const [payingBookingId, setPayingBookingId] = useState(null);
+  const [requestingBooking, setRequestingBooking] = useState(null);
+  const [requestNote, setRequestNote] = useState("");
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const { notify } = useToast();
 
   useEffect(() => {
@@ -34,6 +40,13 @@ export default function CustomerBookings() {
   );
 
   const nextEvent = upcoming[0];
+  const nextEventChangeRequested = nextEvent?.change_request?.status === "pending";
+
+  const canRequestChange = useMemo(() => {
+    if (!nextEvent?.event_date) return false;
+    const msUntilEvent = new Date(nextEvent.event_date).getTime() - Date.now();
+    return msUntilEvent > THREE_DAYS_MS;
+  }, [nextEvent]);
 
   const nextEventPaid = useMemo(() => {
     if (!nextEvent) return 0;
@@ -55,7 +68,7 @@ export default function CustomerBookings() {
     if (isBalance) {
       amount = nextEventBalance;
     }
-    
+
     if (!Number.isFinite(amount) || amount <= 0) {
       notify("This booking does not have a valid payable amount yet.", "error");
       return;
@@ -76,6 +89,36 @@ export default function CustomerBookings() {
     } catch (error) {
       notify(error.response?.data?.message || error.message || "We could not start PayMongo checkout. Please try again.", "error");
       setPayingBookingId(null);
+    }
+  };
+
+  const openChangeRequest = () => {
+    if (!nextEvent) return;
+    setRequestingBooking(nextEvent);
+    setRequestNote(nextEvent.change_request?.message || "");
+  };
+
+  const submitChangeRequest = async (event) => {
+    event.preventDefault();
+    if (!requestingBooking) return;
+
+    const nextMessage = requestNote.trim();
+    if (!nextMessage) {
+      notify("Please describe the changes you want to request.", "error");
+      return;
+    }
+
+    try {
+      setIsSubmittingRequest(true);
+      const response = await CustomerAPI.requestBookingChange(requestingBooking._id, { message: nextMessage });
+      setBookings((prev) => prev.map((booking) => (booking._id === response.data._id ? response.data : booking)));
+      notify("Your change request was sent to the admin.", "success");
+      setRequestingBooking(null);
+      setRequestNote("");
+    } catch (error) {
+      notify(error.response?.data?.message || "We could not send your change request.", "error");
+    } finally {
+      setIsSubmittingRequest(false);
     }
   };
 
@@ -144,6 +187,14 @@ export default function CustomerBookings() {
             <button
               className="btn-outline"
               type="button"
+              onClick={openChangeRequest}
+              disabled={!canRequestChange || nextEventChangeRequested}
+            >
+              {nextEventChangeRequested ? "Change Request Sent" : canRequestChange ? "Change Booking Information" : "Locked 3 Days Before Event"}
+            </button>
+            <button
+              className="btn-outline"
+              type="button"
               onClick={() => startPayment(nextEvent, nextEventPaid > 0)}
               disabled={payingBookingId === nextEvent._id || nextEventBalance <= 0}
             >
@@ -170,6 +221,40 @@ export default function CustomerBookings() {
         ))}
         {completed.length === 0 && <p>No past events yet.</p>}
       </div>
+
+      {requestingBooking && (
+        <Modal title="Request booking change" onClose={() => setRequestingBooking(null)}>
+          <form onSubmit={submitChangeRequest}>
+            <p style={{ marginTop: 0 }}>
+              Describe the booking details you want changed. The admin will review your request.
+            </p>
+            <label className="form-label" htmlFor="booking-change-request">
+              Change request
+            </label>
+            <textarea
+              id="booking-change-request"
+              className="form-input"
+              rows={6}
+              value={requestNote}
+              onChange={(event) => setRequestNote(event.target.value)}
+              placeholder="Example: Please update the guest count to 80 and move the venue to..."
+            />
+            {!canRequestChange && (
+              <p style={{ color: "#b45309", marginBottom: "12px" }}>
+                Booking information changes are locked within 3 days of the event.
+              </p>
+            )}
+            <div className="actions" style={{ justifyContent: "flex-end" }}>
+              <button className="btn-outline" type="button" onClick={() => setRequestingBooking(null)}>
+                Cancel
+              </button>
+              <button className="btn" type="submit" disabled={isSubmittingRequest || !canRequestChange}>
+                {isSubmittingRequest ? "Sending..." : "Send Request"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </CustomerDashboardLayout>
   );
 }

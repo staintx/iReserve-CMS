@@ -57,6 +57,12 @@ const BookingSchema = new mongoose.Schema({
   total_price: Number,
   payment_method: String,
   payment_status: { type: String, default: "pending" },
+  change_request: {
+    status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    message: String,
+    requested_at: Date,
+    resolved_at: Date
+  },
   status: { type: String, enum: ["pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled"], default: "pending deposit" },
   staff_assignments: [
     {

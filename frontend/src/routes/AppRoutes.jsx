@@ -10,7 +10,7 @@ import ResetPassword from "../pages/auth/ResetPassword";
 import VerifyEmail from "../pages/auth/VerifyEmail";
 
 import Landing from "../pages/customer/Landing";
-import CustomerInquiries from "../pages/customer/CustomerInquiries";
+
 import CustomerBookings from "../pages/customer/CustomerBookings";
 import CustomerDashboard from "../pages/customer/CustomerDashboard";
 import CustomerPayments from "../pages/customer/CustomerPayments";
@@ -106,7 +106,7 @@ export default function AppRoutes() {
         <Route path="/customer/dashboard" element={<ProtectedRoute><CustomerDashboard /></ProtectedRoute>} />
         <Route path="/customer/book" element={<ProtectedRoute><BookingWizard /></ProtectedRoute>} />
         <Route path="/customer/booking-success" element={<ProtectedRoute><BookingSuccess /></ProtectedRoute>} />
-        <Route path="/customer/inquiries" element={<ProtectedRoute><CustomerInquiries /></ProtectedRoute>} />
+
         <Route path="/customer/bookings" element={<ProtectedRoute><CustomerBookings /></ProtectedRoute>} />
         <Route path="/customer/payments" element={<ProtectedRoute><CustomerPayments /></ProtectedRoute>} />
         <Route path="/customer/messages" element={<ProtectedRoute><CustomerMessages /></ProtectedRoute>} />

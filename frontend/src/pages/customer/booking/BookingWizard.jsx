@@ -333,22 +333,17 @@ export default function BookingWizard() {
       const bookingRes = await CustomerAPI.createBooking(payload);
       const newBooking = bookingRes.data;
 
-      const checkoutRes = await CustomerAPI.createPaymentCheckout({
-        booking_id: newBooking._id,
-        amount: depositAmount,
-        payment_type: "deposit",
-        payment_method_types: ["gcash", "paymaya", "card"]
-      });
-
       localStorage.removeItem("booking_wizard_form");
       localStorage.removeItem("booking_wizard_step");
       
-      if (checkoutRes.data?.checkout_url) {
-        window.location.href = checkoutRes.data.checkout_url;
-      } else {
-        notify("Booking secured.", "success");
-        navigate("/customer/bookings");
-      }
+      navigate("/customer/checkout", {
+        replace: true,
+        state: {
+          bookingId: newBooking._id,
+          amount: depositAmount,
+          paymentType: "deposit"
+        }
+      });
     } catch (err) {
       const message = err.response?.data?.message || "We could not process your booking. Please try again.";
       setError(message);

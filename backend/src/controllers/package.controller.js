@@ -13,7 +13,7 @@ const normalizeList = (value) => {
 
 const canViewUnavailable = (user) => {
   if (!user) return false;
-  return ["admin", "manager", "staff"].includes(user.role);
+  return ["admin", "staff"].includes(user.role);
 };
 
 exports.create = async (req, res) => {

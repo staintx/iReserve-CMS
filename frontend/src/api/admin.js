@@ -23,6 +23,7 @@ export const AdminAPI = {
   createBookingFromInquiry: (id, data) => api.post(`/bookings/from-inquiry/${id}`, data),
   updateBooking: (id, data) => api.put(`/bookings/${id}`, data),
   deleteBooking: (id) => api.delete(`/bookings/${id}`),
+  processRefund: (id, data) => api.post(`/bookings/${id}/refund`, data),
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),
   verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
 

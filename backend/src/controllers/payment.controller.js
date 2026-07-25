@@ -51,7 +51,7 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	}
 
 	const isOwner = String(booking.customer_id?._id) === String(req.user._id);
-	const isPrivileged = ["admin", "manager"].includes(req.user.role);
+	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) {
 		return res.status(403).json({ message: "Not allowed to pay for this booking" });
 	}

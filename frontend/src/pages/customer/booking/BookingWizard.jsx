@@ -44,6 +44,9 @@ export default function BookingWizard() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   
   const initialEventType = location.state?.eventType || "";
+  const initialPackageId = location.state?.packageId || null;
+  const initialPackagePrice = location.state?.packagePrice || 0;
+  const initialPackageName = location.state?.packageName || "";
   const validEventTypes = ["Birthday", "Wedding", "Corporate"];
   const matchedType = validEventTypes.find(t => t.toLowerCase() === initialEventType.toLowerCase());
   const isOther = initialEventType && !matchedType;

@@ -116,6 +116,37 @@ export default function CustomerBookings() {
     }
   };
 
+
+  const submitAddGuests = async (event) => {
+    event.preventDefault();
+    if (!addingGuestsBooking) return;
+    if (additionalGuests <= 0) {
+      notify("Please enter a valid number of guests to add.", "error");
+      return;
+    }
+
+    try {
+      setIsSubmittingGuests(true);
+      const response = await CustomerAPI.addGuests(addingGuestsBooking._id, { additional_guests: additionalGuests });
+      
+      notify("Guests added successfully. Redirecting to payment...", "success");
+      
+      if (response.data.checkout_url) {
+        window.location.assign(response.data.checkout_url);
+      } else {
+        setAddingGuestsBooking(null);
+        setAdditionalGuests(0);
+        // Refresh
+        const bRes = await CustomerAPI.getBookings();
+        setBookings(bRes.data);
+      }
+    } catch (error) {
+      notify(error.response?.data?.message || "We could not add guests. Please try again.", "error");
+    } finally {
+      setIsSubmittingGuests(false);
+    }
+  };
+
   const submitChangeRequest = async (event) => {
     event.preventDefault();
     if (!requestingBooking) return;
@@ -240,11 +271,55 @@ export default function CustomerBookings() {
         {completed.length === 0 && <p>No past events yet.</p>}
       </div>
 
+      {addingGuestsBooking && (
+        <Modal title="Add Guests" onClose={() => setAddingGuestsBooking(null)}>
+          <form onSubmit={submitAddGuests}>
+            <p style={{ marginTop: 0 }}>
+              You currently have <strong>{addingGuestsBooking.guest_count}</strong> guests.
+              Adding more guests costs <strong>₱500 per head</strong>. This will generate a payment link for the difference.
+            </p>
+            <label className="form-label" htmlFor="additional-guests">
+              Additional Guests to Add
+            </label>
+            <input
+              id="additional-guests"
+              type="number"
+              min="1"
+              className="form-input"
+              value={additionalGuests}
+              onChange={(e) => setAdditionalGuests(Number(e.target.value))}
+            />
+            
+            {additionalGuests > 0 && (
+              <div style={{ marginTop: "15px", padding: "10px", background: "#f8f9fa", borderRadius: "5px" }}>
+                <strong>Amount Due: </strong> ₱{(additionalGuests * 500).toLocaleString()}
+              </div>
+            )}
+
+            {!canRequestChange && (
+              <p style={{ color: "#b45309", marginTop: "12px" }}>
+                Guest additions are locked within 3 days of the event.
+              </p>
+            )}
+            <div className="actions" style={{ justifyContent: "flex-end", marginTop: "20px" }}>
+              <button className="btn-outline" type="button" onClick={() => setAddingGuestsBooking(null)}>
+                Cancel
+              </button>
+              <button className="btn" type="submit" disabled={isSubmittingGuests || !canRequestChange || additionalGuests <= 0}>
+                {isSubmittingGuests ? "Processing..." : "Pay Difference"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {requestingBooking && (
         <Modal title="Request booking change" onClose={() => setRequestingBooking(null)}>
           <form onSubmit={submitChangeRequest}>
             <p style={{ marginTop: 0 }}>
-              Describe the booking details you want changed. The admin will review your request.
+              Describe the booking details you want changed. 
+              <strong> Note: Sensitive actions such as Date Change, Venue Change, Downgrades, or Full Cancellations require Admin approval.</strong>
+              The admin will review your request and process custom refunds or new quotes if applicable.
             </p>
             <label className="form-label" htmlFor="booking-change-request">
               Change request

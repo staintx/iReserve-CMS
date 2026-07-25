@@ -1,5 +1,5 @@
 const Booking = require("../models/Booking");
-const Inquiry = require("../models/Inquiry");
+
 const Payment = require("../models/Payment");
 const Package = require("../models/Package");
 const Quote = require("../models/Quote");
@@ -11,7 +11,7 @@ exports.dashboardSummary = asyncHandler(async (req, res) => {
   startOfMonth.setHours(0, 0, 0, 0);
 
   const [totalInquiries, pendingQuotations, upcomingBookings, monthlyRevenueAggr, completedEvents] = await Promise.all([
-    Inquiry.countDocuments(),
+    0,
     Quote.countDocuments({ status: "pending" }),
     Booking.countDocuments({ event_date: { $gte: new Date() }, status: { $ne: "cancelled" } }),
     Payment.aggregate([
@@ -37,7 +37,7 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
 
   const [summary, monthlyRevenue, bookingStatus, eventTypes, topPackages, recentBookings, recentInquiries] = await Promise.all([
     Promise.all([
-      Inquiry.countDocuments(),
+      0,
       Quote.countDocuments({ status: "pending" }),
       Booking.countDocuments({ event_date: { $gte: new Date() }, status: { $ne: "cancelled" } }),
       Payment.aggregate([
@@ -81,7 +81,7 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
       { $project: { _id: 1, bookings: 1, revenue: 1, name: "$package.name" } }
     ]),
     Booking.find().sort({ createdAt: -1 }).limit(5).select("event_type status createdAt"),
-    Inquiry.find().sort({ createdAt: -1 }).limit(5).select("event_type status createdAt")
+    []
   ]);
 
   const [totalInquiries, pendingQuotations, upcomingBookings, monthlyRevenueAggr, completedEvents] = summary;

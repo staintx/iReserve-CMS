@@ -12,9 +12,9 @@ const noPastDate = (value, helpers) => {
 exports.bookingSchema = Joi.object({
   customer_id: Joi.string().required(),
   package_id: Joi.string().optional(),
-  manager_id: Joi.string().optional(),
+  event_manager_id: Joi.string().optional(),
   staff_ids: Joi.array().items(Joi.string()).optional(),
-  inquiry_id: Joi.string().optional(),
+
   event_type: Joi.string().required(),
   event_theme: Joi.string().optional(),
   event_date: Joi.date()
@@ -51,6 +51,8 @@ exports.bookingSchema = Joi.object({
   contact_method: Joi.string().optional(),
   total_price: Joi.number().required(),
   payment_method: Joi.string().optional(),
-  payment_status: Joi.string().optional(),
+  payment_status: Joi.string().valid("pending", "deposit_paid", "fully_paid", "refund_requested", "refunded").optional(),
+  paymongo_checkout_session_id: Joi.string().optional(),
+  paymongo_payment_intent_id: Joi.string().optional(),
   status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled").optional()
 });

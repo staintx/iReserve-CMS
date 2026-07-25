@@ -1,5 +1,38 @@
 const Booking = require("../models/Booking");
-const Inquiry = require("../models/Inquiry");
+const Inventory = require("../models/Inventory");
+const InventoryReservation = require("../models/InventoryReservation");
+
+const checkInventoryAvailability = async (eventDate, inventoryItems, excludeBookingId = null) => {
+	if (!inventoryItems || inventoryItems.length === 0) return { available: true };
+	
+	const dayStart = new Date(eventDate);
+	dayStart.setHours(0, 0, 0, 0);
+	const dayEnd = new Date(eventDate);
+	dayEnd.setHours(23, 59, 59, 999);
+
+	for (const item of inventoryItems) {
+		if (!item.inventory_id) continue;
+		const inv = await Inventory.findById(item.inventory_id);
+		if (!inv) continue;
+
+		const query = {
+			inventory_id: item.inventory_id,
+			event_date: { $gte: dayStart, $lte: dayEnd }
+		};
+		if (excludeBookingId) {
+			query.booking_id = { $ne: excludeBookingId };
+		}
+
+		const reservations = await InventoryReservation.find(query);
+		const reservedQuantity = reservations.reduce((sum, res) => sum + res.quantity, 0);
+
+		if (reservedQuantity + Number(item.quantity || 0) > inv.quantity) {
+			return { available: false, itemName: inv.item_name };
+		}
+	}
+	return { available: true };
+};
+
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification, notifyAdmins } = require("../utils/notify");
 const logAction = require("../utils/logAction");
@@ -121,7 +154,28 @@ exports.create = asyncHandler(async (req, res) => {
 		});
 	}
 
+	const invCheck = await checkInventoryAvailability(req.body.event_date, req.body.inventory_items);
+	if (!invCheck.available) {
+		return res.status(409).json({
+			message: `Inventory conflict: Not enough '${invCheck.itemName}' available on this date.`
+		});
+	}
+
 	const booking = await Booking.create(req.body);
+
+	if (booking.status === "confirmed" && booking.inventory_items?.length > 0) {
+		const reservations = booking.inventory_items
+			.filter(item => item.inventory_id)
+			.map(item => ({
+				inventory_id: item.inventory_id,
+				booking_id: booking._id,
+				event_date: booking.event_date,
+				quantity: item.quantity
+			}));
+		if (reservations.length > 0) {
+			await InventoryReservation.insertMany(reservations);
+		}
+	}
 
 	await logAction({
 		user_id: req.user._id,
@@ -135,134 +189,25 @@ exports.create = asyncHandler(async (req, res) => {
 	res.status(201).json(booking);
 });
 
-exports.createFromInquiry = asyncHandler(async (req, res) => {
-	const inquiry = await Inquiry.findById(req.params.id);
-	if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
-	const dateStatus = getDateStatus(inquiry.event_date);
-	if (!dateStatus.valid) {
-		return res.status(400).json({ message: "Event date is invalid" });
-	}
-	if (dateStatus.past) {
-		return res.status(400).json({ message: "Event date must be today or later" });
-	}
-	if (req.body.total_price === undefined) {
-		return res.status(400).json({ message: "Total price is required" });
-	}
 
-	const bookingPayload = {
-		customer_id: inquiry.customer_id,
-		inquiry_id: inquiry._id,
-		event_type: inquiry.event_type,
-		event_theme: inquiry.event_theme,
-		event_date: req.body.event_date || inquiry.event_date,
-		start_time: inquiry.start_time,
-		guest_count: inquiry.guest_count,
-		duration_hours: inquiry.duration_hours,
-		include_food: inquiry.include_food,
-		venue_type: inquiry.venue_type,
-		indoor_outdoor: inquiry.indoor_outdoor,
-		province: inquiry.province,
-		municipality: inquiry.municipality,
-		barangay: inquiry.barangay,
-		street: inquiry.street,
-		landmark: inquiry.landmark,
-		zip_code: inquiry.zip_code,
-		venue_contact_name: inquiry.venue_contact_name,
-		venue_contact_phone: inquiry.venue_contact_phone,
-		selected_menu: inquiry.selected_menu,
-		menu_items: inquiry.menu_items,
-		dietary_restrictions: inquiry.dietary_restrictions,
-		allergies: inquiry.allergies,
-		special_requests: inquiry.special_requests,
-		additional_services: inquiry.additional_services,
-		service_items: inquiry.service_items,
-		additional_charges: inquiry.additional_charges,
-		contact_first_name: inquiry.contact_first_name,
-		contact_last_name: inquiry.contact_last_name,
-		contact_email: inquiry.contact_email,
-		contact_phone: inquiry.contact_phone,
-		contact_alt_phone: inquiry.contact_alt_phone,
-		contact_method: inquiry.contact_method,
-		payment_method: inquiry.payment_method,
-		total_price: req.body.total_price,
-		package_id: req.body.package_id || inquiry.package_id,
-		manager_id: req.body.manager_id,
-		staff_ids: req.body.staff_ids,
-		status: req.body.status || "pending deposit"
-	};
-
-	const conflict = await findBookingConflict({
-		eventDate: bookingPayload.event_date,
-		startTime: bookingPayload.start_time,
-		durationHours: bookingPayload.duration_hours,
-		location: bookingPayload,
-		bufferMinutes: req.body.buffer_minutes
-	});
-	if (conflict) {
-		return res.status(409).json({
-			message: "Booking conflict detected for the selected date/time",
-			conflict_id: conflict._id
-		});
-	}
-
-	let booking = await Booking.findOne({ inquiry_id: inquiry._id });
-	if (booking) {
-		booking.set(bookingPayload);
-		await booking.save();
-	} else {
-		booking = await Booking.create(bookingPayload);
-	}
-	await Inquiry.findByIdAndUpdate(inquiry._id, { status: "approved" }, { new: true });
-
-	await logAction({
-		user_id: req.user._id,
-		action: "booking_created_from_inquiry",
-		entity_type: "booking",
-		entity_id: booking._id,
-		details: `Created booking from inquiry #${inquiry._id} — ${booking.event_type || "event"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}`,
-		changes: { inquiry_id: String(inquiry._id) },
-		ip_address: req.ip
-	});
-
-	const io = req.app.get("io");
-	await createNotification({
-		userId: booking.customer_id,
-		title: "Booking created",
-		body: "Your booking has been created from your inquiry.",
-		type: "success",
-		link: "/customer/bookings",
-		meta: { booking_id: booking._id }
-	}, io);
-	if (booking.manager_id) {
-		await createNotification({
-			userId: booking.manager_id,
-			title: "New event assigned",
-			body: "A new event is ready for staffing and scheduling.",
-			type: "info",
-			link: "/manager/bookings",
-			meta: { booking_id: booking._id }
-		}, io);
-	}
-	res.status(201).json(booking);
-});
 
 exports.getAll = asyncHandler(async (req, res) => {
-	res.json(await Booking.find().populate("customer_id package_id manager_id staff_ids inquiry_id"));
+	res.json(await Booking.find().populate("customer_id package_id event_manager_id staff_ids"));
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
-	res.json(await Booking.find({ customer_id: req.user._id }).populate("customer_id package_id manager_id staff_ids inquiry_id"));
+	res.json(await Booking.find({ customer_id: req.user._id }).populate("customer_id package_id event_manager_id staff_ids"));
 });
 
 exports.getById = asyncHandler(async (req, res) => {
 	if (req.user?.role === "customer") {
 		const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id })
-			.populate("customer_id package_id manager_id staff_ids inquiry_id");
+			.populate("customer_id package_id event_manager_id staff_ids");
 		if (!booking) return res.status(404).json({ message: "Booking not found" });
 		return res.json(booking);
 	}
 
-	res.json(await Booking.findById(req.params.id).populate("customer_id package_id manager_id staff_ids inquiry_id"));
+	res.json(await Booking.findById(req.params.id).populate("customer_id package_id event_manager_id staff_ids"));
 });
 
 exports.update = asyncHandler(async (req, res) => {
@@ -274,7 +219,7 @@ exports.update = asyncHandler(async (req, res) => {
 			"status",
 			"payment_status",
 			"payment_method",
-			"manager_id",
+			"event_manager_id",
 			"staff_ids",
 			"staff_assignments",
 			"equipment_assignments",
@@ -321,10 +266,36 @@ exports.update = asyncHandler(async (req, res) => {
 		});
 	}
 
+	const requestedInventory = req.body.inventory_items || current.inventory_items;
+	const invCheck = await checkInventoryAvailability(nextEventDate, requestedInventory, current._id);
+	if (!invCheck.available) {
+		return res.status(409).json({
+			message: `Inventory conflict: Not enough '${invCheck.itemName}' available on this date.`
+		});
+	}
+
 	const updated = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
+	if (current.status !== "confirmed" && updated.status === "confirmed") {
+		if (updated.inventory_items?.length > 0) {
+			const reservations = updated.inventory_items
+				.filter(item => item.inventory_id)
+				.map(item => ({
+					inventory_id: item.inventory_id,
+					booking_id: updated._id,
+					event_date: updated.event_date,
+					quantity: item.quantity
+				}));
+			if (reservations.length > 0) {
+				await InventoryReservation.insertMany(reservations);
+			}
+		}
+	} else if (current.status === "confirmed" && ["cancelled", "refunded"].includes(updated.status)) {
+		await InventoryReservation.deleteMany({ booking_id: updated._id });
+	}
+
 	// Build changes object for the log
-	const trackFields = ["status", "payment_status", "payment_method", "event_type", "event_theme", "event_date", "start_time", "guest_count", "duration_hours", "total_price", "manager_id", "venue_type", "province", "municipality", "barangay", "street"];
+	const trackFields = ["status", "payment_status", "payment_method", "event_type", "event_theme", "event_date", "start_time", "guest_count", "duration_hours", "total_price", "event_manager_id", "venue_type", "province", "municipality", "barangay", "street"];
 	const changes = {};
 	for (const field of trackFields) {
 		if (req.body[field] !== undefined && String(current[field] ?? "") !== String(req.body[field] ?? "")) {
@@ -388,6 +359,81 @@ exports.update = asyncHandler(async (req, res) => {
 	res.json(updated);
 });
 
+
+exports.addGuests = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (String(booking.customer_id) !== String(req.user?._id)) {
+		return res.status(403).json({ message: "Forbidden" });
+	}
+	if (getThreeDayLockout(booking.event_date)) {
+		return res.status(400).json({ message: "Booking details cannot be changed 3 days before the event." });
+	}
+
+	const additionalGuests = Number(req.body.additional_guests);
+	if (!additionalGuests || additionalGuests <= 0) {
+		return res.status(400).json({ message: "Invalid number of guests to add" });
+	}
+
+	// Calculate difference
+	const pricePerHead = 500; // Hardcoded fallback or get from package
+	const amountDue = additionalGuests * pricePerHead;
+
+	booking.guest_count += additionalGuests;
+	booking.total_price += amountDue;
+	await booking.save();
+
+	// Create payment checkout
+	const { createCheckoutSession } = require("../services/payment.service");
+	const Payment = require("../models/Payment");
+
+	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+	const successUrl = `${appBaseUrl}/customer/payments?status=success`;
+	const cancelUrl = `${appBaseUrl}/customer/payments?status=cancelled`;
+
+	const payment = await Payment.create({
+		booking_id: booking._id,
+		customer_id: booking.customer_id,
+		amount: amountDue,
+		currency: "PHP",
+		payment_type: "upgrade",
+		method: "paymongo",
+		status: "pending",
+		gateway: "paymongo"
+	});
+
+	const checkout = await createCheckoutSession({
+		amount: amountDue,
+		currency: "PHP",
+		paymentMethodTypes: ["gcash", "paymaya", "card"],
+		description: `Added ${additionalGuests} guests for Booking ${booking._id}`,
+		successUrl,
+		cancelUrl,
+		metadata: {
+			local_payment_id: String(payment._id),
+			booking_id: String(booking._id),
+			customer_id: String(booking.customer_id),
+			payment_type: "upgrade",
+			additional_guests: additionalGuests
+		}
+	});
+
+	payment.gateway_checkout_id = checkout.data.id;
+	payment.checkout_url = checkout.data.attributes.checkout_url;
+	await payment.save();
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_guests_added",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Customer added ${additionalGuests} guests via self-service`,
+		ip_address: req.ip
+	});
+
+	res.json({ booking, checkout_url: payment.checkout_url });
+});
+
 exports.requestChange = asyncHandler(async (req, res) => {
 	const booking = await Booking.findById(req.params.id);
 	if (!booking) return res.status(404).json({ message: "Booking not found" });
@@ -440,6 +486,61 @@ exports.requestChange = asyncHandler(async (req, res) => {
 	res.json(booking);
 });
 
+
+exports.processRefund = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+	const refundAmount = Number(req.body.amount);
+	if (isNaN(refundAmount) || refundAmount < 0) {
+		return res.status(400).json({ message: "Invalid refund amount" });
+	}
+	
+	const deductionReason = req.body.reason || "Post-ocular cancellation deduction";
+
+	// Cancel booking and update payment status
+	booking.status = "cancelled";
+	booking.payment_status = "refunded";
+	await booking.save();
+	
+	// Create negative payment record for refund
+	const Payment = require("../models/Payment");
+	await Payment.create({
+		booking_id: booking._id,
+		customer_id: booking.customer_id,
+		amount: -refundAmount,
+		currency: "PHP",
+		payment_type: "refund",
+		method: "manual",
+		status: "approved",
+		gateway: "manual",
+		metadata: {
+			reason: deductionReason
+		}
+	});
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_refunded",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Processed custom refund of PHP ${refundAmount}. Reason: ${deductionReason}`,
+		ip_address: req.ip
+	});
+
+	// Notify customer
+	const io = req.app.get("io");
+	await notifyAdmins({
+		title: "Booking Cancelled & Refunded",
+		body: `Admin processed a custom refund of PHP ${refundAmount} for booking #${booking._id}.`,
+		type: "info",
+		link: `/admin/bookings/${booking._id}/details`,
+		meta: { booking_id: booking._id }
+	}, io);
+
+	res.json({ message: "Refund processed successfully", booking });
+});
+
 exports.remove = asyncHandler(async (req, res) => {
 	const booking = await Booking.findById(req.params.id);
 	const bookingLabel = booking ? `${booking.event_type || "booking"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}` : req.params.id;
@@ -475,9 +576,25 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
 		bufferMinutes: req.query.buffer_minutes
 	});
 
+	let inventoryAvailable = true;
+	let itemName = null;
+	if (req.query.inventory_items) {
+		try {
+			const items = JSON.parse(req.query.inventory_items);
+			const invCheck = await checkInventoryAvailability(req.query.event_date, items);
+			if (!invCheck.available) {
+				inventoryAvailable = false;
+				itemName = invCheck.itemName;
+			}
+		} catch (e) {
+			// ignore parse error
+		}
+	}
+
 	res.json({
-		available: !conflict,
-		conflict_id: conflict?._id || null
+		available: !conflict && inventoryAvailable,
+		conflict_id: conflict?._id || null,
+		inventory_issue: !inventoryAvailable ? itemName : null
 	});
 });
 

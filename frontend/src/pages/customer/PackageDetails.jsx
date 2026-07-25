@@ -199,7 +199,7 @@ export default function PackageDetails() {
                   <strong>{pkg.available ? "Open" : "Limited"}</strong>
                 </div>
               </div>
-              <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: derivedEventType } })}>Book Now</button>
+              <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: derivedEventType, packageId: pkg._id, packagePrice: packagePrice, packageName: pkg.name } })}>Book Now</button>
               <button className="btn-outline" onClick={() => navigate("/customer/quote", { state: { eventType: derivedEventType } })}>Request Custom Quote</button>
             </div>
 
@@ -217,7 +217,7 @@ export default function PackageDetails() {
             <p>We will confirm availability and secure your date within 24 hours.</p>
           </div>
           <div className="package-cta-actions">
-            <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: derivedEventType } })}>Book Now</button>
+            <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: derivedEventType, packageId: pkg._id, packagePrice: packagePrice, packageName: pkg.name } })}>Book Now</button>
             <button className="btn-outline" onClick={() => navigate("/customer/quote", { state: { eventType: derivedEventType } })}>Request Custom Quote</button>
           </div>
         </section>

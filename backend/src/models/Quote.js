@@ -42,7 +42,8 @@ const QuoteSchema = new mongoose.Schema({
   best_time_to_call: String,
   inspiration_links: String,
   notes: String,
-  status: { type: String, default: "pending" }
+  status: { type: String, default: "pending" },
+  converted_booking_id: { type: mongoose.Schema.Types.ObjectId, ref: "Booking" }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Quote", QuoteSchema);

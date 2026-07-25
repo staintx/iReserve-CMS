@@ -34,7 +34,6 @@ const notificationRoutes = require("./routes/notification.routes");
 const startCronJobs = require("./jobs/cron");
 
 connectDB();
-startCronJobs();
 
 const app = express();
 const allowedOrigins = process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : ["http://localhost:5173"];
@@ -83,6 +82,8 @@ const io = new Server(server, {
 });
 
 app.set("io", io);
+
+startCronJobs(io);
 
 io.use(async (socket, next) => {
 	try {

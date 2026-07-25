@@ -63,9 +63,11 @@ export default function CustomerBookings() {
 
   const nextEventPaid = useMemo(() => {
     if (!nextEvent) return 0;
-    return payments
+    const rawPaid = payments
       .filter((p) => String(p.booking_id?._id || p.booking_id) === String(nextEvent._id) && p.status === "approved")
       .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const total = Number(nextEvent.total_price || 0);
+    return total > 0 ? Math.min(rawPaid, total) : rawPaid;
   }, [nextEvent, payments]);
 
   const nextEventBalance = useMemo(() => {
@@ -263,6 +265,23 @@ export default function CustomerBookings() {
               </div>
             </div>
           </div>
+
+          {nextEvent.ocular_visit && nextEvent.ocular_visit.status !== 'pending' && (
+            <div className="tile" style={{ background: "#fef3c7", border: "1px solid #fcd34d", padding: "20px", borderRadius: "8px", marginBottom: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <strong style={{ fontSize: "1.1rem", color: "#92400e" }}>👁️ Ocular Visit</strong>
+                <span className={`badge ${nextEvent.ocular_visit.status === 'completed' ? 'confirmed' : 'pending'}`}>{nextEvent.ocular_visit.status}</span>
+              </div>
+              <p style={{ margin: "0 0 8px 0", color: "#b45309" }}>
+                {nextEvent.ocular_visit.status === 'scheduled' ? (
+                  <>Your venue inspection is scheduled for <strong>{new Date(nextEvent.ocular_visit.scheduled_date).toLocaleDateString()}</strong> at {nextEvent.ocular_visit.scheduled_time || "TBD"}.</>
+                ) : (
+                  <>Your venue inspection was completed on <strong>{new Date(nextEvent.ocular_visit.completed_at).toLocaleDateString()}</strong>. Outcome: {nextEvent.ocular_visit.outcome}.</>
+                )}
+              </p>
+              {nextEvent.ocular_visit.notes && <p style={{ margin: 0, fontSize: "0.9rem", color: "#78350f" }}><em>Notes: {nextEvent.ocular_visit.notes}</em></p>}
+            </div>
+          )}
 
           <div className="actions" style={{ display: "flex", gap: "12px", flexWrap: "wrap", borderTop: "1px solid #eee", paddingTop: "20px" }}>
             {nextEventBalance > 0 && (

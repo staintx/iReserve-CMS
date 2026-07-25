@@ -56,6 +56,11 @@ export default function AdminBookingDetails() {
   });
   const [returnsData, setReturnsData] = useState({});
 
+  // Ocular Visit Modals
+  const [showOcularModal, setShowOcularModal] = useState(false);
+  const [showOcularOutcomeModal, setShowOcularOutcomeModal] = useState(false);
+  const [ocularForm, setOcularForm] = useState({ scheduled_date: "", scheduled_time: "", notes: "", outcome: "proceed" });
+
   const load = () => {
     AdminAPI.getBooking(id)
       .then((res) => {
@@ -115,6 +120,35 @@ export default function AdminBookingDetails() {
       .catch(err => {
         notify(err.response?.data?.message || "Failed to verify returns", "error");
       })
+      .finally(() => setSubmitting(false));
+  };
+
+  const handleScheduleOcular = (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    AdminAPI.scheduleOcular(booking._id, {
+      scheduled_date: ocularForm.scheduled_date,
+      scheduled_time: ocularForm.scheduled_time,
+      notes: ocularForm.notes
+    }).then(res => {
+      setBooking(res.data);
+      setShowOcularModal(false);
+      notify("Ocular visit scheduled.", "success");
+    }).catch(err => notify(err.response?.data?.message || "Failed to schedule", "error"))
+      .finally(() => setSubmitting(false));
+  };
+
+  const handleCompleteOcular = (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    AdminAPI.completeOcular(booking._id, {
+      outcome: ocularForm.outcome,
+      notes: ocularForm.notes
+    }).then(res => {
+      setBooking(res.data);
+      setShowOcularOutcomeModal(false);
+      notify("Ocular visit completed.", "success");
+    }).catch(err => notify(err.response?.data?.message || "Failed to complete", "error"))
       .finally(() => setSubmitting(false));
   };
 
@@ -666,6 +700,54 @@ export default function AdminBookingDetails() {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Ocular Visit */}
+            <div className="ir-section-card">
+              <div className="ir-section-header">
+                <span className="ir-section-icon" data-color="orange">👁️</span>
+                <h3>Ocular Visit</h3>
+                {(!booking.ocular_visit || booking.ocular_visit.status === "pending") && booking.status !== "cancelled" && (
+                  <button className="btn-outline" onClick={() => {
+                    setOcularForm({ ...ocularForm, scheduled_date: "", scheduled_time: "", notes: "" });
+                    setShowOcularModal(true);
+                  }}>Schedule Ocular</button>
+                )}
+                {booking.ocular_visit?.status === "scheduled" && (
+                  <button className="btn-outline" onClick={() => {
+                    setOcularForm({ ...ocularForm, outcome: "proceed", notes: "" });
+                    setShowOcularOutcomeModal(true);
+                  }}>Log Outcome</button>
+                )}
+              </div>
+              <div className="ir-detail-grid">
+                <DetailRow label="Status">
+                  <span className={`status-pill ${booking.ocular_visit?.status === 'completed' ? 'approved' : booking.ocular_visit?.status === 'scheduled' ? 'info' : 'pending'}`}>
+                    {booking.ocular_visit?.status || "pending"}
+                  </span>
+                </DetailRow>
+                {booking.ocular_visit?.status !== "pending" && (
+                  <>
+                    <DetailRow label="Scheduled Date" value={formatDate(booking.ocular_visit?.scheduled_date)} />
+                    <DetailRow label="Scheduled Time" value={booking.ocular_visit?.scheduled_time || "-"} />
+                  </>
+                )}
+                {booking.ocular_visit?.status === "completed" && (
+                  <>
+                    <DetailRow label="Outcome">
+                      <span className={`status-pill ${booking.ocular_visit.outcome === 'proceed' ? 'approved' : booking.ocular_visit.outcome === 'cancel' ? 'rejected' : 'warning'}`}>
+                        {booking.ocular_visit.outcome}
+                      </span>
+                    </DetailRow>
+                    <DetailRow label="Completed At" value={formatDateTime(booking.ocular_visit.completed_at)} />
+                  </>
+                )}
+                {booking.ocular_visit?.notes && (
+                  <div style={{ gridColumn: "1 / -1", marginTop: "12px", padding: "12px", background: "#f8fafc", borderRadius: "8px", fontSize: "0.9rem" }}>
+                    <strong>Notes:</strong> {booking.ocular_visit.notes}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Staff & Manager Assignments */}
@@ -1256,6 +1338,58 @@ export default function AdminBookingDetails() {
               <button className="btn-outline px-4 py-2 rounded hover:bg-slate-50" type="button" onClick={() => setShowAssignModal(false)}>Cancel</button>
               <button className="btn bg-blue-600 text-white px-4 py-2 rounded" type="button" onClick={submitAssignment}>Finalize Team</button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Ocular Schedule Modal ── */}
+      {showOcularModal && (
+        <Modal title="Schedule Ocular Visit" onClose={() => setShowOcularModal(false)}>
+          <div className="ir-modal-body">
+            <form onSubmit={handleScheduleOcular} className="ir-form">
+              <label className="field">
+                <span>Date</span>
+                <input type="date" required value={ocularForm.scheduled_date} onChange={e => setOcularForm({ ...ocularForm, scheduled_date: e.target.value })} className="w-full p-2 border rounded" />
+              </label>
+              <label className="field">
+                <span>Time (Optional)</span>
+                <input type="time" value={ocularForm.scheduled_time} onChange={e => setOcularForm({ ...ocularForm, scheduled_time: e.target.value })} className="w-full p-2 border rounded" />
+              </label>
+              <label className="field">
+                <span>Notes (Optional)</span>
+                <textarea value={ocularForm.notes} onChange={e => setOcularForm({ ...ocularForm, notes: e.target.value })} placeholder="Add instructions or things to check" className="w-full p-2 border rounded" />
+              </label>
+              <div className="ir-form-actions">
+                <button type="button" className="btn-outline" onClick={() => setShowOcularModal(false)}>Cancel</button>
+                <button type="submit" className="btn" disabled={submitting}>Schedule</button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Ocular Outcome Modal ── */}
+      {showOcularOutcomeModal && (
+        <Modal title="Log Ocular Outcome" onClose={() => setShowOcularOutcomeModal(false)}>
+          <div className="ir-modal-body">
+            <form onSubmit={handleCompleteOcular} className="ir-form">
+              <label className="field">
+                <span>Outcome</span>
+                <select value={ocularForm.outcome} onChange={e => setOcularForm({ ...ocularForm, outcome: e.target.value })} className="w-full p-2 border rounded">
+                  <option value="proceed">Proceed</option>
+                  <option value="reschedule">Reschedule / Needs changes</option>
+                  <option value="cancel">Cancel Booking</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Outcome Notes</span>
+                <textarea value={ocularForm.notes} onChange={e => setOcularForm({ ...ocularForm, notes: e.target.value })} placeholder="Detailed findings..." className="w-full p-2 border rounded" />
+              </label>
+              <div className="ir-form-actions">
+                <button type="button" className="btn-outline" onClick={() => setShowOcularOutcomeModal(false)}>Cancel</button>
+                <button type="submit" className="btn" disabled={submitting}>Log Outcome</button>
+              </div>
+            </form>
           </div>
         </Modal>
       )}

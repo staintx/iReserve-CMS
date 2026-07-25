@@ -13,6 +13,7 @@ const {
 	isFailedEvent
 } = require("../services/payment.service");
 const BusinessInfo = require("../models/BusinessInfo");
+const { sendPaymentReceiptEmail } = require("../utils/booking-emails");
 
 async function syncBookingStatus(bookingId) {
 	const booking = await Booking.findById(bookingId);
@@ -361,12 +362,21 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 	if (payment.status === "approved") {
 		const { notifyAdmins } = require("../utils/notify");
 		await notifyAdmins({
-			title: "Deposit Received",
-			body: `Payment of ₱${(payment.amount / 100).toFixed(2)} has been approved for booking.`,
+			title: "Payment Received",
+			body: `Payment of ₱${Number(payment.amount).toLocaleString()} has been approved for booking.`,
 			type: "success",
 			link: "/admin/payments",
 			meta: { payment_id: payment._id, booking_id: payment.booking_id }
 		}, io);
+
+		// Send payment receipt email
+		if (payment.booking_id) {
+			const receiptBooking = await Booking.findById(payment.booking_id).populate("customer_id");
+			const receiptEmail = receiptBooking?.contact_email || receiptBooking?.customer_id?.email;
+			if (receiptEmail) {
+				sendPaymentReceiptEmail({ payment, booking: receiptBooking, customerEmail: receiptEmail }).catch(() => {});
+			}
+		}
 	}
 
 	res.status(200).json({ ok: true });

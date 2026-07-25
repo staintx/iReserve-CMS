@@ -4,27 +4,31 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useAuth from "../../hooks/useAuth";
 
-const mockMessages = [
-  { id: "INQ-024", title: "Wedding - Apr 24", unread: true },
-  { id: "EVT-002", title: "Wedding - Apr 10", unread: true },
-  { id: "INQ-514", title: "Party - May 12", unread: false }
-];
+
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [inquiries, setInquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
-  }, []);
+    CustomerAPI.getConversations().then((res) => {
+      const convos = res.data || [];
+      const unread = convos.filter(c => {
+        const p = c.participants.find(p => String(p.user._id || p.user) === String(user?._id));
+        return p && p.unread_count > 0;
+      }).length;
+      setUnreadCount(unread);
+    }).catch(() => setUnreadCount(0));
+  }, [user]);
 
   const now = useMemo(() => new Date(), []);
   const pendingBookings = bookings.filter((b) => ["pending deposit", "pending"].includes(b.status) && new Date(b.event_date) >= now);
   const upcomingBookings = bookings.filter((b) => ["confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
   const completedBookings = bookings.filter((b) => b.status === "completed");
-  const unreadCount = mockMessages.filter((m) => m.unread).length;
 
   const nextEvent = upcomingBookings[0] || pendingBookings[0];
 

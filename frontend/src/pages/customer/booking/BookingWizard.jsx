@@ -45,6 +45,8 @@ export default function BookingWizard() {
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suggestedDates, setSuggestedDates] = useState([]);
   
   const [businessInfo, setBusinessInfo] = useState({});
   const [packageDetails, setPackageDetails] = useState(null);
@@ -69,6 +71,7 @@ export default function BookingWizard() {
       event_theme: "",
       event_date: "",
       start_time: "",
+      duration_hours: "",
       guest_count: "",
       include_food: true,
       budget_min: "",
@@ -211,12 +214,29 @@ export default function BookingWizard() {
         .then((res) => {
           if (res.data.available) {
             setAvailability({ status: "available", message: "Selected date is available." });
+            setSuggestedDates([]);
           } else {
             setAvailability({ status: "unavailable", message: "Selected time has a conflict. Please choose another schedule." });
+            CustomerAPI.suggestDates({
+              event_date: form.event_date,
+              start_time: form.start_time,
+              duration_hours: form.duration_hours,
+              venue_type: form.venue_type,
+              province: form.province,
+              municipality: form.municipality,
+              barangay: form.barangay,
+              street: form.street,
+              range: 7
+            }).then(sugRes => {
+              if (sugRes.data?.suggestions) {
+                setSuggestedDates(sugRes.data.suggestions);
+              }
+            }).catch(() => {});
           }
         })
         .catch(() => {
           setAvailability({ status: "idle", message: "" });
+          setSuggestedDates([]);
         });
     }, 400);
 
@@ -224,6 +244,7 @@ export default function BookingWizard() {
   }, [
     form.event_date,
     form.start_time,
+    form.duration_hours,
     form.venue_type,
     form.province,
     form.municipality,
@@ -231,14 +252,14 @@ export default function BookingWizard() {
     form.street
   ]);
 
-  const toggleService = (value) => {
+  const toggleService = (item) => {
     setForm((prev) => {
-      const exists = prev.additional_services.includes(value);
+      const exists = prev.additional_services.some(svc => svc.inventory_id === item._id);
       return {
         ...prev,
         additional_services: exists
-          ? prev.additional_services.filter((item) => item !== value)
-          : [...prev.additional_services, value]
+          ? prev.additional_services.filter((svc) => svc.inventory_id !== item._id)
+          : [...prev.additional_services, { inventory_id: item._id, name: item.item_name, quantity: 1, price: item.rental_price || 0 }]
       };
     });
   };
@@ -275,8 +296,7 @@ export default function BookingWizard() {
     }
 
     form.additional_services.forEach(svc => {
-      const parts = svc.split("|");
-      if (parts[1]) sum += Number(parts[1]);
+      sum += Number(svc.price) * Number(svc.quantity);
     });
 
     return sum;
@@ -285,6 +305,7 @@ export default function BookingWizard() {
   const depositAmount = (totalPrice * depositPercentage) / 100;
 
   const submit = async () => {
+    if (isSubmitting) return;
     setError("");
     try {
       if (!user?._id) {
@@ -315,17 +336,22 @@ export default function BookingWizard() {
         return;
       }
 
+      setIsSubmitting(true);
+
       const payload = {
         ...form,
         package_id: initialPackageId,
         customer_id: user._id,
         event_type: eventTypeValue,
         guest_count: parseNumber(form.guest_count),
+        duration_hours: parseNumber(form.duration_hours) || 4,
         total_price: totalPrice,
-        payment_method: "paymongo"
+        payment_method: "paymongo",
+        inventory_items: form.additional_services
       };
 
       delete payload.event_type_other;
+      delete payload.additional_services;
       if (!payload.contact_alt_phone) {
         delete payload.contact_alt_phone;
       }
@@ -336,18 +362,16 @@ export default function BookingWizard() {
       sessionStorage.removeItem("booking_wizard_form");
       sessionStorage.removeItem("booking_wizard_step");
       
-      navigate("/customer/checkout", {
-        replace: true,
-        state: {
-          bookingId: newBooking._id,
-          amount: depositAmount,
-          paymentType: "deposit"
-        }
-      });
+      notify("Redirecting to secure payment...", "success");
+      
+      if (newBooking.payment_intent_url) {
+        window.location.href = newBooking.payment_intent_url;
+      } else {
+        navigate("/customer/booking-success", { state: { booking: newBooking } });
+      }
     } catch (err) {
-      const message = err.response?.data?.message || "We could not process your booking. Please try again.";
-      setError(message);
-      notify(message, "error");
+      setError(err.response?.data?.message || "Failed to submit booking");
+      setIsSubmitting(false);
     }
   };
 
@@ -430,11 +454,27 @@ export default function BookingWizard() {
                 <span>Estimated Guest Count</span>
                 <input type="number" min="1" placeholder="50" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
               </label>
+              <label className="field">
+                <span>Duration (Hours)</span>
+                <input type="number" min="1" placeholder="4" value={form.duration_hours} onChange={(e) => setForm({ ...form, duration_hours: e.target.value })} />
+              </label>
             </div>
 
             {availability.status !== "idle" && (
               <div className={`booking-alert ${availability.status}`}>
                 {availability.message}
+                {suggestedDates.length > 0 && (
+                  <div style={{ marginTop: "10px" }}>
+                    <strong>Available Alternatives:</strong>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+                      {suggestedDates.map(d => (
+                        <button key={d} type="button" className="btn-outline" onClick={() => setForm({ ...form, event_date: d })}>
+                          {new Date(d).toLocaleDateString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -651,8 +691,8 @@ export default function BookingWizard() {
                       <label key={item._id || item.item_name} className="choice">
                         <input
                           type="checkbox"
-                          checked={form.additional_services.includes(item.item_name)}
-                          onChange={() => toggleService(item.item_name)}
+                          checked={form.additional_services.some(svc => svc.inventory_id === item._id)}
+                          onChange={() => toggleService(item)}
                         />
                         {item.item_name}
                       </label>
@@ -670,8 +710,8 @@ export default function BookingWizard() {
                       <label key={item._id || item.item_name} className="choice">
                         <input
                           type="checkbox"
-                          checked={form.additional_services.includes(item.item_name)}
-                          onChange={() => toggleService(item.item_name)}
+                          checked={form.additional_services.some(svc => svc.inventory_id === item._id)}
+                          onChange={() => toggleService(item)}
                         />
                         {item.item_name}
                       </label>
@@ -689,8 +729,8 @@ export default function BookingWizard() {
                       <label key={item._id || item.item_name} className="choice">
                         <input
                           type="checkbox"
-                          checked={form.additional_services.includes(item.item_name)}
-                          onChange={() => toggleService(item.item_name)}
+                          checked={form.additional_services.some(svc => svc.inventory_id === item._id)}
+                          onChange={() => toggleService(item)}
                         />
                         {item.item_name}
                       </label>
@@ -748,6 +788,26 @@ export default function BookingWizard() {
             <div className="booking-card-header">
               <h3>Review & Payment</h3>
             </div>
+            
+            <div className="booking-summary-details" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px", background: "#f8fafc", padding: "20px", borderRadius: "12px" }}>
+              <div>
+                <h4 style={{ margin: "0 0 12px", color: "#1e293b" }}>Event Details</h4>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Type:</strong> {form.event_type === "Other" ? form.event_type_other : form.event_type}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Date:</strong> {form.event_date ? new Date(form.event_date).toLocaleDateString() : "N/A"}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Time:</strong> {form.start_time} ({form.duration_hours || 4} hrs)</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Guests:</strong> {form.guest_count}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Package:</strong> {initialPackageName || "Custom"}</p>
+              </div>
+              <div>
+                <h4 style={{ margin: "0 0 12px", color: "#1e293b" }}>Venue & Contact</h4>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Venue:</strong> {form.venue_type} - {form.indoor_outdoor}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Location:</strong> {form.barangay}, {form.municipality}, {form.province}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Contact:</strong> {form.contact_first_name} {form.contact_last_name}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Phone:</strong> {form.contact_phone}</p>
+                <p style={{ margin: "4px 0", fontSize: "0.9rem" }}><strong>Email:</strong> {form.contact_email}</p>
+              </div>
+            </div>
+
             <label className="field">
               <span>Special Requests or Notes</span>
               <textarea placeholder="Any other details we should know about your event?" value={form.special_requests} onChange={(e) => setForm({ ...form, special_requests: e.target.value })} />
@@ -809,8 +869,10 @@ export default function BookingWizard() {
               </div>
             </div>
             <div className="booking-actions split">
-              <button className="btn-outline" onClick={back}>Back</button>
-              <button className="btn" onClick={submit}>Submit Booking</button>
+              <button className="btn-outline" onClick={back} disabled={isSubmitting}>Back</button>
+              <button className="btn" onClick={submit} disabled={isSubmitting}>
+                {isSubmitting ? "Processing..." : "Submit Booking"}
+              </button>
             </div>
           </div>
         )}

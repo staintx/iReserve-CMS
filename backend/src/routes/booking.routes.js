@@ -11,7 +11,10 @@ router.post("/:id/change-request", protect, authorize("customer"), ctrl.requestC
 router.post("/:id/add-guests", protect, authorize("customer"), ctrl.addGuests);
 router.post("/:id/upgrade-booking", protect, authorize("customer"), ctrl.upgradeBooking);
 router.post("/:id/verify-returns", protect, authorize("admin", "staff"), ctrl.verifyReturns);
+router.post("/:id/ocular/schedule", protect, authorize("admin", "staff"), ctrl.scheduleOcular);
+router.post("/:id/ocular/complete", protect, authorize("admin", "staff"), ctrl.completeOcular);
 router.get("/availability", protect, ctrl.checkAvailability);
+router.get("/availability/suggestions", protect, ctrl.suggestDates);
 router.get("/", protect, authorize("admin", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);
 router.get("/:id", protect, ctrl.getById);

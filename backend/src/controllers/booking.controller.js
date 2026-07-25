@@ -1,6 +1,7 @@
 const Booking = require("../models/Booking");
 const Inventory = require("../models/Inventory");
 const InventoryReservation = require("../models/InventoryReservation");
+const Package = require("../models/Package");
 
 const checkInventoryAvailability = async (eventDate, inventoryItems, excludeBookingId = null) => {
 	if (!inventoryItems || inventoryItems.length === 0) return { available: true };
@@ -36,6 +37,39 @@ const checkInventoryAvailability = async (eventDate, inventoryItems, excludeBook
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification, notifyAdmins } = require("../utils/notify");
 const logAction = require("../utils/logAction");
+const { sendBookingConfirmationEmail, sendBookingStatusEmail } = require("../utils/booking-emails");
+
+const calculateBookingPrice = async (body) => {
+	let sum = 0;
+	const guestCount = Number(body.guest_count) || 0;
+
+	if (body.package_id) {
+		const pkg = await Package.findById(body.package_id);
+		if (pkg) {
+			const basePrice = Number(pkg.price_min) || 0;
+			const packageType = pkg.package_type || "Food + Event Setup";
+			if (packageType === "Event Setup Only") {
+				sum += basePrice;
+			} else {
+				sum += basePrice * guestCount;
+			}
+		}
+	}
+
+	if (Array.isArray(body.service_items)) {
+		for (const svc of body.service_items) {
+			sum += (Number(svc.price) || 0) * (Number(svc.quantity) || 1);
+		}
+	}
+
+	if (Array.isArray(body.additional_charges)) {
+		for (const charge of body.additional_charges) {
+			sum += Number(charge.amount) || 0;
+		}
+	}
+
+	return sum;
+};
 
 const parseTimeToMinutes = (timeValue) => {
 	if (!timeValue) return null;
@@ -251,6 +285,14 @@ exports.create = asyncHandler(async (req, res) => {
 		}
 	}
 
+	// Server-side price calculation — override any client-submitted total_price
+	if (req.user?.role === "customer") {
+		const serverPrice = await calculateBookingPrice(req.body);
+		if (serverPrice > 0) {
+			req.body.total_price = serverPrice;
+		}
+	}
+
 	const booking = await Booking.create(req.body);
 
 	if (booking.status === "confirmed" && booking.inventory_items?.length > 0) {
@@ -275,6 +317,12 @@ exports.create = asyncHandler(async (req, res) => {
 		details: `Created booking for ${booking.event_type || "event"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}`,
 		ip_address: req.ip
 	});
+
+	// Send booking confirmation email
+	const customerEmail = booking.contact_email || req.user?.email;
+	if (customerEmail) {
+		sendBookingConfirmationEmail({ booking, customerEmail }).catch(() => {});
+	}
 
 	res.status(201).json(booking);
 });
@@ -465,6 +513,14 @@ exports.update = asyncHandler(async (req, res) => {
 				type: "info",
 				link: "/customer/bookings"
 			}, io);
+
+			// Send email on status change
+			if (statusChanged) {
+				const statusEmail = updated.contact_email || current.contact_email;
+				if (statusEmail) {
+					sendBookingStatusEmail({ booking: updated, newStatus: updated.status, customerEmail: statusEmail }).catch(() => {});
+				}
+			}
 		}
 
 		if (otherChanged && updated.change_request?.status === "pending") {
@@ -496,8 +552,14 @@ exports.addGuests = asyncHandler(async (req, res) => {
 		return res.status(400).json({ message: "Invalid number of guests to add" });
 	}
 
-	// Calculate difference
-	const pricePerHead = 500; // Hardcoded fallback or get from package
+	// Use the package's per-head price instead of hardcoded value
+	let pricePerHead = 500;
+	if (booking.package_id) {
+		const pkg = await Package.findById(booking.package_id);
+		if (pkg && pkg.package_type !== "Event Setup Only") {
+			pricePerHead = Number(pkg.price_min) || pricePerHead;
+		}
+	}
 	const amountDue = additionalGuests * pricePerHead;
 
 	booking.guest_count += additionalGuests;
@@ -743,11 +805,23 @@ exports.processRefund = asyncHandler(async (req, res) => {
 		ip_address: req.ip
 	});
 
-	// Notify customer
 	const io = req.app.get("io");
+
+	// Notify customer about the refund
+	if (booking.customer_id) {
+		await createNotification({
+			userId: booking.customer_id,
+			title: "Booking Cancelled & Refunded",
+			body: `Your booking has been cancelled. A refund of ₱${refundAmount.toLocaleString()} has been processed.`,
+			type: "info",
+			link: "/customer/bookings",
+			meta: { booking_id: booking._id }
+		}, io);
+	}
+
 	await notifyAdmins({
 		title: "Booking Cancelled & Refunded",
-		body: `Admin processed a custom refund of PHP ${refundAmount} for booking #${booking._id}.`,
+		body: `Admin processed a custom refund of ₱${refundAmount.toLocaleString()} for booking #${booking.reference || booking._id}.`,
 		type: "info",
 		link: `/admin/bookings/${booking._id}/details`,
 		meta: { booking_id: booking._id }
@@ -877,6 +951,135 @@ exports.verifyReturns = asyncHandler(async (req, res) => {
 		entity_type: "booking",
 		entity_id: booking._id,
 		details: `Verified equipment returns for booking #${booking._id}`,
+		ip_address: req.ip
+	});
+
+	res.json(booking);
+});
+
+exports.suggestDates = asyncHandler(async (req, res) => {
+	const { event_date, start_time, duration_hours, venue_type, province, municipality, barangay, street } = req.query;
+	if (!event_date) return res.status(400).json({ message: "event_date is required" });
+
+	const range = Number(req.query.range) || 14;
+	const baseDate = new Date(event_date);
+	if (Number.isNaN(baseDate.getTime())) return res.status(400).json({ message: "Invalid date" });
+
+	const location = { venue_type, province, municipality, barangay, street };
+	const suggestions = [];
+
+	for (let offset = 1; offset <= range && suggestions.length < 5; offset++) {
+		for (const direction of [1, -1]) {
+			if (suggestions.length >= 5) break;
+			const candidate = new Date(baseDate);
+			candidate.setDate(candidate.getDate() + (offset * direction));
+
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			if (candidate < today) continue;
+
+			const conflict = await findBookingConflict({
+				eventDate: candidate,
+				startTime: start_time,
+				durationHours: duration_hours,
+				location
+			});
+			if (!conflict) {
+				suggestions.push(candidate.toISOString().split("T")[0]);
+			}
+		}
+	}
+
+	res.json({ suggestions });
+});
+
+exports.scheduleOcular = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+	const { scheduled_date, scheduled_time, notes } = req.body;
+	if (!scheduled_date) return res.status(400).json({ message: "Scheduled date is required" });
+
+	booking.ocular_visit = {
+		...(booking.ocular_visit?.toObject?.() || booking.ocular_visit || {}),
+		scheduled_date: new Date(scheduled_date),
+		scheduled_time: scheduled_time || "",
+		status: "scheduled",
+		notes: notes || booking.ocular_visit?.notes || ""
+	};
+	await booking.save();
+
+	const io = req.app.get("io");
+	if (booking.customer_id) {
+		await createNotification({
+			userId: booking.customer_id,
+			title: "Ocular Visit Scheduled",
+			body: `Your ocular visit has been scheduled for ${new Date(scheduled_date).toLocaleDateString()}${scheduled_time ? ` at ${scheduled_time}` : ""}.`,
+			type: "info",
+			link: "/customer/bookings",
+			meta: { booking_id: booking._id }
+		}, io);
+	}
+
+	await logAction({
+		user_id: req.user._id,
+		action: "ocular_scheduled",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Scheduled ocular visit for ${new Date(scheduled_date).toLocaleDateString()}`,
+		ip_address: req.ip
+	});
+
+	res.json(booking);
+});
+
+exports.completeOcular = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+	const { outcome, notes } = req.body;
+	if (!outcome || !["proceed", "cancel", "reschedule"].includes(outcome)) {
+		return res.status(400).json({ message: "Outcome must be 'proceed', 'cancel', or 'reschedule'" });
+	}
+
+	booking.ocular_visit = {
+		...(booking.ocular_visit?.toObject?.() || booking.ocular_visit || {}),
+		status: "completed",
+		outcome,
+		notes: notes || booking.ocular_visit?.notes || "",
+		completed_at: new Date()
+	};
+	await booking.save();
+
+	const io = req.app.get("io");
+	if (booking.customer_id) {
+		let title = "Ocular Visit Complete";
+		let body = "Your ocular visit has been completed.";
+		if (outcome === "cancel") {
+			title = "Booking Cancellation — Ocular Result";
+			body = "After the ocular visit, this booking will be cancelled. An admin will process your refund.";
+		} else if (outcome === "proceed") {
+			body = "Your ocular visit was successful. Your event is confirmed to proceed!";
+		} else if (outcome === "reschedule") {
+			title = "Ocular Visit — Reschedule Needed";
+			body = "Based on the ocular visit, a reschedule is recommended. We will contact you shortly.";
+		}
+		await createNotification({
+			userId: booking.customer_id,
+			title,
+			body,
+			type: outcome === "cancel" ? "warning" : "info",
+			link: "/customer/bookings",
+			meta: { booking_id: booking._id }
+		}, io);
+	}
+
+	await logAction({
+		user_id: req.user._id,
+		action: "ocular_completed",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Ocular visit completed with outcome: ${outcome}`,
 		ip_address: req.ip
 	});
 

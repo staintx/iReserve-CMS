@@ -127,6 +127,11 @@ export default function AdminSidebar() {
           </NavLink>
         )}
         
+        <NavLink to="/admin/quotes" className={linkClass}>
+          <MessageCircleQuestion className="w-5 h-5 shrink-0" />
+          {!isCollapsed && <span>Quotes</span>}
+        </NavLink>
+
         <NavLink to="/admin/messages" className={linkClass}>
           <MessageSquare className="w-5 h-5 shrink-0" />
           {!isCollapsed && <span>Messages</span>}

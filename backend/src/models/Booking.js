@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const BookingSchema = new mongoose.Schema({
+  reference: { type: String, unique: true, sparse: true },
   customer_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   package_id: { type: mongoose.Schema.Types.ObjectId, ref: "Package" },
   event_manager_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -105,7 +106,23 @@ const BookingSchema = new mongoose.Schema({
       verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
     }
   ],
+  ocular_visit: {
+    scheduled_date: Date,
+    scheduled_time: String,
+    status: { type: String, enum: ["pending", "scheduled", "completed", "skipped"], default: "pending" },
+    outcome: { type: String, enum: ["proceed", "cancel", "reschedule"] },
+    notes: String,
+    completed_at: Date
+  },
   completed_at: Date
 }, { timestamps: true });
+
+BookingSchema.pre("save", async function (next) {
+  if (!this.reference) {
+    const count = await mongoose.model("Booking").countDocuments();
+    this.reference = `CAZ-${String(count + 1).padStart(6, "0")}`;
+  }
+  next();
+});
 
 module.exports = mongoose.model("Booking", BookingSchema);

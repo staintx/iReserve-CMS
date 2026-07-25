@@ -48,8 +48,9 @@ import AdminReports from "../pages/admin/AdminReports";
 import AdminRatings from "../pages/admin/AdminRatings";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
 import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
-
 import AdminBookingDetails from "../pages/admin/AdminBookingDetails";
+import AdminQuotesList from "../pages/admin/AdminQuotesList";
+import AdminQuoteDetails from "../pages/admin/AdminQuoteDetails";
 import AdminProfile from "../pages/admin/AdminProfile";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
@@ -61,6 +62,7 @@ import StaffDashboard from "../pages/staff/StaffDashboard";
 const adminRoles = ["admin"];
 const managerRoles = ["manager"];
 const adminOnly = ["admin"];
+const adminManagerOnly = ["admin", "manager"];
 const staffRoles = ["staff"];
 
 export default function AppRoutes() {
@@ -129,7 +131,9 @@ export default function AppRoutes() {
         <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
         <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsCalendar /></ProtectedRoute>} />
-        <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPackages /></ProtectedRoute>} />
+        <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuotesList /></ProtectedRoute>} />
+        <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+        <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
         <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMenu /></ProtectedRoute>} />
         <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
         <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminManagers /></ProtectedRoute>} />

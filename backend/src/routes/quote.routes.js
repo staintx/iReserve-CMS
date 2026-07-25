@@ -11,5 +11,6 @@ router.get("/me", protect, ctrl.getMine);
 router.get("/:id", protect, authorize("admin", "staff"), ctrl.getById);
 router.put("/:id", protect, authorize("admin", "staff"), validate(quoteUpdateSchema), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
+router.post("/:id/convert", protect, authorize("admin", "staff"), ctrl.convertToBooking);
 
 module.exports = router;

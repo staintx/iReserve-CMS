@@ -17,6 +17,7 @@ export default function CustomCheckout() {
   const [clientKey, setClientKey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
   
   const [selectedMethod, setSelectedMethod] = useState("gcash"); // gcash, paymaya, card
   
@@ -85,11 +86,11 @@ export default function CustomCheckout() {
         notify("Payment successful!", "success");
         navigate("/customer/payments?status=success");
       } else {
-        notify("Payment is pending or failed. Check your payments dashboard.", "info");
-        navigate("/customer/payments");
+        setPaymentError("Payment is pending or failed. Please check your account or try a different method.");
+        setProcessing(false);
       }
     } catch (error) {
-      notify(error.response?.data?.message || "Payment failed", "error");
+      setPaymentError(error.response?.data?.message || "Payment failed. Please try again.");
       setProcessing(false);
     }
   };
@@ -147,6 +148,13 @@ export default function CustomCheckout() {
             </div>
           </div>
 
+          {paymentError && (
+            <div className="booking-alert unavailable" style={{ marginBottom: "20px" }}>
+              <strong>Payment Failed</strong>
+              <p style={{ margin: "4px 0 0" }}>{paymentError}</p>
+            </div>
+          )}
+
           {selectedMethod === "card" && (
             <div className="booking-grid" style={{ marginBottom: "30px" }}>
               <label className="field span-2">
@@ -179,7 +187,7 @@ export default function CustomCheckout() {
               disabled={processing}
               style={{ padding: "16px", fontSize: "1.1rem" }}
             >
-              {processing ? "Processing Securely..." : `Pay ₱${Number(amount).toLocaleString()}`}
+              {processing ? "Processing Securely..." : paymentError ? `Retry Payment (₱${Number(amount).toLocaleString()})` : `Pay ₱${Number(amount).toLocaleString()}`}
             </button>
 
             <button 

@@ -76,5 +76,12 @@ export const AdminAPI = {
   updateBusinessInfo: (data) => api.put("/business-info", data),
 
   // Logs
-  getLogs: (params = {}) => api.get("/systemlogs", { params })
+  getLogs: (params = {}) => api.get("/systemlogs", { params }),
+
+  // Quotes
+  getQuotes: () => api.get("/quotes"),
+  getQuote: (id) => api.get(`/quotes/${id}`),
+  updateQuote: (id, data) => api.put(`/quotes/${id}`, data),
+  deleteQuote: (id) => api.delete(`/quotes/${id}`),
+  convertToBooking: (id, data) => api.post(`/quotes/${id}/convert`, data)
 };

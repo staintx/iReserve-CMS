@@ -22,6 +22,7 @@ export const CustomerAPI = {
   // inquiry + bookings
   submitInquiry: (data) => api.post("/inquiries", data),
   checkAvailability: (params) => api.get("/bookings/availability", { params }),
+  suggestDates: (params) => api.get("/bookings/availability/suggestions", { params }),
   getInquiries: () => api.get("/inquiries/me"),
   cancelInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "cancelled" }),
   acceptInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "confirmed" }),
@@ -44,6 +45,9 @@ export const CustomerAPI = {
   createPaymentIntent: (data) => api.post("/payments/intent", data),
   processPaymentIntent: (data) => api.post("/payments/intent/process", data),
   verifyPayment: (id) => api.post(`/payments/${id}/verify`),
+
+  // messages
+  getConversations: () => api.get("/messages/conversations"),
 
   // custom quote
   submitQuote: (data) => api.post("/quotes", data) // ensure this exists in backend

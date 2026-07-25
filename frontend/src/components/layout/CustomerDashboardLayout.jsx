@@ -7,7 +7,6 @@ import NotificationBell from "../common/NotificationBell";
 
 const navItems = [
   { to: "/customer/dashboard", label: "Dashboard", desc: "Overview of your events" },
-  { to: "/customer/inquiries", label: "My Inquiries", desc: "View quote requests" },
   { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status" },
   { to: "/customer/payments", label: "Payment History", desc: "View transactions" },
   { to: "/customer/messages", label: "Messages", desc: "Chat with our team" }

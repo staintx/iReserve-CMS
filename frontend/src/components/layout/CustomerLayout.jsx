@@ -126,7 +126,6 @@ export default function CustomerLayout({ children }) {
                 {menuOpen && (
                   <div className="user-dropdown">
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/dashboard")}>Dashboard</button>
-                    <button className="dropdown-link" type="button" onClick={() => navigate("/customer/inquiries")}>My Inquiries</button>
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/bookings")}>My Bookings</button>
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/payments")}>Payment History</button>
                     <button className="dropdown-link" type="button" onClick={() => navigate("/customer/messages")}>Messages</button>

@@ -22,6 +22,9 @@ export default function CustomerBookings() {
   const [requestingBooking, setRequestingBooking] = useState(null);
   const [requestNote, setRequestNote] = useState("");
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [addingGuestsBooking, setAddingGuestsBooking] = useState(null);
+  const [additionalGuests, setAdditionalGuests] = useState(0);
+  const [isSubmittingGuests, setIsSubmittingGuests] = useState(false);
   const { notify } = useToast();
 
   useEffect(() => {

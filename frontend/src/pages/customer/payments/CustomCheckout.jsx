@@ -97,7 +97,7 @@ export default function CustomCheckout() {
   if (loading) {
     return (
       <CustomerLayout>
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
+        <div className="booking-page" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
           <h2>Initializing secure payment...</h2>
         </div>
       </CustomerLayout>
@@ -106,81 +106,96 @@ export default function CustomCheckout() {
 
   return (
     <CustomerLayout>
-      <div className="custom-checkout-container" style={{ maxWidth: "600px", margin: "40px auto", padding: "30px", background: "#fff", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-        <h2 style={{ textAlign: "center", marginBottom: "20px", color: "#333" }}>Secure Checkout</h2>
-        <div style={{ marginBottom: "30px", padding: "15px", background: "#f8f9fa", borderRadius: "8px", textAlign: "center" }}>
-          <p style={{ margin: "0", fontSize: "16px", color: "#666" }}>Total Amount to Pay</p>
-          <h1 style={{ margin: "10px 0 0", color: "#2E7D32" }}>₱{Number(amount).toLocaleString()}</h1>
-        </div>
+      <div className="booking-page" style={{ maxWidth: "600px", margin: "40px auto" }}>
+        <div className="booking-card">
+          <div className="booking-card-header" style={{ textAlign: "center", justifyContent: "center" }}>
+            <h3 style={{ margin: 0 }}>Secure Checkout</h3>
+          </div>
+          
+          <div style={{ marginBottom: "30px", padding: "20px", background: "#f8fafc", borderRadius: "8px", textAlign: "center", border: "1px solid #e2e8f0" }}>
+            <p style={{ margin: "0", fontSize: "0.875rem", color: "#64748b", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>Total Amount to Pay</p>
+            <h1 style={{ margin: "10px 0 0", color: "#0f172a", fontSize: "2.5rem" }}>₱{Number(amount).toLocaleString()}</h1>
+          </div>
 
-        <h4 style={{ marginBottom: "15px" }}>Select Payment Method</h4>
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-          <button 
-            style={{ flex: 1, padding: "15px", border: `2px solid ${selectedMethod === 'gcash' ? '#007bff' : '#eee'}`, borderRadius: "8px", background: selectedMethod === 'gcash' ? '#e7f1ff' : '#fff', cursor: 'pointer' }}
-            onClick={() => setSelectedMethod("gcash")}
-          >
-            <strong style={{ color: "#005ce6" }}>GCash</strong>
-          </button>
-          <button 
-            style={{ flex: 1, padding: "15px", border: `2px solid ${selectedMethod === 'paymaya' ? '#007bff' : '#eee'}`, borderRadius: "8px", background: selectedMethod === 'paymaya' ? '#e7f1ff' : '#fff', cursor: 'pointer' }}
-            onClick={() => setSelectedMethod("paymaya")}
-          >
-            <strong style={{ color: "#000" }}>Maya</strong>
-          </button>
-          <button 
-            style={{ flex: 1, padding: "15px", border: `2px solid ${selectedMethod === 'card' ? '#007bff' : '#eee'}`, borderRadius: "8px", background: selectedMethod === 'card' ? '#e7f1ff' : '#fff', cursor: 'pointer' }}
-            onClick={() => setSelectedMethod("card")}
-          >
-            <strong>Credit Card</strong>
-          </button>
-        </div>
-
-        {selectedMethod === "card" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "15px", marginBottom: "25px" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontSize: "14px", fontWeight: "500" }}>Name on Card</label>
-              <input type="text" placeholder="John Doe" style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "6px" }} value={cardDetails.name} onChange={e => setCardDetails({...cardDetails, name: e.target.value})} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "5px", fontSize: "14px", fontWeight: "500" }}>Card Number</label>
-              <input type="text" placeholder="0000 0000 0000 0000" style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "6px" }} value={cardDetails.card_number} onChange={e => setCardDetails({...cardDetails, card_number: e.target.value})} />
-            </div>
-            <div style={{ display: "flex", gap: "15px" }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: "block", marginBottom: "5px", fontSize: "14px", fontWeight: "500" }}>Exp Month</label>
-                <input type="text" placeholder="MM" maxLength="2" style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "6px" }} value={cardDetails.exp_month} onChange={e => setCardDetails({...cardDetails, exp_month: e.target.value})} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: "block", marginBottom: "5px", fontSize: "14px", fontWeight: "500" }}>Exp Year</label>
-                <input type="text" placeholder="YY" maxLength="2" style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "6px" }} value={cardDetails.exp_year} onChange={e => setCardDetails({...cardDetails, exp_year: e.target.value})} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: "block", marginBottom: "5px", fontSize: "14px", fontWeight: "500" }}>CVC</label>
-                <input type="text" placeholder="123" maxLength="4" style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "6px" }} value={cardDetails.cvc} onChange={e => setCardDetails({...cardDetails, cvc: e.target.value})} />
-              </div>
+          <div style={{ marginBottom: "24px" }}>
+            <h4 style={{ marginBottom: "16px", color: "#334155", fontSize: "1rem", fontWeight: 600 }}>Select Payment Method</h4>
+            <div className="grid sm:grid-cols-3" style={{ gap: "12px" }}>
+              <button 
+                type="button"
+                className={selectedMethod === 'gcash' ? 'btn' : 'btn-outline'}
+                onClick={() => setSelectedMethod("gcash")}
+                style={{ padding: "12px", height: "auto" }}
+              >
+                GCash
+              </button>
+              <button 
+                type="button"
+                className={selectedMethod === 'paymaya' ? 'btn' : 'btn-outline'}
+                onClick={() => setSelectedMethod("paymaya")}
+                style={{ padding: "12px", height: "auto" }}
+              >
+                Maya
+              </button>
+              <button 
+                type="button"
+                className={selectedMethod === 'card' ? 'btn' : 'btn-outline'}
+                onClick={() => setSelectedMethod("card")}
+                style={{ padding: "12px", height: "auto" }}
+              >
+                Credit Card
+              </button>
             </div>
           </div>
-        )}
 
-        <button 
-          onClick={handlePay} 
-          disabled={processing}
-          style={{ width: "100%", padding: "16px", background: "#007bff", color: "#fff", border: "none", borderRadius: "8px", fontSize: "16px", fontWeight: "600", cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.7 : 1 }}
-        >
-          {processing ? "Processing Securely..." : `Pay ₱${Number(amount).toLocaleString()}`}
-        </button>
+          {selectedMethod === "card" && (
+            <div className="booking-grid" style={{ marginBottom: "30px" }}>
+              <label className="field span-2">
+                <span>Name on Card</span>
+                <input type="text" placeholder="John Doe" value={cardDetails.name} onChange={e => setCardDetails({...cardDetails, name: e.target.value})} />
+              </label>
+              <label className="field span-2">
+                <span>Card Number</span>
+                <input type="text" placeholder="0000 0000 0000 0000" value={cardDetails.card_number} onChange={e => setCardDetails({...cardDetails, card_number: e.target.value})} />
+              </label>
+              <label className="field">
+                <span>Exp Month</span>
+                <input type="text" placeholder="MM" maxLength="2" value={cardDetails.exp_month} onChange={e => setCardDetails({...cardDetails, exp_month: e.target.value})} />
+              </label>
+              <label className="field">
+                <span>Exp Year</span>
+                <input type="text" placeholder="YY" maxLength="2" value={cardDetails.exp_year} onChange={e => setCardDetails({...cardDetails, exp_year: e.target.value})} />
+              </label>
+              <label className="field">
+                <span>CVC</span>
+                <input type="text" placeholder="123" maxLength="4" value={cardDetails.cvc} onChange={e => setCardDetails({...cardDetails, cvc: e.target.value})} />
+              </label>
+            </div>
+          )}
 
-        <button 
-          onClick={() => navigate("/customer/bookings", { replace: true })} 
-          disabled={processing}
-          style={{ width: "100%", padding: "16px", background: "transparent", color: "#666", border: "1px solid #ddd", borderRadius: "8px", fontSize: "16px", fontWeight: "600", cursor: processing ? "not-allowed" : "pointer", marginTop: "10px" }}
-        >
-          Cancel & Pay Later
-        </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
+            <button 
+              className="btn"
+              onClick={handlePay} 
+              disabled={processing}
+              style={{ padding: "16px", fontSize: "1.1rem" }}
+            >
+              {processing ? "Processing Securely..." : `Pay ₱${Number(amount).toLocaleString()}`}
+            </button>
 
-        <p style={{ textAlign: "center", marginTop: "15px", fontSize: "12px", color: "#888" }}>
-          Payments securely processed by PayMongo
-        </p>
+            <button 
+              className="btn-outline"
+              onClick={() => navigate("/customer/bookings", { replace: true })} 
+              disabled={processing}
+              style={{ padding: "16px", fontSize: "1.1rem" }}
+            >
+              Cancel & Pay Later
+            </button>
+          </div>
+
+          <p style={{ textAlign: "center", marginTop: "24px", fontSize: "0.75rem", color: "#94a3b8" }}>
+            Payments securely processed by PayMongo
+          </p>
+        </div>
       </div>
     </CustomerLayout>
   );

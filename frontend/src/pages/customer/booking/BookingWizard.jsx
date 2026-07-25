@@ -28,7 +28,7 @@ export default function BookingWizard() {
   const location = useLocation();
   const [step, setStep] = useState(() => {
     try {
-      const saved = localStorage.getItem("booking_wizard_step");
+      const saved = sessionStorage.getItem("booking_wizard_step");
       if (saved !== null) return parseInt(saved, 10);
     } catch {}
     return 0;
@@ -59,7 +59,7 @@ export default function BookingWizard() {
 
   const [form, setForm] = useState(() => {
     try {
-      const saved = localStorage.getItem("booking_wizard_form");
+      const saved = sessionStorage.getItem("booking_wizard_form");
       if (saved) return JSON.parse(saved);
     } catch {}
     return {
@@ -99,11 +99,11 @@ export default function BookingWizard() {
   });
 
   useEffect(() => {
-    localStorage.setItem("booking_wizard_form", JSON.stringify(form));
+    sessionStorage.setItem("booking_wizard_form", JSON.stringify(form));
   }, [form]);
 
   useEffect(() => {
-    localStorage.setItem("booking_wizard_step", step.toString());
+    sessionStorage.setItem("booking_wizard_step", step.toString());
   }, [step]);
 
   useEffect(() => {
@@ -333,8 +333,8 @@ export default function BookingWizard() {
       const bookingRes = await CustomerAPI.createBooking(payload);
       const newBooking = bookingRes.data;
 
-      localStorage.removeItem("booking_wizard_form");
-      localStorage.removeItem("booking_wizard_step");
+      sessionStorage.removeItem("booking_wizard_form");
+      sessionStorage.removeItem("booking_wizard_step");
       
       navigate("/customer/checkout", {
         replace: true,

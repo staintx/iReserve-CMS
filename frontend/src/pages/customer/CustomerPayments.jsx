@@ -73,11 +73,33 @@ export default function CustomerPayments() {
   };
 
   const totalPaid = useMemo(
-    () => payments.reduce((sum, item) => sum + (item.amount || 0), 0),
+    () => payments.filter(p => p.status === "approved").reduce((sum, item) => sum + (item.amount || 0), 0),
     [payments]
   );
+  const pendingPayments = useMemo(() => {
+    // Get all pending payments
+    const pending = payments.filter((p) => p.status === "pending");
+    // Group by booking to avoid spam of abandoned checkouts
+    const uniquePending = [];
+    const seenBookings = new Set();
+    
+    for (const p of pending) {
+      const bookingId = p.booking_id?._id || p.booking_id;
+      if (!seenBookings.has(bookingId)) {
+        seenBookings.add(bookingId);
+        uniquePending.push(p);
+      }
+    }
+    return uniquePending;
+  }, [payments]);
+
   const upcomingDue = useMemo(
-    () => payments.filter((p) => p.status === "pending").reduce((sum, item) => sum + (item.amount || 0), 0),
+    () => pendingPayments.reduce((sum, item) => sum + (item.amount || 0), 0),
+    [pendingPayments]
+  );
+
+  const completedTransactions = useMemo(
+    () => payments.filter(p => p.status !== "pending"),
     [payments]
   );
 
@@ -110,48 +132,39 @@ export default function CustomerPayments() {
         />
       </div>
 
-      <div className="table-card" style={{ marginBottom: "16px" }}>
+      <div className="table-card" style={{ marginBottom: "24px" }}>
         <div className="tile-header">
           <h3>Upcoming Payments</h3>
         </div>
-        {payments.filter((p) => p.status === "pending").map((p) => (
-          <div key={p._id} className="list-card">
+        {pendingPayments.map((p) => (
+          <div key={p._id} className="list-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #f1f5f9" }}>
             <div>
-              <strong>{p.booking_id?.event_type || "Event"}</strong>
-              <div><small>{p.booking_id?._id || ""}</small></div>
+              <strong style={{ fontSize: "1.1rem" }}>{p.booking_id?.event_type || "Event Booking"}</strong>
+              <div style={{ color: "#64748b", fontSize: "0.875rem", marginTop: "4px" }}>Booking Ref: {p.booking_id?._id || p.booking_id}</div>
+              <div style={{ color: "#64748b", fontSize: "0.875rem" }}>Type: <span style={{ textTransform: "capitalize" }}>{p.payment_type || "deposit"}</span></div>
             </div>
-            <div>
-              <strong>{formatCurrency(p.amount)}</strong>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <strong style={{ fontSize: "1.1rem" }}>{formatCurrency(p.amount)}</strong>
               <button
-                className="action-link"
+                className="btn"
                 type="button"
                 onClick={() => startPayment(p)}
                 disabled={payingPaymentId === p._id}
-                style={{ background: "none", border: 0, padding: 0 }}
               >
-                {payingPaymentId === p._id ? "Opening PayMongo..." : "Pay Now →"}
+                {payingPaymentId === p._id ? "Opening..." : "Pay Now"}
               </button>
             </div>
           </div>
         ))}
-        {payments.filter((p) => p.status === "pending").length === 0 && <p>No upcoming payments.</p>}
+        {pendingPayments.length === 0 && <p style={{ padding: "16px", color: "#64748b" }}>No upcoming payments due at this time.</p>}
       </div>
 
-      <div className="table-card" style={{ marginBottom: "16px" }}>
+      <div className="table-card" style={{ marginBottom: "24px" }}>
         <div className="tile-header">
-          <h3>All Transactions</h3>
+          <h3>Transaction History</h3>
         </div>
-        <CustomerPaymentsTable payments={payments} formatCurrency={formatCurrency} />
-        {payments.length === 0 && <p>No transactions yet.</p>}
-      </div>
-
-      <div className="profile-section">
-        <h3>Saved Payment Methods</h3>
-        <div className="payment-method-card">
-          <strong>VISA •••• 4242</strong>
-          <div><small>Expires 12/25</small></div>
-        </div>
-        <div className="action-link" style={{ marginTop: "10px" }}>+ Add Payment Method</div>
+        <CustomerPaymentsTable payments={completedTransactions} formatCurrency={formatCurrency} />
+        {completedTransactions.length === 0 && <p style={{ padding: "16px", color: "#64748b" }}>No completed transactions yet.</p>}
       </div>
     </CustomerDashboardLayout>
   );

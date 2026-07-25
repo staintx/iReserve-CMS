@@ -40,6 +40,9 @@ export const CustomerAPI = {
   // payments
   getPayments: () => api.get("/payments/me"),
   createPaymentCheckout: (data) => api.post("/payments/checkout", data),
+  createPaymentIntent: (data) => api.post("/payments/intent", data),
+  processPaymentIntent: (data) => api.post("/payments/intent/process", data),
+  verifyPayment: (id) => api.post(`/payments/${id}/verify`),
 
   // custom quote
   submitQuote: (data) => api.post("/quotes", data) // ensure this exists in backend

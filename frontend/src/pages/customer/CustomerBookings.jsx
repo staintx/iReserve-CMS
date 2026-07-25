@@ -80,22 +80,14 @@ export default function CustomerBookings() {
       return;
     }
 
-    try {
-      setPayingBookingId(booking._id);
-      const response = await CustomerAPI.createPaymentCheckout({
-        booking_id: booking._id,
+    setPayingBookingId(booking._id);
+    navigate("/customer/checkout", {
+      state: {
+        bookingId: booking._id,
         amount,
-        payment_type: isBalance ? "balance" : "deposit"
-      });
-      const checkoutUrl = response.data?.checkout_url;
-      if (!checkoutUrl) {
-        throw new Error("PayMongo checkout link was not returned.");
+        paymentType: isBalance ? "balance" : "deposit"
       }
-      window.location.assign(checkoutUrl);
-    } catch (error) {
-      notify(error.response?.data?.message || error.message || "We could not start PayMongo checkout. Please try again.", "error");
-      setPayingBookingId(null);
-    }
+    });
   };
 
   const openChangeRequest = () => {

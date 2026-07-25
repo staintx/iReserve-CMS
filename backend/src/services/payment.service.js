@@ -89,7 +89,8 @@ exports.createCheckoutSession = async ({
 	description,
 	successUrl,
 	cancelUrl,
-	metadata = {}
+	metadata = {},
+	customer = {}
 }) => {
 	const centavos = toCentavos(amount);
 	const body = {
@@ -107,12 +108,70 @@ exports.createCheckoutSession = async ({
 				success_url: successUrl,
 				cancel_url: cancelUrl,
 				description: description || "iReserve Booking Payment",
-				metadata
+				send_email_receipt: true,
+				show_description: true,
+				show_line_items: true,
+				metadata,
+				...(customer.email && customer.name && {
+					billing: {
+						name: customer.name,
+						email: customer.email,
+						...(customer.phone && { phone: customer.phone })
+					}
+				})
 			}
 		}
 	};
 
 	return requestPayMongo({ path: "/checkout_sessions", method: "POST", body });
+};
+
+exports.createPaymentIntent = async ({ amount, description, metadata, paymentMethodTypes = ["card", "paymaya", "gcash"] }) => {
+	const body = {
+		data: {
+			attributes: {
+				amount: toCentavos(amount),
+				payment_method_allowed: paymentMethodTypes,
+				payment_method_options: {
+					card: { request_three_d_secure: "any" }
+				},
+				currency: "PHP",
+				description: description || "iReserve Payment",
+				metadata
+			}
+		}
+	};
+	return requestPayMongo({ path: "/payment_intents", method: "POST", body });
+};
+
+exports.createPaymentMethod = async ({ type, details, billing }) => {
+	const body = {
+		data: {
+			attributes: {
+				type,
+				details,
+				...(billing && { billing })
+			}
+		}
+	};
+	return requestPayMongo({ path: "/payment_methods", method: "POST", body });
+};
+
+exports.attachPaymentIntent = async ({ intentId, methodId, returnUrl }) => {
+	const body = {
+		data: {
+			attributes: {
+				payment_method: methodId,
+				client_key: undefined, // Not needed for server-to-server attach but some sdks send it
+				return_url: returnUrl
+			}
+		}
+	};
+	return requestPayMongo({ path: `/payment_intents/${intentId}/attach`, method: "POST", body });
+};
+
+exports.getPaymentIntent = async (intentId) => {
+	return requestPayMongo({ path: `/payment_intents/${intentId}`, method: "GET" });
 };
 
 exports.verifyWebhookSignature = ({ rawBody, signatureHeader }) => {

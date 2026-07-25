@@ -404,10 +404,24 @@ export default function AdminPackages() {
             <div className="form-section">
               <div className="form-grid-2">
                 <div className="form-group">
-                  <label>Price</label>
+                  <label>
+                    {form.package_type === "Food Only" 
+                      ? "Price Per Head (₱)" 
+                      : form.package_type === "Event Setup Only" 
+                      ? "Total Setup Price (₱)" 
+                      : form.package_type === "Food + Event Setup"
+                      ? "Price Per Plate (₱)"
+                      : "Price (₱)"}
+                  </label>
                   <input
                     type="number"
-                    placeholder="15000"
+                    placeholder={
+                      form.package_type === "Food Only" || form.package_type === "Food + Event Setup"
+                        ? "e.g. 500"
+                        : form.package_type === "Event Setup Only"
+                        ? "e.g. 15000"
+                        : "e.g. 15000"
+                    }
                     value={form.price_min || ""}
                     onChange={(e) => setForm({ ...form, price_min: e.target.value, price_max: e.target.value })}
                   />

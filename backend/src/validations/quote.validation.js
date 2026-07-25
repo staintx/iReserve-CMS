@@ -46,7 +46,7 @@ exports.quoteSchema = Joi.object({
   agree_terms: Joi.boolean().optional(),
   agree_privacy: Joi.boolean().optional(),
   status: Joi.string().optional()
-});
+}).unknown(true);
 
 exports.quoteUpdateSchema = Joi.object({
   service_type: Joi.string().optional(),

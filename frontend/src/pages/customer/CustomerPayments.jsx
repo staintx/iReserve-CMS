@@ -4,7 +4,7 @@ import { CustomerAPI } from "../../api/customer";
 import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import useToast from "../../hooks/useToast";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 const formatCurrency = (value) => `PHP ${Number(value || 0).toLocaleString()}`;
 
@@ -12,11 +12,39 @@ export default function CustomerPayments() {
   const [payments, setPayments] = useState([]);
   const [payingPaymentId, setPayingPaymentId] = useState(null);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { notify } = useToast();
 
   useEffect(() => {
-    CustomerAPI.getPayments().then((res) => setPayments(res.data)).catch(() => setPayments([]));
-  }, []);
+    const fetchAndVerify = async () => {
+      try {
+        const res = await CustomerAPI.getPayments();
+        let data = res.data;
+        
+        if (searchParams.get("status") === "success") {
+          let updated = false;
+          for (const p of data) {
+            if (p.status === "pending") {
+              try {
+                const vRes = await CustomerAPI.verifyPayment(p._id);
+                if (vRes.data?.payment?.status === "approved") {
+                  updated = true;
+                }
+              } catch (e) {}
+            }
+          }
+          if (updated) {
+            const fresh = await CustomerAPI.getPayments();
+            data = fresh.data;
+          }
+        }
+        setPayments(data);
+      } catch (error) {
+        setPayments([]);
+      }
+    };
+    fetchAndVerify();
+  }, [searchParams]);
 
   const paymentStatus = searchParams.get("status");
   const paymentNotice = paymentStatus === "success"
@@ -34,22 +62,14 @@ export default function CustomerPayments() {
       return;
     }
 
-    try {
-      setPayingPaymentId(payment._id);
-      const response = await CustomerAPI.createPaymentCheckout({
-        booking_id: payment.booking_id._id,
+    setPayingPaymentId(payment._id);
+    navigate("/customer/checkout", {
+      state: {
+        bookingId: payment.booking_id._id,
         amount,
-        payment_type: payment.payment_type || "deposit"
-      });
-      const checkoutUrl = response.data?.checkout_url;
-      if (!checkoutUrl) {
-        throw new Error("PayMongo checkout link was not returned.");
+        paymentType: payment.payment_type || "deposit"
       }
-      window.location.assign(checkoutUrl);
-    } catch (error) {
-      notify(error.response?.data?.message || error.message || "We could not start PayMongo checkout. Please try again.", "error");
-      setPayingPaymentId(null);
-    }
+    });
   };
 
   const totalPaid = useMemo(

@@ -4,6 +4,9 @@ const asyncHandler = require("../utils/asyncHandler");
 const { createNotification } = require("../utils/notify");
 const {
 	createCheckoutSession,
+	createPaymentIntent,
+	createPaymentMethod,
+	attachPaymentIntent,
 	verifyWebhookSignature,
 	extractWebhookData,
 	isPaidEvent,
@@ -136,11 +139,25 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		gateway: "paymongo"
 	});
 
+	let eventName = booking.event_type || "Event";
+	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
+	const formattedDescription = `${eventName} Booking - ${paymentLabel}`;
+
+	const contactName = (booking.contact_first_name && booking.contact_last_name) 
+		? `${booking.contact_first_name} ${booking.contact_last_name}` 
+		: booking.contact_first_name || booking.contact_last_name;
+
+	const customerDetails = {
+		name: contactName || booking.customer_id?.full_name || req.user?.full_name || "Customer",
+		email: booking.contact_email || booking.customer_id?.email || req.user?.email || "customer@example.com",
+		phone: booking.contact_phone || booking.customer_id?.phone || req.user?.phone
+	};
+
 	const checkout = await createCheckoutSession({
 		amount: payableAmount,
 		currency: "PHP",
 		paymentMethodTypes: payment_method_types,
-		description: `Booking ${booking._id} (${payment_type})`,
+		description: formattedDescription,
 		successUrl,
 		cancelUrl,
 		metadata: {
@@ -148,7 +165,8 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 			booking_id: String(booking._id),
 			customer_id: String(booking.customer_id?._id || req.user._id),
 			payment_type
-		}
+		},
+		customer: customerDetails
 	});
 
 	const checkoutData = checkout?.data || {};
@@ -164,6 +182,116 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		checkout_url: checkoutAttributes.checkout_url,
 		checkout_id: checkoutData.id
 	});
+});
+
+exports.createIntent = asyncHandler(async (req, res) => {
+	const { booking_id, amount, payment_type = "deposit" } = req.body;
+	
+	if (!booking_id) return res.status(400).json({ message: "booking_id is required" });
+	const booking = await Booking.findById(booking_id).populate("customer_id");
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+	const isOwner = String(booking.customer_id?._id) === String(req.user._id);
+	const isPrivileged = ["admin", "staff"].includes(req.user.role);
+	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this booking" });
+
+	const payableAmount = Number(amount || booking.total_price || 0);
+	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
+
+	const payment = await Payment.create({
+		booking_id: booking._id,
+		customer_id: booking.customer_id?._id || req.user._id,
+		amount: payableAmount,
+		currency: "PHP",
+		payment_type,
+		method: "paymongo",
+		status: "pending",
+		gateway: "paymongo"
+	});
+
+	let eventName = booking.event_type || "Event";
+	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
+	
+	const intent = await createPaymentIntent({
+		amount: payableAmount,
+		description: `${eventName} Booking - ${paymentLabel}`,
+		metadata: {
+			local_payment_id: String(payment._id),
+			booking_id: String(booking._id),
+			customer_id: String(booking.customer_id?._id || req.user._id),
+			payment_type
+		}
+	});
+
+	const intentData = intent?.data || {};
+	payment.paymongo_payment_intent_id = intentData.id;
+	await payment.save();
+
+	res.status(201).json({ payment, intent_id: intentData.id, client_key: intentData.attributes?.client_key });
+});
+
+exports.processIntent = asyncHandler(async (req, res) => {
+	const { intent_id, payment_method_type, details, billing, return_url } = req.body;
+	
+	if (!intent_id || !payment_method_type) return res.status(400).json({ message: "intent_id and payment_method_type are required" });
+
+	const method = await createPaymentMethod({ type: payment_method_type, details, billing });
+	const methodId = method?.data?.id;
+	
+	if (!methodId) return res.status(500).json({ message: "Failed to create payment method" });
+
+	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+	const attachResult = await attachPaymentIntent({
+		intentId: intent_id,
+		methodId,
+		returnUrl: return_url || `${appBaseUrl}/customer/payments?status=success`
+	});
+
+	const attachAttrs = attachResult?.data?.attributes || {};
+	const nextActionUrl = attachAttrs.next_action?.redirect?.url;
+	const status = attachAttrs.status;
+
+	if (status === "succeeded") {
+		const payment = await Payment.findOne({ paymongo_payment_intent_id: intent_id });
+		if (payment) {
+			payment.status = "approved";
+			payment.paid_at = new Date();
+			await payment.save();
+			if (payment.booking_id) {
+				await syncBookingStatus(payment.booking_id);
+			}
+		}
+	}
+
+	res.json({
+		status,
+		next_action_url: nextActionUrl,
+		attachResult
+	});
+});
+
+exports.verifyPayment = asyncHandler(async (req, res) => {
+	const { id } = req.params;
+	const payment = await Payment.findById(id);
+	
+	if (!payment) return res.status(404).json({ message: "Payment not found" });
+	if (payment.status === "approved") return res.json({ payment });
+	if (!payment.paymongo_payment_intent_id) return res.json({ payment });
+
+	const { getPaymentIntent } = require("../services/payment.service");
+	const intentRes = await getPaymentIntent(payment.paymongo_payment_intent_id);
+	
+	const intentStatus = intentRes?.data?.attributes?.status;
+	if (intentStatus === "succeeded") {
+		payment.status = "approved";
+		payment.paid_at = new Date();
+		await payment.save();
+		if (payment.booking_id) {
+			await syncBookingStatus(payment.booking_id);
+		}
+	}
+
+	res.json({ payment });
 });
 
 exports.handleWebhook = asyncHandler(async (req, res) => {

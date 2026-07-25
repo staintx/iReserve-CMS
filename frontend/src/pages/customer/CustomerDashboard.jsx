@@ -17,31 +17,30 @@ export default function CustomerDashboard() {
   const [bookings, setBookings] = useState([]);
 
   useEffect(() => {
-    CustomerAPI.getInquiries().then((res) => setInquiries(res.data)).catch(() => setInquiries([]));
     CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
   }, []);
 
   const now = useMemo(() => new Date(), []);
-  const activeInquiries = inquiries.filter((inq) => ["new", "under review", "awaiting confirmation", "negotiating"].includes(inq.status));
-  const upcomingBookings = bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
+  const pendingBookings = bookings.filter((b) => ["pending deposit", "pending"].includes(b.status) && new Date(b.event_date) >= now);
+  const upcomingBookings = bookings.filter((b) => ["confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
   const completedBookings = bookings.filter((b) => b.status === "completed");
   const unreadCount = mockMessages.filter((m) => m.unread).length;
 
-  const nextEvent = upcomingBookings[0];
+  const nextEvent = upcomingBookings[0] || pendingBookings[0];
 
   const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
 
   return (
     <CustomerDashboardLayout
       title={`Welcome back${firstName ? ", " + firstName : ""}!`}
-      subtitle="Here's an overview of your events and inquiries"
+      subtitle="Here's an overview of your events and bookings"
     >
       <div className="dash-stats">
         <div className="dash-stat">
-          <div className="dash-stat-icon">I</div>
+          <div className="dash-stat-icon">B</div>
           <div>
-            <p>Active Inquiries</p>
-            <h3>{activeInquiries.length}</h3>
+            <p>Pending Bookings</p>
+            <h3>{pendingBookings.length}</h3>
           </div>
         </div>
         <div className="dash-stat">
@@ -106,33 +105,33 @@ export default function CustomerDashboard() {
 
         <div className="dash-tile">
           <div className="dash-tile-header">
-            <h3>Pending Inquiries</h3>
-            <span className="action-link" onClick={() => navigate("/customer/inquiries")}>View All →</span>
+            <h3>Pending Bookings</h3>
+            <span className="action-link" onClick={() => navigate("/customer/bookings")}>View All →</span>
           </div>
           <div className="dash-inquiry-list">
-            {activeInquiries.slice(0, 2).map((inq) => (
-              <div key={inq._id} className="dash-inquiry-card">
+            {pendingBookings.slice(0, 2).map((booking) => (
+              <div key={booking._id} className="dash-inquiry-card">
                 <div>
-                  <strong>{inq.event_type || "Inquiry"}</strong>
+                  <strong>{booking.event_type || "Event Booking"}</strong>
                   <div className="dash-inquiry-meta">
-                    Event Date: {inq.event_date ? new Date(inq.event_date).toLocaleDateString() : "TBD"}
+                    Event Date: {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}
                   </div>
                 </div>
                 <div className="dash-inquiry-actions">
-                  <span className="pill">{inq.status}</span>
-                  {inq.status === "awaiting confirmation" && (
+                  <span className="pill">{booking.status}</span>
+                  {booking.status === "pending deposit" && (
                     <button
                       className="action-link"
                       type="button"
-                      onClick={() => navigate("/customer/inquiries", { state: { openQuoteId: inq._id } })}
+                      onClick={() => navigate("/customer/payments")}
                     >
-                      View Quote
+                      Pay Deposit
                     </button>
                   )}
                 </div>
               </div>
             ))}
-            {activeInquiries.length === 0 && <p className="dash-empty">No pending inquiries.</p>}
+            {pendingBookings.length === 0 && <p className="dash-empty">No pending bookings.</p>}
           </div>
         </div>
 
@@ -141,10 +140,10 @@ export default function CustomerDashboard() {
             <h3>Quick Actions</h3>
           </div>
           <div className="dash-actions">
-            <button className="dash-action" type="button" onClick={() => navigate("/customer/quote")}>
+            <button className="dash-action" type="button" onClick={() => navigate("/customer/book")}>
               <div>
-                <strong>Request Custom Quote</strong>
-                <span>Get a personalized quote</span>
+                <strong>Book an Event</strong>
+                <span>Start a new booking</span>
               </div>
               <span>→</span>
             </button>

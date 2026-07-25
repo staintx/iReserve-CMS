@@ -32,6 +32,10 @@ export default function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("booking_wizard_form");
+    localStorage.removeItem("booking_wizard_step");
+    sessionStorage.removeItem("booking_wizard_form");
+    sessionStorage.removeItem("booking_wizard_step");
     setUser(null);
     resetSocket();
   };

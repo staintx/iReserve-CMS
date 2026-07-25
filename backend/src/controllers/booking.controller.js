@@ -94,6 +94,61 @@ const getTimeRange = (startTime, durationHours) => {
 	return { startMinutes, endMinutes: startMinutes + duration * 60 };
 };
 
+const filterAvailableStaff = async (eventDate, startTime, durationHours, bufferMinutes, staffIds, excludeBookingId = null) => {
+	if (!staffIds || staffIds.length === 0) return staffIds;
+
+	const date = new Date(eventDate);
+	if (Number.isNaN(date.getTime())) return staffIds;
+	const buffer = Number(bufferMinutes) || Number(process.env.BOOKING_BUFFER_MINUTES) || 0;
+
+	const dayStart = new Date(date);
+	dayStart.setHours(0, 0, 0, 0);
+	const dayEnd = new Date(date);
+	dayEnd.setHours(23, 59, 59, 999);
+
+	const query = {
+		status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+		event_date: { $gte: dayStart, $lte: dayEnd },
+		$or: [
+			{ event_manager_id: { $in: staffIds } },
+			{ staff_ids: { $in: staffIds } }
+		]
+	};
+	if (excludeBookingId) query._id = { $ne: excludeBookingId };
+
+	const conflictingBookings = await Booking.find(query);
+	if (conflictingBookings.length === 0) return staffIds;
+
+	const newRange = getTimeRange(startTime, durationHours);
+	const bookedStaff = new Set();
+
+	conflictingBookings.forEach(b => {
+		if (!newRange) {
+			if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
+			if (b.staff_ids) b.staff_ids.forEach(id => bookedStaff.add(id.toString()));
+			return;
+		}
+
+		const existingRange = getTimeRange(b.start_time, b.duration_hours);
+		if (!existingRange) {
+			if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
+			if (b.staff_ids) b.staff_ids.forEach(id => bookedStaff.add(id.toString()));
+			return;
+		}
+
+		const existingStart = existingRange.startMinutes - buffer;
+		const existingEnd = existingRange.endMinutes + buffer;
+		const isOverlap = newRange.startMinutes < existingEnd && newRange.endMinutes > existingStart;
+		
+		if (isOverlap) {
+			if (b.event_manager_id) bookedStaff.add(b.event_manager_id.toString());
+			if (b.staff_ids) b.staff_ids.forEach(id => bookedStaff.add(id.toString()));
+		}
+	});
+
+	return staffIds.filter(id => !bookedStaff.has(id.toString()));
+};
+
 const findBookingConflict = async ({ eventDate, startTime, durationHours, excludeId, location, bufferMinutes }) => {
 	if (!eventDate) return null;
 	const date = new Date(eventDate);
@@ -167,6 +222,33 @@ exports.create = asyncHandler(async (req, res) => {
 		return res.status(409).json({
 			message: `Inventory conflict: Not enough '${invCheck.itemName}' available on this date.`
 		});
+	}
+
+	// Filter out conflicting staff members
+	const requestedStaffIds = [];
+	if (req.body.event_manager_id) requestedStaffIds.push(req.body.event_manager_id);
+	if (Array.isArray(req.body.staff_ids)) requestedStaffIds.push(...req.body.staff_ids);
+
+	if (requestedStaffIds.length > 0) {
+		const availableStaffIds = await filterAvailableStaff(
+			req.body.event_date,
+			req.body.start_time,
+			req.body.duration_hours,
+			req.body.buffer_minutes,
+			requestedStaffIds
+		);
+		
+		const availableStaffSet = new Set(availableStaffIds.map(id => id.toString()));
+		
+		if (req.body.event_manager_id && !availableStaffSet.has(req.body.event_manager_id.toString())) {
+			req.body.event_manager_id = undefined;
+		}
+		if (Array.isArray(req.body.staff_ids)) {
+			req.body.staff_ids = req.body.staff_ids.filter(id => availableStaffSet.has(id.toString()));
+		}
+		if (Array.isArray(req.body.staff_assignments)) {
+			req.body.staff_assignments = req.body.staff_assignments.filter(a => a.user_id && availableStaffSet.has(a.user_id.toString()));
+		}
 	}
 
 	const booking = await Booking.create(req.body);
@@ -280,6 +362,37 @@ exports.update = asyncHandler(async (req, res) => {
 		return res.status(409).json({
 			message: `Inventory conflict: Not enough '${invCheck.itemName}' available on this date.`
 		});
+	}
+
+	// Filter out conflicting staff members
+	const requestedStaffIds = [];
+	if (req.body.event_manager_id) requestedStaffIds.push(req.body.event_manager_id);
+	else if (current.event_manager_id) requestedStaffIds.push(current.event_manager_id);
+
+	if (req.body.staff_ids) requestedStaffIds.push(...req.body.staff_ids);
+	else if (current.staff_ids) requestedStaffIds.push(...current.staff_ids);
+
+	if (requestedStaffIds.length > 0) {
+		const availableStaffIds = await filterAvailableStaff(
+			nextEventDate,
+			nextStartTime,
+			nextDuration,
+			req.body.buffer_minutes,
+			requestedStaffIds,
+			current._id
+		);
+		
+		const availableStaffSet = new Set(availableStaffIds.map(id => id.toString()));
+		
+		if (req.body.event_manager_id && !availableStaffSet.has(req.body.event_manager_id.toString())) {
+			req.body.event_manager_id = undefined; // Drop it
+		}
+		if (Array.isArray(req.body.staff_ids)) {
+			req.body.staff_ids = req.body.staff_ids.filter(id => availableStaffSet.has(id.toString()));
+		}
+		if (Array.isArray(req.body.staff_assignments)) {
+			req.body.staff_assignments = req.body.staff_assignments.filter(a => a.user_id && availableStaffSet.has(a.user_id.toString()));
+		}
 	}
 
 	const updated = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -436,6 +549,100 @@ exports.addGuests = asyncHandler(async (req, res) => {
 		entity_type: "booking",
 		entity_id: booking._id,
 		details: `Customer added ${additionalGuests} guests via self-service`,
+		ip_address: req.ip
+	});
+
+	res.json({ booking, checkout_url: payment.checkout_url });
+});
+
+exports.upgradeBooking = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (String(booking.customer_id) !== String(req.user?._id)) {
+		return res.status(403).json({ message: "Forbidden" });
+	}
+	if (getThreeDayLockout(booking.event_date)) {
+		return res.status(400).json({ message: "Booking details cannot be changed 3 days before the event." });
+	}
+
+	let amountDue = 0;
+	let upgradeDescription = "";
+
+	if (req.body.new_package_id && String(req.body.new_package_id) !== String(booking.package_id)) {
+		const Package = require("../models/Package");
+		const newPackage = await Package.findById(req.body.new_package_id);
+		const oldPackage = await Package.findById(booking.package_id);
+		
+		if (newPackage && oldPackage && newPackage.price > oldPackage.price) {
+			amountDue += (newPackage.price - oldPackage.price);
+			upgradeDescription += `Upgraded to ${newPackage.name}. `;
+			booking.package_id = newPackage._id;
+		}
+	}
+
+	if (req.body.added_services && Array.isArray(req.body.added_services)) {
+		for (const service of req.body.added_services) {
+			const qty = Number(service.quantity) || 1;
+			const price = Number(service.price) || 0;
+			if (price > 0) {
+				amountDue += (price * qty);
+				upgradeDescription += `Added ${service.name} (x${qty}). `;
+				if (!booking.service_items) booking.service_items = [];
+				booking.service_items.push({ name: service.name, quantity: qty, price: price });
+			}
+		}
+	}
+
+	if (amountDue <= 0) {
+		return res.status(400).json({ message: "No valid upgrade selected or amount is zero" });
+	}
+
+	booking.total_price += amountDue;
+	await booking.save();
+
+	const { createCheckoutSession } = require("../services/payment.service");
+	const Payment = require("../models/Payment");
+
+	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+	const successUrl = `${appBaseUrl}/customer/payments?status=success`;
+	const cancelUrl = `${appBaseUrl}/customer/payments?status=cancelled`;
+
+	const payment = await Payment.create({
+		booking_id: booking._id,
+		customer_id: booking.customer_id,
+		amount: amountDue,
+		currency: "PHP",
+		payment_type: "upgrade",
+		method: "paymongo",
+		status: "pending",
+		gateway: "paymongo"
+	});
+
+	const checkout = await createCheckoutSession({
+		amount: amountDue,
+		currency: "PHP",
+		paymentMethodTypes: ["gcash", "paymaya", "card"],
+		description: upgradeDescription.trim() || `Upgrade for Booking ${booking._id}`,
+		successUrl,
+		cancelUrl,
+		metadata: {
+			local_payment_id: String(payment._id),
+			booking_id: String(booking._id),
+			customer_id: String(booking.customer_id),
+			payment_type: "upgrade"
+		}
+	});
+
+	payment.gateway_checkout_id = checkout.data.id;
+	payment.checkout_url = checkout.data.attributes.checkout_url;
+	await payment.save();
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_upgraded",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Customer self-service upgrade: ${upgradeDescription.trim()}`,
 		ip_address: req.ip
 	});
 

@@ -25,11 +25,18 @@ export default function CustomerBookings() {
   const [addingGuestsBooking, setAddingGuestsBooking] = useState(null);
   const [additionalGuests, setAdditionalGuests] = useState(0);
   const [isSubmittingGuests, setIsSubmittingGuests] = useState(false);
+  
+  const [upgradingBooking, setUpgradingBooking] = useState(null);
+  const [packages, setPackages] = useState([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
+
   const { notify } = useToast();
 
   useEffect(() => {
     CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
     CustomerAPI.getPayments().then((res) => setPayments(res.data)).catch(() => setPayments([]));
+    CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
   }, []);
 
   const upcoming = useMemo(
@@ -41,8 +48,8 @@ export default function CustomerBookings() {
     [bookings]
   );
   const totalSpent = useMemo(
-    () => completed.reduce((sum, item) => sum + (item.total_price || 0), 0),
-    [completed]
+    () => payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+    [payments]
   );
 
   const nextEvent = upcoming[0];
@@ -142,6 +149,30 @@ export default function CustomerBookings() {
     }
   };
 
+  const submitUpgrade = async (event) => {
+    event.preventDefault();
+    if (!upgradingBooking) return;
+    if (!selectedPackageId) {
+      notify("Please select a package to upgrade to.", "error");
+      return;
+    }
+
+    try {
+      setIsSubmittingUpgrade(true);
+      const response = await CustomerAPI.upgradeBooking(upgradingBooking._id, { new_package_id: selectedPackageId });
+      
+      notify("Package upgraded! Redirecting to payment...", "success");
+      
+      if (response.data.checkout_url) {
+        window.location.assign(response.data.checkout_url);
+      }
+    } catch (error) {
+      notify(error.response?.data?.message || "Could not upgrade package.", "error");
+    } finally {
+      setIsSubmittingUpgrade(false);
+    }
+  };
+
   const submitChangeRequest = async (event) => {
     event.preventDefault();
     if (!requestingBooking) return;
@@ -182,67 +213,79 @@ export default function CustomerBookings() {
       </div>
 
       {nextEvent && (
-        <div className="table-card">
-          <div className="tile-header">
-            <h3>{nextEvent.event_type}</h3>
-            <span className="badge confirmed">{nextEvent.status}</span>
+        <div className="table-card" style={{ padding: "24px" }}>
+          <div className="tile-header" style={{ borderBottom: "1px solid #eee", paddingBottom: "16px", marginBottom: "20px" }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: "1.25rem" }}>{nextEvent.event_type}</h3>
+              <small style={{ color: "#666" }}>Ref: {nextEvent._id}</small>
+            </div>
+            <span className={`badge ${nextEvent.status === "confirmed" ? "confirmed" : "pending"}`}>{nextEvent.status}</span>
           </div>
-          <div className="grid sm:grid-cols-4">
+
+          <div className="grid sm:grid-cols-4" style={{ gap: "20px", marginBottom: "24px" }}>
             <div>
-              <small>Date & Time</small>
-              <div>{new Date(nextEvent.event_date).toLocaleDateString()} {nextEvent.start_time || ""}</div>
+              <small style={{ color: "#6b7280", fontWeight: 500, textTransform: "uppercase", fontSize: "0.75rem" }}>Date & Time</small>
+              <div style={{ fontWeight: 500 }}>{new Date(nextEvent.event_date).toLocaleDateString()} at {nextEvent.start_time || "TBD"}</div>
             </div>
             <div>
-              <small>Venue</small>
-              <div>{nextEvent.venue_type || "-"}</div>
+              <small style={{ color: "#6b7280", fontWeight: 500, textTransform: "uppercase", fontSize: "0.75rem" }}>Venue</small>
+              <div style={{ fontWeight: 500 }}>{nextEvent.venue_type || "TBD"}</div>
             </div>
             <div>
-              <small>Package</small>
-              <div>{nextEvent.package_id?.name || "Custom"}</div>
+              <small style={{ color: "#6b7280", fontWeight: 500, textTransform: "uppercase", fontSize: "0.75rem" }}>Package</small>
+              <div style={{ fontWeight: 500 }}>{nextEvent.package_id?.name || "Custom Build"}</div>
             </div>
             <div>
-              <small>Guests</small>
-              <div>{nextEvent.guest_count}</div>
-            </div>
-          </div>
-          <div className="tile" style={{ marginTop: "12px" }}>
-            <strong>Payment Summary</strong>
-            <div className="grid sm:grid-cols-4" style={{ marginTop: "10px" }}>
-              <div>
-                <small>Total Amount</small>
-                <div>{formatCurrency(nextEvent.total_price)}</div>
-              </div>
-              <div>
-                <small>Total Paid</small>
-                <div>{formatCurrency(nextEventPaid)}</div>
-              </div>
-              <div>
-                <small>Balance Due</small>
-                <div>{formatCurrency(nextEventBalance)}</div>
-              </div>
-              <div>
-                <small>Payment Status</small>
-                <div className={`badge ${nextEvent.payment_status === "paid" ? "confirmed" : "pending"}`}>{nextEvent.payment_status || "pending"}</div>
-              </div>
+              <small style={{ color: "#6b7280", fontWeight: 500, textTransform: "uppercase", fontSize: "0.75rem" }}>Guests</small>
+              <div style={{ fontWeight: 500 }}>{nextEvent.guest_count}</div>
             </div>
           </div>
-          <div className="actions">
-            <button className="btn" type="button" onClick={openCatererChat}>Message Caterer</button>
-            <button
-              className="btn-outline"
-              type="button"
-              onClick={openChangeRequest}
-              disabled={!canRequestChange}
-            >
-              {nextEventChangeRequested ? "Change Request Sent" : canRequestChange ? "Change Booking Information" : "Locked 3 Days Before Event"}
+
+          <div className="tile" style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "20px", borderRadius: "8px", marginBottom: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <strong style={{ fontSize: "1.1rem" }}>Financial Summary</strong>
+              {nextEventBalance <= 0 && <span className="badge confirmed">Fully Paid ✅</span>}
+            </div>
+            <div className="grid sm:grid-cols-3" style={{ gap: "16px" }}>
+              <div>
+                <small style={{ color: "#6b7280" }}>Total Cost</small>
+                <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{formatCurrency(nextEvent.total_price)}</div>
+              </div>
+              <div>
+                <small style={{ color: "#6b7280" }}>Amount Paid</small>
+                <div style={{ fontSize: "1.1rem", fontWeight: 600, color: "#16a34a" }}>{formatCurrency(nextEventPaid)}</div>
+              </div>
+              <div>
+                <small style={{ color: "#6b7280" }}>Remaining Balance</small>
+                <div style={{ fontSize: "1.1rem", fontWeight: 600, color: nextEventBalance > 0 ? "#dc2626" : "#64748b" }}>
+                  {formatCurrency(nextEventBalance)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="actions" style={{ display: "flex", gap: "12px", flexWrap: "wrap", borderTop: "1px solid #eee", paddingTop: "20px" }}>
+            {nextEventBalance > 0 && (
+              <button
+                className="btn"
+                type="button"
+                onClick={() => startPayment(nextEvent, nextEventPaid > 0)}
+                disabled={payingBookingId === nextEvent._id}
+              >
+                {payingBookingId === nextEvent._id ? "Opening PayMongo..." : "Pay Balance"}
+              </button>
+            )}
+            <button className="btn-outline" type="button" onClick={() => setUpgradingBooking(nextEvent)} disabled={!canRequestChange}>
+              Upgrade Package
             </button>
-            <button
-              className="btn-outline"
-              type="button"
-              onClick={() => startPayment(nextEvent, nextEventPaid > 0)}
-              disabled={payingBookingId === nextEvent._id || nextEventBalance <= 0}
-            >
-              {payingBookingId === nextEvent._id ? "Opening PayMongo..." : nextEventBalance <= 0 ? "Fully Paid" : "Pay Balance"}
+            <button className="btn-outline" type="button" onClick={() => setAddingGuestsBooking(nextEvent)} disabled={!canRequestChange}>
+              Add Guests
+            </button>
+            <button className="btn-outline" type="button" onClick={openChangeRequest} disabled={!canRequestChange}>
+              {nextEventChangeRequested ? "Change Request Pending" : "Request Changes"}
+            </button>
+            <button className="btn-outline" type="button" onClick={openCatererChat} style={{ marginLeft: "auto" }}>
+              Message Caterer
             </button>
           </div>
         </div>
@@ -302,6 +345,48 @@ export default function CustomerBookings() {
               </button>
               <button className="btn" type="submit" disabled={isSubmittingGuests || !canRequestChange || additionalGuests <= 0}>
                 {isSubmittingGuests ? "Processing..." : "Pay Difference"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {upgradingBooking && (
+        <Modal title="Upgrade Package" onClose={() => setUpgradingBooking(null)}>
+          <form onSubmit={submitUpgrade}>
+            <p style={{ marginTop: 0 }}>
+              Current Package: <strong>{upgradingBooking.package_id?.name || "Custom"}</strong>. 
+              Select a new package to upgrade to. You will be redirected to pay the price difference.
+            </p>
+            <label className="form-label" htmlFor="upgrade-package">
+              Select New Package
+            </label>
+            <select
+              id="upgrade-package"
+              className="form-input"
+              value={selectedPackageId}
+              onChange={(e) => setSelectedPackageId(e.target.value)}
+              required
+            >
+              <option value="">-- Choose a Package --</option>
+              {packages.map(pkg => (
+                <option key={pkg._id} value={pkg._id}>
+                  {pkg.name} (₱{Number(pkg.price).toLocaleString()})
+                </option>
+              ))}
+            </select>
+            
+            {!canRequestChange && (
+              <p style={{ color: "#b45309", marginTop: "12px" }}>
+                Upgrades are locked within 3 days of the event.
+              </p>
+            )}
+            <div className="actions" style={{ justifyContent: "flex-end", marginTop: "20px" }}>
+              <button className="btn-outline" type="button" onClick={() => setUpgradingBooking(null)}>
+                Cancel
+              </button>
+              <button className="btn" type="submit" disabled={isSubmittingUpgrade || !canRequestChange || !selectedPackageId}>
+                {isSubmittingUpgrade ? "Processing..." : "Pay Difference"}
               </button>
             </div>
           </form>

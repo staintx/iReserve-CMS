@@ -9,6 +9,7 @@ router.post("/", protect, authorize("admin", "staff", "customer"), validate(book
 
 router.post("/:id/change-request", protect, authorize("customer"), ctrl.requestChange);
 router.post("/:id/add-guests", protect, authorize("customer"), ctrl.addGuests);
+router.post("/:id/upgrade-booking", protect, authorize("customer"), ctrl.upgradeBooking);
 router.post("/:id/verify-returns", protect, authorize("admin", "staff"), ctrl.verifyReturns);
 router.get("/availability", protect, ctrl.checkAvailability);
 router.get("/", protect, authorize("admin", "staff"), ctrl.getAll);

@@ -1,41 +1,26 @@
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const Booking = require("../models/Booking");
-const Inquiry = require("../models/Inquiry");
+
 const asyncHandler = require("../utils/asyncHandler");
 const { canAccessConversation } = require("../utils/chatAccess");
 const { createNotification } = require("../utils/notify");
 
 const ensureBookingConversations = async (bookings) => {
   const tasks = bookings
-    .filter((booking) => booking.manager_id)
+    .filter((booking) => booking.event_manager_id)
     .map((booking) => Conversation.findOneAndUpdate(
       { booking_id: booking._id },
       {
         $set: {
           type: "event",
           customer_id: booking.customer_id,
-          manager_id: booking.manager_id
+          event_manager_id: booking.event_manager_id
         },
         $setOnInsert: { booking_id: booking._id }
       },
       { new: true, upsert: true }
     ));
-  await Promise.all(tasks);
-};
-
-const ensureInquiryConversations = async (inquiries) => {
-  const tasks = inquiries.map((inquiry) => Conversation.findOneAndUpdate(
-    { inquiry_id: inquiry._id },
-    {
-      $set: {
-        type: "support",
-        customer_id: inquiry.customer_id
-      },
-      $setOnInsert: { inquiry_id: inquiry._id }
-    },
-    { new: true, upsert: true }
-  ));
   await Promise.all(tasks);
 };
 
@@ -56,7 +41,7 @@ const ensureCustomerSupportConversation = async (customerId) => {
 
 exports.listConversations = asyncHandler(async (req, res) => {
   if (req.user.role === "admin") {
-    const bookings = await Booking.find({ manager_id: { $ne: null } });
+    const bookings = await Booking.find({ event_manager_id: { $ne: null } });
     const inquiries = await Inquiry.find();
     await ensureBookingConversations(bookings);
     await ensureInquiryConversations(inquiries);
@@ -70,20 +55,20 @@ exports.listConversations = asyncHandler(async (req, res) => {
     await ensureCustomerSupportConversation(req.user._id);
   }
 
-  if (req.user.role === "manager") {
-    const bookings = await Booking.find({ manager_id: req.user._id });
+  if (req.user.role === "staff") {
+    const bookings = await Booking.find({ event_manager_id: req.user._id });
     await ensureBookingConversations(bookings);
   }
 
   const query = {};
   if (req.user.role === "customer") query.customer_id = req.user._id;
-  if (req.user.role === "manager") query.manager_id = req.user._id;
+  if (req.user.role === "staff") query.event_manager_id = req.user._id;
 
   const conversations = await Conversation.find(query)
     .populate("customer_id", "full_name email")
-    .populate("manager_id", "full_name email")
+    .populate("event_manager_id", "full_name email")
     .populate("booking_id", "event_type event_date")
-    .populate("inquiry_id", "event_type event_date")
+    
     .sort({ last_message_at: -1, updatedAt: -1 });
 
   res.json(conversations);
@@ -92,9 +77,9 @@ exports.listConversations = asyncHandler(async (req, res) => {
 exports.getConversation = asyncHandler(async (req, res) => {
   const conversation = await Conversation.findById(req.params.id)
     .populate("customer_id", "full_name email")
-    .populate("manager_id", "full_name email")
+    .populate("event_manager_id", "full_name email")
     .populate("booking_id", "event_type event_date")
-    .populate("inquiry_id", "event_type event_date");
+    ;
 
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
   if (!canAccessConversation(req.user, conversation)) {
@@ -145,7 +130,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
 
     const senderId = String(req.user._id);
     const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
-    const managerId = conversation.manager_id ? String(conversation.manager_id) : null;
+    const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
     const senderName = req.user.full_name || req.user.email || "Someone";
 
     if (customerId && senderId !== customerId) {
@@ -182,14 +167,14 @@ exports.createConversation = asyncHandler(async (req, res) => {
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
     const isCustomer = String(booking.customer_id) === String(req.user._id);
-    const isManager = booking.manager_id && String(booking.manager_id) === String(req.user._id);
+    const isManager = booking.event_manager_id && String(booking.event_manager_id) === String(req.user._id);
     const isAdmin = req.user.role === "admin";
 
     if (!isCustomer && !isManager && !isAdmin) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    if (!booking.manager_id) {
+    if (!booking.event_manager_id) {
       return res.status(400).json({ message: "Booking has no assigned manager" });
     }
 
@@ -199,7 +184,7 @@ exports.createConversation = asyncHandler(async (req, res) => {
         $set: {
           type: "event",
           customer_id: booking.customer_id,
-          manager_id: booking.manager_id
+          event_manager_id: booking.event_manager_id
         },
         $setOnInsert: { booking_id: booking._id }
       },

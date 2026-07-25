@@ -1,5 +1,5 @@
 module.exports = {
-  USER_ROLES: ["admin", "manager", "staff", "customer"],
+  USER_ROLES: ["admin", "staff", "customer"],
   INQUIRY_STATUS: ["new", "under review", "awaiting confirmation", "negotiating", "confirmed", "declined", "abandoned", "expired", "spam", "cancelled"],
   BOOKING_STATUS: ["active", "completed", "cancelled"],
   PAYMENT_STATUS: ["pending", "approved", "rejected"],

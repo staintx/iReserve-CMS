@@ -10,20 +10,17 @@ const SystemLogSchema = new mongoose.Schema({
       "package_created",
       "package_updated",
       "package_deleted",
-      // Inquiry actions
-      "inquiry_reviewed",
-      "inquiry_updated",
-      "inquiry_customer_status_update",
+
       // Booking actions
       "booking_created",
-      "booking_created_from_inquiry",
+
       "booking_updated",
       "booking_deleted"
     ]
   },
   entity_type: {
     type: String,
-    enum: ["package", "inquiry", "booking"]
+    enum: ["package", "booking"]
   },
   entity_id: String,
   details: String,

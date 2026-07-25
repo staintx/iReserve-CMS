@@ -40,6 +40,8 @@ export default function AdminBookingDetails() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(false);
+  const [refundAmount, setRefundAmount] = useState(0);
+  const [refundReason, setRefundReason] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [packages, setPackages] = useState([]);
@@ -211,15 +213,31 @@ export default function AdminBookingDetails() {
   const handleCancel = () => {
     if (!booking) return;
     setSubmitting(true);
-    AdminAPI.updateBooking(booking._id, { status: "cancelled" })
+    
+    // If there is no refund amount specified (e.g. no deposit paid), just cancel it normally
+    if (refundAmount <= 0) {
+      AdminAPI.updateBooking(booking._id, { status: "cancelled" })
+        .then(() => {
+          notify("Booking cancelled.", "warning");
+          navigate("/admin/bookings/active");
+        })
+        .catch((err) => {
+          notify(err.response?.data?.message || "Could not cancel booking.", "error");
+          setSubmitting(false);
+          setCancelTarget(false);
+        });
+      return;
+    }
+
+    // If refund amount is specified, process refund
+    AdminAPI.processRefund(booking._id, { amount: refundAmount, reason: refundReason })
       .then(() => {
-        notify("Booking cancelled.", "warning");
+        notify("Booking cancelled and custom refund processed.", "success");
         navigate("/admin/bookings/active");
       })
       .catch((err) => {
-        notify(err.response?.data?.message || "Could not cancel booking.", "error");
+        notify(err.response?.data?.message || "Could not process refund.", "error");
         setSubmitting(false);
-        setCancelTarget(false);
       });
   };
 
@@ -929,11 +947,61 @@ export default function AdminBookingDetails() {
       </div>
 
       {cancelTarget && (
-        <ConfirmDialog
-          message={`Cancel booking ${bookingCode}? This cannot be undone.`}
-          onConfirm={handleCancel}
-          onCancel={() => setCancelTarget(false)}
-        />
+        <Modal title="Cancel Booking & Refund" onClose={() => setCancelTarget(false)}>
+          <div className="space-y-4">
+            <div className="ir-banner-warning p-3 rounded" style={{ display: 'flex', gap: '10px' }}>
+              <span>⚠️</span>
+              <p className="m-0">You are about to cancel this booking. This action cannot be undone.</p>
+            </div>
+            
+            {totalPaid > 0 ? (
+              <div className="bg-slate-50 p-4 border rounded-md">
+                <p className="text-sm font-semibold mb-2">Total Paid: {formatCurrency(totalPaid)}</p>
+                <div className="form-group">
+                  <label className="text-sm font-semibold">Custom Refund Amount (PHP)</label>
+                  <p className="text-xs text-slate-500 mb-2">Specify the amount to refund after ocular/cancellation deductions.</p>
+                  <input 
+                    type="number" 
+                    className="w-full p-2 border rounded" 
+                    min="0"
+                    max={totalPaid}
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(Number(e.target.value))}
+                  />
+                </div>
+                <div className="form-group mt-3">
+                  <label className="text-sm font-semibold">Refund Reason / Deduction Notes</label>
+                  <textarea 
+                    className="w-full p-2 border rounded" 
+                    rows="2"
+                    placeholder="e.g. Ocular fee deduction"
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <p>No payments have been made for this booking. It will be cancelled without refund.</p>
+            )}
+
+            <div className="flex justify-end gap-2 mt-6 border-t pt-4">
+              <button 
+                className="btn-outline px-4 py-2 border rounded" 
+                onClick={() => setCancelTarget(false)} 
+                disabled={submitting}
+              >
+                Keep Booking
+              </button>
+              <button 
+                className="btn px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700" 
+                onClick={handleCancel} 
+                disabled={submitting || (totalPaid > 0 && (refundAmount < 0 || refundAmount > totalPaid))}
+              >
+                {submitting ? "Processing..." : (totalPaid > 0 && refundAmount > 0 ? "Process Refund & Cancel" : "Confirm Cancellation")}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {showEditModal && (

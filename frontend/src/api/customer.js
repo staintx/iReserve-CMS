@@ -30,6 +30,7 @@ export const CustomerAPI = {
   getBookings: () => api.get("/bookings/me"),
   createBooking: (data) => api.post("/bookings", data),
   requestBookingChange: (id, data) => api.post(`/bookings/${id}/change-request`, data),
+  addGuests: (id, data) => api.post(`/bookings/${id}/add-guests`, data),
 
   // profile
   getProfile: () => api.get("/users/me"),

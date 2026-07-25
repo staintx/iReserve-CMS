@@ -3,9 +3,9 @@ const mongoose = require("mongoose");
 const BookingSchema = new mongoose.Schema({
   customer_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   package_id: { type: mongoose.Schema.Types.ObjectId, ref: "Package" },
-  manager_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  event_manager_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   staff_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  inquiry_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inquiry" },
+
   event_type: String,
   event_theme: String,
   event_date: Date,
@@ -56,7 +56,9 @@ const BookingSchema = new mongoose.Schema({
   contact_method: String,
   total_price: Number,
   payment_method: String,
-  payment_status: { type: String, default: "pending" },
+  payment_status: { type: String, enum: ["pending", "deposit_paid", "fully_paid", "refund_requested", "refunded"], default: "pending" },
+  paymongo_checkout_session_id: String,
+  paymongo_payment_intent_id: String,
   change_request: {
     status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
     message: String,
@@ -72,7 +74,7 @@ const BookingSchema = new mongoose.Schema({
       phone: String
     }
   ],
-  manager_notes: [
+  event_manager_notes: [
     {
       note: String,
       created_at: { type: Date, default: Date.now }

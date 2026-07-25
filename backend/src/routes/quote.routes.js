@@ -6,10 +6,10 @@ const validate = require("../middleware/validate.middleware");
 const { quoteSchema, quoteUpdateSchema } = require("../validations/quote.validation");
 
 router.post("/", protect, validate(quoteSchema), ctrl.create);
-router.get("/", protect, authorize("admin", "manager"), ctrl.getAll);
+router.get("/", protect, authorize("admin", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);
-router.get("/:id", protect, authorize("admin", "manager"), ctrl.getById);
-router.put("/:id", protect, authorize("admin", "manager"), validate(quoteUpdateSchema), ctrl.update);
+router.get("/:id", protect, authorize("admin", "staff"), ctrl.getById);
+router.put("/:id", protect, authorize("admin", "staff"), validate(quoteUpdateSchema), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
 
 module.exports = router;

@@ -9,7 +9,7 @@ const MenuItem = require("../models/MenuItem");
 const Inventory = require("../models/Inventory");
 const BusinessInfo = require("../models/BusinessInfo");
 const Gallery = require("../models/Gallery");
-const Inquiry = require("../models/Inquiry");
+
 const Quote = require("../models/Quote");
 const Booking = require("../models/Booking");
 const Payment = require("../models/Payment");
@@ -34,7 +34,7 @@ const seed = async () => {
       Inventory.deleteMany(),
       BusinessInfo.deleteMany(),
       Gallery.deleteMany(),
-      Inquiry.deleteMany(),
+
       Quote.deleteMany(),
       Booking.deleteMany(),
       Payment.deleteMany(),
@@ -62,7 +62,7 @@ const seed = async () => {
         email: "manager@ireserve.com",
         username: "manager",
         password: passwordHash,
-        role: "manager",
+        role: "staff",
         is_verified: true
       },
       {
@@ -183,210 +183,14 @@ const seed = async () => {
       }
     ]);
 
-    const [approvedInquiry, pendingInquiry, rejectedInquiry] = await Inquiry.create([
-      {
-        customer_id: customerUser._id,
-        package_id: basicPackage._id,
-        event_type: "Birthday",
-        event_theme: "Rustic",
-        event_date: new Date("2026-08-15"),
-        start_time: "18:00",
-        guest_count: 50,
-        duration_hours: 4,
-        service_type: "Catering",
-        venue_type: "Private",
-        indoor_outdoor: "Indoor",
-        province: "Batangas",
-        municipality: "Lipa City",
-        barangay: "Tambo",
-        street: "Sunset Road",
-        landmark: "Near City Hall",
-        zip_code: "4217",
-        venue_contact_name: "Ana Cruz",
-        venue_contact_phone: "09181234567",
-        budget_min: 30000,
-        budget_max: 50000,
-        selected_menu: [menuAdobo.name, menuSalad.name],
-        menu_items: [
-          { name: menuAdobo.name, note: "Less salt", price: 250 },
-          { name: menuSalad.name, note: "No nuts", price: 120 }
-        ],
-        special_requests: "Provide kids-friendly options.",
-        additional_services: ["Styling"],
-        contact_first_name: "Celine",
-        contact_last_name: "Customer",
-        contact_email: customerUser.email,
-        contact_phone: "09191234567",
-        contact_method: "email",
-        payment_method: "bank",
-        package_amount: 35000,
-        quote_amount: 38000,
-        quote_notes: "Includes styling add-on.",
-        status: "confirmed"
-      },
-      {
-        customer_id: customerUser._id,
-        package_id: premiumPackage._id,
-        event_type: "Wedding",
-        event_theme: "Classic",
-        event_date: new Date("2026-10-12"),
-        start_time: "15:00",
-        guest_count: 120,
-        duration_hours: 6,
-        service_type: "Full service",
-        venue_type: "Event hall",
-        indoor_outdoor: "Indoor",
-        province: "Batangas",
-        municipality: "Batangas City",
-        barangay: "Alangilan",
-        street: "Venue Avenue",
-        landmark: "Near Mall",
-        zip_code: "4200",
-        venue_contact_name: "Rose Chan",
-        venue_contact_phone: "09183334444",
-        budget_min: 90000,
-        budget_max: 130000,
-        selected_menu: [menuPasta.name, menuSalad.name],
-        menu_items: [
-          { name: menuPasta.name, note: "Extra cheese", price: 280 },
-          { name: menuSalad.name, note: "No nuts", price: 120 }
-        ],
-        special_requests: "Floral arch included.",
-        additional_services: ["Styling", "Live band"],
-        contact_first_name: "Celine",
-        contact_last_name: "Customer",
-        contact_email: customerUser.email,
-        contact_phone: "09195551234",
-        contact_method: "phone",
-        payment_method: "bank",
-        package_amount: 100000,
-        quote_amount: 118000,
-        quote_notes: "Pending final menu.",
-        status: "new"
-      },
-      {
-        customer_id: customerUser._id,
-        package_id: basicPackage._id,
-        event_type: "Corporate",
-        event_theme: "Modern",
-        event_date: new Date("2026-07-20"),
-        start_time: "12:00",
-        guest_count: 40,
-        duration_hours: 3,
-        service_type: "Buffet",
-        venue_type: "Office",
-        indoor_outdoor: "Indoor",
-        province: "Batangas",
-        municipality: "Lipa City",
-        barangay: "Tambo",
-        street: "Business Park",
-        landmark: "Building B",
-        zip_code: "4217",
-        venue_contact_name: "Jake Lim",
-        venue_contact_phone: "09187779999",
-        budget_min: 20000,
-        budget_max: 35000,
-        selected_menu: [menuAdobo.name],
-        menu_items: [{ name: menuAdobo.name, note: "No spicy", price: 250 }],
-        special_requests: "Set up by 11:30 AM.",
-        additional_services: ["Staffing"],
-        contact_first_name: "Celine",
-        contact_last_name: "Customer",
-        contact_email: customerUser.email,
-        contact_phone: "09192223333",
-        contact_method: "email",
-        payment_method: "bank",
-        package_amount: 28000,
-        quote_amount: 30000,
-        quote_notes: "Budget too low for requested add-ons.",
-        status: "declined"
-      },
-      {
-        customer_id: customerUser._id,
-        package_id: basicPackage._id,
-        event_type: "Anniversary",
-        event_theme: "Vintage",
-        event_date: new Date("2026-09-01"),
-        start_time: "18:00",
-        guest_count: 40,
-        duration_hours: 4,
-        service_type: "Catering",
-        venue_type: "Private",
-        indoor_outdoor: "Indoor",
-        province: "Batangas",
-        municipality: "Lipa City",
-        barangay: "Tambo",
-        street: "Main Street",
-        landmark: "Near Park",
-        zip_code: "4217",
-        venue_contact_name: "John Doe",
-        venue_contact_phone: "09171112222",
-        budget_min: 30000,
-        budget_max: 40000,
-        selected_menu: [menuAdobo.name],
-        menu_items: [
-          { name: menuAdobo.name, note: "Extra sauce", price: 250 }
-        ],
-        special_requests: "Need a mic.",
-        additional_services: [],
-        contact_first_name: "Celine",
-        contact_last_name: "Customer",
-        contact_email: customerUser.email,
-        contact_phone: "09191234567",
-        contact_method: "email",
-        payment_method: "bank",
-        package_amount: 30000,
-        quote_amount: 30000,
-        quote_notes: "",
-        status: "under review"
-      },
-      {
-        customer_id: customerUser._id,
-        package_id: premiumPackage._id,
-        event_type: "Baptism",
-        event_theme: "White",
-        event_date: new Date("2026-12-05"),
-        start_time: "10:00",
-        guest_count: 100,
-        duration_hours: 4,
-        service_type: "Full service",
-        venue_type: "Event hall",
-        indoor_outdoor: "Indoor",
-        province: "Batangas",
-        municipality: "Batangas City",
-        barangay: "Alangilan",
-        street: "Venue Avenue",
-        landmark: "Near Mall",
-        zip_code: "4200",
-        venue_contact_name: "Rose Chan",
-        venue_contact_phone: "09183334444",
-        budget_min: 80000,
-        budget_max: 100000,
-        selected_menu: [menuPasta.name],
-        menu_items: [
-          { name: menuPasta.name, note: "More cheese", price: 280 }
-        ],
-        special_requests: "None.",
-        additional_services: ["Styling"],
-        contact_first_name: "Celine",
-        contact_last_name: "Customer",
-        contact_email: customerUser.email,
-        contact_phone: "09195551234",
-        contact_method: "phone",
-        payment_method: "bank",
-        package_amount: 95000,
-        quote_amount: 105000,
-        quote_notes: "Quote sent, awaiting customer.",
-        status: "awaiting confirmation"
-      }
-    ]);
+
 
     const booking = await Booking.create({
       customer_id: customerUser._id,
       package_id: basicPackage._id,
-      manager_id: manager._id,
+      event_manager_id: manager._id,
       staff_ids: [staffOne._id, staffTwo._id],
-      inquiry_id: approvedInquiry._id,
+
       event_type: "Birthday",
       event_theme: "Rustic",
       event_date: new Date("2026-08-15"),
@@ -430,7 +234,7 @@ const seed = async () => {
         { role: "Head server", user_id: staffOne._id, name: staffOne.full_name, phone: "09175551234" },
         { role: "Crew", user_id: staffTwo._id, name: staffTwo.full_name, phone: "09175554321" }
       ],
-      manager_notes: [{ note: "Confirm layout with client." }],
+      event_manager_notes: [{ note: "Confirm layout with client." }],
       staff_reports: [
         { staff_id: staffOne._id, role: "Head server", note: "Site ready." }
       ]
@@ -485,9 +289,9 @@ const seed = async () => {
     const conversation = await Conversation.create({
       type: "event",
       customer_id: customerUser._id,
-      manager_id: manager._id,
+      event_manager_id: manager._id,
       booking_id: booking._id,
-      inquiry_id: approvedInquiry._id,
+
       last_message: "Thanks for confirming the menu.",
       last_message_at: new Date()
     });

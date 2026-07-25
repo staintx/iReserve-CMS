@@ -42,11 +42,10 @@ export default function AdminPaymentApprovalsTable({ payments, onApprove, onReje
               </span>
             </td>
             <td>
-              {p.status === "pending" && (
-                <>
-                  <button className="btn" onClick={() => onApprove?.(p)}>Approve</button>
-                  <button className="btn-danger" onClick={() => onReject?.(p)}>Reject</button>
-                </>
+              {p.method === 'paymongo' && p.status === 'pending' ? (
+                <span className="text-sm text-slate-500">Waiting for customer</span>
+              ) : (
+                "-"
               )}
             </td>
           </tr>

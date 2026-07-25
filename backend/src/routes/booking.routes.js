@@ -5,7 +5,7 @@ const { authorize } = require("../middleware/role.middleware");
 const validate = require("../middleware/validate.middleware");
 const { bookingSchema } = require("../validations/booking.validation");
 
-router.post("/", protect, authorize("admin", "staff"), validate(bookingSchema), ctrl.create);
+router.post("/", protect, authorize("admin", "staff", "customer"), validate(bookingSchema), ctrl.create);
 
 router.post("/:id/change-request", protect, authorize("customer"), ctrl.requestChange);
 router.post("/:id/add-guests", protect, authorize("customer"), ctrl.addGuests);

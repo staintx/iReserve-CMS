@@ -118,17 +118,12 @@ export default function AdminSidebar() {
           {!isCollapsed && <span>Dashboard</span>}
         </NavLink>
         
-        {isManager && (
-          <NavLink to="/admin/inquiries" className={linkClass}>
-            <MessageCircleQuestion className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>Inquiries</span>}
-          </NavLink>
-        )}
+
 
         {isManager && (
-          <NavLink to="/admin/payment-approvals" className={linkClass}>
+          <NavLink to="/admin/payments" className={linkClass}>
             <CreditCard className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>Payment Approvals</span>}
+            {!isCollapsed && <span>Payments</span>}
           </NavLink>
         )}
         

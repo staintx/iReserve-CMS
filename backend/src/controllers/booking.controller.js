@@ -140,6 +140,14 @@ exports.create = asyncHandler(async (req, res) => {
 		return res.status(400).json({ message: "Event date must be today or later" });
 	}
 
+	if (req.user?.role === "customer") {
+		req.body.customer_id = req.user._id;
+		req.body.status = "pending deposit";
+		req.body.payment_status = "pending";
+	} else if (!req.body.status) {
+		req.body.status = "pending deposit";
+	}
+
 	const conflict = await findBookingConflict({
 		eventDate: req.body.event_date,
 		startTime: req.body.start_time,

@@ -6,7 +6,7 @@ import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import Modal from "../../components/common/Modal";
 
-export default function AdminPaymentApprovals() {
+export default function AdminPayments() {
   const [payments, setPayments] = useState([]);
   const [query, setQuery] = useState("");
   const [statusTab, setStatusTab] = useState("pending");
@@ -96,7 +96,7 @@ export default function AdminPaymentApprovals() {
         payment_type: paymentForm.payment_type,
         method: paymentForm.method,
         proof_url: paymentForm.proof_url || undefined,
-        status: "pending"
+        status: "approved"
       });
       notify("Payment recorded.", "success");
       setShowAddPayment(false);
@@ -111,8 +111,8 @@ export default function AdminPaymentApprovals() {
     <AdminLayout>
       <div className="admin-page-head">
         <div className="admin-title">
-          <h1>Payment Approvals</h1>
-          <p>Review and approve pending payments</p>
+          <h1>Payments</h1>
+          <p>Track incoming payments and verify transactions</p>
         </div>
       </div>
 

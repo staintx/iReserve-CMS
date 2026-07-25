@@ -9,7 +9,8 @@ const BusinessInfoSchema = new mongoose.Schema({
   facebook: String,
   instagram: String,
   terms_url: String,
-  privacy_url: String
+  privacy_url: String,
+  deposit_percentage: { type: Number, default: 20 }
 }, { timestamps: true });
 
 module.exports = mongoose.model("BusinessInfo", BusinessInfoSchema);

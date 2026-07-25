@@ -11,7 +11,8 @@ const DEFAULT_INFO = {
   facebook: "",
   instagram: "",
   terms_url: "",
-  privacy_url: ""
+  privacy_url: "",
+  deposit_percentage: 20
 };
 
 const footerItems = [
@@ -23,7 +24,8 @@ const footerItems = [
   { label: "Facebook", key: "facebook" },
   { label: "Instagram", key: "instagram" },
   { label: "Terms", key: "terms_url" },
-  { label: "Privacy", key: "privacy_url" }
+  { label: "Privacy", key: "privacy_url" },
+  { label: "Deposit", key: "deposit_percentage" }
 ];
 
 export default function BusinessInfoPanel() {
@@ -110,6 +112,16 @@ export default function BusinessInfoPanel() {
           </div>
 
           <div className="form-section">
+            <h4>Booking Configuration</h4>
+            <div className="form-grid-2">
+              <label className="business-info-field">
+                <span>Deposit Percentage (%)</span>
+                <input className="business-info-input" type="number" min="0" max="100" value={form.deposit_percentage} onChange={updateField("deposit_percentage")} placeholder="20" />
+              </label>
+            </div>
+          </div>
+
+          <div className="form-section">
             <h4>Social links</h4>
             <div className="form-grid-2">
               <label className="business-info-field">
@@ -166,6 +178,10 @@ export default function BusinessInfoPanel() {
             <div>
               <span className="business-info-preview-label">Hours</span>
               <strong>{previewInfo.hours || "Add business hours"}</strong>
+            </div>
+            <div>
+              <span className="business-info-preview-label">Deposit Required</span>
+              <strong>{previewInfo.deposit_percentage}% of total</strong>
             </div>
           </div>
 

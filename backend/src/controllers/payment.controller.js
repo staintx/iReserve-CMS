@@ -9,12 +9,46 @@ const {
 	isPaidEvent,
 	isFailedEvent
 } = require("../services/payment.service");
+const BusinessInfo = require("../models/BusinessInfo");
+
+async function syncBookingStatus(bookingId) {
+	const booking = await Booking.findById(bookingId);
+	if (!booking) return;
+
+	const allPayments = await Payment.find({ booking_id: bookingId, status: "approved" });
+	const totalPaid = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+	let businessInfo;
+	try { businessInfo = await BusinessInfo.findOne(); } catch(e) {}
+	const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+	const requiredDeposit = (booking.total_price * depositPercentage) / 100;
+
+	let newPaymentStatus = "pending";
+	let newBookingStatus = booking.status;
+
+	if (totalPaid >= booking.total_price && booking.total_price > 0) {
+		newPaymentStatus = "fully_paid";
+		if (newBookingStatus === "pending deposit") newBookingStatus = "confirmed";
+	} else if (totalPaid >= requiredDeposit && requiredDeposit > 0) {
+		newPaymentStatus = "deposit_paid";
+		if (newBookingStatus === "pending deposit") newBookingStatus = "confirmed";
+	}
+
+	await Booking.findByIdAndUpdate(bookingId, {
+		payment_status: newPaymentStatus,
+		status: newBookingStatus
+	});
+}
 
 exports.create = asyncHandler(async (req, res) => {
 	if (req.user?.role === "customer") {
 		return res.status(403).json({ message: "Forbidden" });
 	}
-	res.status(201).json(await Payment.create(req.body));
+	const payment = await Payment.create(req.body);
+	if (payment.status === "approved" && payment.booking_id) {
+		await syncBookingStatus(payment.booking_id);
+	}
+	res.status(201).json(payment);
 });
 exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().populate("booking_id customer_id")));
 exports.getMine = asyncHandler(async (req, res) => res.json(await Payment.find({ customer_id: req.user._id }).populate("booking_id customer_id")));
@@ -28,7 +62,32 @@ exports.getById = asyncHandler(async (req, res) => {
 
 	res.json(await Payment.findById(req.params.id).populate("booking_id customer_id"));
 });
-exports.update = asyncHandler(async (req, res) => res.json(await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true })));
+
+exports.update = asyncHandler(async (req, res) => {
+	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+	if (req.body.status && payment && payment.booking_id) {
+		await syncBookingStatus(payment.booking_id);
+		
+		const io = req.app.get("io");
+		if (payment.customer_id && io) {
+			const statusLabel = payment.status === "approved" ? "Payment approved" : "Payment update";
+			const body = payment.status === "approved"
+				? "Your payment has been approved."
+				: payment.status === "rejected"
+					? "Your payment failed. Please try again."
+					: "Your payment is being processed.";
+			await createNotification({
+				userId: payment.customer_id,
+				title: statusLabel,
+				body,
+				type: payment.status === "approved" ? "success" : payment.status === "rejected" ? "error" : "info",
+				link: "/customer/payments",
+				meta: { payment_id: payment._id, booking_id: payment.booking_id }
+			}, io);
+		}
+	}
+	res.json(payment);
+});
 exports.remove = asyncHandler(async (req, res) => { await Payment.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); });
 
 exports.createCheckout = asyncHandler(async (req, res) => {
@@ -149,10 +208,7 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 	await payment.save();
 
 	if (payment.booking_id) {
-		await Booking.findByIdAndUpdate(payment.booking_id, {
-			payment_status: payment.status,
-			payment_method: payment.method
-		});
+		await syncBookingStatus(payment.booking_id);
 	}
 
 	const io = req.app.get("io");

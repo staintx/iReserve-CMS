@@ -28,8 +28,8 @@ import BookingSuccess from "../pages/customer/booking/BookingSuccess";
 import QuoteWizard from "../pages/customer/quote/QuoteWizard";
 
 import AdminDashboard from "../pages/admin/AdminDashboard";
-import AdminInquiries from "../pages/admin/AdminInquiries";
-import AdminPaymentApprovals from "../pages/admin/AdminPaymentApprovals";
+
+import AdminPayments from "../pages/admin/AdminPayments";
 import AdminMessagesList from "../pages/admin/AdminMessagesList";
 import AdminMessagesChat from "../pages/admin/AdminMessagesChat";
 import AdminGallery from "../pages/admin/AdminGallery";
@@ -46,8 +46,7 @@ import AdminReports from "../pages/admin/AdminReports";
 import AdminRatings from "../pages/admin/AdminRatings";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
 import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
-import AdminInquiryQuote from "../pages/admin/AdminInquiryQuote";
-import AdminInquiryReview from "../pages/admin/AdminInquiryReview";
+
 import AdminBookingDetails from "../pages/admin/AdminBookingDetails";
 import AdminProfile from "../pages/admin/AdminProfile";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
@@ -117,10 +116,8 @@ export default function AppRoutes() {
 
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
-        <Route path="/admin/inquiries/:id/review" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiryReview /></ProtectedRoute>} />
-        <Route path="/admin/inquiries/:id/quote" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiryQuote /></ProtectedRoute>} />
-        <Route path="/admin/payment-approvals" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPaymentApprovals /></ProtectedRoute>} />
+
+        <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPayments /></ProtectedRoute>} />
         <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
         <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
         <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminOnly}><AdminGallery /></ProtectedRoute>} />

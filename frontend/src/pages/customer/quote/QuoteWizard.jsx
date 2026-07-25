@@ -78,6 +78,9 @@ export default function QuoteWizard() {
   const navigate = useNavigate();
   const location = useLocation();
   const today = new Date().toISOString().split("T")[0];
+  const minDateObj = new Date();
+  minDateObj.setDate(minDateObj.getDate() + 3);
+  const minDate = minDateObj.toISOString().split("T")[0];
   const [stage, setStage] = useState("service");
   const [step, setStep] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
@@ -626,7 +629,7 @@ export default function QuoteWizard() {
                       </label>
                       <label className="field">
                         <span>Event Date</span>
-                        <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        <input type="date" min={minDate} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
                         {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">
@@ -736,7 +739,7 @@ export default function QuoteWizard() {
                               <span>Pickup Date</span>
                               <input
                                 type="date"
-                                min={today}
+                                min={minDate}
                                 value={form.pickup_date}
                                 onChange={(e) => setForm({ ...form, pickup_date: e.target.value })}
                               />
@@ -759,7 +762,7 @@ export default function QuoteWizard() {
                           <div className="booking-grid">
                             <label className="field">
                               <span>Delivery Date</span>
-                              <input type="date" min={today} value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
+                              <input type="date" min={minDate} value={form.delivery_date} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} />
                               {errors.delivery_date && <p className="auth-error">{errors.delivery_date}</p>}
                             </label>
                             <label className="field">
@@ -1016,7 +1019,7 @@ export default function QuoteWizard() {
                       </label>
                       <label className="field">
                         <span>Event Date</span>
-                        <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                        <input type="date" min={minDate} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
                         {errors.event_date && <p className="auth-error">{errors.event_date}</p>}
                       </label>
                       <label className="field">

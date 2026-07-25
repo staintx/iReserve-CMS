@@ -34,6 +34,9 @@ export default function BookingWizard() {
     return 0;
   });
   const today = new Date().toISOString().split("T")[0];
+  const minDateObj = new Date();
+  minDateObj.setDate(minDateObj.getDate() + 3);
+  const minDate = minDateObj.toISOString().split("T")[0];
   const [menuItems, setMenuItems] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [error, setError] = useState("");
@@ -42,6 +45,9 @@ export default function BookingWizard() {
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  
+  const [businessInfo, setBusinessInfo] = useState({});
+  const [packageDetails, setPackageDetails] = useState(null);
   
   const initialEventType = location.state?.eventType || "";
   const initialPackageId = location.state?.packageId || null;
@@ -147,6 +153,20 @@ export default function BookingWizard() {
       .catch(() => setInventoryItems([]));
   }, []);
 
+  useEffect(() => {
+    CustomerAPI.getBusinessInfo()
+      .then((res) => setBusinessInfo(res.data || {}))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (initialPackageId) {
+      CustomerAPI.getPackageById(initialPackageId)
+        .then((res) => setPackageDetails(res.data))
+        .catch(() => {});
+    }
+  }, [initialPackageId]);
+
   const normalizeCategory = (value) => String(value || "").trim().toLowerCase();
   const matchesCategory = (category, keywords) => keywords.some((keyword) => category.includes(keyword));
   const inventoryByCategory = useMemo(() => {
@@ -240,6 +260,30 @@ export default function BookingWizard() {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
 
+  const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+
+  const totalPrice = useMemo(() => {
+    let basePrice = initialPackagePrice || 0;
+    let pax = parseNumber(form.guest_count) || 0;
+    let sum = 0;
+
+    const packageType = packageDetails?.package_type || "Food + Event Setup";
+    if (packageType === "Event Setup Only") {
+      sum += basePrice;
+    } else {
+      sum += basePrice * pax;
+    }
+
+    form.additional_services.forEach(svc => {
+      const parts = svc.split("|");
+      if (parts[1]) sum += Number(parts[1]);
+    });
+
+    return sum;
+  }, [form.guest_count, form.additional_services, initialPackagePrice, packageDetails]);
+
+  const depositAmount = (totalPrice * depositPercentage) / 100;
+
   const submit = async () => {
     setError("");
     try {
@@ -248,8 +292,8 @@ export default function BookingWizard() {
         return;
       }
 
-      if (form.event_date && form.event_date < today) {
-        setError("Please choose a future date for the event.");
+      if (form.event_date && form.event_date < minDate) {
+        setError("Please choose a date at least 3 days from today.");
         return;
       }
 
@@ -273,12 +317,12 @@ export default function BookingWizard() {
 
       const payload = {
         ...form,
+        package_id: initialPackageId,
         customer_id: user._id,
         event_type: eventTypeValue,
         guest_count: parseNumber(form.guest_count),
-        // duration_hours removed
-        budget_min: parseNumber(form.budget_min),
-        budget_max: parseNumber(form.budget_max)
+        total_price: totalPrice,
+        payment_method: "paymongo"
       };
 
       delete payload.event_type_other;
@@ -286,13 +330,27 @@ export default function BookingWizard() {
         delete payload.contact_alt_phone;
       }
 
-      await CustomerAPI.submitInquiry(payload);
+      const bookingRes = await CustomerAPI.createBooking(payload);
+      const newBooking = bookingRes.data;
+
+      const checkoutRes = await CustomerAPI.createPaymentCheckout({
+        booking_id: newBooking._id,
+        amount: depositAmount,
+        payment_type: "deposit",
+        payment_method_types: ["gcash", "paymaya", "card"]
+      });
+
       localStorage.removeItem("booking_wizard_form");
       localStorage.removeItem("booking_wizard_step");
-      notify("Inquiry submitted.", "success");
-      navigate("/customer/booking-success");
+      
+      if (checkoutRes.data?.checkout_url) {
+        window.location.href = checkoutRes.data.checkout_url;
+      } else {
+        notify("Booking secured.", "success");
+        navigate("/customer/bookings");
+      }
     } catch (err) {
-      const message = err.response?.data?.message || "We could not submit your inquiry. Please try again.";
+      const message = err.response?.data?.message || "We could not process your booking. Please try again.";
       setError(message);
       notify(message, "error");
     }
@@ -367,7 +425,7 @@ export default function BookingWizard() {
               </label>
               <label className="field">
                 <span>Event Date</span>
-                <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                <input type="date" min={minDate} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
               </label>
               <label className="field">
                 <span>Event Start Time</span>
@@ -700,28 +758,25 @@ export default function BookingWizard() {
               <textarea placeholder="Any other details we should know about your event?" value={form.special_requests} onChange={(e) => setForm({ ...form, special_requests: e.target.value })} />
             </label>
             {error && <p className="auth-error">{error}</p>}
-            <div className="payment-grid">
-              <label className={`payment-card ${form.payment_method === "card" ? "selected" : ""}`}>
-                <input type="radio" name="pay" checked={form.payment_method === "card"} onChange={() => setForm({ ...form, payment_method: "card" })} />
+            <div className="payment-grid" style={{ gridTemplateColumns: "1fr" }}>
+              <label className="payment-card selected">
+                <input type="radio" checked readOnly />
                 <div>
-                  <strong>Credit/Debit Card</strong>
-                  <p>Secure payment processed by Stripe</p>
+                  <strong>PayMongo (GCash, PayMaya, Card)</strong>
+                  <p>You will be redirected to secure checkout</p>
                 </div>
               </label>
-              <label className={`payment-card ${form.payment_method === "bank" ? "selected" : ""}`}>
-                <input type="radio" name="pay" checked={form.payment_method === "bank"} onChange={() => setForm({ ...form, payment_method: "bank" })} />
-                <div>
-                  <strong>Bank Transfer</strong>
-                  <p>Wire transfer or ACH</p>
-                </div>
-              </label>
-              <label className={`payment-card ${form.payment_method === "cash" ? "selected" : ""}`}>
-                <input type="radio" name="pay" checked={form.payment_method === "cash"} onChange={() => setForm({ ...form, payment_method: "cash" })} />
-                <div>
-                  <strong>Cash</strong>
-                  <p>Direct cash payment</p>
-                </div>
-              </label>
+            </div>
+            
+            <div className="price-summary-box">
+              <div className="price-row">
+                <span>Total Package Price</span>
+                <strong>₱{totalPrice.toLocaleString()}</strong>
+              </div>
+              <div className="price-row highlight">
+                <span>Required Deposit ({depositPercentage}%)</span>
+                <strong>₱{depositAmount.toLocaleString()}</strong>
+              </div>
             </div>
             <div className="agreement-row">
               <label className="choice">
@@ -755,7 +810,7 @@ export default function BookingWizard() {
               <span className="tip-icon">i</span>
               <div>
                 <strong>Before You Submit</strong>
-                <p>You will be required to pay a 20% deposit to confirm your booking. The remaining balance is due 7 days before the event date.</p>
+                <p>You will be required to pay a {depositPercentage}% deposit (₱{depositAmount.toLocaleString()}) to confirm your booking. The remaining balance is due before the event date.</p>
               </div>
             </div>
             <div className="booking-actions split">
@@ -774,7 +829,7 @@ export default function BookingWizard() {
 
             <h4>Payment Terms</h4>
             <ul>
-              <li><strong>Deposit:</strong> A 20% down payment is required to reserve the date.</li>
+              <li><strong>Deposit:</strong> A {depositPercentage}% down payment is required to reserve the date.</li>
               <li><strong>Final Payment:</strong> The remaining balance must be paid a day before the event date.</li>
             </ul>
 

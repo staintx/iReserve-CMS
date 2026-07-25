@@ -31,8 +31,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="dashboard-cards">
-        <DashboardStatCard label="Total Inquiries" value={summary.totalInquiries || 0} />
-        <DashboardStatCard label="Pending Quotations" value={summary.pendingQuotations || 0} />
+
         <DashboardStatCard label="Upcoming Bookings" value={summary.upcomingBookings || 0} />
         <DashboardStatCard label="Completed Events" value={summary.completedEvents || 0} />
         <DashboardStatCard label="Monthly Revenue" value={formatCurrency(summary.monthlyRevenue)} />

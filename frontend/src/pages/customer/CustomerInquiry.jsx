@@ -9,6 +9,9 @@ export default function CustomerInquiry() {
   const { user } = useAuth();
   const { notify } = useToast();
   const today = new Date().toISOString().split("T")[0];
+  const minDateObj = new Date();
+  minDateObj.setDate(minDateObj.getDate() + 3);
+  const minDate = minDateObj.toISOString().split("T")[0];
   const [form, setForm] = useState({
     event_type: "",
     event_type_other: "",
@@ -113,7 +116,7 @@ export default function CustomerInquiry() {
             onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
           />
         )}
-        <input type="date" min={today} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+        <input type="date" min={minDate} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
         <input placeholder="Start Time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
         <input placeholder="Guest Count" value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
         <select value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value })}>

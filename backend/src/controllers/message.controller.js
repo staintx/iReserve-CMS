@@ -42,16 +42,12 @@ const ensureCustomerSupportConversation = async (customerId) => {
 exports.listConversations = asyncHandler(async (req, res) => {
   if (req.user.role === "admin") {
     const bookings = await Booking.find({ event_manager_id: { $ne: null } });
-    const inquiries = await Inquiry.find();
     await ensureBookingConversations(bookings);
-    await ensureInquiryConversations(inquiries);
   }
 
   if (req.user.role === "customer") {
     const bookings = await Booking.find({ customer_id: req.user._id });
-    const inquiries = await Inquiry.find({ customer_id: req.user._id });
     await ensureBookingConversations(bookings);
-    await ensureInquiryConversations(inquiries);
     await ensureCustomerSupportConversation(req.user._id);
   }
 

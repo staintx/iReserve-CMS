@@ -28,14 +28,6 @@ export default function Packages() {
       : value || "";
   };
 
-  const getPackagePrice = (data) => {
-    const min = Number(data?.price_min);
-    const max = Number(data?.price_max);
-    if (Number.isFinite(min)) return min;
-    if (Number.isFinite(max)) return max;
-    return null;
-  };
-
   const getEventType = (data) => {
     if (data?.event_type) return data.event_type;
     const name = (data?.name || "").toLowerCase();
@@ -66,33 +58,13 @@ export default function Packages() {
   const filteredPackages = packages.filter((p) => {
     if (filterType !== "All" && p.event_type !== filterType) return false;
 
-    if (appliedPriceMin !== "") {
-      const pMin = Number(p.price_min);
-      const pMax = Number(p.price_max);
-      const maxPossiblePrice = Number.isFinite(pMax)
-        ? pMax
-        : Number.isFinite(pMin)
-          ? pMin
-          : null;
-      if (
-        maxPossiblePrice !== null &&
-        maxPossiblePrice < Number(appliedPriceMin)
-      )
+    // Price filter uses price_per_guest
+    if (appliedPriceMin !== "" || appliedPriceMax !== "") {
+      const perGuest = Number(p.price_per_guest);
+      if (!Number.isFinite(perGuest)) return false; // skip packages without per-guest price
+      if (appliedPriceMin !== "" && perGuest < Number(appliedPriceMin))
         return false;
-    }
-
-    if (appliedPriceMax !== "") {
-      const pMin = Number(p.price_min);
-      const pMax = Number(p.price_max);
-      const minPossiblePrice = Number.isFinite(pMin)
-        ? pMin
-        : Number.isFinite(pMax)
-          ? pMax
-          : null;
-      if (
-        minPossiblePrice !== null &&
-        minPossiblePrice > Number(appliedPriceMax)
-      )
+      if (appliedPriceMax !== "" && perGuest > Number(appliedPriceMax))
         return false;
     }
 
@@ -171,7 +143,7 @@ export default function Packages() {
                     </span>
                     <Input
                       type="number"
-                      placeholder="Min"
+                      placeholder="Min per guest"
                       value={priceMin}
                       onChange={(e) => setPriceMin(e.target.value)}
                       className="pl-7"
@@ -184,7 +156,7 @@ export default function Packages() {
                     </span>
                     <Input
                       type="number"
-                      placeholder="Max"
+                      placeholder="Max per guest"
                       value={priceMax}
                       onChange={(e) => setPriceMax(e.target.value)}
                       className="pl-7"
@@ -232,14 +204,13 @@ export default function Packages() {
         ) : (
           <div className="mb-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredPackages.map((p, index) => {
-              const price = getPackagePrice(p);
-              const maxGuests = p.max_guests || 100; // fallback if not present for pax calc
-              const paxPrice = price ? Math.round(price / maxGuests) : 0;
+              const perGuest = Number(p.price_per_guest);
+              const hasPrice = Number.isFinite(perGuest);
+              const maxGuests = p.max_guests || 100;
               const inclusions = Array.isArray(p.inclusions)
                 ? p.inclusions
                 : [];
 
-              // Decide if it's most popular based on price or rating logic, here randomly or hardcoded for show
               const isPopular =
                 p.name.toLowerCase().includes("gold") ||
                 p.name.toLowerCase().includes("prestige");
@@ -351,16 +322,24 @@ export default function Packages() {
 
                     <div className="mb-5 flex items-end justify-between">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-bold text-accent">
-                          ₱{formatMoney(price)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          starting
-                        </span>
+                        {hasPrice ? (
+                          <>
+                            <span className="text-2xl font-bold text-accent">
+                              ₱{formatMoney(perGuest)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              / guest
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            Contact for pricing
+                          </span>
+                        )}
                       </div>
-                      {paxPrice > 0 && (
+                      {p.guest_min && p.guest_max && (
                         <div className="text-sm font-medium text-muted-foreground">
-                          ₱{formatMoney(paxPrice)}/pax
+                          {p.guest_min}–{p.guest_max} guests
                         </div>
                       )}
                     </div>
@@ -392,7 +371,7 @@ export default function Packages() {
                             state: {
                               eventType: getEventType(p),
                               packageId: p._id,
-                              packagePrice: price,
+                              packagePrice: hasPrice ? perGuest : 0,
                               packageName: p.name,
                             },
                           });

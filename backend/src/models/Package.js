@@ -5,17 +5,15 @@ const PackageSchema = new mongoose.Schema({
   description: String,
   fullDescription: String,
   size: String,
-  price_min: Number,
-  price_max: Number,
+  guest_min: Number,
+  guest_max: Number,
+  price_per_guest: Number,
   available: { type: Boolean, default: true },
-  booking_requirements: String,
-  cancellation_policy: String,
   inclusions: [String],
   add_ons: [String],
   image_url: String,
   gallery: [String],
   event_type: String,
-  max_guests: Number,
   package_type: { type: String, enum: ["Food Only", "Event Setup Only", "Food + Event Setup"] }
 }, { timestamps: true });
 

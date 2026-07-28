@@ -4,7 +4,11 @@ import { CustomerAPI } from "../../../api/customer";
 import { useNavigate, useLocation } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
 import useToast from "../../../hooks/useToast";
-import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
+import {
+  BATANGAS_PROVINCE,
+  getBatangasBarangays,
+  getBatangasMunicipalities,
+} from "../../../utils/batangas";
 import Modal from "../../../components/common/Modal";
 import { Button } from "../../../components/ui/button";
 
@@ -38,13 +42,13 @@ export default function BookingWizard() {
     if (location.state?.resetWizard) {
       sessionStorage.removeItem("booking_wizard_step");
       sessionStorage.removeItem("booking_wizard_form");
-      return isCustomBooking ? 0 : 1;
+      return 0;
     }
     try {
       const saved = sessionStorage.getItem("booking_wizard_step");
       if (saved !== null) return parseInt(saved, 10);
     } catch {}
-    return isCustomBooking ? 0 : 1;
+    return 0;
   });
 
   const today = new Date().toISOString().split("T")[0];
@@ -55,17 +59,25 @@ export default function BookingWizard() {
   const [menuItems, setMenuItems] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [error, setError] = useState("");
-  const [availability, setAvailability] = useState({ status: "idle", message: "" });
-  const [agreements, setAgreements] = useState({ terms: false, privacy: false });
+  const [availability, setAvailability] = useState({
+    status: "idle",
+    message: "",
+  });
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    privacy: false,
+  });
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suggestedDates, setSuggestedDates] = useState([]);
   const [businessInfo, setBusinessInfo] = useState({});
   const [packageDetails, setPackageDetails] = useState(null);
-  
+
   const validEventTypes = ["Birthday", "Wedding", "Corporate"];
-  const matchedType = validEventTypes.find(t => t.toLowerCase() === initialEventType.toLowerCase());
+  const matchedType = validEventTypes.find(
+    (t) => t.toLowerCase() === initialEventType.toLowerCase(),
+  );
   const isOther = initialEventType && !matchedType;
 
   const [form, setForm] = useState(() => {
@@ -107,7 +119,7 @@ export default function BookingWizard() {
       contact_phone: "",
       contact_alt_phone: "",
       contact_method: "email",
-      payment_method: ""
+      payment_method: "",
     };
   });
 
@@ -124,12 +136,15 @@ export default function BookingWizard() {
     setForm((prev) => ({
       ...prev,
       customer_id: prev.customer_id || user._id,
-      contact_email: prev.contact_email || user.email || ""
+      contact_email: prev.contact_email || user.email || "",
     }));
   }, [user]);
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
-  const barangays = useMemo(() => getBatangasBarangays(form.municipality), [form.municipality]);
+  const barangays = useMemo(
+    () => getBatangasBarangays(form.municipality),
+    [form.municipality],
+  );
 
   useEffect(() => {
     CustomerAPI.getBusinessInfo()
@@ -150,7 +165,11 @@ export default function BookingWizard() {
     CustomerAPI.getInventory()
       .then((res) => {
         const next = Array.isArray(res.data) ? res.data : [];
-        setInventoryItems(next.filter((item) => item?.status === 'available' || item?.available !== false));
+        setInventoryItems(
+          next.filter(
+            (item) => item?.status === "available" || item?.available !== false,
+          ),
+        );
       })
       .catch(() => {});
   }, []);
@@ -164,37 +183,55 @@ export default function BookingWizard() {
   }, [initialPackageId]);
 
   const isFoodOnly = isCustomBooking && form.service_type === "Food Only";
-  const isEventSetupOnly = isCustomBooking && form.service_type === "Event Setup Only";
-  const isFoodAndEventSetup = isCustomBooking && form.service_type === "Food and Event Setup";
+  const isEventSetupOnly =
+    isCustomBooking && form.service_type === "Event Setup Only";
+  const isFoodAndEventSetup =
+    isCustomBooking && form.service_type === "Food and Event Setup";
 
   const wizardSteps = useMemo(() => {
     const steps = [];
     if (isCustomBooking) {
-      steps.push({ id: 'ServiceType', label: "Service Type", key: "service" });
+      steps.push({ id: "ServiceType", label: "Service Type", key: "service" });
     }
-    steps.push({ id: 'DateTime', label: "Event Info", key: "datetime" });
-    
+    steps.push({ id: "DateTime", label: "Event Info", key: "datetime" });
+
     if (isFoodOnly) {
-      steps.push({ id: 'DeliveryDetails', label: "Delivery", key: "delivery" });
-      steps.push({ id: 'MenuSelection', label: "Menu", key: "menu" });
-      steps.push({ id: 'DietaryNeeds', label: "Dietary Needs", key: "dietary" });
+      steps.push({ id: "DeliveryDetails", label: "Delivery", key: "delivery" });
+      steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
+      steps.push({
+        id: "DietaryNeeds",
+        label: "Dietary Needs",
+        key: "dietary",
+      });
     } else if (isEventSetupOnly) {
-      steps.push({ id: 'EventDetails', label: "Event Details", key: "event" });
-      steps.push({ id: 'EquipmentSelection', label: "Equipment", key: "equipment" });
+      steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
+      steps.push({
+        id: "EquipmentSelection",
+        label: "Equipment",
+        key: "equipment",
+      });
     } else if (isFoodAndEventSetup) {
-      steps.push({ id: 'EventDetails', label: "Event Details", key: "event" });
-      steps.push({ id: 'MenuSelection', label: "Menu", key: "menu" });
-      steps.push({ id: 'DietaryNeeds', label: "Dietary Needs", key: "dietary" });
-      steps.push({ id: 'EquipmentSelection', label: "Equipment", key: "equipment" });
+      steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
+      steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
+      steps.push({
+        id: "DietaryNeeds",
+        label: "Dietary Needs",
+        key: "dietary",
+      });
+      steps.push({
+        id: "EquipmentSelection",
+        label: "Equipment",
+        key: "equipment",
+      });
     } else {
       // Standard Packages logic
-      steps.push({ id: 'EventDetails', label: "Event Details", key: "event" });
+      steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
     }
-    
-    steps.push({ id: 'CostSummary', label: "Cost Summary", key: "summary" });
-    steps.push({ id: 'ContactInfo', label: "Contact Info", key: "contact" });
-    steps.push({ id: 'ReviewBooking', label: "Review Booking", key: "review" });
-    steps.push({ id: 'Payment', label: "Payment", key: "payment" });
+
+    steps.push({ id: "CostSummary", label: "Cost Summary", key: "summary" });
+    steps.push({ id: "ContactInfo", label: "Contact Info", key: "contact" });
+    steps.push({ id: "ReviewBooking", label: "Review Booking", key: "review" });
+    steps.push({ id: "Payment", label: "Payment", key: "payment" });
     return steps;
   }, [isCustomBooking, isFoodOnly, isEventSetupOnly, isFoodAndEventSetup]);
 
@@ -211,7 +248,10 @@ export default function BookingWizard() {
       return;
     }
 
-    setAvailability({ status: "checking", message: "Checking availability..." });
+    setAvailability({
+      status: "checking",
+      message: "Checking availability...",
+    });
     const timer = setTimeout(() => {
       CustomerAPI.checkAvailability({
         event_date: form.event_date,
@@ -220,14 +260,20 @@ export default function BookingWizard() {
         province: form.province,
         municipality: form.municipality,
         barangay: form.barangay,
-        street: form.street
+        street: form.street,
       })
         .then((res) => {
           if (res.data.available) {
-            setAvailability({ status: "available", message: "Selected time is available." });
+            setAvailability({
+              status: "available",
+              message: "Selected time is available.",
+            });
             setSuggestedDates([]);
           } else {
-            setAvailability({ status: "unavailable", message: "Selected time has a conflict." });
+            setAvailability({
+              status: "unavailable",
+              message: "Selected time has a conflict.",
+            });
             CustomerAPI.suggestDates({
               event_date: form.event_date,
               start_time: form.start_time,
@@ -237,12 +283,14 @@ export default function BookingWizard() {
               municipality: form.municipality,
               barangay: form.barangay,
               street: form.street,
-              range: 7
-            }).then(sugRes => {
-              if (sugRes.data?.suggestions) {
-                setSuggestedDates(sugRes.data.suggestions);
-              }
-            }).catch(() => {});
+              range: 7,
+            })
+              .then((sugRes) => {
+                if (sugRes.data?.suggestions) {
+                  setSuggestedDates(sugRes.data.suggestions);
+                }
+              })
+              .catch(() => {});
           }
         })
         .catch(() => {
@@ -251,7 +299,13 @@ export default function BookingWizard() {
         });
     }, 400);
     return () => clearTimeout(timer);
-  }, [form.event_date, form.start_time, form.venue_type, form.municipality, form.barangay]);
+  }, [
+    form.event_date,
+    form.start_time,
+    form.venue_type,
+    form.municipality,
+    form.barangay,
+  ]);
 
   const parseNumber = (value) => {
     const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
@@ -266,8 +320,10 @@ export default function BookingWizard() {
 
     if (isCustomBooking) {
       // Dynamic Custom Booking Pricing
-      const customEventSetupPrice = businessInfo?.custom_event_setup_price || 15000;
-      const customFoodEventPricePerPax = businessInfo?.custom_food_and_event_price || 800;
+      const customEventSetupPrice =
+        businessInfo?.custom_event_setup_price || 15000;
+      const customFoodEventPricePerPax =
+        businessInfo?.custom_food_and_event_price || 800;
 
       if (form.service_type === "Event Setup Only") {
         sum += customEventSetupPrice;
@@ -275,7 +331,10 @@ export default function BookingWizard() {
         sum += customFoodEventPricePerPax * pax;
       } else if (form.service_type === "Food Only") {
         if (form.selected_menu && form.selected_menu.length > 0) {
-          const perPaxCost = form.selected_menu.reduce((acc, item) => acc + (Number(item.price) || 0), 0);
+          const perPaxCost = form.selected_menu.reduce(
+            (acc, item) => acc + (Number(item.price) || 0),
+            0,
+          );
           sum += perPaxCost * pax;
         } else {
           // Fallback if nothing selected yet
@@ -286,7 +345,7 @@ export default function BookingWizard() {
       // Standard Package Pricing
       let basePrice = initialPackagePrice || 0;
       const packageType = packageDetails?.package_type || "Food + Event Setup";
-      
+
       if (packageType === "Event Setup Only") {
         sum += basePrice;
       } else {
@@ -294,19 +353,27 @@ export default function BookingWizard() {
       }
     }
 
-    form.additional_services?.forEach(svc => {
+    form.additional_services?.forEach((svc) => {
       sum += Number(svc.price || 0) * Number(svc.quantity || 1);
     });
 
     return sum;
-  }, [form.guest_count, form.service_type, form.additional_services, initialPackagePrice, packageDetails, isCustomBooking, businessInfo]);
+  }, [
+    form.guest_count,
+    form.service_type,
+    form.additional_services,
+    initialPackagePrice,
+    packageDetails,
+    isCustomBooking,
+    businessInfo,
+  ]);
 
   const depositAmount = (totalPrice * depositPercentage) / 100;
 
   const currentStepId = wizardSteps[step]?.id;
 
   const handleNext = () => {
-    if (currentStepId === 'DateTime') {
+    if (currentStepId === "DateTime") {
       if (!form.event_date || !form.start_time) {
         notify("Please select a date and time.", "error");
         return;
@@ -316,34 +383,46 @@ export default function BookingWizard() {
         return;
       }
     }
-    if (currentStepId === 'EventDetails') {
-      const eventTypeValue = form.event_type === "Other" ? form.event_type_other : form.event_type;
+    if (currentStepId === "EventDetails") {
+      const eventTypeValue =
+        form.event_type === "Other" ? form.event_type_other : form.event_type;
       if (!eventTypeValue || !form.municipality || !form.barangay) {
         notify("Please fill in all required fields.", "error");
         return;
       }
     }
-    if (currentStepId === 'DeliveryDetails') {
-      if (form.delivery_method !== "pickup" && (!form.municipality || !form.barangay || !form.street)) {
+    if (currentStepId === "DeliveryDetails") {
+      if (
+        form.delivery_method !== "pickup" &&
+        (!form.municipality || !form.barangay || !form.street)
+      ) {
         notify("Please fill in all required delivery address fields.", "error");
         return;
       }
     }
-    if (currentStepId === 'ContactInfo') {
-      if (!form.contact_first_name || !form.contact_last_name || !form.contact_email || !form.contact_phone) {
+    if (currentStepId === "ContactInfo") {
+      if (
+        !form.contact_first_name ||
+        !form.contact_last_name ||
+        !form.contact_email ||
+        !form.contact_phone
+      ) {
         notify("Please fill in all required contact fields.", "error");
         return;
       }
     }
-    if (currentStepId === 'ReviewBooking') {
+    if (currentStepId === "ReviewBooking") {
       if (!agreements.terms || !agreements.privacy) {
-        notify("Please accept the terms and privacy policy to continue.", "error");
+        notify(
+          "Please accept the terms and privacy policy to continue.",
+          "error",
+        );
         return;
       }
     }
-    
+
     setStep((s) => Math.min(s + 1, wizardSteps.length - 1));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleBack = () => {
@@ -351,7 +430,7 @@ export default function BookingWizard() {
       navigate("/customer/packages");
     } else {
       setStep((s) => Math.max(s - 1, 0));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -366,7 +445,10 @@ export default function BookingWizard() {
 
       setIsSubmitting(true);
 
-      const eventTypeValue = form.event_type === "Other" ? String(form.event_type_other || "").trim() : String(form.event_type || "").trim();
+      const eventTypeValue =
+        form.event_type === "Other"
+          ? String(form.event_type_other || "").trim()
+          : String(form.event_type || "").trim();
 
       const payload = {
         ...form,
@@ -395,15 +477,17 @@ export default function BookingWizard() {
 
       sessionStorage.removeItem("booking_wizard_form");
       sessionStorage.removeItem("booking_wizard_step");
-      
+
       notify("Redirecting to secure payment...", "success");
-      
+
       if (newBooking.payment_intent_url) {
         window.location.href = newBooking.payment_intent_url;
       } else if (newBooking.checkout_url) {
         window.location.href = newBooking.checkout_url;
       } else {
-        navigate("/customer/booking-success", { state: { booking: newBooking } });
+        navigate("/customer/booking-success", {
+          state: { booking: newBooking },
+        });
       }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to submit booking");
@@ -419,112 +503,103 @@ export default function BookingWizard() {
         </div>
 
         <div className="mb-6">
-          {currentStepId === 'ServiceType' && (
-            <StepServiceType 
-              form={form} 
-              setForm={setForm} 
-            />
+          {currentStepId === "ServiceType" && (
+            <StepServiceType form={form} setForm={setForm} />
           )}
-          {currentStepId === 'DateTime' && (
-            <StepDateTime 
-              form={form} 
-              setForm={setForm} 
-              minDate={minDate} 
-              availability={availability} 
+          {currentStepId === "DateTime" && (
+            <StepDateTime
+              form={form}
+              setForm={setForm}
+              minDate={minDate}
+              availability={availability}
               setAvailability={setAvailability}
-              suggestedDates={suggestedDates} 
+              suggestedDates={suggestedDates}
               onNext={handleNext}
             />
           )}
-          {currentStepId === 'EventDetails' && (
-            <StepEventDetails 
-              form={form} 
-              setForm={setForm} 
-              initialEventType={initialEventType} 
-              municipalities={municipalities} 
-              barangays={barangays} 
+          {currentStepId === "EventDetails" && (
+            <StepEventDetails
+              form={form}
+              setForm={setForm}
+              initialEventType={initialEventType}
+              municipalities={municipalities}
+              barangays={barangays}
             />
           )}
-          {currentStepId === 'DeliveryDetails' && (
-            <StepDeliveryDetails 
-              form={form} 
-              setForm={setForm} 
-              municipalities={municipalities} 
-              barangays={barangays} 
+          {currentStepId === "DeliveryDetails" && (
+            <StepDeliveryDetails
+              form={form}
+              setForm={setForm}
+              municipalities={municipalities}
+              barangays={barangays}
             />
           )}
-          {currentStepId === 'MenuSelection' && (
-            <StepMenuSelection 
-              form={form} 
-              setForm={setForm} 
-              menuItems={menuItems} 
+          {currentStepId === "MenuSelection" && (
+            <StepMenuSelection
+              form={form}
+              setForm={setForm}
+              menuItems={menuItems}
             />
           )}
-          {currentStepId === 'DietaryNeeds' && (
-            <StepDietaryNeeds 
-              form={form} 
-              setForm={setForm} 
+          {currentStepId === "DietaryNeeds" && (
+            <StepDietaryNeeds form={form} setForm={setForm} />
+          )}
+          {currentStepId === "EquipmentSelection" && (
+            <StepEquipmentSelection
+              form={form}
+              setForm={setForm}
+              inventoryItems={inventoryItems}
             />
           )}
-          {currentStepId === 'EquipmentSelection' && (
-            <StepEquipmentSelection 
-              form={form} 
-              setForm={setForm} 
-              inventoryItems={inventoryItems} 
+          {currentStepId === "CostSummary" && (
+            <StepCostSummary
+              form={form}
+              initialPackageName={initialPackageName}
+              initialPackagePrice={initialPackagePrice}
+              totalPrice={totalPrice}
+              depositAmount={depositAmount}
+              depositPercentage={depositPercentage}
             />
           )}
-          {currentStepId === 'CostSummary' && (
-            <StepCostSummary 
-              form={form} 
-              initialPackageName={initialPackageName} 
-              initialPackagePrice={initialPackagePrice} 
-              totalPrice={totalPrice} 
-              depositAmount={depositAmount} 
-              depositPercentage={depositPercentage} 
+          {currentStepId === "ContactInfo" && (
+            <StepContactInfo form={form} setForm={setForm} />
+          )}
+          {currentStepId === "ReviewBooking" && (
+            <StepReviewBooking
+              form={form}
+              initialPackageName={initialPackageName}
+              totalPrice={totalPrice}
+              depositAmount={depositAmount}
+              agreements={agreements}
+              setAgreements={setAgreements}
+              setShowTerms={setShowTerms}
+              setShowPrivacy={setShowPrivacy}
             />
           )}
-          {currentStepId === 'ContactInfo' && (
-            <StepContactInfo 
-              form={form} 
-              setForm={setForm} 
-            />
-          )}
-          {currentStepId === 'ReviewBooking' && (
-            <StepReviewBooking 
-              form={form} 
-              initialPackageName={initialPackageName} 
-              totalPrice={totalPrice} 
-              depositAmount={depositAmount} 
-              agreements={agreements} 
-              setAgreements={setAgreements} 
-              setShowTerms={setShowTerms} 
-              setShowPrivacy={setShowPrivacy} 
-            />
-          )}
-          {currentStepId === 'Payment' && (
-            <StepPayment 
-              depositAmount={depositAmount} 
-              isSubmitting={isSubmitting} 
-              onSubmit={submitBooking} 
-              error={error} 
+          {currentStepId === "Payment" && (
+            <StepPayment
+              depositAmount={depositAmount}
+              isSubmitting={isSubmitting}
+              onSubmit={submitBooking}
+              error={error}
             />
           )}
         </div>
 
-        {currentStepId !== 'Payment' && (
+        {currentStepId !== "Payment" && (
           <div className="mt-8 flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-soft">
-            <Button 
+            <Button
               variant="ghost"
               size="lg"
-              onClick={handleBack} 
+              onClick={handleBack}
               className="px-6 py-3 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               Back
             </Button>
-            {currentStepId !== 'DateTime' && (
-              <Button 
+            {currentStepId !== "DateTime" && (
+              <Button
                 size="lg"
-                onClick={handleNext} 
+                onClick={handleNext}
                 className="px-8 py-3 font-medium shadow-sm active:scale-[0.98]"
               >
                 Continue
@@ -537,11 +612,21 @@ export default function BookingWizard() {
       {showTerms && (
         <Modal title="Terms and Conditions" onClose={() => setShowTerms(false)}>
           <div className="text-slate-600 space-y-4 p-4 text-sm">
-            <h4 className="font-semibold text-slate-800">Booking & Reservation</h4>
-            <p>All bookings are subject to availability. A reservation is confirmed only once details are provided and deposit paid.</p>
+            <h4 className="font-semibold text-slate-800">
+              Booking & Reservation
+            </h4>
+            <p>
+              All bookings are subject to availability. A reservation is
+              confirmed only once details are provided and deposit paid.
+            </p>
             <h4 className="font-semibold text-slate-800">Payment Terms</h4>
-            <p>A {depositPercentage}% down payment is required to reserve the date. Balance is due before the event.</p>
-            <h4 className="font-semibold text-slate-800 text-red-600">Cancellation Policy</h4>
+            <p>
+              A {depositPercentage}% down payment is required to reserve the
+              date. Balance is due before the event.
+            </p>
+            <h4 className="font-semibold text-slate-800 text-red-600">
+              Cancellation Policy
+            </h4>
             <p>All deposits are non-refundable and non-transferable.</p>
           </div>
         </Modal>
@@ -551,9 +636,15 @@ export default function BookingWizard() {
         <Modal title="Privacy Policy" onClose={() => setShowPrivacy(false)}>
           <div className="text-slate-600 space-y-4 p-4 text-sm">
             <h4 className="font-semibold text-slate-800">Data Collection</h4>
-            <p>We collect personal information to facilitate your booking and provide services.</p>
+            <p>
+              We collect personal information to facilitate your booking and
+              provide services.
+            </p>
             <h4 className="font-semibold text-slate-800">Use of Information</h4>
-            <p>Data is used strictly for processing catering orders and communications.</p>
+            <p>
+              Data is used strictly for processing catering orders and
+              communications.
+            </p>
           </div>
         </Modal>
       )}

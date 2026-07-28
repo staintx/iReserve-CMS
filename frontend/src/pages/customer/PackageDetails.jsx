@@ -310,6 +310,7 @@ export default function PackageDetails() {
                             packageId: pkg._id,
                             packagePrice: hasPrice ? perGuest : 0, // per‑guest price
                             packageName: pkg.name,
+                            initialStep: 0
                           },
                         })
                       }

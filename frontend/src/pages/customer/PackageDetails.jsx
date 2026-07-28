@@ -146,7 +146,6 @@ export default function PackageDetails() {
               <p className="text-muted-foreground leading-relaxed text-lg mb-8">
                 {pkg.fullDescription || pkg.description}
               </p>
-
             </section>
 
             <section>
@@ -312,7 +311,8 @@ export default function PackageDetails() {
                             packageName: pkg.name,
                             guestMin: pkg.guest_min || 0,
                             guestMax: pkg.guest_max || 100,
-                            initialStep: 0
+                            initialStep: 0,
+                            resetWizard: true,
                           },
                         })
                       }

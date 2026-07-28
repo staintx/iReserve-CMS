@@ -125,17 +125,6 @@ export default function StepEventDetails({
                 }
                 className="flex-1"
               />
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Color</Label>
-                <input
-                  type="color"
-                  value={form.event_theme_color || "#000000"}
-                  onChange={(e) =>
-                    setForm({ ...form, event_theme_color: e.target.value })
-                  }
-                  className="h-10 w-10 cursor-pointer rounded-md border border-input bg-background p-1"
-                />
-              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               Enter theme name and pick a primary color.

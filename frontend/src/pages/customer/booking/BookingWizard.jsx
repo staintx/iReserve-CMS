@@ -12,7 +12,7 @@ import {
 import Modal from "../../../components/common/Modal";
 import { Button } from "../../../components/ui/button";
 
-// New Step Components
+// Step Components
 import BookingStepper from "./components/BookingStepper";
 import StepServiceType from "./steps/StepServiceType";
 import StepDateTime from "./steps/StepDateTime";
@@ -26,64 +26,65 @@ import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPayment from "./steps/StepPayment";
 import StepEquipmentSelection from "./steps/StepEquipmentSelection";
 
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+const VALID_EVENT_TYPES = ["Birthday", "Wedding", "Corporate"];
+const DEFAULT_DEPOSIT_PERCENTAGE = 20;
+const MIN_DATE_OFFSET_DAYS = 3;
+const SESSION_STORAGE_KEY_FORM = "booking_wizard_form";
+const SESSION_STORAGE_KEY_STEP = "booking_wizard_step";
+
+// -----------------------------------------------------------------------------
+// Helper Functions
+// -----------------------------------------------------------------------------
+const parseNumber = (value) => {
+  const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
 export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { notify } = useToast();
 
+  // --- Location State ---
   const initialEventType = location.state?.eventType || "";
   const initialPackageId = location.state?.packageId || null;
   const initialPackagePrice = location.state?.packagePrice || 0;
   const initialPackageName = location.state?.packageName || "";
+  const initialGuestMin = location.state?.guestMin || null;
+  const initialGuestMax = location.state?.guestMax || null;
   const isCustomBooking = !initialPackageId;
 
+  // --- Derived ---
+  const matchedType = VALID_EVENT_TYPES.find(
+    (t) => t.toLowerCase() === initialEventType.toLowerCase(),
+  );
+  const isOther = initialEventType && !matchedType;
+
+  // --- State ---
   const [step, setStep] = useState(() => {
     if (location.state?.resetWizard) {
-      sessionStorage.removeItem("booking_wizard_step");
-      sessionStorage.removeItem("booking_wizard_form");
+      sessionStorage.removeItem(SESSION_STORAGE_KEY_STEP);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY_FORM);
       return 0;
     }
     try {
-      const saved = sessionStorage.getItem("booking_wizard_step");
+      const saved = sessionStorage.getItem(SESSION_STORAGE_KEY_STEP);
       if (saved !== null) return parseInt(saved, 10);
     } catch {}
     return 0;
   });
 
-  const today = new Date().toISOString().split("T")[0];
-  const minDateObj = new Date();
-  minDateObj.setDate(minDateObj.getDate() + 3);
-  const minDate = minDateObj.toISOString().split("T")[0];
-
-  const [menuItems, setMenuItems] = useState([]);
-  const [inventoryItems, setInventoryItems] = useState([]);
-  const [error, setError] = useState("");
-  const [availability, setAvailability] = useState({
-    status: "idle",
-    message: "",
-  });
-  const [agreements, setAgreements] = useState({
-    terms: false,
-    privacy: false,
-  });
-  const [showTerms, setShowTerms] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [suggestedDates, setSuggestedDates] = useState([]);
-  const [businessInfo, setBusinessInfo] = useState({});
-  const [packageDetails, setPackageDetails] = useState(null);
-
-  const validEventTypes = ["Birthday", "Wedding", "Corporate"];
-  const matchedType = validEventTypes.find(
-    (t) => t.toLowerCase() === initialEventType.toLowerCase(),
-  );
-  const isOther = initialEventType && !matchedType;
-
   const [form, setForm] = useState(() => {
     if (!location.state?.resetWizard) {
       try {
-        const saved = sessionStorage.getItem("booking_wizard_form");
+        const saved = sessionStorage.getItem(SESSION_STORAGE_KEY_FORM);
         if (saved) return JSON.parse(saved);
       } catch {}
     }
@@ -106,8 +107,6 @@ export default function BookingWizard() {
       street: "",
       landmark: "",
       zip_code: "",
-      venue_contact_name: "",
-      venue_contact_phone: "",
       selected_menu: [],
       dietary_restrictions: "",
       allergies: "",
@@ -123,22 +122,30 @@ export default function BookingWizard() {
     };
   });
 
-  useEffect(() => {
-    sessionStorage.setItem("booking_wizard_form", JSON.stringify(form));
-  }, [form]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [error, setError] = useState("");
+  const [availability, setAvailability] = useState({
+    status: "idle",
+    message: "",
+  });
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    privacy: false,
+  });
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suggestedDates, setSuggestedDates] = useState([]);
+  const [businessInfo, setBusinessInfo] = useState({});
+  const [packageDetails, setPackageDetails] = useState(null);
+  const guestMin = isCustomBooking ? 1 : initialGuestMin || 1;
+  const guestMax = isCustomBooking ? 1000 : initialGuestMax || 500;
 
-  useEffect(() => {
-    sessionStorage.setItem("booking_wizard_step", step.toString());
-  }, [step]);
-
-  useEffect(() => {
-    if (!user) return;
-    setForm((prev) => ({
-      ...prev,
-      customer_id: prev.customer_id || user._id,
-      contact_email: prev.contact_email || user.email || "",
-    }));
-  }, [user]);
+  // --- Memoized values ---
+  const minDateObj = new Date();
+  minDateObj.setDate(minDateObj.getDate() + MIN_DATE_OFFSET_DAYS);
+  const minDate = minDateObj.toISOString().split("T")[0];
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(
@@ -146,48 +153,13 @@ export default function BookingWizard() {
     [form.municipality],
   );
 
-  useEffect(() => {
-    CustomerAPI.getBusinessInfo()
-      .then((res) => setBusinessInfo(res.data || {}))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    CustomerAPI.getMenu()
-      .then((res) => {
-        const next = Array.isArray(res.data) ? res.data : [];
-        setMenuItems(next.filter((item) => item?.available !== false));
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    CustomerAPI.getInventory()
-      .then((res) => {
-        const next = Array.isArray(res.data) ? res.data : [];
-        setInventoryItems(
-          next.filter(
-            (item) => item?.status === "available" || item?.available !== false,
-          ),
-        );
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (initialPackageId) {
-      CustomerAPI.getPackageById(initialPackageId)
-        .then((res) => setPackageDetails(res.data))
-        .catch(() => {});
-    }
-  }, [initialPackageId]);
-
   const isFoodOnly = isCustomBooking && form.service_type === "Food Only";
   const isEventSetupOnly =
     isCustomBooking && form.service_type === "Event Setup Only";
   const isFoodAndEventSetup =
     isCustomBooking && form.service_type === "Food and Event Setup";
 
+  // --- Step Definition ---
   const wizardSteps = useMemo(() => {
     const steps = [];
     if (isCustomBooking) {
@@ -224,7 +196,7 @@ export default function BookingWizard() {
         key: "equipment",
       });
     } else {
-      // Standard Packages logic
+      // Standard Package
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
     }
 
@@ -235,13 +207,128 @@ export default function BookingWizard() {
     return steps;
   }, [isCustomBooking, isFoodOnly, isEventSetupOnly, isFoodAndEventSetup]);
 
-  // Adjust current step index if the array length shrinks and we are out of bounds
-  useEffect(() => {
-    if (step >= wizardSteps.length) {
-      setStep(Math.max(0, wizardSteps.length - 1));
-    }
-  }, [wizardSteps.length, step]);
+  const currentStepId = wizardSteps[step]?.id;
 
+  // --- Validation Rules ---
+  const STEP_VALIDATIONS = {
+    DateTime: {
+      check: () => !!form.event_date && !!form.start_time,
+      message: "Please select a date and time.",
+      extraCheck: () => {
+        if (availability.status === "unavailable") {
+          return {
+            valid: false,
+            message: "Please select an available schedule.",
+          };
+        }
+        return { valid: true };
+      },
+    },
+    EventDetails: {
+      check: () => {
+        // If event type is "Other", require a custom value
+        const eventType =
+          form.event_type === "Other"
+            ? form.event_type_other?.trim()
+            : form.event_type;
+        const guestCount = Number(form.guest_count);
+        return (
+          !!eventType &&
+          !!form.municipality &&
+          !!form.barangay &&
+          guestCount > 0
+        );
+      },
+      message:
+        "Please fill in all required fields (event type, location, guest count).",
+    },
+    DeliveryDetails: {
+      check: () => {
+        if (form.delivery_method === "pickup") return true;
+        return !!form.municipality && !!form.barangay && !!form.street;
+      },
+      message: "Please fill in all required delivery address fields.",
+    },
+    MenuSelection: {
+      // Optional for now – you can make it required if needed
+      check: () => true,
+      message: "",
+    },
+    EquipmentSelection: {
+      check: () => true,
+      message: "",
+    },
+    ContactInfo: {
+      check: () =>
+        !!form.contact_first_name &&
+        !!form.contact_last_name &&
+        !!form.contact_email &&
+        !!form.contact_phone,
+      message: "Please fill in all required contact fields.",
+    },
+    ReviewBooking: {
+      check: () => agreements.terms && agreements.privacy,
+      message: "Please accept the terms and privacy policy to continue.",
+    },
+  };
+
+  // --- Persist to session storage ---
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY_FORM, JSON.stringify(form));
+  }, [form]);
+
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY_STEP, step.toString());
+  }, [step]);
+
+  // --- Auto-fill user data ---
+  useEffect(() => {
+    if (!user) return;
+    setForm((prev) => ({
+      ...prev,
+      customer_id: prev.customer_id || user._id,
+      contact_email: prev.contact_email || user.email || "",
+    }));
+  }, [user]);
+
+  // --- Fetch data ---
+  useEffect(() => {
+    CustomerAPI.getBusinessInfo()
+      .then((res) => setBusinessInfo(res.data || {}))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    CustomerAPI.getMenu()
+      .then((res) => {
+        const next = Array.isArray(res.data) ? res.data : [];
+        setMenuItems(next.filter((item) => item?.available !== false));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    CustomerAPI.getInventory()
+      .then((res) => {
+        const next = Array.isArray(res.data) ? res.data : [];
+        setInventoryItems(
+          next.filter(
+            (item) => item?.status === "available" || item?.available !== false,
+          ),
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (initialPackageId) {
+      CustomerAPI.getPackageById(initialPackageId)
+        .then((res) => setPackageDetails(res.data))
+        .catch(() => {});
+    }
+  }, [initialPackageId]);
+
+  // --- Availability auto-check ---
   useEffect(() => {
     if (!form.event_date || !form.start_time) {
       setAvailability({ status: "idle", message: "" });
@@ -252,6 +339,7 @@ export default function BookingWizard() {
       status: "checking",
       message: "Checking availability...",
     });
+
     const timer = setTimeout(() => {
       CustomerAPI.checkAvailability({
         event_date: form.event_date,
@@ -298,6 +386,7 @@ export default function BookingWizard() {
           setSuggestedDates([]);
         });
     }, 400);
+
     return () => clearTimeout(timer);
   }, [
     form.event_date,
@@ -307,19 +396,15 @@ export default function BookingWizard() {
     form.barangay,
   ]);
 
-  const parseNumber = (value) => {
-    const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
-    return Number.isFinite(parsed) ? parsed : undefined;
-  };
-
-  const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+  // --- Pricing calculations ---
+  const depositPercentage =
+    businessInfo?.deposit_percentage ?? DEFAULT_DEPOSIT_PERCENTAGE;
 
   const totalPrice = useMemo(() => {
-    let pax = parseNumber(form.guest_count) || 0;
+    const pax = parseNumber(form.guest_count) || 0;
     let sum = 0;
 
     if (isCustomBooking) {
-      // Dynamic Custom Booking Pricing
       const customEventSetupPrice =
         businessInfo?.custom_event_setup_price || 15000;
       const customFoodEventPricePerPax =
@@ -336,21 +421,14 @@ export default function BookingWizard() {
             0,
           );
           sum += perPaxCost * pax;
-        } else {
-          // Fallback if nothing selected yet
-          sum += 0;
         }
+        // else fallback 0
       }
     } else {
-      // Standard Package Pricing
-      let basePrice = initialPackagePrice || 0;
+      // Standard Package
+      const basePrice = initialPackagePrice || 0;
       const packageType = packageDetails?.package_type || "Food + Event Setup";
-
-      if (packageType === "Event Setup Only") {
-        sum += basePrice;
-      } else {
-        sum += basePrice * pax;
-      }
+      sum += packageType === "Event Setup Only" ? basePrice : basePrice * pax;
     }
 
     form.additional_services?.forEach((svc) => {
@@ -370,54 +448,29 @@ export default function BookingWizard() {
 
   const depositAmount = (totalPrice * depositPercentage) / 100;
 
-  const currentStepId = wizardSteps[step]?.id;
+  // --- Adjust step if out of bounds ---
+  useEffect(() => {
+    if (step >= wizardSteps.length) {
+      setStep(Math.max(0, wizardSteps.length - 1));
+    }
+  }, [wizardSteps.length, step]);
 
+  // --- Navigation handlers ---
   const handleNext = () => {
-    if (currentStepId === "DateTime") {
-      if (!form.event_date || !form.start_time) {
-        notify("Please select a date and time.", "error");
+    const validation = STEP_VALIDATIONS[currentStepId];
+    if (validation) {
+      // Basic check
+      if (!validation.check()) {
+        notify(validation.message, "error");
         return;
       }
-      if (availability.status === "unavailable") {
-        notify("Please select an available schedule.", "error");
-        return;
-      }
-    }
-    if (currentStepId === "EventDetails") {
-      const eventTypeValue =
-        form.event_type === "Other" ? form.event_type_other : form.event_type;
-      if (!eventTypeValue || !form.municipality || !form.barangay) {
-        notify("Please fill in all required fields.", "error");
-        return;
-      }
-    }
-    if (currentStepId === "DeliveryDetails") {
-      if (
-        form.delivery_method !== "pickup" &&
-        (!form.municipality || !form.barangay || !form.street)
-      ) {
-        notify("Please fill in all required delivery address fields.", "error");
-        return;
-      }
-    }
-    if (currentStepId === "ContactInfo") {
-      if (
-        !form.contact_first_name ||
-        !form.contact_last_name ||
-        !form.contact_email ||
-        !form.contact_phone
-      ) {
-        notify("Please fill in all required contact fields.", "error");
-        return;
-      }
-    }
-    if (currentStepId === "ReviewBooking") {
-      if (!agreements.terms || !agreements.privacy) {
-        notify(
-          "Please accept the terms and privacy policy to continue.",
-          "error",
-        );
-        return;
+      // Extra check (e.g., availability)
+      if (validation.extraCheck) {
+        const extra = validation.extraCheck();
+        if (!extra.valid) {
+          notify(extra.message, "error");
+          return;
+        }
       }
     }
 
@@ -434,6 +487,7 @@ export default function BookingWizard() {
     }
   };
 
+  // --- Submit booking ---
   const submitBooking = async (paymentMethod) => {
     if (isSubmitting) return;
     setError("");
@@ -475,8 +529,8 @@ export default function BookingWizard() {
       const bookingRes = await CustomerAPI.createBooking(payload);
       const newBooking = bookingRes.data;
 
-      sessionStorage.removeItem("booking_wizard_form");
-      sessionStorage.removeItem("booking_wizard_step");
+      sessionStorage.removeItem(SESSION_STORAGE_KEY_FORM);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY_STEP);
 
       notify("Redirecting to secure payment...", "success");
 
@@ -495,6 +549,107 @@ export default function BookingWizard() {
     }
   };
 
+  // --- Render step components ---
+  const renderStep = () => {
+    switch (currentStepId) {
+      case "ServiceType":
+        return <StepServiceType form={form} setForm={setForm} />;
+      case "DateTime":
+        return (
+          <StepDateTime
+            form={form}
+            setForm={setForm}
+            minDate={minDate}
+            availability={availability}
+            setAvailability={setAvailability}
+            suggestedDates={suggestedDates}
+            onNext={handleNext}
+          />
+        );
+      case "EventDetails":
+        return (
+          <StepEventDetails
+            form={form}
+            setForm={setForm}
+            initialEventType={initialEventType}
+            municipalities={municipalities}
+            barangays={barangays}
+            isCustomBooking={isCustomBooking}
+            selectedPackageName={initialPackageName}
+            guestMin={guestMin}
+            guestMax={guestMax}
+          />
+        );
+      case "DeliveryDetails":
+        return (
+          <StepDeliveryDetails
+            form={form}
+            setForm={setForm}
+            municipalities={municipalities}
+            barangays={barangays}
+          />
+        );
+      case "MenuSelection":
+        return (
+          <StepMenuSelection
+            form={form}
+            setForm={setForm}
+            menuItems={menuItems}
+          />
+        );
+      case "DietaryNeeds":
+        return <StepDietaryNeeds form={form} setForm={setForm} />;
+      case "EquipmentSelection":
+        return (
+          <StepEquipmentSelection
+            form={form}
+            setForm={setForm}
+            inventoryItems={inventoryItems}
+          />
+        );
+      case "CostSummary":
+        return (
+          <StepCostSummary
+            form={form}
+            initialPackageName={initialPackageName}
+            initialPackagePrice={initialPackagePrice}
+            totalPrice={totalPrice}
+            depositAmount={depositAmount}
+            depositPercentage={depositPercentage}
+          />
+        );
+      case "ContactInfo":
+        return <StepContactInfo form={form} setForm={setForm} />;
+      case "ReviewBooking":
+        return (
+          <StepReviewBooking
+            form={form}
+            initialPackageName={initialPackageName}
+            totalPrice={totalPrice}
+            depositAmount={depositAmount}
+            agreements={agreements}
+            setAgreements={setAgreements}
+            setShowTerms={setShowTerms}
+            setShowPrivacy={setShowPrivacy}
+          />
+        );
+      case "Payment":
+        return (
+          <StepPayment
+            depositAmount={depositAmount}
+            isSubmitting={isSubmitting}
+            onSubmit={submitBooking}
+            error={error}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------------------------------
   return (
     <CustomerLayout>
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -502,89 +657,7 @@ export default function BookingWizard() {
           <BookingStepper currentStepIndex={step + 1} steps={wizardSteps} />
         </div>
 
-        <div className="mb-6">
-          {currentStepId === "ServiceType" && (
-            <StepServiceType form={form} setForm={setForm} />
-          )}
-          {currentStepId === "DateTime" && (
-            <StepDateTime
-              form={form}
-              setForm={setForm}
-              minDate={minDate}
-              availability={availability}
-              setAvailability={setAvailability}
-              suggestedDates={suggestedDates}
-              onNext={handleNext}
-            />
-          )}
-          {currentStepId === "EventDetails" && (
-            <StepEventDetails
-              form={form}
-              setForm={setForm}
-              initialEventType={initialEventType}
-              municipalities={municipalities}
-              barangays={barangays}
-            />
-          )}
-          {currentStepId === "DeliveryDetails" && (
-            <StepDeliveryDetails
-              form={form}
-              setForm={setForm}
-              municipalities={municipalities}
-              barangays={barangays}
-            />
-          )}
-          {currentStepId === "MenuSelection" && (
-            <StepMenuSelection
-              form={form}
-              setForm={setForm}
-              menuItems={menuItems}
-            />
-          )}
-          {currentStepId === "DietaryNeeds" && (
-            <StepDietaryNeeds form={form} setForm={setForm} />
-          )}
-          {currentStepId === "EquipmentSelection" && (
-            <StepEquipmentSelection
-              form={form}
-              setForm={setForm}
-              inventoryItems={inventoryItems}
-            />
-          )}
-          {currentStepId === "CostSummary" && (
-            <StepCostSummary
-              form={form}
-              initialPackageName={initialPackageName}
-              initialPackagePrice={initialPackagePrice}
-              totalPrice={totalPrice}
-              depositAmount={depositAmount}
-              depositPercentage={depositPercentage}
-            />
-          )}
-          {currentStepId === "ContactInfo" && (
-            <StepContactInfo form={form} setForm={setForm} />
-          )}
-          {currentStepId === "ReviewBooking" && (
-            <StepReviewBooking
-              form={form}
-              initialPackageName={initialPackageName}
-              totalPrice={totalPrice}
-              depositAmount={depositAmount}
-              agreements={agreements}
-              setAgreements={setAgreements}
-              setShowTerms={setShowTerms}
-              setShowPrivacy={setShowPrivacy}
-            />
-          )}
-          {currentStepId === "Payment" && (
-            <StepPayment
-              depositAmount={depositAmount}
-              isSubmitting={isSubmitting}
-              onSubmit={submitBooking}
-              error={error}
-            />
-          )}
-        </div>
+        <div className="mb-6">{renderStep()}</div>
 
         {currentStepId !== "Payment" && (
           <div className="mt-8 flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-soft">
@@ -609,6 +682,7 @@ export default function BookingWizard() {
         )}
       </div>
 
+      {/* Modals */}
       {showTerms && (
         <Modal title="Terms and Conditions" onClose={() => setShowTerms(false)}>
           <div className="text-slate-600 space-y-4 p-4 text-sm">

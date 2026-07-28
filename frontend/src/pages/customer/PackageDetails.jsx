@@ -310,6 +310,8 @@ export default function PackageDetails() {
                             packageId: pkg._id,
                             packagePrice: hasPrice ? perGuest : 0, // per‑guest price
                             packageName: pkg.name,
+                            guestMin: pkg.guest_min || 0,
+                            guestMax: pkg.guest_max || 100,
                             initialStep: 0
                           },
                         })

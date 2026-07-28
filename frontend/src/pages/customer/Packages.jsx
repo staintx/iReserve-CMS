@@ -418,7 +418,11 @@ export default function Packages() {
           <Button
             variant="outline"
             className="flex items-center gap-2 rounded-xl border-border bg-card px-6 py-6 font-medium text-foreground hover:bg-accent/5"
-            onClick={() => navigate("/customer/book")}
+            onClick={() =>
+              navigate("/customer/book", {
+                state: { resetWizard: true }, // <-- add this
+              })
+            }
           >
             <Settings size={18} className="text-muted-foreground" />
             Build a Custom Package

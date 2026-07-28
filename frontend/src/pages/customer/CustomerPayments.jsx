@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
-import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import useToast from "../../hooks/useToast";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { CreditCard, Wallet, FileText, CheckCircle2, XCircle } from "lucide-react";
 
-const formatCurrency = (value) => `PHP ${Number(value || 0).toLocaleString()}`;
+const formatCurrency = (value) => `₱${Number(value || 0).toLocaleString()}`;
 
 export default function CustomerPayments() {
   const [payments, setPayments] = useState([]);
@@ -47,11 +49,6 @@ export default function CustomerPayments() {
   }, [searchParams]);
 
   const paymentStatus = searchParams.get("status");
-  const paymentNotice = paymentStatus === "success"
-    ? { type: "success", text: "PayMongo payment completed. Your transaction will update shortly." }
-    : paymentStatus === "cancelled"
-      ? { type: "warning", text: "PayMongo checkout was cancelled." }
-      : null;
 
   const startPayment = async (payment) => {
     if (!payment?._id || !payment.booking_id?._id) return;
@@ -76,6 +73,7 @@ export default function CustomerPayments() {
     () => payments.filter(p => p.status === "approved").reduce((sum, item) => sum + (item.amount || 0), 0),
     [payments]
   );
+  
   const pendingPayments = useMemo(() => {
     // Get all pending payments
     const pending = payments.filter((p) => p.status === "pending");
@@ -108,63 +106,102 @@ export default function CustomerPayments() {
       title="Payment History"
       subtitle="Track your payments and transactions"
     >
-      {paymentNotice && (
-        <div className={`booking-alert ${paymentNotice.type}`} style={{ marginBottom: "16px" }}>
-          {paymentNotice.text}
+      {paymentStatus === "success" && (
+        <div className="flex items-center gap-3 p-4 mb-6 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">PayMongo payment completed. Your transaction will update shortly.</p>
+        </div>
+      )}
+      
+      {paymentStatus === "cancelled" && (
+        <div className="flex items-center gap-3 p-4 mb-6 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+          <XCircle className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">PayMongo checkout was cancelled.</p>
         </div>
       )}
 
-      <div className="dashboard-cards">
-        <DashboardStatCard
-          label="Total Spent"
-          value={formatCurrency(totalPaid)}
-          helper="All payments processed"
-        />
-        <DashboardStatCard
-          label="Upcoming Payments"
-          value={formatCurrency(upcomingDue)}
-          helper="Payments due"
-        />
-        <DashboardStatCard
-          label="Bookings"
-          value={new Set(payments.map((p) => p.booking_id?._id || p.booking_id)).size || 0}
-          helper="Across all bookings"
-        />
-      </div>
-
-      <div className="table-card" style={{ marginBottom: "24px" }}>
-        <div className="tile-header">
-          <h3>Upcoming Payments</h3>
-        </div>
-        {pendingPayments.map((p) => (
-          <div key={p._id} className="list-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #f1f5f9" }}>
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <Card className="border-border">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+              <Wallet className="w-6 h-6" />
+            </div>
             <div>
-              <strong style={{ fontSize: "1.1rem" }}>{p.booking_id?.event_type || "Event Booking"}</strong>
-              <div style={{ color: "#64748b", fontSize: "0.875rem", marginTop: "4px" }}>Booking Ref: {p.booking_id?._id || p.booking_id}</div>
-              <div style={{ color: "#64748b", fontSize: "0.875rem" }}>Type: <span style={{ textTransform: "capitalize" }}>{p.payment_type || "deposit"}</span></div>
+              <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
+              <h3 className="text-2xl font-bold text-foreground">{formatCurrency(totalPaid)}</h3>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <strong style={{ fontSize: "1.1rem" }}>{formatCurrency(p.amount)}</strong>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => startPayment(p)}
-                disabled={payingPaymentId === p._id}
-              >
-                {payingPaymentId === p._id ? "Opening..." : "Pay Now"}
-              </button>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-border">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <CreditCard className="w-6 h-6" />
             </div>
-          </div>
-        ))}
-        {pendingPayments.length === 0 && <p style={{ padding: "16px", color: "#64748b" }}>No upcoming payments due at this time.</p>}
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Upcoming Payments</p>
+              <h3 className="text-2xl font-bold text-foreground">{formatCurrency(upcomingDue)}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardContent className="p-6 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Bookings</p>
+              <h3 className="text-2xl font-bold text-foreground">{new Set(payments.map((p) => p.booking_id?._id || p.booking_id)).size || 0}</h3>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="table-card" style={{ marginBottom: "24px" }}>
-        <div className="tile-header">
-          <h3>Transaction History</h3>
-        </div>
-        <CustomerPaymentsTable payments={completedTransactions} formatCurrency={formatCurrency} />
-        {completedTransactions.length === 0 && <p style={{ padding: "16px", color: "#64748b" }}>No completed transactions yet.</p>}
+      <div className="space-y-8">
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-xl font-serif">Upcoming Payments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 mt-2">
+              {pendingPayments.map((p) => (
+                <div key={p._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card hover:bg-muted/30 transition-colors">
+                  <div>
+                    <h4 className="font-bold text-foreground">{p.booking_id?.event_type || "Event Booking"}</h4>
+                    <div className="text-sm text-muted-foreground mt-1">Booking Ref: {p.booking_id?._id || p.booking_id}</div>
+                    <div className="text-sm text-muted-foreground">Type: <span className="capitalize">{p.payment_type || "deposit"}</span></div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <strong className="text-xl text-foreground">{formatCurrency(p.amount)}</strong>
+                    <Button
+                      onClick={() => startPayment(p)}
+                      disabled={payingPaymentId === p._id}
+                    >
+                      {payingPaymentId === p._id ? "Opening..." : "Pay Now"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {pendingPayments.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border">
+                  <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p>No upcoming payments due at this time.</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-xl font-serif">Transaction History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CustomerPaymentsTable payments={completedTransactions} formatCurrency={formatCurrency} />
+          </CardContent>
+        </Card>
       </div>
     </CustomerDashboardLayout>
   );

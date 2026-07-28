@@ -8,7 +8,7 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
 
       <div className="form-section">
         <div className="form-field">
-          <label className="form-label" style={{ fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Item Name</label>
+          <label className="form-label" style={{ fontWeight: 600, color: "#2B3B8A", marginBottom: "8px", display: "block" }}>Item Name</label>
           <input
             className="inv-form-input"
             placeholder="e.g., Banquet Chair"
@@ -18,7 +18,7 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
         </div>
 
         <div className="form-field">
-          <label className="form-label" style={{ fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Quantity Stock</label>
+          <label className="form-label" style={{ fontWeight: 600, color: "#2B3B8A", marginBottom: "8px", display: "block" }}>Quantity Stock</label>
           <input
             className="inv-form-input"
             type="number"
@@ -29,7 +29,7 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
         </div>
 
         <div className="form-field">
-          <label className="form-label" style={{ fontWeight: 600, color: "#1e293b", marginBottom: "8px", display: "block" }}>Category</label>
+          <label className="form-label" style={{ fontWeight: 600, color: "#2B3B8A", marginBottom: "8px", display: "block" }}>Category</label>
           <select
             className="inv-form-input"
             value={form.category || ""}
@@ -44,7 +44,7 @@ export default function AdminInventoryForm({ form, setForm, onCancel, onSubmit, 
 
         <div className="status-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
           <div className="status-meta">
-            <span className="status-title" style={{ fontWeight: 600, color: "#1e293b", display: "block" }}>Item Status</span>
+            <span className="status-title" style={{ fontWeight: 600, color: "#2B3B8A", display: "block" }}>Item Status</span>
             <span className="status-hint" style={{ fontSize: "12px", color: "#64748b" }}>Toggle to make this item active or inactive</span>
           </div>
           <div className="status-controls" style={{ display: "flex", alignItems: "center", gap: "12px" }}>

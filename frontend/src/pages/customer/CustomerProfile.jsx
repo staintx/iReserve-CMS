@@ -3,6 +3,10 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { User, Mail, Phone, MapPin, Lock, ShieldCheck, CreditCard, Save } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 
 export default function CustomerProfile() {
   const [form, setForm] = useState({
@@ -16,7 +20,7 @@ export default function CustomerProfile() {
   const [security, setSecurity] = useState({ current: "", next: "", confirm: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
-  const toast = useToast();
+  const { notify } = useToast();
 
   useEffect(() => {
     CustomerAPI.getProfile().then((res) => {
@@ -35,9 +39,9 @@ export default function CustomerProfile() {
         phone: form.phone,
         address: form.address
       });
-      toast.success("Profile updated successfully!");
+      notify("Profile updated successfully!", "success");
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to update profile");
+      notify(err.response?.data?.message || "Failed to update profile", "error");
     } finally {
       setIsLoading(false);
     }
@@ -46,13 +50,13 @@ export default function CustomerProfile() {
   const savePassword = async (e) => {
     if (e) e.preventDefault();
     if (!security.current || !security.next || !security.confirm) {
-      return toast.error("All password fields are required");
+      return notify("All password fields are required", "error");
     }
     if (security.next !== security.confirm) {
-      return toast.error("New passwords do not match");
+      return notify("New passwords do not match", "error");
     }
     if (security.next.length < 6) {
-      return toast.error("New password must be at least 6 characters");
+      return notify("New password must be at least 6 characters", "error");
     }
 
     setIsSecurityLoading(true);
@@ -61,10 +65,10 @@ export default function CustomerProfile() {
         current_password: security.current,
         new_password: security.next
       });
-      toast.success("Password changed successfully!");
+      notify("Password changed successfully!", "success");
       setSecurity({ current: "", next: "", confirm: "" });
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to change password");
+      notify(err.response?.data?.message || "Failed to change password", "error");
     } finally {
       setIsSecurityLoading(false);
     }
@@ -76,216 +80,197 @@ export default function CustomerProfile() {
       subtitle="Manage your account information and preferences"
     >
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
-        {/* Left Column: Personal Info & Payment */}
+        {/* Left Column: Personal Info */}
         <div className="flex-1 space-y-8">
 
           {/* Personal Settings Card */}
-          <div className="bg-white rounded-3xl shadow-soft border border-slate-100 overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+          <Card className="border-border overflow-hidden">
+            <CardHeader className="border-b border-border bg-muted/30 pb-6 flex flex-row items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
                 <User className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-800 m-0">Personal Details</h3>
-                <p className="text-sm text-slate-500 m-0">Update your public profile and contact information</p>
+                <CardTitle className="text-xl font-bold font-serif">Personal Details</CardTitle>
+                <CardDescription>Update your public profile and contact information</CardDescription>
               </div>
-            </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <form onSubmit={save} className="p-6 sm:p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-muted-foreground" /> Full Name
+                    </Label>
+                    <Input
+                      placeholder="e.g. Jane Doe"
+                      value={form.full_name || ""}
+                      onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    />
+                  </div>
 
-            <form onSubmit={save} className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <User className="w-4 h-4 text-slate-400" /> Full Name
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                    placeholder="e.g. Jane Doe"
-                    value={form.full_name || ""}
-                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                  />
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-muted-foreground" /> Username
+                    </Label>
+                    <Input
+                      placeholder="e.g. janedoe99"
+                      value={form.username || ""}
+                      onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-muted-foreground" /> Email Address
+                    </Label>
+                    <Input
+                      placeholder="jane@example.com"
+                      type="email"
+                      value={form.email || ""}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-muted-foreground" /> Phone Number
+                    </Label>
+                    <Input
+                      placeholder="+1 (555) 000-0000"
+                      value={form.phone || ""}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-muted-foreground" /> Alternative Phone
+                    </Label>
+                    <Input
+                      placeholder="+1 (555) 111-1111"
+                      value={form.alt_phone || ""}
+                      onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-muted-foreground" /> Address
+                    </Label>
+                    <textarea
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                      placeholder="123 Main St, City, Country"
+                      value={form.address || ""}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <User className="w-4 h-4 text-slate-400" /> Username
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                    placeholder="e.g. janedoe99"
-                    value={form.username || ""}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  />
+                <div className="pt-4 flex justify-end">
+                  <Button type="submit" disabled={isLoading} size="lg">
+                    <Save className="w-4 h-4 mr-2" />
+                    {isLoading ? "Saving Details..." : "Save Details"}
+                  </Button>
                 </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-slate-400" /> Email Address
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                    placeholder="jane@example.com"
-                    type="email"
-                    value={form.email || ""}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-slate-400" /> Phone Number
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                    placeholder="+1 (555) 000-0000"
-                    value={form.phone || ""}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-slate-400" /> Alternative Phone
-                  </label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                    placeholder="+1 (555) 111-1111"
-                    value={form.alt_phone || ""}
-                    onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-slate-400" /> Address
-                  </label>
-                  <textarea
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none min-h-[100px] resize-y"
-                    placeholder="123 Main St, City, Country"
-                    value={form.address || ""}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 flex justify-end">
-                <button
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                  type="submit"
-                  disabled={isLoading}
-                >
-                  <Save className="w-4 h-4" />
-                  {isLoading ? "Saving Details..." : "Save Details"}
-                </button>
-              </div>
-            </form>
-          </div>
-
+              </form>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right Column: Security */}
         <div className="w-full lg:w-[400px] space-y-8">
 
           {/* Security Card */}
-          <div className="bg-white rounded-3xl shadow-soft border border-slate-100 overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
+          <Card className="border-border overflow-hidden">
+            <CardHeader className="border-b border-border bg-muted/30 pb-6 flex flex-row items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-800 m-0">Security</h3>
-                <p className="text-sm text-slate-500 m-0">Update your password</p>
+                <CardTitle className="text-xl font-bold font-serif">Security</CardTitle>
+                <CardDescription>Update your password</CardDescription>
               </div>
-            </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <form onSubmit={savePassword} className="p-6 sm:p-8 space-y-5">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" /> Current Password
+                  </Label>
+                  <Input
+                    placeholder="Enter current password"
+                    type="password"
+                    value={security.current}
+                    onChange={(e) => setSecurity({ ...security, current: e.target.value })}
+                  />
+                </div>
 
-            <form onSubmit={savePassword} className="p-8 space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400" /> Current Password
-                </label>
-                <input
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all outline-none"
-                  placeholder="Enter current password"
-                  type="password"
-                  value={security.current}
-                  onChange={(e) => setSecurity({ ...security, current: e.target.value })}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" /> New Password
+                  </Label>
+                  <Input
+                    placeholder="Minimum 6 characters"
+                    type="password"
+                    value={security.next}
+                    onChange={(e) => setSecurity({ ...security, next: e.target.value })}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400" /> New Password
-                </label>
-                <input
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all outline-none"
-                  placeholder="Minimum 6 characters"
-                  type="password"
-                  value={security.next}
-                  onChange={(e) => setSecurity({ ...security, next: e.target.value })}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-muted-foreground" /> Confirm Password
+                  </Label>
+                  <Input
+                    placeholder="Repeat new password"
+                    type="password"
+                    value={security.confirm}
+                    onChange={(e) => setSecurity({ ...security, confirm: e.target.value })}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400" /> Confirm Password
-                </label>
-                <input
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all outline-none"
-                  placeholder="Repeat new password"
-                  type="password"
-                  value={security.confirm}
-                  onChange={(e) => setSecurity({ ...security, confirm: e.target.value })}
-                />
-              </div>
-
-              <div className="pt-4">
-                <button
-                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-medium py-3 px-6 rounded-xl shadow-md shadow-rose-500/20 transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                  type="submit"
-                  disabled={isSecurityLoading}
-                >
-                  <Lock className="w-4 h-4" />
-                  {isSecurityLoading ? "Updating..." : "Update Password"}
-                </button>
-              </div>
-            </form>
-          </div>
+                <div className="pt-4">
+                  <Button type="submit" disabled={isSecurityLoading} className="w-full bg-rose-600 hover:bg-rose-700 text-white" size="lg">
+                    <Lock className="w-4 h-4 mr-2" />
+                    {isSecurityLoading ? "Updating..." : "Update Password"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
 
           {/* Payment Methods Card */}
-          <div className="bg-white rounded-3xl shadow-soft border border-slate-100 overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+          <Card className="border-border overflow-hidden">
+            <CardHeader className="border-b border-border bg-muted/30 pb-6 flex flex-row items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                 <CreditCard className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-800 m-0">Payment Methods</h3>
-                <p className="text-sm text-slate-500 m-0">Saved cards for faster checkout</p>
+                <CardTitle className="text-xl font-bold font-serif">Payment Methods</CardTitle>
+                <CardDescription>Saved cards for faster checkout</CardDescription>
               </div>
-            </div>
-
-            <div className="p-8 space-y-4">
-              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50">
+            </CardHeader>
+            <CardContent className="p-6 sm:p-8 space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/10">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-6 bg-slate-200 rounded flex items-center justify-center text-[10px] font-bold text-slate-600 tracking-wider">
                     VISA
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-slate-700">•••• 4242</div>
-                    <div className="text-xs text-slate-500">Expires 12/25</div>
+                    <div className="text-sm font-semibold text-foreground">•••• 4242</div>
+                    <div className="text-xs text-muted-foreground">Expires 12/25</div>
                   </div>
                 </div>
-                <button type="button" className="text-sm font-medium text-slate-400 hover:text-rose-600 transition-colors">
+                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
                   Remove
-                </button>
+                </Button>
               </div>
 
-              <button
-                type="button"
-                className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-medium hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-all flex items-center justify-center gap-2"
-              >
+              <Button variant="outline" className="w-full border-dashed h-14 text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5">
                 + Add New Payment Method
-              </button>
-            </div>
-          </div>
+              </Button>
+            </CardContent>
+          </Card>
 
         </div>
       </div>

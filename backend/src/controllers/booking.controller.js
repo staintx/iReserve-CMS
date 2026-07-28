@@ -324,6 +324,63 @@ exports.create = asyncHandler(async (req, res) => {
 		sendBookingConfirmationEmail({ booking, customerEmail }).catch(() => {});
 	}
 
+	// Create payment checkout for deposit
+	if (req.user?.role === "customer" && req.body.payment_method) {
+		try {
+			const BusinessInfo = require("../models/BusinessInfo");
+			const Payment = require("../models/Payment");
+			const { createCheckoutSession } = require("../services/payment.service");
+
+			const businessInfo = await BusinessInfo.findOne();
+			const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+			const depositAmount = (booking.total_price * depositPercentage) / 100;
+
+			if (depositAmount > 0) {
+				const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+				const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}`;
+				const cancelUrl = `${appBaseUrl}/customer/book?status=cancelled`;
+
+				const payment = await Payment.create({
+					booking_id: booking._id,
+					customer_id: booking.customer_id,
+					amount: depositAmount,
+					currency: "PHP",
+					payment_type: "deposit",
+					method: req.body.payment_method, // "gcash", "paymaya", "card"
+					status: "pending",
+					gateway: "paymongo"
+				});
+
+				const checkout = await createCheckoutSession({
+					amount: depositAmount,
+					currency: "PHP",
+					paymentMethodTypes: [req.body.payment_method], // Only allow the selected one
+					description: `Deposit for Booking ${booking.reference || booking._id}`,
+					successUrl,
+					cancelUrl,
+					metadata: {
+						local_payment_id: String(payment._id),
+						booking_id: String(booking._id),
+						customer_id: String(booking.customer_id),
+						payment_type: "deposit"
+					}
+				});
+
+				payment.gateway_checkout_id = checkout.data.id;
+				payment.checkout_url = checkout.data.attributes.checkout_url;
+				await payment.save();
+
+				return res.status(201).json({
+					...booking.toObject(),
+					checkout_url: payment.checkout_url
+				});
+			}
+		} catch (err) {
+			console.error("PayMongo Checkout Error:", err);
+			// Fallback to regular booking if payment creation fails
+		}
+	}
+
 	res.status(201).json(booking);
 });
 
@@ -780,6 +837,9 @@ exports.processRefund = asyncHandler(async (req, res) => {
 	booking.payment_status = "refunded";
 	await booking.save();
 	
+	// Delete any existing inventory reservations
+	await InventoryReservation.deleteMany({ booking_id: booking._id });
+	
 	// Create negative payment record for refund
 	const Payment = require("../models/Payment");
 	await Payment.create({
@@ -1085,3 +1145,7 @@ exports.completeOcular = asyncHandler(async (req, res) => {
 
 	res.json(booking);
 });
+
+exports.checkInventoryAvailability = checkInventoryAvailability;
+exports.findBookingConflict = findBookingConflict;
+exports.filterAvailableStaff = filterAvailableStaff;

@@ -5,6 +5,12 @@ import { getConversation, getMessages, sendMessage } from "../../api/messages";
 import useToast from "../../hooks/useToast";
 import { AuthContext } from "../../context/AuthContext";
 import { getSocket } from "../../api/socket";
+import { Send, ChevronLeft, User, MoreVertical } from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { ScrollArea } from "../../components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 const formatDateTime = (value) => {
   if (!value) return "";
@@ -43,8 +49,17 @@ export default function CustomerMessageThread() {
   const [typingUsers, setTypingUsers] = useState([]);
   const typingTimeoutRef = useRef(null);
   const socketRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   const title = useMemo(() => getTitle(conversation), [conversation]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, typingUsers]);
 
   useEffect(() => {
     let isMounted = true;
@@ -139,68 +154,122 @@ export default function CustomerMessageThread() {
       title="Messages"
       subtitle="Communicate with Caezelle's Catering team"
     >
-      <div className="chat-shell">
-        <div className="chat-header">
-          <div>
-            <div className="chat-header-title">{title}</div>
-            <div className="chat-subtitle">
-              {conversation?.manager_id?.full_name || "Caezelle's Support"}
+      <div className="max-w-4xl mx-auto h-[calc(100vh-280px)] min-h-[500px]">
+        <Card className="h-full flex flex-col border-border shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-border bg-card">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate("/customer/messages")} className="text-muted-foreground">
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground text-sm sm:text-base leading-tight truncate max-w-[200px] sm:max-w-xs">{title}</h3>
+                <p className="text-xs text-muted-foreground">{conversation?.manager_id?.full_name || "Caezelle's Support"}</p>
+              </div>
             </div>
-          </div>
-          <div className="chat-event-card">
-            <span className="chat-event-pill">Support Chat</span>
-            <button className="btn-outline" type="button" onClick={() => navigate("/customer/messages")}>Back</button>
-          </div>
-        </div>
-
-        <div className="chat-body">
-          <div className="chat-stream">
-            {isLoading && <div className="chat-bubble">Loading messages...</div>}
-            {!isLoading && messages.length === 0 && (
-              <div className="chat-bubble">No messages yet. Start the conversation below.</div>
-            )}
-            {messages.map((msg) => {
-              const isMe = msg.sender_id?._id === user?._id;
-              const initials = (msg.sender_id?.full_name || msg.sender_id?.role || "U").slice(0, 2).toUpperCase();
-              return (
-                <div key={msg._id} className={`chat-message ${isMe ? "me" : ""}`}>
-                  <div className={`chat-avatar ${isMe ? "" : "alt"}`}>{initials}</div>
-                  <div>
-                    <div className={`chat-bubble ${isMe ? "me" : ""}`}>{msg.body}</div>
-                    <div className="chat-meta">{formatDateTime(msg.createdAt)}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {typingLabel && (
-            <div className="typing-indicator">
-              <span>{typingLabel}</span>
-              <span className="typing-dots">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
+            <div className="flex items-center gap-2">
+              <span className="hidden sm:inline-flex px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground rounded-full">
+                Support Chat
               </span>
-            </div>
-          )}
-
-          <div className="chat-input-bar">
-            <input
-              placeholder="Type your message..."
-              value={draft}
-              onChange={handleDraftChange}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") handleSend();
-              }}
-            />
-            <div className="chat-actions">
-              <button className="btn" type="button" onClick={handleSend} disabled={isSending || !draft.trim()}>
-                Send
-              </button>
+              <Button variant="ghost" size="icon" className="text-muted-foreground">
+                <MoreVertical className="w-5 h-5" />
+              </Button>
             </div>
           </div>
-        </div>
+
+          {/* Messages Area */}
+          <ScrollArea className="flex-1 p-4 bg-muted/10">
+            <div className="space-y-6 max-w-3xl mx-auto pb-4">
+              {isLoading && <div className="text-center text-muted-foreground text-sm my-4 animate-pulse">Loading messages...</div>}
+              {!isLoading && messages.length === 0 && (
+                <div className="text-center my-12">
+                  <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                    <User className="w-6 h-6 text-muted-foreground opacity-50" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">No messages yet. Start the conversation below.</p>
+                </div>
+              )}
+              {messages.map((msg, idx) => {
+                const isMe = msg.sender_id?._id === user?._id;
+                const initials = (msg.sender_id?.full_name || msg.sender_id?.role || "U").slice(0, 2).toUpperCase();
+                const showAvatar = idx === 0 || messages[idx - 1]?.sender_id?._id !== msg.sender_id?._id;
+
+                return (
+                  <div key={msg._id} className={cn("flex items-end gap-2", isMe ? "justify-end" : "justify-start")}>
+                    {!isMe && (
+                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0", showAvatar ? "bg-muted text-muted-foreground" : "invisible")}>
+                        {initials}
+                      </div>
+                    )}
+                    
+                    <div className={cn("flex flex-col max-w-[75%]", isMe ? "items-end" : "items-start")}>
+                      <div 
+                        className={cn(
+                          "px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-sm",
+                          isMe 
+                            ? "bg-primary text-primary-foreground rounded-br-sm" 
+                            : "bg-card border border-border text-foreground rounded-bl-sm"
+                        )}
+                      >
+                        {msg.body}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground mt-1 px-1">
+                        {formatDateTime(msg.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {typingLabel && (
+                <div className="flex items-center gap-2 text-muted-foreground text-xs italic ml-10">
+                  {typingLabel}
+                  <span className="flex gap-0.5">
+                    <span className="w-1 h-1 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-1 h-1 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-1 h-1 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+
+          {/* Input Area */}
+          <div className="p-4 bg-card border-t border-border">
+            <form 
+              onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+              className="flex items-end gap-2 max-w-3xl mx-auto"
+            >
+              <div className="relative flex-1">
+                <textarea
+                  className="flex w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[50px] max-h-[150px] resize-none"
+                  placeholder="Type a message..."
+                  value={draft}
+                  onChange={handleDraftChange}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  rows={1}
+                />
+              </div>
+              <Button 
+                type="submit" 
+                size="icon" 
+                className="h-[50px] w-[50px] rounded-full shrink-0"
+                disabled={isSending || !draft.trim()}
+              >
+                <Send className="w-5 h-5 ml-1" />
+              </Button>
+            </form>
+          </div>
+        </Card>
       </div>
     </CustomerDashboardLayout>
   );

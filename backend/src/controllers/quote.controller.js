@@ -36,8 +36,30 @@ exports.convertToBooking = asyncHandler(async (req, res) => {
   if (quote.converted_booking_id) return res.status(400).json({ message: "Quote already converted" });
 
   const Booking = require("../models/Booking");
-  const { calculateBookingPrice } = require("./booking.controller");
+  const InventoryReservation = require("../models/InventoryReservation");
+  const { calculateBookingPrice, findBookingConflict, checkInventoryAvailability } = require("./booking.controller");
   
+  // Conflict Check
+  const conflict = await findBookingConflict({
+    eventDate: quote.event_date,
+    startTime: quote.start_time,
+    durationHours: quote.duration_hours,
+    location: quote,
+    bufferMinutes: req.body.buffer_minutes || 0
+  });
+  if (conflict) {
+    return res.status(409).json({ message: "Booking conflict detected for the selected date/time", conflict_id: conflict._id });
+  }
+
+  // Inventory Check
+  const inventoryItems = req.body.inventory_items || [];
+  if (inventoryItems.length > 0) {
+    const invCheck = await checkInventoryAvailability(quote.event_date, inventoryItems);
+    if (!invCheck.available) {
+      return res.status(409).json({ message: `Inventory conflict: Not enough '${invCheck.itemName}' available on this date.` });
+    }
+  }
+
   const payload = {
     customer_id: quote.customer_id,
     event_type: quote.event_type,
@@ -63,7 +85,9 @@ exports.convertToBooking = asyncHandler(async (req, res) => {
     contact_phone: quote.phone,
     package_id: req.body.package_id || null, // Optional, chosen by Admin during conversion
     additional_services: req.body.additional_services || [],
-    inventory_items: req.body.inventory_items || []
+    inventory_items: inventoryItems,
+    status: "confirmed", // Converted quotes are implicitly confirmed since admin is doing it
+    payment_status: "pending"
   };
   
   // Create booking
@@ -77,6 +101,21 @@ exports.convertToBooking = asyncHandler(async (req, res) => {
   }
 
   await newBooking.save();
+
+  // Create Reservations
+  if (newBooking.inventory_items && newBooking.inventory_items.length > 0) {
+    const reservations = newBooking.inventory_items
+      .filter(item => item.inventory_id)
+      .map(item => ({
+        inventory_id: item.inventory_id,
+        booking_id: newBooking._id,
+        event_date: newBooking.event_date,
+        quantity: item.quantity
+      }));
+    if (reservations.length > 0) {
+      await InventoryReservation.insertMany(reservations);
+    }
+  }
 
   // Mark quote as converted
   quote.status = "converted";

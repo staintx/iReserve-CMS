@@ -10,7 +10,9 @@ const BusinessInfoSchema = new mongoose.Schema({
   instagram: String,
   terms_url: String,
   privacy_url: String,
-  deposit_percentage: { type: Number, default: 20 }
+  deposit_percentage: { type: Number, default: 20 },
+  custom_event_setup_price: { type: Number, default: 15000 },
+  custom_food_and_event_price: { type: Number, default: 800 }
 }, { timestamps: true });
 
 module.exports = mongoose.model("BusinessInfo", BusinessInfoSchema);

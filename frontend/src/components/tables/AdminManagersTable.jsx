@@ -1,3 +1,14 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+
 export default function AdminManagersTable({ list, tab, onEdit, onToggleStatus, onView }) {
   const formatId = (value, index) => {
     const suffix = String(index + 1).padStart(3, "0");
@@ -7,43 +18,65 @@ export default function AdminManagersTable({ list, tab, onEdit, onToggleStatus, 
   };
 
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Role</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {list.map((m, index) => (
-          <tr key={m._id}>
-            <td>{formatId(m._id, index)}</td>
-            <td>{m.full_name}</td>
-            <td>{tab === "customers" ? "customer" : m.role}</td>
-            <td>
-              <span className={`badge-status ${m.is_active ? "active" : "inactive"}`}>
-                {m.is_active ? "Active" : "Inactive"}
-              </span>
-            </td>
-            <td>
-              {tab !== "customers" && (
-                <button className="btn-outline" onClick={() => onEdit(m)}>Edit</button>
-              )}
-              {tab !== "customers" && (
-                <button className="btn-outline" onClick={() => onView?.(m)}>View</button>
-              )}
-              <button className={m.is_active ? "btn-danger" : "btn"} onClick={() => onToggleStatus(m)}>
-                {tab === "customers"
-                  ? (m.is_active ? "Block" : "Unblock")
-                  : (m.is_active ? "Disable" : "Enable")}
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="rounded-md border border-border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>ID</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                No users found.
+              </TableCell>
+            </TableRow>
+          ) : (
+            list.map((m, index) => (
+              <TableRow key={m._id}>
+                <TableCell className="font-medium text-muted-foreground">{formatId(m._id, index)}</TableCell>
+                <TableCell className="font-medium">{m.full_name}</TableCell>
+                <TableCell className="capitalize text-muted-foreground">
+                  {tab === "customers" ? "customer" : m.role}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={m.is_active ? "success" : "destructive"}>
+                    {m.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    {tab !== "customers" && (
+                      <Button variant="outline" size="sm" onClick={() => onView?.(m)}>
+                        View
+                      </Button>
+                    )}
+                    {tab !== "customers" && (
+                      <Button variant="outline" size="sm" onClick={() => onEdit(m)}>
+                        Edit
+                      </Button>
+                    )}
+                    <Button 
+                      variant={m.is_active ? "destructive" : "default"} 
+                      size="sm" 
+                      onClick={() => onToggleStatus(m)}
+                    >
+                      {tab === "customers"
+                        ? (m.is_active ? "Block" : "Unblock")
+                        : (m.is_active ? "Disable" : "Enable")}
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

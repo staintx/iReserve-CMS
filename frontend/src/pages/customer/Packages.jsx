@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../api/customer";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Card, CardContent } from "../../components/ui/card";
+import { ChevronDown, ChevronUp, Check, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function Packages() {
   const [packages, setPackages] = useState([]);
@@ -11,6 +16,9 @@ export default function Packages() {
   const [appliedPriceMin, setAppliedPriceMin] = useState("");
   const [appliedPriceMax, setAppliedPriceMax] = useState("");
   const [isPriceFilterOpen, setIsPriceFilterOpen] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState({});
+  const [menuItems, setMenuItems] = useState([]);
+  const [selectedPackageId, setSelectedPackageId] = useState(null);
   const navigate = useNavigate();
 
   const formatMoney = (value) => {
@@ -39,6 +47,10 @@ export default function Packages() {
     CustomerAPI.getPackages().then((res) => {
       const next = Array.isArray(res.data) ? res.data : [];
       setPackages(next.filter((pkg) => pkg?.available !== false));
+    });
+    CustomerAPI.getMenu().then((res) => {
+      const next = Array.isArray(res.data) ? res.data : [];
+      setMenuItems(next.filter((item) => item?.available !== false).map(m => m.name));
     });
   }, []);
 
@@ -81,164 +93,262 @@ export default function Packages() {
 
   return (
     <CustomerLayout>
-      <div className="banner">
-        <h1>Event Packages Overview</h1>
-        <p>Choose from our carefully curated packages.</p>
-      </div>
-
-      <div style={{ 
-        display: "flex", 
-        flexWrap: "wrap", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        gap: "10px", 
-        padding: "20px 0" 
-      }}>
-        {/* Event Type Chips */}
-        {eventTypes.map(type => (
-          <button 
-            key={type} 
-            type="button"
-            className={filterType === type ? "btn" : "btn-outline"}
-            onClick={() => setFilterType(type)}
-            style={{ borderRadius: "20px", padding: "8px 16px", fontSize: "14px" }}
-          >
-            {type}
-          </button>
-        ))}
-
-        {/* Subtle Vertical Divider */}
-        <div style={{ width: "1px", height: "24px", backgroundColor: "#ddd", margin: "0 4px" }} />
-
-        {/* Price Filter Dropdown */}
-        <div style={{ position: "relative" }}>
-          <button 
-            type="button"
-            className="btn-outline" 
-            onClick={() => setIsPriceFilterOpen(!isPriceFilterOpen)}
-            style={{ borderRadius: "20px", padding: "8px 16px", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}
-          >
-            Price Filter
-            <span style={{ fontSize: "10px" }}>{isPriceFilterOpen ? "▲" : "▼"}</span>
-          </button>
-
-          {isPriceFilterOpen && (
-            <div style={{ 
-              position: "absolute", 
-              top: "100%", 
-              left: "50%",
-              transform: "translateX(-50%)",
-              marginTop: "10px", 
-              background: "var(--card-bg, #fff)", 
-              borderRadius: "8px", 
-              padding: "20px", 
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              zIndex: 10,
-              width: "260px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "15px",
-              border: "1px solid #eee"
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div style={{ display: "flex", alignItems: "center", border: "1px solid #ccc", borderRadius: "6px", padding: "0 8px", flex: 1 }}>
-                  <span style={{ color: "#666" }}>₱</span>
-                  <input 
-                    type="number" 
-                    placeholder="Min" 
-                    value={priceMin}
-                    onChange={(e) => setPriceMin(e.target.value)}
-                    style={{ border: "none", outline: "none", padding: "8px", width: "100%", fontSize: "14px" }}
-                  />
-                </div>
-                <span style={{ color: "#666" }}>-</span>
-                <div style={{ display: "flex", alignItems: "center", border: "1px solid #ccc", borderRadius: "6px", padding: "0 8px", flex: 1 }}>
-                  <span style={{ color: "#666" }}>₱</span>
-                  <input 
-                    type="number" 
-                    placeholder="Max" 
-                    value={priceMax}
-                    onChange={(e) => setPriceMax(e.target.value)}
-                    style={{ border: "none", outline: "none", padding: "8px", width: "100%", fontSize: "14px" }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button 
-                  type="button"
-                  className="btn" 
-                  onClick={handleApplyPrice}
-                  style={{ flex: 1, padding: "8px", borderRadius: "6px", fontSize: "14px" }}
-                >
-                  Apply
-                </button>
-                <button 
-                  type="button"
-                  className="btn-outline" 
-                  onClick={() => {
-                    setPriceMin("");
-                    setPriceMax("");
-                    setAppliedPriceMin("");
-                    setAppliedPriceMax("");
-                  }}
-                  style={{ flex: 1, padding: "8px", borderRadius: "6px", fontSize: "14px" }}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="mb-10 mt-8 text-center">
+          <h1 className="mb-3 font-serif text-4xl font-bold tracking-tight text-foreground">Browse Catering Packages</h1>
+          <p className="text-sm text-muted-foreground">Select the package that best fits your event and guest count</p>
         </div>
-      </div>
 
-      {filteredPackages.length === 0 ? (
-        <div style={{ 
-          textAlign: "center", 
-          padding: "60px 20px", 
-          margin: "20px 0"
-        }}>
-          <h3 style={{ margin: "0 0 10px 0", color: "var(--text-color, #333)", fontWeight: "500" }}>No packages found</h3>
-          <p style={{ color: "#666", margin: 0 }}>Try adjusting your filters or clearing them to see all packages.</p>
-          <button 
-            type="button"
-            className="btn-outline" 
-            onClick={handleClearFilters}
-            style={{ marginTop: "20px", borderRadius: "20px", padding: "8px 24px" }}
-          >
-            Clear All Filters
-          </button>
-        </div>
-      ) : (
-        <div className="package-grid">
-          {filteredPackages.map((p) => (
-            <div className="card package-card" key={p._id}>
-              <img src={p.image_url} alt={p.name} />
-              <h3>{p.name}</h3>
-              <p>{p.description}</p>
-              <small>₱{formatMoney(getPackagePrice(p))}</small>
-              <div className="actions">
-                <button className="btn-outline" onClick={() => navigate(`/packages/${p._id}`)}>View Full Details</button>
-                <button className="btn" onClick={() => navigate("/customer/book", { state: { eventType: getEventType(p), packageId: p._id, packagePrice: getPackagePrice(p), packageName: p.name } })}>Book Now</button>
-              </div>
-            </div>
+        <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
+          {/* Event Type Chips */}
+          {eventTypes.map(type => (
+            <button 
+              key={type} 
+              type="button"
+              className={cn(
+                "rounded-full px-4 py-2 text-sm transition",
+                filterType === type 
+                  ? "bg-primary text-primary-foreground" 
+                  : "border border-primary text-primary hover:bg-primary/5"
+              )}
+              onClick={() => setFilterType(type)}
+            >
+              {type}
+            </button>
           ))}
-        </div>
-      )}
 
-      <section className="section centered">
-        <h2>Why Choose Caezelle’s?</h2>
-        <div className="grid icons">
-          <div className="icon-card">Expert Chefs</div>
-          <div className="icon-card">Quality Guaranteed</div>
-          <div className="icon-card">Professional Staff</div>
-          <div className="icon-card">5‑Star Reviews</div>
-        </div>
-      </section>
+          {/* Subtle Vertical Divider */}
+          <div className="mx-1 h-6 w-px bg-border" />
 
-      <section className="cta">
-        <h2>Need a Custom Package?</h2>
-        <button className="btn" onClick={() => navigate("/customer/quote")}>Request Custom Quote</button>
-      </section>
+          {/* Price Filter Dropdown */}
+          <div className="relative">
+            <button 
+              type="button"
+              className="flex items-center gap-2 rounded-full border border-primary px-4 py-2 text-sm text-primary transition hover:bg-primary/5"
+              onClick={() => setIsPriceFilterOpen(!isPriceFilterOpen)}
+            >
+              Price Filter
+              {isPriceFilterOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+
+            {isPriceFilterOpen && (
+              <div className="absolute left-1/2 top-full z-50 mt-2 flex w-72 -translate-x-1/2 flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-lg">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₱</span>
+                    <Input 
+                      type="number" 
+                      placeholder="Min" 
+                      value={priceMin}
+                      onChange={(e) => setPriceMin(e.target.value)}
+                      className="pl-7"
+                    />
+                  </div>
+                  <span className="text-muted-foreground">-</span>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₱</span>
+                    <Input 
+                      type="number" 
+                      placeholder="Max" 
+                      value={priceMax}
+                      onChange={(e) => setPriceMax(e.target.value)}
+                      className="pl-7"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1" 
+                    onClick={handleApplyPrice}
+                  >
+                    Apply
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="flex-1" 
+                    onClick={() => {
+                      setPriceMin("");
+                      setPriceMax("");
+                      setAppliedPriceMin("");
+                      setAppliedPriceMax("");
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {filteredPackages.length === 0 ? (
+          <div className="my-10 py-20 text-center">
+            <h3 className="mb-2 text-xl font-medium text-foreground">No packages found</h3>
+            <p className="mb-6 text-muted-foreground">Try adjusting your filters or clearing them to see all packages.</p>
+            <Button 
+              variant="outline"
+              onClick={handleClearFilters}
+              className="rounded-full"
+            >
+              Clear All Filters
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredPackages.map((p, index) => {
+              const price = getPackagePrice(p);
+              const maxGuests = p.max_guests || 100; // fallback if not present for pax calc
+              const paxPrice = price ? Math.round(price / maxGuests) : 0;
+              const inclusions = Array.isArray(p.inclusions) ? p.inclusions : [];
+              
+              // Decide if it's most popular based on price or rating logic, here randomly or hardcoded for show
+              const isPopular = p.name.toLowerCase().includes("gold") || p.name.toLowerCase().includes("prestige");
+              const isSelected = selectedPackageId === p._id;
+
+              return (
+                <Card 
+                  className={cn(
+                    "flex cursor-pointer flex-col overflow-hidden transition-all hover:shadow-md",
+                    isSelected ? "border-2 border-accent ring-1 ring-accent" : "border-border shadow-sm"
+                  )} 
+                  key={p._id}
+                  onClick={() => setSelectedPackageId(p._id)}
+                >
+                  <div className="group relative h-56 w-full">
+                    <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                    
+                    {isSelected && (
+                      <div className="absolute left-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-md">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    )}
+
+                    {isPopular && (
+                      <div className="absolute right-3 top-3 rounded-full bg-gold-400 px-3 py-1 text-xs font-bold text-gold-900 shadow">
+                        Most Popular
+                      </div>
+                    )}
+
+                    <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+                      <h3 className="text-2xl font-bold leading-tight text-white drop-shadow-sm font-serif">{p.name}</h3>
+                      {(p.size || p.max_guests) && (
+                        <span className="text-[13px] text-white/90 drop-shadow-sm">
+                          {p.size ? (p.size.toLowerCase().includes('guest') || p.size.toLowerCase().includes('pax') ? p.size : `${p.size} guests`) : `Up to ${p.max_guests} guests`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <CardContent className="flex flex-1 flex-col p-6">
+                    <p className="mb-5 min-h-[40px] text-sm leading-relaxed text-muted-foreground">{p.description}</p>
+                    
+                    <div className="mb-5 flex-1 rounded-xl border border-border bg-accent/5 p-5">
+                      <h4 className="mb-4 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Includes</h4>
+                      <ul className="space-y-3">
+                        {inclusions.slice(0, 5).map((inc, i) => (
+                          <li key={i} className="flex items-start gap-2 text-[13px] text-foreground">
+                            <Check className="mt-0.5 h-3.5 w-3.5 text-accent" strokeWidth={3} />
+                            <span className="leading-tight">{inc}</span>
+                          </li>
+                        ))}
+                        {inclusions.length > 5 && (
+                          <li className="flex items-start gap-2 text-[13px] text-foreground">
+                            <Check className="mt-0.5 h-3.5 w-3.5 text-accent" strokeWidth={3} />
+                            <span className="leading-tight">And {inclusions.length - 5} more...</span>
+                          </li>
+                        )}
+                        {inclusions.length === 0 && (
+                          <li className="flex items-start gap-2 text-[13px] italic text-muted-foreground">
+                            Details customized per event
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+
+                    <div className="mb-6">
+                      <button 
+                        className="flex items-center gap-1 text-[13px] font-medium text-accent transition hover:text-accent/80"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedMenus(prev => ({ ...prev, [p._id]: !prev[p._id] }));
+                        }}
+                      >
+                        {expandedMenus[p._id] ? <ChevronDown size={14} /> : <ChevronDown size={14} className="-rotate-90" />} 
+                        View Sample Menu
+                      </button>
+                      
+                      {expandedMenus[p._id] && (
+                        <ul className="mt-3 space-y-1.5 border-l-2 border-accent/30 pl-3">
+                          {(menuItems.length > 0 ? menuItems.slice(index % Math.max(1, menuItems.length - 6), (index % Math.max(1, menuItems.length - 6)) + 6) : ['Sample items loading...']).map((item, idx) => (
+                            <li key={idx} className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                              <span className="h-1 w-1 rounded-full bg-accent/60"></span>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="mb-5 flex items-end justify-between">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-bold text-accent">₱{formatMoney(price)}</span>
+                        <span className="text-xs text-muted-foreground">starting</span>
+                      </div>
+                      {paxPrice > 0 && (
+                        <div className="text-sm font-medium text-muted-foreground">
+                          ₱{formatMoney(paxPrice)}/pax
+                        </div>
+                      )}
+                    </div>
+
+                    <Button 
+                      className={cn(
+                        "w-full py-6 font-semibold",
+                        isSelected 
+                          ? "bg-accent text-accent-foreground hover:bg-accent/90 shadow-md"
+                          : "bg-accent/10 text-accent hover:bg-accent hover:text-accent-foreground border-accent"
+                      )}
+                      variant={isSelected ? "default" : "outline"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSelected) {
+                          navigate("/customer/book", { state: { eventType: getEventType(p), packageId: p._id, packagePrice: price, packageName: p.name } });
+                        } else {
+                          setSelectedPackageId(p._id);
+                        }
+                      }}
+                    >
+                      {isSelected ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4" strokeWidth={3} />
+                          Selected — Continue
+                        </>
+                      ) : (
+                        'Select Package'
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Custom Package CTA */}
+        <div className="flex flex-col items-center justify-center pb-20 pt-8">
+          <p className="mb-4 text-[14px] text-muted-foreground">Need a fully tailored experience?</p>
+          <Button 
+            variant="outline"
+            className="flex items-center gap-2 rounded-xl border-border bg-card px-6 py-6 font-medium text-foreground hover:bg-accent/5"
+            onClick={() => navigate("/customer/book")}
+          >
+            <Settings size={18} className="text-muted-foreground" />
+            Build a Custom Package
+          </Button>
+        </div>
+
+      </div>
     </CustomerLayout>
   );
 }

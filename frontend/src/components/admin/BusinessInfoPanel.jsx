@@ -12,7 +12,9 @@ const DEFAULT_INFO = {
   instagram: "",
   terms_url: "",
   privacy_url: "",
-  deposit_percentage: 20
+  deposit_percentage: 20,
+  custom_event_setup_price: 15000,
+  custom_food_and_event_price: 800
 };
 
 const footerItems = [
@@ -117,6 +119,17 @@ export default function BusinessInfoPanel() {
               <label className="business-info-field">
                 <span>Deposit Percentage (%)</span>
                 <input className="business-info-input" type="number" min="0" max="100" value={form.deposit_percentage} onChange={updateField("deposit_percentage")} placeholder="20" />
+              </label>
+            </div>
+            <h5 className="mt-4 mb-2 font-medium text-slate-700">Custom Bookings Base Pricing</h5>
+            <div className="form-grid-2">
+              <label className="business-info-field">
+                <span>Event Setup Only (Fixed Price)</span>
+                <input className="business-info-input" type="number" value={form.custom_event_setup_price} onChange={updateField("custom_event_setup_price")} placeholder="15000" />
+              </label>
+              <label className="business-info-field">
+                <span>Food & Event Setup (Per Pax)</span>
+                <input className="business-info-input" type="number" value={form.custom_food_and_event_price} onChange={updateField("custom_food_and_event_price")} placeholder="800" />
               </label>
             </div>
           </div>

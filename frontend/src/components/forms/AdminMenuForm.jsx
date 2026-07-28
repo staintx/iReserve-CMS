@@ -27,6 +27,16 @@ export default function AdminMenuForm({ form, setForm, file, setFile, onCancel, 
         </div>
 
         <div className="form-field">
+          <label className="form-label">Price per plate (Optional)</label>
+          <input
+            type="number"
+            placeholder="e.g., 150"
+            value={form.price || ""}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+          />
+        </div>
+
+        <div className="form-field">
           <label className="form-label">Category</label>
           <select
             value={form.category || ""}

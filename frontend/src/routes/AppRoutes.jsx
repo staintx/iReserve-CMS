@@ -18,6 +18,7 @@ import CustomerDashboard from "../pages/customer/CustomerDashboard";
 import CustomerPayments from "../pages/customer/CustomerPayments";
 import CustomerMessages from "../pages/customer/CustomerMessages";
 import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
+import CustomerEventDashboard from "../pages/customer/CustomerEventDashboard";
 import CustomerProfile from "../pages/customer/CustomerProfile";
 import Packages from "../pages/customer/Packages";
 import PackageDetails from "../pages/customer/PackageDetails";
@@ -111,6 +112,7 @@ export default function AppRoutes() {
         <Route path="/customer/booking-success" element={<ProtectedRoute><BookingSuccess /></ProtectedRoute>} />
 
         <Route path="/customer/bookings" element={<ProtectedRoute><CustomerBookings /></ProtectedRoute>} />
+        <Route path="/customer/bookings/:id" element={<ProtectedRoute><CustomerEventDashboard /></ProtectedRoute>} />
         <Route path="/customer/checkout" element={<ProtectedRoute><CustomCheckout /></ProtectedRoute>} />
         <Route path="/customer/payments" element={<ProtectedRoute><CustomerPayments /></ProtectedRoute>} />
         <Route path="/customer/messages" element={<ProtectedRoute><CustomerMessages /></ProtectedRoute>} />

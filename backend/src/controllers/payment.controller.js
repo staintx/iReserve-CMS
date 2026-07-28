@@ -1,5 +1,6 @@
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
+const InventoryReservation = require("../models/InventoryReservation");
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification } = require("../utils/notify");
 const {
@@ -42,6 +43,22 @@ async function syncBookingStatus(bookingId) {
 		payment_status: newPaymentStatus,
 		status: newBookingStatus
 	});
+
+	if (booking.status !== "confirmed" && newBookingStatus === "confirmed") {
+		if (booking.inventory_items && booking.inventory_items.length > 0) {
+			const reservations = booking.inventory_items
+				.filter(item => item.inventory_id)
+				.map(item => ({
+					inventory_id: item.inventory_id,
+					booking_id: booking._id,
+					event_date: booking.event_date,
+					quantity: item.quantity
+				}));
+			if (reservations.length > 0) {
+				await InventoryReservation.insertMany(reservations);
+			}
+		}
+	}
 }
 
 exports.create = asyncHandler(async (req, res) => {

@@ -20,6 +20,7 @@ import StepCostSummary from "./steps/StepCostSummary";
 import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPayment from "./steps/StepPayment";
+import StepEquipmentSelection from "./steps/StepEquipmentSelection";
 
 export default function BookingWizard() {
   const { user } = useAuth();
@@ -146,6 +147,15 @@ export default function BookingWizard() {
   }, []);
 
   useEffect(() => {
+    CustomerAPI.getInventory()
+      .then((res) => {
+        const next = Array.isArray(res.data) ? res.data : [];
+        setInventoryItems(next.filter((item) => item?.status === 'available' || item?.available !== false));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (initialPackageId) {
       CustomerAPI.getPackageById(initialPackageId)
         .then((res) => setPackageDetails(res.data))
@@ -154,6 +164,8 @@ export default function BookingWizard() {
   }, [initialPackageId]);
 
   const isFoodOnly = isCustomBooking && form.service_type === "Food Only";
+  const isEventSetupOnly = isCustomBooking && form.service_type === "Event Setup Only";
+  const isFoodAndEventSetup = isCustomBooking && form.service_type === "Food and Event Setup";
 
   const wizardSteps = useMemo(() => {
     const steps = [];
@@ -166,7 +178,16 @@ export default function BookingWizard() {
       steps.push({ id: 'DeliveryDetails', label: "Delivery", key: "delivery" });
       steps.push({ id: 'MenuSelection', label: "Menu", key: "menu" });
       steps.push({ id: 'DietaryNeeds', label: "Dietary Needs", key: "dietary" });
+    } else if (isEventSetupOnly) {
+      steps.push({ id: 'EventDetails', label: "Event Details", key: "event" });
+      steps.push({ id: 'EquipmentSelection', label: "Equipment", key: "equipment" });
+    } else if (isFoodAndEventSetup) {
+      steps.push({ id: 'EventDetails', label: "Event Details", key: "event" });
+      steps.push({ id: 'MenuSelection', label: "Menu", key: "menu" });
+      steps.push({ id: 'DietaryNeeds', label: "Dietary Needs", key: "dietary" });
+      steps.push({ id: 'EquipmentSelection', label: "Equipment", key: "equipment" });
     } else {
+      // Standard Packages logic
       steps.push({ id: 'EventDetails', label: "Event Details", key: "event" });
     }
     
@@ -175,7 +196,7 @@ export default function BookingWizard() {
     steps.push({ id: 'ReviewBooking', label: "Review Booking", key: "review" });
     steps.push({ id: 'Payment', label: "Payment", key: "payment" });
     return steps;
-  }, [isCustomBooking, isFoodOnly]);
+  }, [isCustomBooking, isFoodOnly, isEventSetupOnly, isFoodAndEventSetup]);
 
   // Adjust current step index if the array length shrinks and we are out of bounds
   useEffect(() => {
@@ -445,6 +466,13 @@ export default function BookingWizard() {
               setForm={setForm} 
             />
           )}
+          {currentStepId === 'EquipmentSelection' && (
+            <StepEquipmentSelection 
+              form={form} 
+              setForm={setForm} 
+              inventoryItems={inventoryItems} 
+            />
+          )}
           {currentStepId === 'CostSummary' && (
             <StepCostSummary 
               form={form} 
@@ -493,13 +521,15 @@ export default function BookingWizard() {
             >
               Back
             </Button>
-            <Button 
-              size="lg"
-              onClick={handleNext} 
-              className="px-8 py-3 font-medium shadow-sm active:scale-[0.98]"
-            >
-              Continue
-            </Button>
+            {currentStepId !== 'DateTime' && (
+              <Button 
+                size="lg"
+                onClick={handleNext} 
+                className="px-8 py-3 font-medium shadow-sm active:scale-[0.98]"
+              >
+                Continue
+              </Button>
+            )}
           </div>
         )}
       </div>

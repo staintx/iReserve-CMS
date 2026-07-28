@@ -1,5 +1,5 @@
 import React from "react";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Plus, Minus } from "lucide-react";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Label } from "../../../../components/ui/label";
 import { Input } from "../../../../components/ui/input";
@@ -7,6 +7,15 @@ import { cn } from "@/lib/utils";
 
 export default function StepDeliveryDetails({ form, setForm, municipalities, barangays }) {
   const inputClass = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+  const handleGuestChange = (delta) => {
+    setForm(prev => {
+      const current = parseInt(prev.guest_count || 0, 10);
+      const next = Math.max(1, current + delta);
+      return { ...prev, guest_count: next.toString() };
+    });
+  };
+
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
@@ -17,6 +26,37 @@ export default function StepDeliveryDetails({ form, setForm, municipalities, bar
         </div>
 
         <CardContent className="space-y-8 p-6 md:p-8">
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-3 block">Estimated Guest Count (Pax) *</Label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => handleGuestChange(-10)}
+                className="flex h-12 w-12 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Minus size={16} />
+              </button>
+              <Input
+                type="number"
+                min="1"
+                value={form.guest_count}
+                onChange={(e) => setForm({ ...form, guest_count: e.target.value })}
+                className="h-12 w-28 text-center text-lg font-semibold"
+                style={{ MozAppearance: 'textfield', appearance: 'textfield' }}
+              />
+              <button
+                type="button"
+                onClick={() => handleGuestChange(10)}
+                className="flex h-12 w-12 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">How many people are you ordering food for?</p>
+          </div>
+          
+          <hr className="border-border" />
+
           <div>
             <h4 className="mb-4 text-sm font-semibold text-foreground">Delivery Method</h4>
             <div className="flex gap-6">

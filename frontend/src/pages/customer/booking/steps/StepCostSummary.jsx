@@ -84,15 +84,19 @@ export default function StepCostSummary({ form, initialPackageName, initialPacka
                 </div>
               )}
               
-              {form.additional_services?.map((svc, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{svc.name}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">₱{svc.price.toLocaleString()} x {svc.quantity}</p>
+              {form.additional_services?.map((svc, idx) => {
+                const price = Number(svc.price) || 0;
+                const qty = Number(svc.quantity) || 1;
+                return (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">{svc.name}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">₱{price.toLocaleString()} x {qty}</p>
+                    </div>
+                    <p className="font-medium text-foreground">₱{(price * qty).toLocaleString()}</p>
                   </div>
-                  <p className="font-medium text-foreground">₱{(svc.price * svc.quantity).toLocaleString()}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-5">
               <span className="font-semibold text-foreground">Estimated Total</span>

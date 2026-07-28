@@ -6,20 +6,6 @@ import { Input } from "../../../../components/ui/input";
 import { cn } from "@/lib/utils";
 
 export default function StepEventDetails({ form, setForm, initialEventType, municipalities, barangays }) {
-  const dietaryOptions = ["Vegetarian", "Vegan", "Halal", "Gluten-Free", "Nut Allergy", "Dairy-Free", "None"];
-
-  const handleDietaryToggle = (option) => {
-    setForm(prev => {
-      const current = prev.dietary_restrictions ? prev.dietary_restrictions.split(', ').filter(Boolean) : [];
-      if (option === "None") return { ...prev, dietary_restrictions: "None" };
-      
-      const updated = current.includes(option)
-        ? current.filter(o => o !== option)
-        : [...current.filter(o => o !== "None"), option];
-        
-      return { ...prev, dietary_restrictions: updated.join(', ') };
-    });
-  };
 
   const handleGuestChange = (delta) => {
     setForm(prev => {
@@ -29,7 +15,7 @@ export default function StepEventDetails({ form, setForm, initialEventType, muni
     });
   };
 
-  const currentDietary = form.dietary_restrictions ? form.dietary_restrictions.split(', ') : [];
+
 
   const inputClass = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -203,29 +189,7 @@ export default function StepEventDetails({ form, setForm, initialEventType, muni
             </div>
           </div>
 
-          <div className="space-y-3">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Dietary Requirements</Label>
-            <div className="flex flex-wrap gap-2">
-              {dietaryOptions.map(option => {
-                const isSelected = currentDietary.includes(option);
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => handleDietaryToggle(option)}
-                    className={cn(
-                      "rounded-md border px-4 py-2 text-xs font-medium transition-all",
-                      isSelected 
-                        ? "border-accent bg-accent/10 text-accent ring-1 ring-accent" 
-                        : "border-input bg-background text-foreground hover:bg-muted"
-                    )}
-                  >
-                    {option}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+
         </div>
 
         <div className="space-y-2">

@@ -33,26 +33,21 @@ import QuoteWizard from "../pages/customer/quote/QuoteWizard";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
 import AdminPayments from "../pages/admin/AdminPayments";
-import AdminMessagesList from "../pages/admin/AdminMessagesList";
-import AdminMessagesChat from "../pages/admin/AdminMessagesChat";
-import AdminGallery from "../pages/admin/AdminGallery";
-import AdminBookingsActive from "../pages/admin/AdminBookingsActive";
+import AdminRefunds from "../pages/admin/AdminRefunds";
+import AdminCustomers from "../pages/admin/AdminCustomers";
+import AdminReservations from "../pages/admin/AdminReservations";
 import AdminBookingsHistory from "../pages/admin/AdminBookingsHistory";
-import AdminBookingsCalendar from "../pages/admin/AdminBookingsCalendar";
+import AdminCalendar from "../pages/admin/AdminCalendar";
 import AdminBookingWizard from "../pages/admin/AdminBookingWizard";
 import AdminPackages from "../pages/admin/AdminPackages";
-import AdminMenu from "../pages/admin/AdminMenu";
 import AdminInventory from "../pages/admin/AdminInventory";
-import AdminManagers from "../pages/admin/AdminManagers";
 import AdminStaff from "../pages/admin/AdminStaff";
-import AdminReports from "../pages/admin/AdminReports";
-import AdminRatings from "../pages/admin/AdminRatings";
+import AdminAnalytics from "../pages/admin/AdminAnalytics";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
-import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
+import AdminAuditLogs from "../pages/admin/AdminAuditLogs";
 import AdminBookingDetails from "../pages/admin/AdminBookingDetails";
-import AdminQuotesList from "../pages/admin/AdminQuotesList";
-import AdminQuoteDetails from "../pages/admin/AdminQuoteDetails";
 import AdminProfile from "../pages/admin/AdminProfile";
+import AdminOcular from "../pages/admin/AdminOcular";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
@@ -125,25 +120,20 @@ export default function AppRoutes() {
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />
 
         <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPayments /></ProtectedRoute>} />
-        <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
-        <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
-        <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminOnly}><AdminGallery /></ProtectedRoute>} />
-        <Route path="/admin/bookings/active" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsActive /></ProtectedRoute>} />
+        <Route path="/admin/refunds" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRefunds /></ProtectedRoute>} />
+        <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCustomers /></ProtectedRoute>} />
+        <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminOnly}><AdminReservations /></ProtectedRoute>} />
+        <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
         <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingWizard /></ProtectedRoute>} />
         <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
-        <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsCalendar /></ProtectedRoute>} />
-        <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuotesList /></ProtectedRoute>} />
-        <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+        <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCalendar /></ProtectedRoute>} />
         <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
-        <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMenu /></ProtectedRoute>} />
         <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
-        <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminManagers /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
-        <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={adminOnly}><AdminReports /></ProtectedRoute>} />
-        <Route path="/admin/ratings" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRatings /></ProtectedRoute>} />
+        <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />
         <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
-        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
+        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAuditLogs /></ProtectedRoute>} />
         <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />
 
         {/* Manager (protected by role) */}

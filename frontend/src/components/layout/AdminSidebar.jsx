@@ -5,18 +5,15 @@ import logo from "../../assets/images/logo.jpg";
 import { 
   Menu, 
   LayoutDashboard, 
-  MessageCircleQuestion, 
   CreditCard, 
-  MessageSquare, 
-  Images, 
+  Users,
+  UserCheck,
   Calendar, 
   ChevronDown, 
   UtensilsCrossed, 
-  Users, 
   LineChart, 
-  Star, 
   Building2, 
-  TerminalSquare 
+  TerminalSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,20 +30,20 @@ export default function AdminSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
   const [openDropdowns, setOpenDropdowns] = useState({
+    finance: ["/admin/payments", "/admin/refunds"].some(p => location.pathname.includes(p)),
     bookings: location.pathname.includes("/admin/bookings"),
-    service: ["/admin/packages", "/admin/menu", "/admin/inventory"].some(p => location.pathname.includes(p)),
-    staff: ["/admin/managers", "/admin/staff"].some(p => location.pathname.includes(p)),
+    service: ["/admin/packages", "/admin/inventory"].some(p => location.pathname.includes(p)),
   });
 
   useEffect(() => {
+    if (["/admin/payments", "/admin/refunds"].some(p => location.pathname.includes(p))) {
+      setOpenDropdowns((prev) => ({ ...prev, finance: true }));
+    }
     if (location.pathname.includes("/admin/bookings")) {
       setOpenDropdowns((prev) => ({ ...prev, bookings: true }));
     }
-    if (["/admin/packages", "/admin/menu", "/admin/inventory"].some(p => location.pathname.includes(p))) {
+    if (["/admin/packages", "/admin/inventory"].some(p => location.pathname.includes(p))) {
       setOpenDropdowns((prev) => ({ ...prev, service: true }));
-    }
-    if (["/admin/managers", "/admin/staff"].some(p => location.pathname.includes(p))) {
-      setOpenDropdowns((prev) => ({ ...prev, staff: true }));
     }
   }, [location.pathname]);
 
@@ -133,28 +130,31 @@ export default function AdminSidebar() {
         </NavLink>
         
         {isManager && (
-          <NavLink to="/admin/payments" className={linkClass}>
-            <CreditCard className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>Payments</span>}
-          </NavLink>
+          <div>
+            <button onClick={() => toggleDropdown("finance")} className={dropdownBtnClass(openDropdowns.finance)}>
+              <CreditCard className="w-5 h-5 shrink-0" />
+              {!isCollapsed && (
+                <>
+                  <span className="flex-1 text-left">Finance</span>
+                  <div className={cn("transition-transform", openDropdowns.finance ? "rotate-180" : "")}>
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </>
+              )}
+            </button>
+            {openDropdowns.finance && !isCollapsed && (
+              <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
+                <NavLink to="/admin/payments" className={subLinkClass}>Payments</NavLink>
+                <NavLink to="/admin/refunds" className={subLinkClass}>Refunds</NavLink>
+              </div>
+            )}
+          </div>
         )}
         
-        <NavLink to="/admin/quotes" className={linkClass}>
-          <MessageCircleQuestion className="w-5 h-5 shrink-0" />
-          {!isCollapsed && <span>Quotes</span>}
+        <NavLink to="/admin/customers" className={linkClass}>
+          <Users className="w-5 h-5 shrink-0" />
+          {!isCollapsed && <span>Customers</span>}
         </NavLink>
-
-        <NavLink to="/admin/messages" className={linkClass}>
-          <MessageSquare className="w-5 h-5 shrink-0" />
-          {!isCollapsed && <span>Messages</span>}
-        </NavLink>
-
-        {isManager && (
-          <NavLink to="/admin/gallery" className={linkClass}>
-            <Images className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>Gallery Manager</span>}
-          </NavLink>
-        )}
 
         <div className={sectionLabelClass}>Bookings</div>
         <div>
@@ -171,12 +171,17 @@ export default function AdminSidebar() {
           </button>
           {openDropdowns.bookings && !isCollapsed && (
             <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
-              <NavLink to="/admin/bookings/active" className={subLinkClass}>Active Bookings</NavLink>
+              <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
+              <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>
               <NavLink to="/admin/bookings/history" className={subLinkClass}>Event History</NavLink>
-              <NavLink to="/admin/bookings/calendar" className={subLinkClass}>Availability</NavLink>
             </div>
           )}
         </div>
+
+        <NavLink to="/admin/calendar" className={linkClass}>
+          <Calendar className="w-5 h-5 shrink-0" />
+          {!isCollapsed && <span>Calendar</span>}
+        </NavLink>
 
         {isAdmin && (
           <>
@@ -196,7 +201,6 @@ export default function AdminSidebar() {
               {openDropdowns.service && !isCollapsed && (
                 <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
                   <NavLink to="/admin/packages" className={subLinkClass}>Packages</NavLink>
-                  <NavLink to="/admin/menu" className={subLinkClass}>Food Menu</NavLink>
                   <NavLink to="/admin/inventory" className={subLinkClass}>Inventory</NavLink>
                 </div>
               )}
@@ -205,41 +209,17 @@ export default function AdminSidebar() {
         )}
 
         {isAdmin && (
-          <>
-            <div className={sectionLabelClass}>Manager & Staff</div>
-            <div>
-              <button onClick={() => toggleDropdown("staff")} className={dropdownBtnClass(openDropdowns.staff)}>
-                <Users className="w-5 h-5 shrink-0" />
-                {!isCollapsed && (
-                  <>
-                    <span className="flex-1 text-left">Team</span>
-                    <div className={cn("transition-transform", openDropdowns.staff ? "rotate-180" : "")}>
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  </>
-                )}
-              </button>
-              {openDropdowns.staff && !isCollapsed && (
-                <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
-                  <NavLink to="/admin/managers" className={subLinkClass}>Managers</NavLink>
-                  <NavLink to="/admin/staff" className={subLinkClass}>Staff</NavLink>
-                </div>
-              )}
-            </div>
-          </>
+          <NavLink to="/admin/staff" className={linkClass}>
+            <UserCheck className="w-5 h-5 shrink-0" />
+            {!isCollapsed && <span>Staff</span>}
+          </NavLink>
         )}
 
         <div className={sectionLabelClass}>System</div>
         {isManager && (
-          <NavLink to="/admin/reports" className={linkClass}>
+          <NavLink to="/admin/analytics" className={linkClass}>
             <LineChart className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>Reports & Analytics</span>}
-          </NavLink>
-        )}
-        {isAdmin && (
-          <NavLink to="/admin/ratings" className={linkClass}>
-            <Star className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>Ratings</span>}
+            {!isCollapsed && <span>Analytics</span>}
           </NavLink>
         )}
         {isAdmin && (
@@ -251,7 +231,7 @@ export default function AdminSidebar() {
         {isAdmin && (
           <NavLink to="/admin/logs" className={linkClass}>
             <TerminalSquare className="w-5 h-5 shrink-0" />
-            {!isCollapsed && <span>System Logs</span>}
+            {!isCollapsed && <span>Audit Logs</span>}
           </NavLink>
         )}
       </nav>

@@ -1,642 +1,130 @@
-import { useEffect, useState } from "react";
-import { AdminAPI } from "../../api/admin";
+import React, { useState } from "react";
+import { Plus, Search, Edit3, Trash2, Check, Clock, XCircle, MoreHorizontal } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
-import Modal from "../../components/common/Modal";
-import useToast from "../../hooks/useToast";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import Btn from "../../components/admin/ui/Btn";
+import Badge from "../../components/admin/ui/Badge";
+import { PKG_DATA, KANBAN_DATA } from "../../components/admin/ui/data";
 
 export default function AdminPackages() {
-  const [packages, setPackages] = useState([]);
-  const [show, setShow] = useState(false);
-  const [form, setForm] = useState({});
-  const [file, setFile] = useState(null);
-  const [galleryFiles, setGalleryFiles] = useState([]);
-  const [galleryToRemove, setGalleryToRemove] = useState([]);
-  const [inclusionDraft, setInclusionDraft] = useState({ category: "", item: "", qty: "" });
-  const [addOnDraft, setAddOnDraft] = useState({ name: "", qty: "" });
-  const [error, setError] = useState("");
-  const { notify } = useToast();
+  const [tab, setTab] = useState("standard");
+  const [search, setSearch] = useState("");
 
-  const inclusionCategories = ["Event Setup & Furniture", "Dining & Service Inventory"];
-
-  const initialFormState = {
-    name: "",
-    size: "",
-    description: "",
-    fullDescription: "",
-    price_min: "",
-    price_max: "",
-    available: true,
-    event_type: "",
-    package_type: "",
-    max_guests: "",
-    inclusions: [],
-    add_ons: [],
-    gallery: []
-  };
-
-  const load = () =>
-    AdminAPI.getPackages()
-      .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : [];
-        setPackages(data);
-        setError("");
-      })
-      .catch((err) => {
-        setPackages([]);
-        const message = err.response?.data?.message || "We could not load packages. Please refresh and try again.";
-        setError(message);
-        notify(message, "error");
-      });
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const formatQtyLine = (name, qty) => {
-    const cleanName = String(name || "").trim();
-    if (!cleanName) return "";
-    const cleanQty = String(qty || "").trim();
-    if (!cleanQty) return cleanName;
-    return `${cleanName} x${cleanQty}`;
-  };
-
-  const formatInclusionLine = (category, item, qty) => {
-    const cleanCategory = String(category || "").trim();
-    const cleanItem = String(item || "").trim();
-    if (!cleanCategory || !cleanItem) return "";
-    const base = `${cleanCategory} - ${cleanItem}`;
-    return formatQtyLine(base, qty);
-  };
-
-  const addInclusion = () => {
-    if (!inclusionDraft.category) return;
-    const line = formatInclusionLine(inclusionDraft.category, inclusionDraft.item, inclusionDraft.qty);
-    if (!line) return;
-    const next = [...(form.inclusions || []), line];
-    setForm({ ...form, inclusions: next });
-    setInclusionDraft({ category: inclusionDraft.category, item: "", qty: "" });
-  };
-
-  const removeInclusion = (index) => {
-    const next = (form.inclusions || []).filter((_, i) => i !== index);
-    setForm({ ...form, inclusions: next });
-  };
-
-  const addAddOn = () => {
-    const line = formatQtyLine(addOnDraft.name, addOnDraft.qty);
-    if (!line) return;
-    const next = [...(form.add_ons || []), line];
-    setForm({ ...form, add_ons: next });
-    setAddOnDraft({ name: "", qty: "" });
-  };
-
-  const categorizedInclusions = (() => {
-    const base = {
-      "Event Setup & Furniture": [],
-      "Dining & Service Inventory": []
-    };
-
-    (form.inclusions || []).forEach((line, index) => {
-      const raw = String(line || "");
-      const split = raw.split(" - ");
-      const category = split[0];
-      const rest = split.length > 1 ? split.slice(1).join(" - ") : raw;
-      if (base[category]) {
-        base[category].push({ text: rest, index });
-      }
-    });
-
-    return base;
-  })();
-
-  const removeAddOn = (index) => {
-    const next = (form.add_ons || []).filter((_, i) => i !== index);
-    setForm({ ...form, add_ons: next });
-  };
-
-  const submit = async () => {
-    const data = new FormData();
-
-    const allowedKeys = [
-      "name",
-      "size",
-      "description",
-      "fullDescription",
-      "price_min",
-      "price_max",
-      "available",
-      "event_type",
-      "package_type",
-      "max_guests",
-      "inclusions",
-      "add_ons"
-    ];
-
-    allowedKeys.forEach((k) => {
-      const v = form[k];
-      if (v === undefined || v === null) return;
-      if ((k === "inclusions" || k === "add_ons") && Array.isArray(v)) {
-        data.append(k, v.join(", "));
-        return;
-      }
-      data.append(k, v);
-    });
-
-    if (file) data.append("image", file);
-    
-    galleryFiles.forEach((gf) => {
-      data.append("gallery", gf);
-    });
-
-    if (galleryToRemove.length > 0) {
-      data.append("gallery_to_remove", galleryToRemove.join(", "));
-    }
-
-    try {
-      if (form._id) {
-        await AdminAPI.updatePackage(form._id, data);
-        notify("Package updated.", "success");
-      } else {
-        await AdminAPI.createPackage(data);
-        notify("Package created.", "success");
-      }
-    } catch (err) {
-      notify(err.response?.data?.message || "We could not save the package. Please try again.", "error");
-      return;
-    }
-
-    setShow(false);
-    setForm(initialFormState);
-    setFile(null);
-    setGalleryFiles([]);
-    setGalleryToRemove([]);
-    load();
-  };
-
-  const edit = (p) => {
-    setForm({
-      ...p,
-      inclusions: Array.isArray(p.inclusions) ? p.inclusions : [],
-      add_ons: Array.isArray(p.add_ons) ? p.add_ons : [],
-      gallery: Array.isArray(p.gallery) ? p.gallery : []
-    });
-    setInclusionDraft({ category: "", item: "", qty: "" });
-    setAddOnDraft({ name: "", qty: "" });
-    setFile(null);
-    setGalleryFiles([]);
-    setGalleryToRemove([]);
-    setShow(true);
-  };
-
-  const remove = (id) =>
-    AdminAPI.deletePackage(id)
-      .then(() => {
-        notify("Package deleted.", "success");
-        load();
-      })
-      .catch((err) => notify(err.response?.data?.message || "We could not delete the package. Please try again.", "error"));
-
-  const toggleAvailability = (pkg) =>
-    AdminAPI.updatePackage(pkg._id, { available: !pkg.available })
-      .then(() => {
-        notify(pkg.available ? "Package disabled." : "Package enabled.", "success");
-        load();
-      })
-      .catch((err) => notify(err.response?.data?.message || "We could not update the package. Please try again.", "error"));
-
-  const list = packages;
-
-  const formatMoney = (value) => {
-    const number = Number(value);
-    return Number.isFinite(number) ? number.toLocaleString("en-PH") : "0";
-  };
-
-  const formatPrice = (pkg) => {
-    const min = Number(pkg?.price_min);
-    const max = Number(pkg?.price_max);
-    if (Number.isFinite(min) && Number.isFinite(max) && min === max) return `₱${formatMoney(min)}`;
-    if (Number.isFinite(min) && Number.isFinite(max)) return `₱${formatMoney(min)} - ${formatMoney(max)}`;
-    if (Number.isFinite(min)) return `₱${formatMoney(min)}`;
-    if (Number.isFinite(max)) return `₱${formatMoney(max)}`;
-    return "₱0";
-  };
-
-  const getInclusionPreview = (pkg) => {
-    const inclusions = Array.isArray(pkg?.inclusions) ? pkg.inclusions : [];
-    const prefix = "Event Setup & Furniture - ";
-    const filtered = inclusions
-      .filter((item) => String(item || "").startsWith(prefix))
-      .map((item) => String(item || "").slice(prefix.length));
-    const preview = filtered.slice(0, 4);
-    if (preview.length >= 4) return preview;
-    return [...preview, ...Array.from({ length: 4 - preview.length }, () => "—")];
-  };
+  const standardPackages = [
+    { id: "PKG-01", name: "Gold Prestige", price: "₱880/pax", inclusions: ["5-course meal", "Premium table setup", "Floral centerpieces"], status: "available" },
+    { id: "PKG-02", name: "Platinum Royal", price: "₱1,200/pax", inclusions: ["7-course meal", "VIP setup", "Live band", "Wine service"], status: "available" },
+    { id: "PKG-03", name: "Silver Elegance", price: "₱650/pax", inclusions: ["3-course meal", "Basic setup", "Sound system"], status: "available" },
+    { id: "PKG-04", name: "Custom Menu", price: "Varies", inclusions: ["Tailored to client", "Consultation required"], status: "available" }
+  ];
 
   return (
     <AdminLayout>
-      <div className="admin-page-head">
-        <div className="admin-title">
-          <h1>Packages</h1>
-          <p>Create and manage event packages</p>
+      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Service Management</h2>
+          <Btn variant="gold" size="sm"><Plus size={13} /> New Package</Btn>
         </div>
-        <div className="admin-actions">
-          <button
-            className="btn"
-            onClick={() => {
-              setForm(initialFormState);
-              setFile(null);
-              setGalleryFiles([]);
-              setGalleryToRemove([]);
-              setInclusionDraft({ category: "", item: "", qty: "" });
-              setAddOnDraft({ name: "", qty: "" });
-              setShow(true);
-            }}
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-gray-200">
+          <button 
+            onClick={() => setTab("standard")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${tab === "standard" ? "border-[#D4AF37] text-[#D4AF37]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
           >
-            + Add New Package
+            Standard Packages
+          </button>
+          <button 
+            onClick={() => setTab("custom")}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${tab === "custom" ? "border-[#D4AF37] text-[#D4AF37]" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+          >
+            Custom Quote Reviews
           </button>
         </div>
-      </div>
 
-      {error && <p className="auth-error">{error}</p>}
-      <div className="admin-card-grid package-grid">
-        {list.length === 0 && <p>No packages yet.</p>}
-        {list.map((p) => (
-          <div className="package-card" key={p._id}>
-            <div className="package-card-media">
-              {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="package-thumb" />}
-              <div className="package-card-statusbar">
-                <div className="package-card-status-text">
-                  <div className="package-card-status-label">Current Status</div>
-                  <div className="package-card-status-sub">
-                    {p.available === false ? "Unavailable Package" : "Available Package"}
-                  </div>
-                </div>
-                <label className="switch" aria-label="Toggle package availability">
-                  <input
-                    type="checkbox"
-                    checked={p.available !== false}
-                    onChange={() => toggleAvailability(p)}
-                  />
-                  <span className="slider" />
-                </label>
-              </div>
-
-              <div className="package-card-hero">
-                <h3 className="package-card-title">{p.name}</h3>
-                <p className="package-card-desc">{p.description || ""}</p>
-              </div>
+        {tab === "standard" ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 max-w-sm">
+              <Search size={14} className="text-[#9CA3AF]" />
+              <input 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                placeholder="Search packages..." 
+                className="bg-transparent text-sm focus:outline-none flex-1" 
+                style={{ fontFamily: "Inter, sans-serif" }} 
+              />
             </div>
-
-            <div className="package-card-body">
-              <div className="package-card-kv">
-                <div className="package-card-kv-row">
-                  <span className="package-card-k">Size:</span>
-                  <span className="package-card-v">{p.size || "-"}</span>
-                </div>
-                <div className="package-card-kv-row">
-                  <span className="package-card-k">Type:</span>
-                  <span className="package-card-v">{p.package_type || "-"}</span>
-                </div>
-                <div className="package-card-kv-row">
-                  <span className="package-card-v">{formatPrice(p)}</span>
-                </div>
-              </div>
-
-              <div className="package-card-inclusions">
-                <div className="package-card-inclusions-title">Packages included:</div>
-                <div className="package-card-inclusions-grid">
-                  {getInclusionPreview(p).map((item, index) => (
-                    <div className="package-card-inclusion" key={`${p._id}-inc-${index}`}>
-                      <span className="package-card-check">✓</span>
-                      <span className="package-card-inc-text">{item}</span>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {standardPackages.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).map(pkg => (
+                <AdminCard key={pkg.id} className="!p-5 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-[#111]">{pkg.name}</h3>
+                      <p className="text-xs text-[#6B7280]">{pkg.id}</p>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="package-card-actions">
-                <button className="pkg-action edit" type="button" onClick={() => edit(p)} aria-label="Edit package">✎</button>
-                <button className="pkg-action delete" type="button" onClick={() => remove(p._id)} aria-label="Delete package">🗑</button>
-              </div>
+                    <Badge status={pkg.status} />
+                  </div>
+                  <p className="text-lg font-bold text-[#D4AF37] mb-3">{pkg.price}</p>
+                  <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Inclusions</p>
+                  <ul className="space-y-1 mb-4">
+                    {pkg.inclusions.map((inc, i) => (
+                      <li key={i} className="text-sm text-[#374151] flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full" /> {inc}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex gap-2 pt-3 border-t border-gray-100">
+                    <Btn variant="secondary" size="sm" className="flex-1 justify-center"><Edit3 size={13} /> Edit</Btn>
+                    <Btn variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 size={13} /></Btn>
+                  </div>
+                </AdminCard>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
-
-      {show && (
-        <Modal
-          title={form._id ? "Edit Package" : "Add New Package"}
-          onClose={() => setShow(false)}
-          className="modal-wide"
-        >
-          <div className="admin-modal package-form-modal">
-            <p className="modal-subtitle">Create a new event package and define its inclusions.</p>
-            <div className="form-section">
-              <h4>Basic Information</h4>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Package Name</label>
-                  <input
-                    placeholder="Birthday Package 1"
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
+        ) : (
+          <div className="flex gap-4 overflow-x-auto pb-4 items-start min-h-[500px]">
+            {Object.entries(KANBAN_DATA).map(([column, items]) => (
+              <div key={column} className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-[#111] text-sm">{column}</h3>
+                  <span className="text-xs font-bold bg-white text-[#6B7280] px-2 py-0.5 rounded-full border border-gray-200">{items.length}</span>
                 </div>
-                <div className="form-group">
-                  <label>Package Size</label>
-                  <input
-                    placeholder="20x70"
-                    value={form.size || ""}
-                    onChange={(e) => setForm({ ...form, size: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Event Type</label>
-                  <input
-                    placeholder="e.g. Wedding, Birthday, Corporate"
-                    value={form.event_type || ""}
-                    onChange={(e) => setForm({ ...form, event_type: e.target.value })}
-                    list="admin-event-types"
-                  />
-                  <datalist id="admin-event-types">
-                    <option value="Birthday" />
-                    <option value="Wedding" />
-                    <option value="Corporate" />
-                  </datalist>
-                </div>
-                <div className="form-group">
-                  <label>Package Type</label>
-                  <select
-                    value={form.package_type || ""}
-                    onChange={(e) => setForm({ ...form, package_type: e.target.value })}
-                  >
-                    <option value="">Select Package Type</option>
-                    <option value="Food Only">Food Only</option>
-                    <option value="Event Setup Only">Event Setup Only</option>
-                    <option value="Food + Event Setup">Food + Event Setup</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Max Guests</label>
-                  <input
-                    type="number"
-                    placeholder="150"
-                    value={form.max_guests || ""}
-                    onChange={(e) => setForm({ ...form, max_guests: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Short Description</label>
-                <textarea
-                  placeholder="Perfect for intimate gatherings"
-                  value={form.description || ""}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows="3"
-                />
-              </div>
-            </div>
-
-            <div className="form-section">
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>
-                    {form.package_type === "Food Only" 
-                      ? "Price Per Head (₱)" 
-                      : form.package_type === "Event Setup Only" 
-                      ? "Total Setup Price (₱)" 
-                      : form.package_type === "Food + Event Setup"
-                      ? "Price Per Plate (₱)"
-                      : "Price (₱)"}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder={
-                      form.package_type === "Food Only" || form.package_type === "Food + Event Setup"
-                        ? "e.g. 500"
-                        : form.package_type === "Event Setup Only"
-                        ? "e.g. 15000"
-                        : "e.g. 15000"
-                    }
-                    value={form.price_min || ""}
-                    onChange={(e) => setForm({ ...form, price_min: e.target.value, price_max: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Current Status</label>
-                  <div className="status-row">
-                    <div className="status-meta">
-                      <div className={`badge-status ${form.available === false ? "inactive" : "active"}`}>
-                        {form.available === false ? "Unavailable" : "Available"}
+                <div className="space-y-3">
+                  {items.map(item => (
+                    <AdminCard key={item.id} className="!p-4 cursor-pointer hover:border-[#D4AF37] transition-colors shadow-sm">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-mono font-bold text-[#D4AF37]">{item.id}</span>
+                        <MoreHorizontal size={14} className="text-[#9CA3AF]" />
                       </div>
-                      <div className="status-hint">Package availability</div>
-                    </div>
-
-                    <label className="switch" aria-label="Toggle package availability">
-                      <input
-                        type="checkbox"
-                        checked={form.available !== false}
-                        onChange={(e) => setForm({ ...form, available: e.target.checked })}
-                      />
-                      <span className="slider" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Detailed Information</h4>
-              <div className="form-group">
-                <label>About This Package</label>
-                <textarea
-                  placeholder="Enter the full package description, features, and highlights..."
-                  value={form.fullDescription || ""}
-                  onChange={(e) => setForm({ ...form, fullDescription: e.target.value })}
-                  rows="4"
-                />
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Services, Inclusions and Add-Ons</h4>
-
-              <div className="subsection">
-                <div className="subsection-card">
-                  <div className="subsection-card-head">
-                    <h5>Services &amp; Inclusions</h5>
-                    <p className="subsection-hint">
-                      Add items with categories and quantities (e.g., Plates, Stage Setup)
-                    </p>
-                  </div>
-
-                  <div className="inline-add-row inclusion-row">
-                    <select
-                      value={inclusionDraft.category}
-                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, category: e.target.value }))}
-                    >
-                      <option value="">Category</option>
-                      <option value="Event Setup & Furniture">Event Setup &amp; Furniture</option>
-                      <option value="Dining & Service Inventory">Dining &amp; Service Inventory</option>
-                    </select>
-
-                    <input
-                      placeholder="Item name"
-                      value={inclusionDraft.item}
-                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, item: e.target.value }))}
-                    />
-
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      min="1"
-                      value={inclusionDraft.qty}
-                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, qty: e.target.value }))}
-                    />
-
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={addInclusion}
-                      disabled={!inclusionDraft.category || !String(inclusionDraft.item || "").trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {inclusionCategories.some((category) => categorizedInclusions[category]?.length) && (
-                    <div className="inclusion-groups">
-                      {inclusionCategories.map((category) => (
-                        categorizedInclusions[category]?.length ? (
-                          <div className="inclusion-group" key={category}>
-                            <div className="inclusion-group-title">{category}</div>
-                            <div className="chip-list">
-                              {categorizedInclusions[category].map((item) => (
-                                <div className="chip" key={`${category}-${item.index}`}>
-                                  <span>{item.text}</span>
-                                  <button type="button" className="chip-x" onClick={() => removeInclusion(item.index)}>×</button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="subsection">
-                <div className="subsection-card">
-                  <div className="subsection-card-head">
-                    <h5>Add-Ons</h5>
-                    <p className="subsection-hint">
-                      Optional items that can be added (e.g., Videoke, Candy Corner)
-                    </p>
-                  </div>
-
-                  <div className="inline-add-row addon-row">
-                    <input
-                      placeholder="Add-on name"
-                      value={addOnDraft.name}
-                      onChange={(e) => setAddOnDraft((prev) => ({ ...prev, name: e.target.value }))}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      min="1"
-                      value={addOnDraft.qty}
-                      onChange={(e) => setAddOnDraft((prev) => ({ ...prev, qty: e.target.value }))}
-                    />
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={addAddOn}
-                      disabled={!String(addOnDraft.name || "").trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {Array.isArray(form.add_ons) && form.add_ons.length > 0 && (
-                    <div className="chip-list">
-                      {form.add_ons.map((item, index) => (
-                        <div className="chip" key={`${item}-${index}`}>
-                          <span>{item}</span>
-                          <button type="button" className="chip-x" onClick={() => removeAddOn(index)}>×</button>
+                      <p className="font-bold text-[#111] text-sm">{item.customer}</p>
+                      <p className="text-xs text-[#6B7280] mb-3">{item.date} · {item.guests} pax</p>
+                      
+                      <div className="bg-gray-50 rounded-lg p-2 mb-3 border border-gray-100">
+                        <p className="text-xs text-[#374151]"><strong>Menu:</strong> {item.menu}</p>
+                        <p className="text-[11px] text-[#6B7280] mt-1 italic">"{item.requests}"</p>
+                      </div>
+                      
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                        <span className="font-bold text-[#111] text-sm">{item.budget}</span>
+                        <div className="flex gap-1">
+                          {column === "Pending Review" && <button className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 text-blue-500 hover:bg-blue-100"><Clock size={12} /></button>}
+                          {column !== "Approved" && <button className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-500 hover:bg-emerald-100"><Check size={12} /></button>}
+                          {column !== "Rejected" && <button className="w-6 h-6 flex items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100"><XCircle size={12} /></button>}
                         </div>
-                      ))}
+                      </div>
+                    </AdminCard>
+                  ))}
+                  {items.length === 0 && (
+                    <div className="p-4 text-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-medium">
+                      No custom quotes
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Media Upload</h4>
-              <label className="upload-box">
-                <div className="upload-icon">📷</div>
-                <div className="upload-text">
-                  <p className="upload-main">Drag and drop or click to upload cover image</p>
-                  <p className="upload-hint">Landscape banner format recommended (PNG, JPG up to 10MB)</p>
-                </div>
-                <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
-              </label>
-              {file && <p className="upload-selected">Selected: {file.name}</p>}
-
-              <h4 style={{ marginTop: '20px' }}>Gallery Images</h4>
-              {form.gallery && form.gallery.length > 0 && (
-                <div className="admin-gallery-preview" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  {form.gallery.map((url, i) => {
-                    const isRemoved = galleryToRemove.includes(url);
-                    return (
-                      <div key={i} style={{ position: 'relative', opacity: isRemoved ? 0.3 : 1 }}>
-                        <img src={url} alt="Gallery" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px' }} />
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            if (isRemoved) {
-                              setGalleryToRemove(prev => prev.filter(item => item !== url));
-                            } else {
-                              setGalleryToRemove(prev => [...prev, url]);
-                            }
-                          }}
-                          style={{ position: 'absolute', top: 0, right: 0, background: isRemoved ? 'green' : 'red', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '50%' }}
-                        >
-                          {isRemoved ? '⟲' : '×'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <label className="upload-box">
-                <div className="upload-icon">🖼️</div>
-                <div className="upload-text">
-                  <p className="upload-main">Upload gallery images</p>
-                  <p className="upload-hint">Select multiple images to showcase your package</p>
-                </div>
-                <input type="file" accept="image/*" multiple onChange={(e) => setGalleryFiles(Array.from(e.target.files))} />
-              </label>
-              {galleryFiles.length > 0 && <p className="upload-selected">Selected {galleryFiles.length} files</p>}
-            </div>
-
-            <div className="actions">
-              <button className="btn-outline" type="button" onClick={() => setShow(false)}>
-                Cancel
-              </button>
-              <button className="btn" onClick={submit}>
-                {form._id ? "Update Package" : "Add Package"}
-              </button>
-            </div>
+            ))}
           </div>
-        </Modal>
-      )}
+        )}
+      </div>
     </AdminLayout>
   );
 }

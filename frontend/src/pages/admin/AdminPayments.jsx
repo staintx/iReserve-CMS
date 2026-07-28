@@ -1,251 +1,79 @@
-import { useEffect, useMemo, useState } from "react";
-import { AdminAPI } from "../../api/admin";
+import React, { useState } from "react";
+import { Search, Download, FileText, Check } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
-import AdminPaymentApprovalsTable from "../../components/tables/AdminPaymentApprovalsTable";
-import useToast from "../../hooks/useToast";
-import ConfirmDialog from "../../components/common/ConfirmDialog";
-import Modal from "../../components/common/Modal";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import Btn from "../../components/admin/ui/Btn";
+import Badge from "../../components/admin/ui/Badge";
+import { PAYMENTS_DATA } from "../../components/admin/ui/data";
+import { useNavigate } from "react-router-dom";
 
 export default function AdminPayments() {
-  const [payments, setPayments] = useState([]);
-  const [query, setQuery] = useState("");
-  const [statusTab, setStatusTab] = useState("pending");
-  const [approveTarget, setApproveTarget] = useState(null);
-  const [rejectTarget, setRejectTarget] = useState(null);
-  const [proofTarget, setProofTarget] = useState(null);
-  const [showAddPayment, setShowAddPayment] = useState(false);
-  const [bookings, setBookings] = useState([]);
-  const [paymentForm, setPaymentForm] = useState({
-    booking_id: "",
-    amount: "",
-    payment_type: "Deposit",
-    method: "PayMongo",
-    proof_url: ""
-  });
-  const { notify } = useToast();
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
 
-  const load = () =>
-    AdminAPI.getPayments()
-      .then((res) => setPayments(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setPayments([]));
-  useEffect(() => {
-    load();
-  }, []);
+  const filtered = PAYMENTS_DATA.filter(p => 
+    !search || p.customer.toLowerCase().includes(search.toLowerCase()) || p.booking.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const approve = (id) =>
-    AdminAPI.updatePayment(id, { status: "approved" })
-      .then(() => {
-        notify("Payment approved.", "success");
-        load();
-      })
-      .catch((err) => notify(err.response?.data?.message || "We could not approve the payment. Please try again.", "error"));
-  const reject = (id) =>
-    AdminAPI.updatePayment(id, { status: "rejected" })
-      .then(() => {
-        notify("Payment rejected.", "warning");
-        load();
-      })
-      .catch((err) => notify(err.response?.data?.message || "We could not reject the payment. Please try again.", "error"));
-
-  const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const byStatus = payments.filter((p) => {
-      if (statusTab === "pending") return p.status === "pending";
-      if (statusTab === "completed") return ["approved", "rejected"].includes(p.status);
-      return true;
-    });
-
-    if (!normalizedQuery) return byStatus;
-    return byStatus.filter((p) => {
-      const text = `${p._id || ""} ${p.booking_id?._id || ""} ${p.customer_id?.full_name || ""} ${p.booking_id?.event_type || ""}`.toLowerCase();
-      return text.includes(normalizedQuery);
-    });
-  }, [payments, query, statusTab]);
-
-  const openAddPayment = () => {
-    setShowAddPayment(true);
-    if (bookings.length === 0) {
-      AdminAPI.getBookings()
-        .then((res) => setBookings(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setBookings([]));
-    }
-  };
-
-  const selectedBooking = bookings.find((b) => b._id === paymentForm.booking_id);
-
-  const savePayment = async () => {
-    if (!paymentForm.booking_id) {
-      notify("Please select a booking.", "error");
-      return;
-    }
-    const amountValue = Number(paymentForm.amount || 0);
-    if (!Number.isFinite(amountValue) || amountValue <= 0) {
-      notify("Please enter a valid amount.", "error");
-      return;
-    }
-    if (!selectedBooking?.customer_id?._id) {
-      notify("Selected booking has no customer.", "error");
-      return;
-    }
-
-    try {
-      await AdminAPI.createPayment({
-        booking_id: paymentForm.booking_id,
-        customer_id: selectedBooking.customer_id._id,
-        amount: amountValue,
-        payment_type: paymentForm.payment_type,
-        method: paymentForm.method,
-        proof_url: paymentForm.proof_url || undefined,
-        status: "approved"
-      });
-      notify("Payment recorded.", "success");
-      setShowAddPayment(false);
-      setPaymentForm({ booking_id: "", amount: "", payment_type: "Deposit", method: "PayMongo", proof_url: "" });
-      load();
-    } catch (err) {
-      notify(err.response?.data?.message || "We could not add the payment. Please try again.", "error");
-    }
-  };
+  const fmt = (n) => "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
   return (
     <AdminLayout>
-      <div className="admin-page-head">
-        <div className="admin-title">
-          <h1>Payments</h1>
-          <p>Track incoming payments and verify transactions</p>
+      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Payments</h2>
+          <Btn variant="secondary" size="sm"><Download size={13} /> Export Report</Btn>
         </div>
-      </div>
 
-      <div className="admin-actions" style={{ marginBottom: "12px" }}>
-        <div className="admin-search">
-          <input placeholder="Search by client name, transaction ID, or event type..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-        <button className="btn" type="button" onClick={openAddPayment}>+ Add Payment</button>
-        <div className="tab-row" role="tablist" aria-label="Payment status">
-          <button
-            type="button"
-            className={statusTab === "pending" ? "active" : ""}
-            onClick={() => setStatusTab("pending")}
-          >
-            Pending
-          </button>
-          <button
-            type="button"
-            className={statusTab === "completed" ? "active" : ""}
-            onClick={() => setStatusTab("completed")}
-          >
-            Completed
-          </button>
-        </div>
-      </div>
+        <AdminCard className="!p-4">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 max-w-sm">
+            <Search size={14} className="text-[#9CA3AF]" />
+            <input 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              placeholder="Search payments..." 
+              className="bg-transparent text-sm focus:outline-none flex-1" 
+              style={{ fontFamily: "Inter, sans-serif" }} 
+            />
+          </div>
+        </AdminCard>
 
-      <div className="admin-table-wrap">
-        <AdminPaymentApprovalsTable
-          payments={filtered}
-          onApprove={(payment) => setApproveTarget(payment)}
-          onReject={(payment) => setRejectTarget(payment)}
-          onViewProof={(payment) => setProofTarget(payment)}
-        />
-        {filtered.length === 0 && <p className="dash-empty">No payments found.</p>}
-      </div>
-      {approveTarget && (
-        <ConfirmDialog
-          message={`Approve payment ${approveTarget._id?.slice(-6) || ""}?`}
-          onConfirm={() => {
-            approve(approveTarget._id);
-            setApproveTarget(null);
-          }}
-          onCancel={() => setApproveTarget(null)}
-        />
-      )}
-      {rejectTarget && (
-        <ConfirmDialog
-          message={`Reject payment ${rejectTarget._id?.slice(-6) || ""}? This cannot be undone.`}
-          onConfirm={() => {
-            reject(rejectTarget._id);
-            setRejectTarget(null);
-          }}
-          onCancel={() => setRejectTarget(null)}
-        />
-      )}
-      {showAddPayment && (
-        <Modal title="Add Payment" onClose={() => setShowAddPayment(false)}>
-          <div className="admin-modal">
-            <div className="form-section">
-              <h4>Customer & Event Information</h4>
-              <div className="form-grid-2">
-                <select
-                  value={paymentForm.booking_id}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, booking_id: e.target.value })}
-                >
-                  <option value="">Select Booking</option>
-                  {bookings.map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {b.event_type || "Event"} · EVT-{String(b._id).slice(-6).toUpperCase()}
-                    </option>
+        <AdminCard className="!p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]" style={{ fontFamily: "Inter, sans-serif" }}>
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {["Payment ID","Booking","Customer","Method","Amount","Date","PayMongo","Invoice","Actions"].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider">{h}</th>
                   ))}
-                </select>
-                <input value={selectedBooking?.customer_id?.full_name || ""} placeholder="Customer" readOnly />
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Payment Details</h4>
-              <div className="form-grid-2">
-                <select
-                  value={paymentForm.payment_type}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, payment_type: e.target.value })}
-                >
-                  <option value="Deposit">Deposit</option>
-                  <option value="Remaining Balance">Remaining Balance</option>
-                  <option value="Full Payment">Full Payment</option>
-                </select>
-                <select
-                  value={paymentForm.method}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}
-                >
-                  <option value="PayMongo">PayMongo</option>
-                  <option value="GCash">GCash</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cash">Cash</option>
-                </select>
-              </div>
-              <input
-                placeholder="Amount"
-                value={paymentForm.amount}
-                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-              />
-              <input
-                placeholder="Proof URL (optional)"
-                value={paymentForm.proof_url}
-                onChange={(e) => setPaymentForm({ ...paymentForm, proof_url: e.target.value })}
-              />
-            </div>
-
-            <div className="actions">
-              <button className="btn-outline" type="button" onClick={() => setShowAddPayment(false)}>Cancel</button>
-              <button className="btn" type="button" onClick={savePayment}>Record Payment</button>
-            </div>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-xs font-mono font-bold text-[#111]">{p.id}</td>
+                    <td className="px-4 py-3 text-xs font-mono font-bold text-[#D4AF37] cursor-pointer hover:underline" onClick={() => navigate(`/admin/bookings/${p.booking}/details`)}>{p.booking}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-[#111]">{p.customer}</td>
+                    <td className="px-4 py-3 text-xs text-[#374151]">{p.method}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-emerald-600">{fmt(p.amount)}</td>
+                    <td className="px-4 py-3 text-xs text-[#374151]">{p.date}</td>
+                    <td className="px-4 py-3"><Badge status={p.paymongo} /></td>
+                    <td className="px-4 py-3 text-xs font-mono text-[#374151] hover:text-[#D4AF37] cursor-pointer hover:underline">{p.invoice}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <button className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]" title="View Invoice"><FileText size={13} /></button>
+                        {p.paymongo === "Pending" && (
+                          <button className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-500" title="Verify Payment"><Check size={13} /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Modal>
-      )}
-      {proofTarget && (
-        <Modal title="Proof of Payment" onClose={() => setProofTarget(null)}>
-          <div className="admin-modal">
-            <p>{proofTarget.customer_id?.full_name || "Customer"}</p>
-            {proofTarget.proof_url || proofTarget.checkout_url ? (
-              <a className="action-link" href={proofTarget.proof_url || proofTarget.checkout_url} target="_blank" rel="noreferrer">
-                Open proof in a new tab
-              </a>
-            ) : (
-              <p>No proof uploaded.</p>
-            )}
-            <div className="actions">
-              <button className="btn-outline" type="button" onClick={() => setProofTarget(null)}>Close</button>
-            </div>
-          </div>
-        </Modal>
-      )}
+        </AdminCard>
+      </div>
     </AdminLayout>
   );
 }

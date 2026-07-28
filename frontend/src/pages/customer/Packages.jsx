@@ -61,7 +61,7 @@ export default function Packages() {
     // Price filter uses price_per_guest
     if (appliedPriceMin !== "" || appliedPriceMax !== "") {
       const perGuest = Number(p.price_per_guest);
-      if (!Number.isFinite(perGuest)) return false; // skip packages without per-guest price
+      if (!Number.isFinite(perGuest)) return false;
       if (appliedPriceMin !== "" && perGuest < Number(appliedPriceMin))
         return false;
       if (appliedPriceMax !== "" && perGuest > Number(appliedPriceMax))
@@ -206,7 +206,10 @@ export default function Packages() {
             {filteredPackages.map((p, index) => {
               const perGuest = Number(p.price_per_guest);
               const hasPrice = Number.isFinite(perGuest);
-              const maxGuests = p.max_guests || 100;
+              const guestMin = p.guest_min || 0;
+              const guestMax = p.guest_max || 0;
+              const startingTotal =
+                hasPrice && guestMin > 0 ? perGuest * guestMin : null;
               const inclusions = Array.isArray(p.inclusions)
                 ? p.inclusions
                 : [];
@@ -320,27 +323,43 @@ export default function Packages() {
                       )}
                     </div>
 
-                    <div className="mb-5 flex items-end justify-between">
-                      <div className="flex items-baseline gap-1">
-                        {hasPrice ? (
-                          <>
+                    {/* Price Display */}
+                    <div className="mb-5 flex flex-col items-start">
+                      {hasPrice && startingTotal !== null ? (
+                        <>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-bold text-accent">
+                              ₱{formatMoney(startingTotal)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              starting
+                            </span>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            ₱{formatMoney(perGuest)} / guest · {guestMin}–
+                            {guestMax} guests
+                          </div>
+                        </>
+                      ) : hasPrice ? (
+                        <>
+                          <div className="flex items-baseline gap-1">
                             <span className="text-2xl font-bold text-accent">
                               ₱{formatMoney(perGuest)}
                             </span>
                             <span className="text-xs text-muted-foreground">
                               / guest
                             </span>
-                          </>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            Contact for pricing
-                          </span>
-                        )}
-                      </div>
-                      {p.guest_min && p.guest_max && (
-                        <div className="text-sm font-medium text-muted-foreground">
-                          {p.guest_min}–{p.guest_max} guests
-                        </div>
+                          </div>
+                          {guestMin > 0 && guestMax > 0 && (
+                            <div className="text-sm text-muted-foreground">
+                              {guestMin}–{guestMax} guests
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          Contact for pricing
+                        </span>
                       )}
                     </div>
 

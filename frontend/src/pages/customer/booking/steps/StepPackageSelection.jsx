@@ -25,13 +25,6 @@ export default function StepPackageSelection({
     ? selectedPackage.scaffold_size_options
     : [];
 
-  const currentOption = scaffoldOptions.find(
-    (o) => String(o._id) === String(selectedOptionId),
-  );
-  const currentPrice = currentOption
-    ? Number(currentOption.price || 0)
-    : Number(selectedPackage?.setup_price || 0);
-
   return (
     <div className="mx-auto max-w-6xl py-6">
       <SH
@@ -54,6 +47,7 @@ export default function StepPackageSelection({
                 )}
               >
                 <div className="flex gap-4">
+                  {/* Package Image */}
                   <div className="w-28 h-20 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0">
                     {pkg.image_url ? (
                       <img
@@ -68,10 +62,11 @@ export default function StepPackageSelection({
                     )}
                   </div>
 
-                  <div className="flex-1">
+                  {/* Package Info */}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold text-[#111]">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-[#111] truncate">
                           {pkg.name}
                         </h3>
                         <p className="mt-1 text-sm text-[#6B6657] line-clamp-2">
@@ -79,24 +74,27 @@ export default function StepPackageSelection({
                         </p>
                       </div>
                       {isSelected && (
-                        <CheckCircle2 className="h-5 w-5 text-[#D4AF37]" />
+                        <CheckCircle2 className="h-5 w-5 text-[#D4AF37] flex-shrink-0" />
                       )}
                     </div>
 
-                    {/* Removed setup price display, only showing guest max */}
-                    <div className="mt-3 flex items-center gap-2 text-xs text-[#6B6657]">
-                      {pkg.guest_max ? (
-                        <span className="rounded-full bg-black/[0.04] px-3 py-1">
-                          Up to {pkg.guest_max} guests
-                        </span>
-                      ) : null}
-                      {pkg.guest_min ? (
-                        <span className="rounded-full bg-black/[0.04] px-3 py-1">
-                          Min {pkg.guest_min} guests
-                        </span>
-                      ) : null}
-                    </div>
+                    {/* Guest Capacity */}
+                    {(pkg.guest_min || pkg.guest_max) && (
+                      <div className="mt-3 flex items-center gap-2 text-xs text-[#6B6657]">
+                        {pkg.guest_min && (
+                          <span className="rounded-full bg-black/[0.04] px-3 py-1">
+                            Min {pkg.guest_min} guests
+                          </span>
+                        )}
+                        {pkg.guest_max && (
+                          <span className="rounded-full bg-black/[0.04] px-3 py-1">
+                            Up to {pkg.guest_max} guests
+                          </span>
+                        )}
+                      </div>
+                    )}
 
+                    {/* Inclusions */}
                     {pkg.inclusions && pkg.inclusions.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {pkg.inclusions.slice(0, 6).map((inc, idx) => (
@@ -107,17 +105,23 @@ export default function StepPackageSelection({
                             {inc}
                           </span>
                         ))}
+                        {pkg.inclusions.length > 6 && (
+                          <span className="text-xs text-[#6B6657]">
+                            +{pkg.inclusions.length - 6} more
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
 
+                {/* Select Button */}
                 <div className="mt-4 flex items-center justify-end">
                   <button
                     type="button"
                     onClick={() => onSelectPackage(pkg._id)}
                     className={cn(
-                      "rounded-lg px-4 py-2 text-sm font-medium",
+                      "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                       isSelected
                         ? "bg-[#D4AF37] text-white"
                         : "bg-white border border-black/[0.06] hover:bg-[#F7F4EE]",
@@ -137,13 +141,17 @@ export default function StepPackageSelection({
         </Card>
       )}
 
+      {/* Scaffold Size Selection */}
       {selectedPackage && scaffoldOptions.length > 0 && (
-        <div className="mt-8 rounded-lg border p-4 bg-white">
-          <h4 className="mb-3 font-semibold">Choose scaffold size</h4>
+        <div className="mt-8">
+          <h4 className="mb-3 font-semibold text-[#111]">
+            Select Scaffold Size
+          </h4>
           <div className="grid gap-3 sm:grid-cols-2">
             {scaffoldOptions.map((opt) => {
               const isActive = String(opt._id) === String(selectedOptionId);
               const dimensions = `${opt.width_ft}ft × ${opt.length_ft}ft`;
+
               return (
                 <button
                   key={opt._id}
@@ -158,63 +166,53 @@ export default function StepPackageSelection({
                         (opt.width_ft && opt.length_ft
                           ? opt.width_ft * opt.length_ft
                           : undefined),
+                      scaffold_price: opt.price || undefined,
                     })
                   }
                   className={cn(
-                    "w-full rounded-lg border p-4 text-left flex items-center justify-between transition-all",
+                    "w-full rounded-xl border-2 p-4 text-left transition-all",
                     isActive
                       ? "border-[#D4AF37] bg-[#FDF9F3] shadow-sm"
                       : "border-black/[0.06] bg-white hover:border-[#D4AF37]/40 hover:bg-[#F7F4EE]",
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold",
-                        isActive
-                          ? "bg-[#D4AF37] text-white"
-                          : "bg-gray-100 text-[#6B6657]",
-                      )}
-                    >
-                      {opt.width_ft}×{opt.length_ft}
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">
-                        {opt.label || dimensions}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {/* Size Badge */}
+                      <div
+                        className={cn(
+                          "w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold transition-colors",
+                          isActive
+                            ? "bg-[#D4AF37] text-white shadow-sm"
+                            : "bg-gray-100 text-[#6B6657]",
+                        )}
+                      >
+                        {opt.width_ft}×{opt.length_ft}
                       </div>
-                      <div className="text-xs text-[#6B6657] mt-0.5">
-                        {dimensions}
+
+                      {/* Size Details */}
+                      <div>
+                        <div className="font-semibold text-[#111]">
+                          {opt.label || dimensions}
+                        </div>
+                        <div className="text-xs text-[#6B6657] mt-0.5">
+                          {dimensions}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-[#6B6657]">Price</div>
-                    <div className="font-semibold text-sm">
-                      ₱{Number(opt.price || 0).toLocaleString()}
+
+                    {/* Price */}
+                    <div className="text-right">
+                      <div className="text-xs text-[#6B6657] mb-0.5">Price</div>
+                      <div className="text-lg font-bold text-[#111]">
+                        ₱{Number(opt.price || 0).toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 </button>
               );
             })}
           </div>
-
-          {currentOption && (
-            <div className="mt-4 flex items-center justify-between rounded-lg bg-[#FDF9F3] px-4 py-3">
-              <div>
-                <div className="text-xs text-[#6B6657]">Selected Size</div>
-                <div className="font-medium text-sm">
-                  {currentOption.label ||
-                    `${currentOption.width_ft}ft × ${currentOption.length_ft}ft`}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-[#6B6657]">Setup Price</div>
-                <div className="text-lg font-semibold text-[#111]">
-                  ₱{Number(currentPrice || 0).toLocaleString()}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -443,25 +443,15 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 )}
 
                 {formData.package_type === "Event Setup Only" && (
-                  <div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
                     <label className="block text-sm text-gray-600 mb-1">
-                      Total Setup Price (₱){" "}
-                      <span className="text-red-400">*</span>
+                      Pricing Model
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
-                      placeholder="e.g. 50000"
-                      value={formData.setup_price}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) return;
-                        setFormData({
-                          ...formData,
-                          setup_price: e.target.value,
-                        });
-                      }}
-                    />
+                    <p className="text-sm text-amber-700">
+                      💡 Event setup pricing is determined by the scaffold size
+                      options you configure below. Each scaffold size can have
+                      its own price.
+                    </p>
                   </div>
                 )}
 

@@ -8,6 +8,8 @@ const PackageSchema = new mongoose.Schema(
     guest_min: Number,
     guest_max: Number,
     price_per_guest: Number,
+    setup_price: Number,
+    
     // Admin-configurable scaffold size options for this package
     scaffold_size_options: [
       {
@@ -16,11 +18,14 @@ const PackageSchema = new mongoose.Schema(
         length_ft: Number,
         area_ft2: Number,
         price: Number,
+        guest_min: Number,  // ✅ Added guest range per scaffold option
+        guest_max: Number,  // ✅ Added guest range per scaffold option
       },
     ],
-    // Default selected scaffold option id (ObjectId of an entry in scaffold_size_options)
+    
+    // Default selected scaffold option id
     default_scaffold_option_id: {
-      type: String, // Changed from ObjectId to String
+      type: String,
       default: null,
     },
 

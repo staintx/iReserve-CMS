@@ -19,6 +19,42 @@ exports.packageSchema = Joi.object({
   event_type: Joi.string().optional().allow(""),
   package_type: Joi.string().optional().allow(""),
   max_guests: Joi.number().optional().allow(null),
+
+  scaffold_size_options: Joi.alternatives()
+    .try(
+      Joi.array().items(
+        Joi.object({
+          label: Joi.string().optional(),
+          width_ft: Joi.number().optional(),
+          length_ft: Joi.number().optional(),
+          area_ft2: Joi.number().optional(),
+          price: Joi.number().optional(),
+          guest_min: Joi.number().optional().allow(null),
+          guest_max: Joi.number().optional().allow(null),
+          _id: Joi.string().optional(),
+        }),
+      ),
+      Joi.string(),
+    )
+    .optional(),
+
+  default_scaffold_option_id: Joi.string().optional().allow(null, ""),
+
+  setup_equipment: Joi.alternatives()
+    .try(
+      Joi.array().items(
+        Joi.object({
+          inventory_id: Joi.string().optional(),
+          quantity: Joi.number().optional(),
+        }),
+      ),
+      Joi.string(),
+    )
+    .optional(),
+
+  menu_items: Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
+    .optional(),
 }).unknown(true);
 
 exports.packageUpdateSchema = Joi.object({
@@ -41,6 +77,42 @@ exports.packageUpdateSchema = Joi.object({
   package_type: Joi.string().optional().allow(""),
   max_guests: Joi.number().optional().allow(null),
   gallery_to_remove: Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
+    .optional(),
+
+  scaffold_size_options: Joi.alternatives()
+    .try(
+      Joi.array().items(
+        Joi.object({
+          label: Joi.string().optional(),
+          width_ft: Joi.number().optional(),
+          length_ft: Joi.number().optional(),
+          area_ft2: Joi.number().optional(),
+          price: Joi.number().optional(),
+          guest_min: Joi.number().optional().allow(null),
+          guest_max: Joi.number().optional().allow(null),
+          _id: Joi.string().optional(),
+        }),
+      ),
+      Joi.string(),
+    )
+    .optional(),
+
+  default_scaffold_option_id: Joi.string().optional().allow(null, ""),
+
+  setup_equipment: Joi.alternatives()
+    .try(
+      Joi.array().items(
+        Joi.object({
+          inventory_id: Joi.string().optional(),
+          quantity: Joi.number().optional(),
+        }),
+      ),
+      Joi.string(),
+    )
+    .optional(),
+
+  menu_items: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
 }).unknown(true);

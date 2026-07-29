@@ -40,6 +40,7 @@ exports.create = async (req, res) => {
       gallery = results.map((r) => r.secure_url);
     }
   }
+
   let setup_equipment = [];
   if (req.body.setup_equipment) {
     try {
@@ -52,8 +53,13 @@ exports.create = async (req, res) => {
   let scaffold_size_options = [];
   if (req.body.scaffold_size_options) {
     try {
-      // Expect JSON string from multipart/form-data
       scaffold_size_options = JSON.parse(req.body.scaffold_size_options);
+      // ✅ Ensure guest_min and guest_max are numbers if provided
+      scaffold_size_options = scaffold_size_options.map((option) => ({
+        ...option,
+        guest_min: option.guest_min ? Number(option.guest_min) : undefined,
+        guest_max: option.guest_max ? Number(option.guest_max) : undefined,
+      }));
     } catch (e) {
       console.error("Failed to parse scaffold_size_options", e);
     }
@@ -78,6 +84,7 @@ exports.create = async (req, res) => {
     image_url,
     gallery,
   };
+
   // Normalize empty default scaffold option id
   if (
     payload.default_scaffold_option_id === "" ||
@@ -85,6 +92,13 @@ exports.create = async (req, res) => {
   ) {
     delete payload.default_scaffold_option_id;
   }
+
+  // ✅ Auto-set default scaffold option if not provided
+  if (!payload.default_scaffold_option_id && scaffold_size_options.length > 0) {
+    payload.default_scaffold_option_id =
+      scaffold_size_options[0]._id || scaffold_size_options[0].id || "0";
+  }
+
   const pkg = await Package.create(payload);
 
   await logAction({
@@ -140,6 +154,12 @@ exports.update = async (req, res) => {
   if (req.body.scaffold_size_options) {
     try {
       data.scaffold_size_options = JSON.parse(req.body.scaffold_size_options);
+      // ✅ Ensure guest_min and guest_max are numbers if provided
+      data.scaffold_size_options = data.scaffold_size_options.map((option) => ({
+        ...option,
+        guest_min: option.guest_min ? Number(option.guest_min) : undefined,
+        guest_max: option.guest_max ? Number(option.guest_max) : undefined,
+      }));
     } catch (e) {
       console.error("Failed to parse scaffold_size_options", e);
     }
@@ -153,6 +173,7 @@ exports.update = async (req, res) => {
     }
   }
 
+  // Clean up undefined values
   if (data.inclusions === undefined) delete data.inclusions;
   if (data.add_ons === undefined) delete data.add_ons;
   if (data.scaffold_size_options === undefined)
@@ -197,7 +218,8 @@ exports.update = async (req, res) => {
     "available",
     "event_type",
     "package_type",
-    "guest_max",
+    "guest_min", // ✅ Added to tracking
+    "guest_max", // ✅ Added to tracking
     "booking_requirements",
     "cancellation_policy",
   ];
@@ -208,6 +230,18 @@ exports.update = async (req, res) => {
       String(current[field]) !== String(req.body[field])
     ) {
       changes[field] = { from: current[field], to: req.body[field] };
+    }
+  }
+
+  // ✅ Track scaffold options changes
+  if (req.body.scaffold_size_options) {
+    const oldScaffold = JSON.stringify(current.scaffold_size_options || []);
+    const newScaffold = JSON.stringify(data.scaffold_size_options || []);
+    if (oldScaffold !== newScaffold) {
+      changes.scaffold_size_options = {
+        from: current.scaffold_size_options,
+        to: data.scaffold_size_options,
+      };
     }
   }
 

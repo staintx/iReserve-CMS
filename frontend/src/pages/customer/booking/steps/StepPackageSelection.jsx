@@ -1,5 +1,5 @@
 import { Card, SH } from "../components/BookingSharedUI";
-import { CheckCircle2, Package2 } from "lucide-react";
+import { CheckCircle2, Package2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function StepPackageSelection({
@@ -78,22 +78,6 @@ export default function StepPackageSelection({
                       )}
                     </div>
 
-                    {/* Guest Capacity */}
-                    {(pkg.guest_min || pkg.guest_max) && (
-                      <div className="mt-3 flex items-center gap-2 text-xs text-[#6B6657]">
-                        {pkg.guest_min && (
-                          <span className="rounded-full bg-black/[0.04] px-3 py-1">
-                            Min {pkg.guest_min} guests
-                          </span>
-                        )}
-                        {pkg.guest_max && (
-                          <span className="rounded-full bg-black/[0.04] px-3 py-1">
-                            Up to {pkg.guest_max} guests
-                          </span>
-                        )}
-                      </div>
-                    )}
-
                     {/* Inclusions */}
                     {pkg.inclusions && pkg.inclusions.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -151,6 +135,7 @@ export default function StepPackageSelection({
             {scaffoldOptions.map((opt) => {
               const isActive = String(opt._id) === String(selectedOptionId);
               const dimensions = `${opt.width_ft}ft × ${opt.length_ft}ft`;
+              const hasGuestRange = opt.guest_min || opt.guest_max;
 
               return (
                 <button
@@ -167,6 +152,8 @@ export default function StepPackageSelection({
                           ? opt.width_ft * opt.length_ft
                           : undefined),
                       scaffold_price: opt.price || undefined,
+                      scaffold_guest_min: opt.guest_min || undefined,
+                      scaffold_guest_max: opt.guest_max || undefined,
                     })
                   }
                   className={cn(
@@ -176,38 +163,61 @@ export default function StepPackageSelection({
                       : "border-black/[0.06] bg-white hover:border-[#D4AF37]/40 hover:bg-[#F7F4EE]",
                   )}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {/* Size Badge */}
-                      <div
-                        className={cn(
-                          "w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold transition-colors",
-                          isActive
-                            ? "bg-[#D4AF37] text-white shadow-sm"
-                            : "bg-gray-100 text-[#6B6657]",
-                        )}
-                      >
-                        {opt.width_ft}×{opt.length_ft}
+                  <div className="space-y-3">
+                    {/* Top Row: Size Badge & Price */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {/* Size Badge */}
+                        <div
+                          className={cn(
+                            "w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold transition-colors",
+                            isActive
+                              ? "bg-[#D4AF37] text-white shadow-sm"
+                              : "bg-gray-100 text-[#6B6657]",
+                          )}
+                        >
+                          {opt.width_ft}×{opt.length_ft}
+                        </div>
+
+                        <div>
+                          <div className="font-semibold text-[#111]">
+                            {opt.label || dimensions}
+                          </div>
+                          <div className="text-xs text-[#6B6657] mt-0.5">
+                            {dimensions}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Size Details */}
-                      <div>
-                        <div className="font-semibold text-[#111]">
-                          {opt.label || dimensions}
+                      {/* Price */}
+                      <div className="text-right">
+                        <div className="text-xs text-[#6B6657] mb-0.5">
+                          Price
                         </div>
-                        <div className="text-xs text-[#6B6657] mt-0.5">
-                          {dimensions}
+                        <div className="text-lg font-bold text-[#111]">
+                          ₱{Number(opt.price || 0).toLocaleString()}
                         </div>
                       </div>
                     </div>
 
-                    {/* Price */}
-                    <div className="text-right">
-                      <div className="text-xs text-[#6B6657] mb-0.5">Price</div>
-                      <div className="text-lg font-bold text-[#111]">
-                        ₱{Number(opt.price || 0).toLocaleString()}
+                    {hasGuestRange && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                        <Users
+                          size={14}
+                          className={cn(
+                            "flex-shrink-0",
+                            isActive ? "text-[#D4AF37]" : "text-gray-400",
+                          )}
+                        />
+                        <span className="text-xs text-[#6B6657]">
+                          {opt.guest_min && opt.guest_max
+                            ? `${opt.guest_min} - ${opt.guest_max} guests`
+                            : opt.guest_min
+                              ? `Min ${opt.guest_min} guests`
+                              : `Up to ${opt.guest_max} guests`}
+                        </span>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </button>
               );

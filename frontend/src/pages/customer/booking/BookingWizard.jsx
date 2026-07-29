@@ -388,17 +388,33 @@ export default function BookingWizard() {
         street: form.street,
       })
         .then((res) => {
-          if (res.data.available) {
+          // Normalize API truthy/falsy values
+          const apiAvailable =
+            res.data.available === true ||
+            res.data.available === "true" ||
+            res.data.available === 1 ||
+            Boolean(res.data.available);
+
+          if (apiAvailable) {
             setAvailability({
               status: "available",
               message: "Selected time is available.",
             });
             setSuggestedDates([]);
           } else {
-            setAvailability({
-              status: "unavailable",
-              message: "Selected time has a conflict.",
-            });
+            if (res.data.inventory_issue) {
+              setAvailability({
+                status: "blocked",
+                message:
+                  res.data.inventory_issue || "This date is blocked due to inventory limitations.",
+              });
+            } else {
+              setAvailability({
+                status: "unavailable",
+                message: "Selected time has a conflict.",
+              });
+            }
+
             CustomerAPI.suggestDates({
               event_date: form.event_date,
               start_time: form.start_time,

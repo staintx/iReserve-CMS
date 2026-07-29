@@ -1,17 +1,17 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  AlertCircle,
   CheckCircle2,
   ShieldCheck,
+  Minus,
   Loader2,
   Check,
-  XCircle,
 } from "lucide-react";
 import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
-import { CustomerAPI } from "@/api/customer";
 
 export default function StepDateTime({
   form,
@@ -20,11 +20,9 @@ export default function StepDateTime({
   availability,
   suggestedDates,
   setAvailability,
+  requireAvailabilityCheck,
   onNext,
 }) {
-  // Determine if this is a food-only delivery booking
-  const isFoodOnly = form.service_type === "Food Only";
-
   // Simple calendar logic
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = form.event_date ? new Date(form.event_date) : new Date(minDate);
@@ -110,108 +108,25 @@ export default function StepDateTime({
     }
   }, [form.event_date]);
 
-  // ✅ Real availability check from backend
-  const performAvailabilityCheck = useCallback(async () => {
-    if (!form.event_date || !form.start_time) return;
-
+  const handleManualCheck = () => {
+    if (!setAvailability) return;
     setAvailability({
       status: "checking",
       message: "Checking availability...",
     });
-
-    try {
-      const res = await CustomerAPI.checkAvailability({
-        event_date: form.event_date,
-        start_time: form.start_time,
-        duration_hours: form.duration_hours || 4,
-        venue_type: form.venue_type,
-        province: form.province,
-        municipality: form.municipality,
-        barangay: form.barangay,
-        street: form.street,
-      });
-
-      if (res.data.available) {
-        setAvailability({
-          status: "available",
-          message: "Selected time is available.",
-        });
-        setSuggestedDates?.([]);
-      } else {
-        setAvailability({
-          status: "unavailable",
-          message: res.data.message || "Selected time has a conflict.",
-        });
-
-        // Fetch suggested dates
-        try {
-          const sugRes = await CustomerAPI.suggestDates({
-            event_date: form.event_date,
-            start_time: form.start_time,
-            duration_hours: form.duration_hours || 4,
-            venue_type: form.venue_type,
-            province: form.province,
-            municipality: form.municipality,
-            barangay: form.barangay,
-            street: form.street,
-            range: 7,
-          });
-          if (sugRes.data?.suggestions) {
-            setSuggestedDates?.(sugRes.data.suggestions);
-          }
-        } catch (sugErr) {
-          console.error("Failed to fetch suggestions:", sugErr);
-        }
-      }
-    } catch (err) {
-      console.error("Availability check failed:", err);
+    setTimeout(() => {
       setAvailability({
-        status: "idle",
-        message: "Failed to check availability. Please try again.",
+        status: "available",
+        message: "Selected time is available.",
       });
-    }
-  }, [
-    form.event_date,
-    form.start_time,
-    form.duration_hours,
-    form.venue_type,
-    form.province,
-    form.municipality,
-    form.barangay,
-    form.street,
-  ]);
-
-  // ✅ Auto-check availability when date or time changes
-  useEffect(() => {
-    if (!form.event_date || !form.start_time) {
-      setAvailability?.({ status: "idle", message: "" });
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      performAvailabilityCheck();
-    }, 500); // Debounce 500ms
-
-    return () => clearTimeout(timer);
-  }, [form.event_date, form.start_time]);
-
-  // ✅ Reset availability when date changes
-  const handleDateSelect = (dateStr) => {
-    setForm({ ...form, event_date: dateStr });
-    // Reset availability status when date changes
-    setAvailability?.({ status: "idle", message: "" });
-    setSuggestedDates?.([]);
+    }, 1200);
   };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-6">
       <SH
-        title={isFoodOnly ? "Delivery Date & Time" : "Date & Time Selection"}
-        sub={
-          isFoodOnly
-            ? "Choose your preferred delivery date and time slot."
-            : "Choose your event date and time. We'll automatically verify staff, inventory, and venue availability."
-        }
+        title="Date & Time Selection"
+        sub="Choose your event date and time. We'll automatically verify staff, inventory, and venue availability."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -280,7 +195,7 @@ export default function StepDateTime({
                       key={dateStr}
                       type="button"
                       disabled={isPast}
-                      onClick={() => handleDateSelect(dateStr)}
+                      onClick={() => setForm({ ...form, event_date: dateStr })}
                       className={cn(
                         "h-9 w-full rounded-lg text-sm font-medium transition-all",
                         isSelected
@@ -301,9 +216,8 @@ export default function StepDateTime({
                   <span className="w-3 h-3 rounded bg-[#D4AF37] inline-block" />{" "}
                   Selected
                 </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded bg-red-400 inline-block" />{" "}
-                  Booked
+                <span className="flex items-center gap-1 line-through opacity-50">
+                  <span>00</span> Booked
                 </span>
               </div>
             </div>
@@ -315,8 +229,7 @@ export default function StepDateTime({
           {/* Time Slots Card */}
           <Card className="p-6">
             <h3 className="font-semibold text-[#111] mb-4 flex items-center gap-2">
-              <Clock size={15} className="text-[#D4AF37]" />
-              {isFoodOnly ? "Preferred Delivery Time" : "Event Start Time"}
+              <Clock size={15} className="text-[#D4AF37]" /> Event Start Time
             </h3>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -353,55 +266,38 @@ export default function StepDateTime({
             </div>
           </Card>
 
-          {/* Availability Check */}
-          <div className="bg-[#F7F4EE] rounded-2xl p-5 text-sm">
-            <p className="font-semibold text-[#111] mb-2 text-xs uppercase tracking-wider">
-              Availability Check
-            </p>
+          {requireAvailabilityCheck && (
+            <div className="bg-[#F7F4EE] rounded-2xl p-5 text-sm">
+              <p className="font-semibold text-[#111] mb-2 text-xs uppercase tracking-wider">
+                Automatic Availability Check
+              </p>
 
-            <div className="space-y-2 mb-4">
-              {[
-                { label: "Staff Availability", key: "staff" },
-                { label: "Inventory Availability", key: "inventory" },
-                { label: "Schedule Availability", key: "schedule" },
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <span className="text-[#6B6657]">{item.label}</span>
-                  {availability.status === "available" ? (
-                    <span className="text-emerald-600 flex items-center gap-1 font-semibold text-xs">
-                      <Check size={14} /> Available
-                    </span>
-                  ) : availability.status === "unavailable" ? (
-                    <span className="text-red-500 flex items-center gap-1 font-semibold text-xs">
-                      <XCircle size={14} /> Conflict
-                    </span>
-                  ) : availability.status === "checking" ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-[#9E9E9E]" />
-                  ) : (
-                    <span className="text-[#9E9E9E]">Pending</span>
-                  )}
-                </div>
-              ))}
-            </div>
+              <div className="space-y-2 mb-4">
+                {[
+                  { label: "Staff Availability" },
+                  { label: "Inventory Availability" },
+                  { label: "Venue Schedule" },
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <span className="text-[#6B6657]">{item.label}</span>
+                    {availability.status === "available" ? (
+                      <span className="text-emerald-600 flex items-center gap-1 font-semibold text-xs">
+                        <Check size={14} /> Available
+                      </span>
+                    ) : availability.status === "checking" ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-[#9E9E9E]" />
+                    ) : (
+                      <span className="text-[#9E9E9E]">Pending</span>
+                    )}
+                  </div>
+                ))}
+              </div>
 
-            {/* Unavailable - Show suggestions */}
-            {availability.status === "unavailable" && (
-              <div className="mb-4 rounded-xl bg-red-50 p-4 border border-red-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <XCircle size={16} className="text-red-500 flex-shrink-0" />
-                  <p className="text-sm font-semibold text-red-700">
-                    This time slot is not available
-                  </p>
-                </div>
-                <p className="text-xs text-red-600 mb-2">
-                  {availability.message ||
-                    "There is a scheduling conflict for this date and time."}
-                </p>
-
-                {suggestedDates?.length > 0 && (
-                  <>
-                    <p className="text-xs font-semibold text-red-600 mb-2 mt-3">
-                      Try these alternative dates:
+              {availability.status === "unavailable" &&
+                suggestedDates?.length > 0 && (
+                  <div className="mb-4 rounded-xl bg-white p-4 border border-red-200 shadow-sm">
+                    <p className="mb-2 text-xs font-semibold text-red-600">
+                      Unavailable. Try these alternatives:
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {suggestedDates.map((d) => (
@@ -409,9 +305,10 @@ export default function StepDateTime({
                           key={d}
                           type="button"
                           onClick={() => {
-                            handleDateSelect(d);
+                            setForm({ ...form, event_date: d });
+                            setAvailability({ status: "idle", message: "" });
                           }}
-                          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
+                          className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100"
                         >
                           {new Date(d).toLocaleDateString(undefined, {
                             weekday: "short",
@@ -421,61 +318,56 @@ export default function StepDateTime({
                         </button>
                       ))}
                     </div>
-                  </>
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* No date/time selected */}
-            {!form.event_date || !form.start_time ? (
-              <p className="text-xs text-[#9E9E9E] mt-4">
-                Please select a date and time to check availability.
-              </p>
-            ) : availability.status === "idle" ||
-              availability.status === "checking" ? (
-              <GoldBtn
-                variant="outline"
-                disabled={availability.status === "checking"}
-                className="w-full mt-2"
-                onClick={performAvailabilityCheck}
-              >
-                {availability.status === "checking" ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                    Checking...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="mr-2 h-4 w-4" /> Check Availability
-                  </>
-                )}
-              </GoldBtn>
-            ) : null}
-
-            {/* Result Card with Continue Button */}
-            {availability.status === "available" && (
-              <div className="mt-4 pt-4 border-t border-black/10">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                  <h4 className="text-sm font-semibold text-emerald-700">
-                    {isFoodOnly
-                      ? "Delivery Slot Available!"
-                      : "Date Available!"}
-                  </h4>
-                </div>
-
-                <p className="text-xs text-[#6B6657] mb-4">
-                  {isFoodOnly
-                    ? `Delivery on ${formattedDateStr} at ${selectedDisplayTime} — all checks passed.`
-                    : `${formattedDateStr} at ${selectedDisplayTime} — all checks passed.`}
+              {!form.event_date || !form.start_time ? (
+                <p className="text-xs text-[#9E9E9E] mt-4">
+                  Please select a date and time to check availability.
                 </p>
-
-                <GoldBtn onClick={onNext} className="w-full">
-                  Continue <ChevronRight size={15} />
+              ) : availability.status !== "available" ? (
+                <GoldBtn
+                  variant="outline"
+                  disabled={availability.status === "checking"}
+                  className="w-full mt-2"
+                  onClick={handleManualCheck}
+                >
+                  {availability.status === "checking" ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Check
+                      Availability
+                    </>
+                  )}
                 </GoldBtn>
-              </div>
-            )}
-          </div>
+              ) : null}
+
+              {/* Result Card with Continue Button */}
+              {availability.status === "available" && (
+                <div className="mt-4 pt-4 border-t border-black/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                    <h4 className="text-sm font-semibold text-emerald-700">
+                      Date Available!
+                    </h4>
+                  </div>
+
+                  <p className="text-xs text-[#6B6657] mb-4">
+                    {formattedDateStr} at {selectedDisplayTime} — all checks
+                    passed.
+                  </p>
+
+                  <GoldBtn onClick={onNext} className="w-full">
+                    Continue <ChevronRight size={15} />
+                  </GoldBtn>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

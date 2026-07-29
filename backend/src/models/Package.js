@@ -13,6 +13,7 @@ const PackageSchema = new mongoose.Schema({
     inventory_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inventory" },
     quantity: Number
   }],
+  menu_items: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }],
   available: { type: Boolean, default: true },
   inclusions: [String],
   add_ons: [String],

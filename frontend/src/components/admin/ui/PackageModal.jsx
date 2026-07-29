@@ -17,6 +17,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     price_per_guest: "",
     setup_price: "",
     setup_equipment: [],
+    menu_items: [],
     available: true,
     fullDescription: "",
     inclusions: [],
@@ -26,15 +27,21 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   const [newInclusion, setNewInclusion] = useState({ category: "Equipment", name: "", qty: "" });
   const [newAddOn, setNewAddOn] = useState({ name: "", qty: "" });
   const [newSetupEquip, setNewSetupEquip] = useState({ inventory_id: "", quantity: "" });
+  const [newMenuItem, setNewMenuItem] = useState("");
 
   const [imageFile, setImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
   const [inventoryList, setInventoryList] = useState([]);
+  const [fullMenuList, setFullMenuList] = useState([]);
 
   useEffect(() => {
     // Fetch inventory for setup equipment
     AdminAPI.getInventory()
       .then(res => setInventoryList(res.data.filter(i => ["Equipment", "Furniture", "Decorations", "Tableware"].includes(i.category))))
+      .catch(err => console.error(err));
+
+    AdminAPI.getMenu()
+      .then(res => setFullMenuList(res.data))
       .catch(err => console.error(err));
 
     if (pkg) {
@@ -48,6 +55,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
         price_per_guest: pkg.price_per_guest || "",
         setup_price: pkg.setup_price || "",
         setup_equipment: pkg.setup_equipment || [],
+        menu_items: pkg.menu_items || [],
         available: pkg.available !== false,
         fullDescription: pkg.fullDescription || "",
         inclusions: pkg.inclusions || [],
@@ -90,6 +98,17 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     setFormData(prev => ({ ...prev, setup_equipment: prev.setup_equipment.filter((_, i) => i !== index) }));
   };
 
+  const handleAddMenuItem = () => {
+    if (!newMenuItem) return;
+    if (formData.menu_items.some(m => (m._id || m) === newMenuItem)) return; // Prevent duplicates
+    setFormData(prev => ({ ...prev, menu_items: [...prev.menu_items, newMenuItem] }));
+    setNewMenuItem("");
+  };
+
+  const handleRemoveMenuItem = (index) => {
+    setFormData(prev => ({ ...prev, menu_items: prev.menu_items.filter((_, i) => i !== index) }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -98,7 +117,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       Object.keys(formData).forEach(key => {
         if (key === "inclusions" || key === "add_ons") {
           formData[key].forEach(val => data.append(`${key}[]`, val));
-        } else if (key === "setup_equipment") {
+        } else if (key === "setup_equipment" || key === "menu_items") {
           data.append(key, JSON.stringify(formData[key]));
         } else {
           data.append(key, formData[key]);
@@ -150,7 +169,15 @@ export default function PackageModal({ pkg, onClose, onSave }) {
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Event Type</label>
-                <input type="text" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="e.g. Wedding, Birthday, Corporate" value={formData.event_type} onChange={e => setFormData({...formData, event_type: e.target.value})} />
+                <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" value={formData.event_type} onChange={e => setFormData({...formData, event_type: e.target.value})}>
+                  <option value="">Select Event Type</option>
+                  <option value="Wedding">Wedding</option>
+                  <option value="Birthday">Birthday</option>
+                  <option value="Corporate">Corporate</option>
+                  <option value="Christening">Christening</option>
+                  <option value="Anniversary">Anniversary</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Package Type</label>
@@ -212,6 +239,39 @@ export default function PackageModal({ pkg, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">About This Package</label>
             <textarea className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-32" value={formData.fullDescription} onChange={e => setFormData({...formData, fullDescription: e.target.value})} />
           </div>
+
+          {/* Food Menu Selection */}
+          {(formData.package_type === "Food Only" || formData.package_type === "Food + Event Setup") && (
+            <div>
+              <h3 className="font-bold text-[#111] mb-4">Food Menu Selection</h3>
+              <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+                <label className="block text-sm font-semibold text-gray-800 mb-1">Link Menu Items</label>
+                <p className="text-xs text-gray-500 mb-3">Select dishes from your Food Menu to include in this package</p>
+                <div className="flex gap-2 mb-3">
+                  <select className="flex-1 border border-gray-200 rounded-lg px-2 text-sm bg-white" value={newMenuItem} onChange={e => setNewMenuItem(e.target.value)}>
+                    <option value="">Select Dish...</option>
+                    {fullMenuList.map(item => (
+                      <option key={item._id} value={item._id}>{item.name} ({item.category})</option>
+                    ))}
+                  </select>
+                  <Btn variant="primary" size="sm" onClick={handleAddMenuItem}>Add</Btn>
+                </div>
+                <ul className="space-y-1">
+                  {formData.menu_items.map((mId, i) => {
+                    const idToFind = typeof mId === 'object' ? mId._id : mId;
+                    const itemData = fullMenuList.find(x => x._id === idToFind);
+                    const dispName = itemData ? itemData.name : (mId.name || "Unknown Dish");
+                    return (
+                      <li key={i} className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100">
+                        <span>{dispName}</span>
+                        <button onClick={() => handleRemoveMenuItem(i)} className="text-red-400 hover:text-red-500"><Trash2 size={14} /></button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
 
           {/* Services & Inclusions */}
           <div>

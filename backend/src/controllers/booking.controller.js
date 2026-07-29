@@ -1146,6 +1146,82 @@ exports.completeOcular = asyncHandler(async (req, res) => {
 	res.json(booking);
 });
 
+exports.requestOcular = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (String(booking.customer_id) !== String(req.user?._id)) {
+		return res.status(403).json({ message: "Forbidden" });
+	}
+
+	const { scheduled_date, scheduled_time, notes } = req.body;
+	if (!scheduled_date) return res.status(400).json({ message: "Scheduled date is required" });
+
+	booking.ocular_visit = {
+		...(booking.ocular_visit?.toObject?.() || booking.ocular_visit || {}),
+		scheduled_date: new Date(scheduled_date),
+		scheduled_time: scheduled_time || "",
+		status: "requested",
+		notes: notes || booking.ocular_visit?.notes || ""
+	};
+	await booking.save();
+
+	const io = req.app.get("io");
+	await notifyAdmins({
+		title: "Ocular Visit Requested",
+		body: `${req.user.full_name || req.user.email || "A customer"} requested an ocular visit for booking #${booking.reference || booking._id}.`,
+		type: "info",
+		link: `/admin/bookings/${booking._id}/details`,
+		meta: { booking_id: booking._id }
+	}, io);
+
+	await logAction({
+		user_id: req.user._id,
+		action: "ocular_requested",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Requested ocular visit for ${new Date(scheduled_date).toLocaleDateString()}`,
+		ip_address: req.ip
+	});
+
+	res.json(booking);
+});
+
+exports.requestCancellation = asyncHandler(async (req, res) => {
+	const booking = await Booking.findById(req.params.id);
+	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (String(booking.customer_id) !== String(req.user?._id)) {
+		return res.status(403).json({ message: "Forbidden" });
+	}
+
+	booking.change_request = {
+		status: "pending",
+		message: "Customer requested a cancellation and refund.",
+		requested_at: new Date(),
+		resolved_at: null
+	};
+	await booking.save();
+
+	const io = req.app.get("io");
+	await notifyAdmins({
+		title: "Booking Cancellation Requested",
+		body: `${req.user.full_name || req.user.email || "A customer"} requested to cancel booking #${booking.reference || booking._id}.`,
+		type: "warning",
+		link: `/admin/bookings/${booking._id}/details`,
+		meta: { booking_id: booking._id }
+	}, io);
+
+	await logAction({
+		user_id: req.user._id,
+		action: "booking_cancellation_requested",
+		entity_type: "booking",
+		entity_id: booking._id,
+		details: `Customer requested a cancellation/refund.`,
+		ip_address: req.ip
+	});
+
+	res.json(booking);
+});
+
 exports.checkInventoryAvailability = checkInventoryAvailability;
 exports.findBookingConflict = findBookingConflict;
 exports.filterAvailableStaff = filterAvailableStaff;

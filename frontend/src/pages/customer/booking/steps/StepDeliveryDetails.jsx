@@ -1,11 +1,11 @@
 import React from "react";
-import { HelpCircle, Plus, Minus } from "lucide-react";
+import { Plus, Minus } from "lucide-react";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Label } from "../../../../components/ui/label";
 import { Input } from "../../../../components/ui/input";
-import { cn } from "@/lib/utils";
+import LiveEstimate from "../components/LiveEstimate";
 
-export default function StepDeliveryDetails({ form, setForm, municipalities, barangays }) {
+export default function StepDeliveryDetails({ form, setForm, municipalities, barangays, totalPrice, depositAmount, onNext }) {
   const inputClass = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
   const handleGuestChange = (delta) => {
@@ -174,39 +174,7 @@ export default function StepDeliveryDetails({ form, setForm, municipalities, bar
         </CardContent>
       </Card>
 
-      <div className="w-full flex-shrink-0 lg:w-80">
-        <Card className="sticky top-24 border-border bg-card p-6 shadow-soft">
-          <div className="mb-4 flex items-center gap-2 text-foreground">
-            <HelpCircle size={20} className="text-accent" />
-            <h3 className="text-lg font-semibold">Need Help?</h3>
-          </div>
-          
-          <div className="mb-6 space-y-4 text-sm">
-            <div>
-              <p className="font-semibold text-foreground">Call Us</p>
-              <p className="text-muted-foreground">(555) 123-4567</p>
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">Email Us</p>
-              <p className="text-muted-foreground">support@caterer.com</p>
-            </div>
-          </div>
-          
-          <hr className="mb-6 border-border" />
-          
-          <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Quick Tips</h4>
-          <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex gap-2">
-              <span className="mt-0.5 text-accent">•</span>
-              Ensure your street address is easy to find
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-0.5 text-accent">•</span>
-              Leave detailed gate or parking instructions
-            </li>
-          </ul>
-        </Card>
-      </div>
+      <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
     </div>
   );
 }

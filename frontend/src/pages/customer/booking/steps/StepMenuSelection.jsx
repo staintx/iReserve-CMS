@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { HelpCircle, Check } from "lucide-react";
+import { HelpCircle, Check, Utensils, AlertCircle } from "lucide-react";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import { Checkbox } from "../../../../components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import LiveEstimate from "../components/LiveEstimate";
 
-export default function StepMenuSelection({ form, setForm, menuItems }) {
+export default function StepMenuSelection({ form, setForm, menuItems, totalPrice, depositAmount, onNext }) {
   const [activeCategory, setActiveCategory] = useState("All");
 
   const categories = ["All", ...new Set(menuItems.map(m => m.category).filter(Boolean))];
@@ -139,39 +140,7 @@ export default function StepMenuSelection({ form, setForm, menuItems }) {
         </CardContent>
       </Card>
 
-      <div className="w-full flex-shrink-0 lg:w-80">
-        <Card className="sticky top-24 border-border bg-card p-6 shadow-soft">
-          <div className="mb-4 flex items-center gap-2 text-foreground">
-            <HelpCircle size={20} className="text-accent" />
-            <h3 className="text-lg font-semibold">Need Help?</h3>
-          </div>
-          
-          <div className="mb-6 space-y-4 text-sm">
-            <div>
-              <p className="font-semibold text-foreground">Call Us</p>
-              <p className="text-muted-foreground">(555) 123-4567</p>
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">Email Us</p>
-              <p className="text-muted-foreground">support@caterer.com</p>
-            </div>
-          </div>
-          
-          <hr className="mb-6 border-border" />
-          
-          <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Selection Tips</h4>
-          <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex gap-2">
-              <span className="mt-0.5 text-accent">•</span>
-              Balance heavy meats with lighter vegetable sides
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-0.5 text-accent">•</span>
-              Make sure to provide dietary notes in the next step
-            </li>
-          </ul>
-        </Card>
-      </div>
+      <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
     </div>
   );
 }

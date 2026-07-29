@@ -168,11 +168,11 @@ export default function CustomerBookings() {
       subtitle="Manage your confirmed events"
     >
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-xl font-serif text-foreground">
+        <h2 className="text-base font-medium text-gray-600" style={{ fontFamily: "Inter, sans-serif" }}>
           {upcoming.length} Active Booking{upcoming.length !== 1 ? 's' : ''}
         </h2>
-        <Button onClick={() => navigate("/packages")} className="rounded-full">
-          <PlusCircle className="w-4 h-4 mr-2" /> New Booking
+        <Button onClick={() => navigate("/customer/book")} className="rounded-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold px-5 shadow-sm">
+          + New Booking
         </Button>
       </div>
 
@@ -220,6 +220,9 @@ export default function CustomerBookings() {
                 submitAddGuests={submitAddGuests}
                 isSubmittingGuests={isSubmittingGuests}
                 setAdditionalGuestsGlobal={setAdditionalGuests}
+                onBookingUpdate={() => {
+                  CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
+                }}
               />
             );
           })

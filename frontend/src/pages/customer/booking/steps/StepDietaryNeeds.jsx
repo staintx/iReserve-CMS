@@ -1,9 +1,9 @@
 import React from "react";
-import { HelpCircle } from "lucide-react";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Label } from "../../../../components/ui/label";
+import LiveEstimate from "../components/LiveEstimate";
 
-export default function StepDietaryNeeds({ form, setForm }) {
+export default function StepDietaryNeeds({ form, setForm, totalPrice, depositAmount, onNext }) {
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
       <Card className="flex-1 overflow-hidden border-border bg-card shadow-soft">
@@ -25,39 +25,7 @@ export default function StepDietaryNeeds({ form, setForm }) {
         </CardContent>
       </Card>
 
-      <div className="w-full flex-shrink-0 lg:w-80">
-        <Card className="sticky top-24 border-border bg-card p-6 shadow-soft">
-          <div className="mb-4 flex items-center gap-2 text-foreground">
-            <HelpCircle size={20} className="text-accent" />
-            <h3 className="text-lg font-semibold">Need Help?</h3>
-          </div>
-          
-          <div className="mb-6 space-y-4 text-sm">
-            <div>
-              <p className="font-semibold text-foreground">Call Us</p>
-              <p className="text-muted-foreground">(555) 123-4567</p>
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">Email Us</p>
-              <p className="text-muted-foreground">support@caterer.com</p>
-            </div>
-          </div>
-          
-          <hr className="mb-6 border-border" />
-          
-          <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Quick Tips</h4>
-          <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex gap-2">
-              <span className="mt-0.5 text-accent">•</span>
-              Consider dietary restrictions of all your guests
-            </li>
-            <li className="flex gap-2">
-              <span className="mt-0.5 text-accent">•</span>
-              We can accommodate most major allergies with advance notice
-            </li>
-          </ul>
-        </Card>
-      </div>
+      <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
     </div>
   );
 }

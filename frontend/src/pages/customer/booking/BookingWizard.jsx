@@ -159,6 +159,8 @@ export default function BookingWizard() {
   const isFoodAndEventSetup =
     isCustomBooking && form.service_type === "Food and Event Setup";
 
+  const requireAvailabilityCheck = !isFoodOnly;
+
   // --- Step Definition ---
   const wizardSteps = useMemo(() => {
     const steps = [];
@@ -215,10 +217,10 @@ export default function BookingWizard() {
       check: () => !!form.event_date && !!form.start_time,
       message: "Please select a date and time.",
       extraCheck: () => {
-        if (availability.status === "unavailable") {
+        if (requireAvailabilityCheck && availability.status !== "available") {
           return {
             valid: false,
-            message: "Please select an available schedule.",
+            message: "Please perform and pass the availability check.",
           };
         }
         return { valid: true };
@@ -563,6 +565,7 @@ export default function BookingWizard() {
             availability={availability}
             setAvailability={setAvailability}
             suggestedDates={suggestedDates}
+            requireAvailabilityCheck={requireAvailabilityCheck}
             onNext={handleNext}
           />
         );
@@ -587,6 +590,9 @@ export default function BookingWizard() {
             setForm={setForm}
             municipalities={municipalities}
             barangays={barangays}
+            totalPrice={totalPrice}
+            depositAmount={depositAmount}
+            onNext={handleNext}
           />
         );
       case "MenuSelection":
@@ -595,10 +601,13 @@ export default function BookingWizard() {
             form={form}
             setForm={setForm}
             menuItems={menuItems}
+            totalPrice={totalPrice}
+            depositAmount={depositAmount}
+            onNext={handleNext}
           />
         );
       case "DietaryNeeds":
-        return <StepDietaryNeeds form={form} setForm={setForm} />;
+        return <StepDietaryNeeds form={form} setForm={setForm} totalPrice={totalPrice} depositAmount={depositAmount} onNext={handleNext} />;
       case "EquipmentSelection":
         return (
           <StepEquipmentSelection
@@ -669,7 +678,7 @@ export default function BookingWizard() {
             >
               Back
             </Button>
-            {currentStepId !== "DateTime" && (
+            {(!["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(currentStepId) && !(currentStepId === "DateTime" && requireAvailabilityCheck)) && (
               <Button
                 size="lg"
                 onClick={handleNext}

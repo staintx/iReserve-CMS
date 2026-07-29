@@ -13,6 +13,8 @@ router.post("/:id/upgrade-booking", protect, authorize("customer"), ctrl.upgrade
 router.post("/:id/verify-returns", protect, authorize("admin", "staff"), ctrl.verifyReturns);
 router.post("/:id/ocular/schedule", protect, authorize("admin", "staff"), ctrl.scheduleOcular);
 router.post("/:id/ocular/complete", protect, authorize("admin", "staff"), ctrl.completeOcular);
+router.post("/:id/ocular/request", protect, authorize("customer"), ctrl.requestOcular);
+router.post("/:id/request-cancellation", protect, authorize("customer"), ctrl.requestCancellation);
 router.get("/availability", protect, ctrl.checkAvailability);
 router.get("/availability/suggestions", protect, ctrl.suggestDates);
 router.get("/", protect, authorize("admin", "staff"), ctrl.getAll);

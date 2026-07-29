@@ -41,11 +41,21 @@ exports.create = async (req, res) => {
     }
   }
 
+  let menu_items = [];
+  if (req.body.menu_items) {
+    try {
+      menu_items = JSON.parse(req.body.menu_items);
+    } catch (e) {
+      console.error("Failed to parse menu_items", e);
+    }
+  }
+
   const payload = {
     ...req.body,
     inclusions: normalizeList(req.body.inclusions),
     add_ons: normalizeList(req.body.add_ons),
     setup_equipment,
+    menu_items,
     image_url,
     gallery
   };
@@ -94,6 +104,14 @@ exports.update = async (req, res) => {
       data.setup_equipment = JSON.parse(req.body.setup_equipment);
     } catch (e) {
       console.error("Failed to parse setup_equipment", e);
+    }
+  }
+
+  if (req.body.menu_items) {
+    try {
+      data.menu_items = JSON.parse(req.body.menu_items);
+    } catch (e) {
+      console.error("Failed to parse menu_items", e);
     }
   }
 

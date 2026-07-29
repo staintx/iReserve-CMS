@@ -202,11 +202,66 @@ export default function AdminBookingDetails() {
                 <span className="font-semibold text-[#111]">{fmt(Math.max(0, booking.total_price - totalPaid))}</span>
               </div>
             </div>
-            {booking.payment_status !== "fully_paid" && (
-              <Btn size="sm" variant="gold" className="w-full justify-center">Record Payment</Btn>
-            )}
+            
+            <div className="flex flex-col gap-2 mt-4">
+              {booking.payment_status !== "fully_paid" && booking.status !== "cancelled" && (
+                <Btn size="sm" variant="gold" className="w-full justify-center">Record Payment</Btn>
+              )}
+              {booking.status !== "cancelled" && (
+                <Btn 
+                  size="sm" 
+                  variant="secondary" 
+                  className="w-full justify-center text-red-600 border-red-200 hover:bg-red-50"
+                  onClick={() => {
+                    const amount = window.prompt("Enter refund amount to process via PayMongo:");
+                    if (amount && !isNaN(Number(amount))) {
+                      AdminAPI.processRefund(booking._id, { amount: Number(amount) })
+                        .then(() => {
+                          notify("Refund processed successfully", "success");
+                          loadData();
+                        })
+                        .catch(err => notify(err.response?.data?.message || "Failed to process refund", "error"));
+                    }
+                  }}
+                >
+                  Cancel & Issue Refund
+                </Btn>
+              )}
+            </div>
           </AdminCard>
         </div>
+
+        {/* Ocular Request Section */}
+        {booking.ocular_visit?.status === "requested" && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 mt-5">
+            <AlertCircle className="text-blue-500 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h4 className="font-bold text-blue-800">Ocular Visit Schedule Requested</h4>
+              <p className="text-sm text-blue-700 mt-1">
+                Customer requested an ocular visit on {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()} at {booking.ocular_visit.scheduled_time || "any time"}.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Btn 
+                size="sm" 
+                variant="gold" 
+                onClick={() => {
+                  AdminAPI.scheduleOcular(booking._id, {
+                    scheduled_date: booking.ocular_visit.scheduled_date,
+                    scheduled_time: booking.ocular_visit.scheduled_time
+                  })
+                  .then(() => {
+                    notify("Ocular schedule confirmed", "success");
+                    loadData();
+                  })
+                  .catch(err => notify(err.response?.data?.message || "Failed to confirm", "error"));
+                }}
+              >
+                Confirm Schedule
+              </Btn>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

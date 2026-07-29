@@ -107,7 +107,7 @@ export default function MenuModal({ item, onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Price per serving (₱)</label>
+            <label className="block text-sm text-gray-600 mb-1">Price per pax (₱)</label>
             <input 
               type="number" 
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 

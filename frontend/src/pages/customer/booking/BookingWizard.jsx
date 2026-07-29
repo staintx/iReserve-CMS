@@ -20,7 +20,6 @@ import StepEventDetails from "./steps/StepEventDetails";
 import StepDeliveryDetails from "./steps/StepDeliveryDetails";
 import StepMenuSelection from "./steps/StepMenuSelection";
 import StepDietaryNeeds from "./steps/StepDietaryNeeds";
-import StepCostSummary from "./steps/StepCostSummary";
 import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPayment from "./steps/StepPayment";
@@ -180,8 +179,6 @@ export default function BookingWizard() {
         key: "dietary",
       });
     } else if (isEventSetupOnly) {
-      // For event-setup-only custom bookings, let the customer pick an admin-created
-      // package (which already contains setup equipment) and skip manual equipment selection.
       steps.push({
         id: "PackageSelection",
         label: "Package",
@@ -206,9 +203,7 @@ export default function BookingWizard() {
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
     }
 
-    if (!isFoodOnly) {
-      steps.push({ id: "CostSummary", label: "Cost Summary", key: "summary" });
-    }
+    // ✅ Removed CostSummary step - price info now shown in Review step
     steps.push({ id: "ContactInfo", label: "Contact Info", key: "contact" });
     steps.push({ id: "ReviewBooking", label: "Review Booking", key: "review" });
     steps.push({ id: "Payment", label: "Payment", key: "payment" });
@@ -234,7 +229,6 @@ export default function BookingWizard() {
     },
     EventDetails: {
       check: () => {
-        // If event type is "Other", require a custom value
         const eventType =
           form.event_type === "Other"
             ? form.event_type_other?.trim()
@@ -258,7 +252,6 @@ export default function BookingWizard() {
       message: "Please fill in all required delivery address fields.",
     },
     MenuSelection: {
-      // Optional for now – you can make it required if needed
       check: () => true,
       message: "",
     },
@@ -471,7 +464,6 @@ export default function BookingWizard() {
           );
           sum += perPaxCost * pax;
         }
-        // else fallback 0
       }
     } else {
       // Standard Package
@@ -509,12 +501,10 @@ export default function BookingWizard() {
   const handleNext = () => {
     const validation = STEP_VALIDATIONS[currentStepId];
     if (validation) {
-      // Basic check
       if (!validation.check()) {
         notify(validation.message, "error");
         return;
       }
-      // Extra check (e.g., availability)
       if (validation.extraCheck) {
         const extra = validation.extraCheck();
         if (!extra.valid) {
@@ -630,7 +620,6 @@ export default function BookingWizard() {
             form={form}
             setForm={setForm}
             packageDetails={packageDetails}
-            packages={packages}
             selectedPackageId={form.package_id || initialPackageId}
             onSelectPackage={(pkgId) => {
               const pkg =
@@ -722,17 +711,6 @@ export default function BookingWizard() {
             form={form}
             setForm={setForm}
             inventoryItems={inventoryItems}
-          />
-        );
-      case "CostSummary":
-        return (
-          <StepCostSummary
-            form={form}
-            initialPackageName={initialPackageName}
-            initialPackagePrice={initialPackagePrice}
-            totalPrice={totalPrice}
-            depositAmount={depositAmount}
-            depositPercentage={depositPercentage}
           />
         );
       case "ContactInfo":

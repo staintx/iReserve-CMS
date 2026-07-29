@@ -88,13 +88,6 @@ export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isS
 
         <div className="flex flex-col-reverse sm:flex-row items-stretch justify-between gap-3 pt-4 border-t border-black/10">
           <GoldBtn
-            variant="ghost"
-            onClick={onBack}
-            className="w-full sm:w-auto px-8 py-4"
-          >
-            Back
-          </GoldBtn>
-          <GoldBtn
             onClick={handlePay}
             disabled={isSubmitting}
             className="w-full sm:w-auto px-10 py-6 text-lg shadow-md"

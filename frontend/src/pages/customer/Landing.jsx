@@ -267,49 +267,6 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="packages" className="section landing-section">
-        <h2>Our Packages</h2>
-        {packages.length === 0 ? (
-          <div className="mt-6 flex items-center justify-center py-16 text-sm text-slate-500">
-            No package yet
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-start justify-center gap-4 mt-6">
-              {packages.slice(0, 4).map((pkg) => (
-                <div key={pkg._id || pkg.name} className="landing-package-card">
-                  <div className="landing-package-title">{pkg.name}</div>
-                  <button
-                    type="button"
-                    className="landing-package-thumb"
-                    style={pkg.image_url ? { backgroundImage: `url(${pkg.image_url})` } : undefined}
-                    onClick={() => navigate(pkg._id ? `/packages/${pkg._id}` : "/packages")}
-                    aria-label={`View ${pkg.name}`}
-                  >
-                    <div className="landing-package-hover" aria-hidden="true">
-                      <div className="landing-package-hover-box">
-                        <div className="landing-package-hover-title">{pkg.name}</div>
-                        <div className="landing-package-hover-cta">
-                          <span>Learn more</span>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M5 12h12" />
-                            <path d="m13 6 6 6-6 6" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              ))}
-            </div>
-            {packages.length > 4 && (
-              <div className="flex justify-center mt-6">
-                <button className="btn-outline" onClick={() => navigate("/packages")}>See all</button>
-              </div>
-            )}
-          </>
-        )}
-      </section>
 
       <section id="how-it-works" className="section landing-section soft-bg">
         <h2>How It Works</h2>

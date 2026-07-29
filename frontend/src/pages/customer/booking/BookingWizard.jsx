@@ -25,6 +25,7 @@ import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPayment from "./steps/StepPayment";
 import StepEquipmentSelection from "./steps/StepEquipmentSelection";
+import StepPackageSelection from "./steps/StepPackageSelection";
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -124,6 +125,7 @@ export default function BookingWizard() {
 
   const [menuItems, setMenuItems] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [error, setError] = useState("");
   const [availability, setAvailability] = useState({
     status: "idle",
@@ -178,12 +180,14 @@ export default function BookingWizard() {
         key: "dietary",
       });
     } else if (isEventSetupOnly) {
-      steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
+      // For event-setup-only custom bookings, let the customer pick an admin-created
+      // package (which already contains setup equipment) and skip manual equipment selection.
       steps.push({
-        id: "EquipmentSelection",
-        label: "Equipment",
-        key: "equipment",
+        id: "PackageSelection",
+        label: "Package",
+        key: "package",
       });
+      steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
     } else if (isFoodAndEventSetup) {
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
       steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
@@ -262,6 +266,10 @@ export default function BookingWizard() {
       check: () => true,
       message: "",
     },
+    PackageSelection: {
+      check: () => !!form.package_id || !!initialPackageId,
+      message: "Please select a package to continue.",
+    },
     ContactInfo: {
       check: () =>
         !!form.contact_first_name &&
@@ -325,12 +333,44 @@ export default function BookingWizard() {
   }, []);
 
   useEffect(() => {
-    if (initialPackageId) {
-      CustomerAPI.getPackageById(initialPackageId)
-        .then((res) => setPackageDetails(res.data))
-        .catch(() => {});
+    CustomerAPI.getPackages()
+      .then((res) => {
+        const next = Array.isArray(res.data) ? res.data : [];
+        setPackages(next.filter((pkg) => pkg?.available !== false));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const selectedPackageId = form.package_id || initialPackageId;
+    if (!selectedPackageId) {
+      setPackageDetails(null);
+      return;
     }
-  }, [initialPackageId]);
+
+    CustomerAPI.getPackageById(selectedPackageId)
+      .then((res) => setPackageDetails(res.data))
+      .catch(() => setPackageDetails(null));
+  }, [form.package_id, initialPackageId]);
+
+  // If an event-setup-only package is selected, populate inventory_items from package setup_equipment
+  useEffect(() => {
+    if (!packageDetails) return;
+    if (form.service_type !== "Event Setup Only") return;
+    if (!Array.isArray(packageDetails.setup_equipment)) return;
+
+    const inventoryItemsFromPackage = packageDetails.setup_equipment.map(
+      (it) => ({
+        inventory_id: it.inventory_id,
+        quantity: Number(it.quantity || 1),
+      }),
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      inventory_items: inventoryItemsFromPackage,
+    }));
+  }, [packageDetails, form.service_type]);
 
   // --- Availability auto-check ---
   useEffect(() => {
@@ -415,7 +455,12 @@ export default function BookingWizard() {
         businessInfo?.custom_food_and_event_price || 800;
 
       if (form.service_type === "Event Setup Only") {
-        sum += customEventSetupPrice;
+        const selectedPackageId = form.package_id || initialPackageId;
+        const packagePrice = Number(packageDetails?.setup_price || 0);
+        sum +=
+          selectedPackageId && packagePrice > 0
+            ? packagePrice
+            : customEventSetupPrice;
       } else if (form.service_type === "Food and Event Setup") {
         sum += customFoodEventPricePerPax * pax;
       } else if (form.service_type === "Food Only") {
@@ -509,7 +554,8 @@ export default function BookingWizard() {
           ? String(form.event_type_other || "").trim()
           : String(form.event_type || "").trim();
 
-      const finalEventType = eventTypeValue || (isFoodOnly ? "Food Delivery" : "");
+      const finalEventType =
+        eventTypeValue || (isFoodOnly ? "Food Delivery" : "");
 
       const payload = {
         ...form,
@@ -521,11 +567,13 @@ export default function BookingWizard() {
         payment_method: paymentMethod,
         inventory_items: form.additional_services,
         delivery_method: isFoodOnly ? form.delivery_method : "setup",
-        selected_menu: form.selected_menu ? form.selected_menu.map(m => m._id || m) : [],
+        selected_menu: form.selected_menu
+          ? form.selected_menu.map((m) => m._id || m)
+          : [],
       };
 
-      if (initialPackageId) {
-        payload.package_id = initialPackageId;
+      if (form.package_id || initialPackageId) {
+        payload.package_id = form.package_id || initialPackageId;
       }
 
       delete payload.event_type_other;
@@ -575,6 +623,16 @@ export default function BookingWizard() {
             onNext={handleNext}
           />
         );
+      case "PackageSelection":
+        return (
+          <StepPackageSelection
+            packages={packages}
+            selectedPackageId={form.package_id || initialPackageId}
+            onSelectPackage={(pkgId) => {
+              setForm((prev) => ({ ...prev, package_id: pkgId }));
+            }}
+          />
+        );
       case "EventDetails":
         return (
           <StepEventDetails
@@ -584,7 +642,7 @@ export default function BookingWizard() {
             municipalities={municipalities}
             barangays={barangays}
             isCustomBooking={isCustomBooking}
-            selectedPackageName={initialPackageName}
+            selectedPackageName={packageDetails?.name || initialPackageName}
             guestMin={guestMin}
             guestMax={guestMax}
           />
@@ -613,7 +671,15 @@ export default function BookingWizard() {
           />
         );
       case "DietaryNeeds":
-        return <StepDietaryNeeds form={form} setForm={setForm} totalPrice={totalPrice} depositAmount={depositAmount} onNext={handleNext} />;
+        return (
+          <StepDietaryNeeds
+            form={form}
+            setForm={setForm}
+            totalPrice={totalPrice}
+            depositAmount={depositAmount}
+            onNext={handleNext}
+          />
+        );
       case "EquipmentSelection":
         return (
           <StepEquipmentSelection
@@ -678,21 +744,22 @@ export default function BookingWizard() {
         <div className="mb-6">{renderStep()}</div>
 
         <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-black/10 pt-6">
-          <GoldBtn
-            variant="ghost"
-            onClick={handleBack}
-          >
+          <GoldBtn variant="ghost" onClick={handleBack}>
             Back
           </GoldBtn>
-          {currentStepId !== "Payment" && (!["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(currentStepId) && !(currentStepId === "DateTime" && requireAvailabilityCheck)) && (
-            <GoldBtn
-              variant="primary"
-              onClick={handleNext}
-              className="w-full sm:w-auto"
-            >
-              Continue
-            </GoldBtn>
-          )}
+          {currentStepId !== "Payment" &&
+            !["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(
+              currentStepId,
+            ) &&
+            !(currentStepId === "DateTime" && requireAvailabilityCheck) && (
+              <GoldBtn
+                variant="primary"
+                onClick={handleNext}
+                className="w-full sm:w-auto"
+              >
+                Continue
+              </GoldBtn>
+            )}
         </div>
       </div>
 

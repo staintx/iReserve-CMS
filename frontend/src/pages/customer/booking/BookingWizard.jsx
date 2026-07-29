@@ -202,7 +202,9 @@ export default function BookingWizard() {
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
     }
 
-    steps.push({ id: "CostSummary", label: "Cost Summary", key: "summary" });
+    if (!isFoodOnly) {
+      steps.push({ id: "CostSummary", label: "Cost Summary", key: "summary" });
+    }
     steps.push({ id: "ContactInfo", label: "Contact Info", key: "contact" });
     steps.push({ id: "ReviewBooking", label: "Review Booking", key: "review" });
     steps.push({ id: "Payment", label: "Payment", key: "payment" });
@@ -654,6 +656,7 @@ export default function BookingWizard() {
             isFoodOnly={isFoodOnly}
             isSubmitting={isSubmitting}
             onSubmit={submitBooking}
+            onBack={handleBack}
             error={error}
           />
         );
@@ -674,25 +677,23 @@ export default function BookingWizard() {
 
         <div className="mb-6">{renderStep()}</div>
 
-        {currentStepId !== "Payment" && (
-          <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-black/10 pt-6">
+        <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-black/10 pt-6">
+          <GoldBtn
+            variant="ghost"
+            onClick={handleBack}
+          >
+            Back
+          </GoldBtn>
+          {currentStepId !== "Payment" && (!["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(currentStepId) && !(currentStepId === "DateTime" && requireAvailabilityCheck)) && (
             <GoldBtn
-              variant="ghost"
-              onClick={handleBack}
+              variant="primary"
+              onClick={handleNext}
+              className="w-full sm:w-auto"
             >
-              Back
+              Continue
             </GoldBtn>
-            {(!["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(currentStepId) && !(currentStepId === "DateTime" && requireAvailabilityCheck)) && (
-              <GoldBtn
-                variant="primary"
-                onClick={handleNext}
-                className="w-full sm:w-auto"
-              >
-                Continue
-              </GoldBtn>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Modals */}

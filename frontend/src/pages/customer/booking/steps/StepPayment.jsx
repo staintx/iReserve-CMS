@@ -3,7 +3,7 @@ import { CreditCard, Smartphone, Banknote, ShieldCheck, Loader2 } from "lucide-r
 import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 
-export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isSubmitting, onSubmit, error }) {
+export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isSubmitting, onSubmit, onBack, error }) {
   const [selectedMethod, setSelectedMethod] = useState("gcash");
   
   const paymentMethods = [
@@ -86,7 +86,14 @@ export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isS
           </div>
         </div>
 
-        <div className="flex justify-end pt-4 border-t border-black/10">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch justify-between gap-3 pt-4 border-t border-black/10">
+          <GoldBtn
+            variant="ghost"
+            onClick={onBack}
+            className="w-full sm:w-auto px-8 py-4"
+          >
+            Back
+          </GoldBtn>
           <GoldBtn
             onClick={handlePay}
             disabled={isSubmitting}

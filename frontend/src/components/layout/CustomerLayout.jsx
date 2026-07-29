@@ -107,7 +107,7 @@ export default function CustomerLayout({ children }) {
             {!user && (
               <>
                 <Button variant="ghost" onClick={() => navigate("/login")}>Login</Button>
-                <Button onClick={() => navigate("/customer/book")}>Book Now</Button>
+                <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Book Now</Button>
               </>
             )}
 

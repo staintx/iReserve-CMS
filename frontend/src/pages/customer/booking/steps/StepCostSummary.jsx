@@ -1,6 +1,5 @@
 import { Receipt } from "lucide-react";
-import { Card, CardContent } from "../../../../components/ui/card";
-import { cn } from "@/lib/utils";
+import { SH } from "../components/BookingSharedUI";
 
 export default function StepCostSummary({ form, initialPackageName, initialPackagePrice, totalPrice, depositAmount, depositPercentage }) {
   
@@ -22,113 +21,131 @@ export default function StepCostSummary({ form, initialPackageName, initialPacka
     return `Estimated catering base for ${guestCount} guests`;
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   return (
-    <Card className="overflow-hidden border-border bg-card shadow-soft">
-      <div className="border-b border-border p-6 md:p-8">
-        <h2 className="mb-2 text-2xl font-bold text-foreground">Cost Summary</h2>
-        <p className="text-sm text-muted-foreground">Review your package breakdown and payment details.</p>
-      </div>
+    <div className="max-w-3xl mx-auto py-6 space-y-6">
+      <SH title="Cost Summary" sub="Review your package breakdown and payment details." />
 
-      <CardContent className="bg-muted/10 p-6 md:p-8">
-        <div className="mx-auto max-w-2xl">
-          {/* Main Booking Details */}
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-y-4 rounded-2xl border border-border bg-background p-6 shadow-sm">
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selected Package</p>
-              <p className="font-medium text-foreground">{displayName}</p>
-              {isCustom && <p className="mt-1 text-xs text-muted-foreground">{form.service_type}</p>}
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guests</p>
-              <p className="font-medium text-foreground">{guestCount}</p>
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</p>
-              <p className="font-medium text-foreground">
-                {form.event_date ? new Date(form.event_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : "-"}
-              </p>
-            </div>
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Time</p>
-              <p className="font-medium text-foreground">{form.start_time || "-"}</p>
-            </div>
+      <div className="bg-white rounded-2xl border border-black/[0.08] p-6 sm:p-8 shadow-sm">
+        {/* Main Booking Details */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#F7F4EE] rounded-xl p-5 mb-8">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E] mb-1">Package</p>
+            <p className="font-semibold text-[#111]">{displayName}</p>
+            {isCustom && <p className="text-[10px] text-[#6B6657]">{form.service_type}</p>}
           </div>
-
-          {/* Cost Breakdown Table */}
-          <div className="mb-6 overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
-            <div className="flex items-center justify-between border-b border-border bg-muted/50 px-6 py-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Description</span>
-              <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Amount</span>
-            </div>
-            <div className="space-y-5 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-foreground">{displayName}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{getBasePriceDescription()}</p>
-                </div>
-                <p className="font-medium text-foreground">₱{baseTotalAmount.toLocaleString()}</p>
-              </div>
-
-              {form.service_type === "Food Only" && form.selected_menu && form.selected_menu.length > 0 && (
-                <div className="mt-4 space-y-3 border-l-2 border-accent/20 pl-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selected Menu</p>
-                  {form.selected_menu.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">₱{(item.price || 0).toLocaleString()} / pax</p>
-                      </div>
-                      <p className="text-sm font-medium text-foreground">₱{((item.price || 0) * guestCount).toLocaleString()}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {form.additional_services?.map((svc, idx) => {
-                const price = Number(svc.price) || 0;
-                const qty = Number(svc.quantity) || 1;
-                return (
-                  <div key={idx} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">{svc.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">₱{price.toLocaleString()} x {qty}</p>
-                    </div>
-                    <p className="font-medium text-foreground">₱{(price * qty).toLocaleString()}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-5">
-              <span className="font-semibold text-foreground">Estimated Total</span>
-              <span className="text-xl font-bold text-foreground">₱{totalPrice.toLocaleString()}</span>
-            </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E] mb-1">Guests</p>
+            <p className="font-semibold text-[#111]">{guestCount}</p>
           </div>
-
-          {/* Deposit Required Highlight */}
-          <div className="flex items-start gap-4 rounded-2xl border border-accent/30 bg-accent/5 p-6">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Receipt size={20} strokeWidth={2.5} />
-            </div>
-            <div className="flex-1 pt-1">
-              <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <h4 className="text-lg font-semibold text-foreground">Deposit Required</h4>
-                  <p className="mt-0.5 text-sm text-muted-foreground">A {depositPercentage}% deposit is required to secure your booking.</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-accent">₱{depositAmount.toLocaleString()}</p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">To be paid today</p>
-                </div>
-              </div>
-              <div className="my-4 h-px w-full bg-accent/20"></div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-muted-foreground">Remaining Balance (Due later)</span>
-                <span className="font-semibold text-foreground">₱{(totalPrice - depositAmount).toLocaleString()}</span>
-              </div>
-            </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E] mb-1">Date</p>
+            <p className="font-semibold text-[#111]">{formatDate(form.event_date)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E] mb-1">Time</p>
+            <p className="font-semibold text-[#111]">{form.start_time || "-"}</p>
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Cost Breakdown Table */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between border-b-2 border-black/10 pb-3 mb-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#111]">Description</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-[#111]">Amount</span>
+          </div>
+          
+          <div className="space-y-4">
+            {!(isCustom && form.service_type === "Food Only") && (
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-[#111]">{displayName}</p>
+                  <p className="text-xs text-[#6B6657] mt-0.5">{getBasePriceDescription()}</p>
+                </div>
+                <p className="font-semibold text-[#111]">₱{baseTotalAmount.toLocaleString()}</p>
+              </div>
+            )}
+
+            {isCustom && form.service_type === "Food Only" && form.selected_menu && form.selected_menu.length > 0 && (
+              <div className="space-y-3 my-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E]">{displayName} (Selected Menu)</p>
+                {form.selected_menu.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-[#111]">{item.name}</p>
+                      <p className="text-xs text-[#6B6657]">₱{(item.price || 0).toLocaleString()} / pax</p>
+                    </div>
+                    <p className="text-sm font-medium text-[#111]">₱{((item.price || 0) * guestCount).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {form.additional_services?.map((svc, idx) => {
+              const price = Number(svc.price) || 0;
+              const qty = Number(svc.quantity) || 1;
+              return (
+                <div key={idx} className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-[#111]">{svc.name}</p>
+                    <p className="text-xs text-[#6B6657] mt-0.5">₱{price.toLocaleString()} x {qty}</p>
+                  </div>
+                  <p className="font-semibold text-[#111]">₱{(price * qty).toLocaleString()}</p>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="flex items-center justify-between border-t border-black/10 mt-6 pt-6">
+            <span className="font-bold text-[#111]">Estimated Total</span>
+            <span className="text-xl font-bold text-[#D4AF37]">₱{totalPrice.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Deposit Required Highlight */}
+        {isCustom && form.service_type === "Food Only" ? (
+          <div className="rounded-2xl border-2 border-[#D4AF37] bg-[#D4AF37]/5 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#D4AF37]/20 text-[#D4AF37]">
+              <Receipt size={24} />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-[#111]">Payment Options</h4>
+              <p className="text-xs text-[#6B6657] mt-1">Pay a {depositPercentage}% deposit to secure your booking, or choose Cash on Delivery (COD).</p>
+              <div className="flex items-center justify-between text-xs mt-3 pt-3 border-t border-[#D4AF37]/20">
+                <span className="text-[#6B6657]">Total on Delivery (if COD)</span>
+                <span className="font-semibold text-[#111]">₱{totalPrice.toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 border-[#D4AF37]/20 pt-4 sm:pt-0 mt-2 sm:mt-0">
+              <p className="text-3xl font-bold text-[#D4AF37] leading-none" style={{ fontFamily: "Playfair Display, serif" }}>₱{depositAmount.toLocaleString()}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E] mt-2">Deposit (if paying online)</p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-[#D4AF37] bg-[#D4AF37]/5 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#D4AF37]/20 text-[#D4AF37]">
+              <Receipt size={24} />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-[#111]">Deposit Required</h4>
+              <p className="text-xs text-[#6B6657] mt-1">A {depositPercentage}% deposit is required to secure your booking today.</p>
+              <div className="flex items-center justify-between text-xs mt-3 pt-3 border-t border-[#D4AF37]/20">
+                <span className="text-[#6B6657]">Remaining Balance (Due later)</span>
+                <span className="font-semibold text-[#111]">₱{(totalPrice - depositAmount).toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 border-[#D4AF37]/20 pt-4 sm:pt-0 mt-2 sm:mt-0">
+              <p className="text-3xl font-bold text-[#D4AF37] leading-none" style={{ fontFamily: "Playfair Display, serif" }}>₱{depositAmount.toLocaleString()}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E] mt-2">Due Today</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

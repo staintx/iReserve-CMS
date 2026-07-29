@@ -140,7 +140,7 @@ exports.update = async (req, res) => {
   const updated = await Package.findByIdAndUpdate(req.params.id, data, { new: true });
 
   // Build changes object for the log
-  const trackFields = ["name", "description", "fullDescription", "size", "price_min", "price_max", "available", "event_type", "package_type", "max_guests", "booking_requirements", "cancellation_policy"];
+  const trackFields = ["name", "description", "fullDescription", "size", "price_per_guest", "setup_price", "available", "event_type", "package_type", "guest_max", "booking_requirements", "cancellation_policy"];
   const changes = {};
   for (const field of trackFields) {
     if (req.body[field] !== undefined && String(current[field]) !== String(req.body[field])) {

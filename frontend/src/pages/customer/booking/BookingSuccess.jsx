@@ -16,7 +16,7 @@ export default function BookingSuccess() {
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
   const [scheduling, setScheduling] = useState(false);
-  const [isLoading, setIsLoading] = useState(!!searchParams.get('booking_id') && !location.state?.booking);
+  const [isLoading, setIsLoading] = useState((!!searchParams.get('booking_id') || !!searchParams.get('session_id')) && !location.state?.booking);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -42,10 +42,27 @@ export default function BookingSuccess() {
   useEffect(() => {
     if (!booking) {
       const bookingId = searchParams.get('booking_id');
-      if (bookingId) {
+      const sessionId = searchParams.get('session_id');
+      
+      if (bookingId || sessionId) {
         CustomerAPI.getBookings()
-          .then((res) => {
-            const found = res.data.find(b => b._id === bookingId);
+          .then(async (res) => {
+            let found = null;
+            if (bookingId) {
+              found = res.data.find(b => b._id === bookingId);
+            }
+            if (!found && sessionId) {
+              try {
+                const payRes = await CustomerAPI.getPayments();
+                const payment = payRes.data.find(p => p.gateway_checkout_id === sessionId);
+                if (payment && payment.booking_id) {
+                  const bId = typeof payment.booking_id === 'object' ? payment.booking_id._id : payment.booking_id;
+                  found = res.data.find(b => b._id === bId);
+                }
+              } catch (payErr) {
+                console.error("Failed to fetch payments:", payErr);
+              }
+            }
             if (found) {
               setBooking(found);
             }
@@ -60,9 +77,9 @@ export default function BookingSuccess() {
     if (!ocularDate || !ocularTime || !booking) return;
     setScheduling(true);
     try {
-      await CustomerAPI.scheduleOcularVisit(booking._id, {
-        date: ocularDate,
-        time: ocularTime
+      await CustomerAPI.requestOcular(booking._id, {
+        scheduled_date: ocularDate,
+        scheduled_time: ocularTime
       });
       navigate(`/customer/bookings/${booking._id}`, { state: { ocularSuccess: true } });
     } catch (err) {
@@ -111,8 +128,14 @@ export default function BookingSuccess() {
               <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 className="w-10 h-10 text-green-500" />
               </div>
-              <h1 className="text-4xl font-serif font-bold text-foreground mb-3">Payment Complete!</h1>
-              <p className="text-muted-foreground text-lg">Your deposit has been successfully processed.</p>
+              <h1 className="text-4xl font-serif font-bold text-foreground mb-3">
+                {booking?.payment_method === "cod" ? "Order Placed Successfully!" : "Payment Complete!"}
+              </h1>
+              <p className="text-muted-foreground text-lg">
+                {booking?.payment_method === "cod" 
+                  ? "Your order has been placed. Please prepare cash for delivery." 
+                  : "Your deposit has been successfully processed."}
+              </p>
             </div>
 
             <div className="p-8 bg-muted/30">
@@ -123,9 +146,11 @@ export default function BookingSuccess() {
                   <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 w-5 h-5 bg-muted/30 rounded-full border-l border-border"></div>
                   
                   <div className="text-center pb-6 border-b border-dashed border-border">
-                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Amount Paid</p>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                      {booking?.payment_method === "cod" ? "Total to Pay (COD)" : "Amount Paid"}
+                    </p>
                     <p className="text-4xl font-bold text-accent">
-                      ₱{booking ? depositPaid.toLocaleString() : "..."}
+                      ₱{booking ? (booking.payment_method === "cod" ? booking.total_price.toLocaleString() : depositPaid.toLocaleString()) : "..."}
                     </p>
                   </div>
                   
@@ -148,7 +173,7 @@ export default function BookingSuccess() {
                 </Card>
 
                 <div className="space-y-3">
-                  {booking?.service_type !== "food" && (
+                  {booking?.service_type !== "food" && booking?.service_type !== "Food Only" && (
                     <Button 
                       size="lg"
                       className="w-full text-base font-medium rounded-xl h-14 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -212,30 +237,35 @@ export default function BookingSuccess() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-7 gap-x-2 gap-y-4 w-full">
+                <div className="mb-2 gap-1 text-center w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                    <div key={day} className="text-center text-xs font-medium text-muted-foreground">
+                    <div key={day} className="py-2 text-[11px] font-semibold text-muted-foreground/60">
                       {day}
                     </div>
                   ))}
+                </div>
+                <div className="gap-1 text-center mb-6 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+
                   {getDaysInMonth(currentMonth).map((date, idx) => {
-                    if (!date) return <div key={`empty-${idx}`} />;
+                    if (!date) return <div key={`empty-${idx}`} className="p-2" />;
                     const dateString = date.toISOString().split('T')[0];
                     const isSelected = ocularDate === dateString;
                     const isPast = date < new Date(new Date().setHours(0,0,0,0));
+                    const eventDate = booking?.event_date ? new Date(new Date(booking.event_date).setHours(0,0,0,0)) : null;
+                    const isAfterEvent = eventDate ? date >= eventDate : false;
+                    const isDisabled = isPast || isAfterEvent;
                     
                     return (
                       <button
                         key={dateString}
-                        disabled={isPast}
+                        disabled={isDisabled}
                         onClick={() => setOcularDate(dateString)}
                         className={cn(
-                          "w-10 h-10 mx-auto rounded-full flex items-center justify-center text-sm transition-all",
-                          isSelected 
-                            ? "bg-accent text-accent-foreground font-bold" 
-                            : isPast 
-                              ? "text-muted-foreground opacity-50 cursor-not-allowed" 
-                              : "text-foreground hover:bg-accent/20 hover:text-accent-foreground"
+                          "mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-sm transition-all font-medium",
+                          isDisabled 
+                              ? "cursor-not-allowed text-muted-foreground/30" 
+                              : "text-foreground hover:bg-muted/50",
+                          isSelected ? "bg-accent font-bold text-accent-foreground shadow-sm hover:bg-accent/90" : ""
                         )}
                       >
                         {date.getDate()}

@@ -1,31 +1,27 @@
 import React from "react";
-import { Card, CardContent } from "../../../../components/ui/card";
-import { Label } from "../../../../components/ui/label";
+import { Card, SH, FL, TTextarea } from "../components/BookingSharedUI";
 import LiveEstimate from "../components/LiveEstimate";
 
 export default function StepDietaryNeeds({ form, setForm, totalPrice, depositAmount, onNext }) {
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
-      <Card className="flex-1 overflow-hidden border-border bg-card shadow-soft">
-        <div className="border-b border-border bg-accent/5 p-6 md:p-8">
-          <h2 className="mb-2 text-2xl font-bold text-foreground">Dietary Needs</h2>
-          <p className="text-sm text-muted-foreground">Please let us know of any allergies or dietary restrictions.</p>
-        </div>
+    <div className="flex flex-col gap-6 lg:flex-row max-w-6xl mx-auto py-6">
+      <div className="flex-1 space-y-6">
+        <SH title="Dietary Needs" sub="Please let us know of any allergies or dietary restrictions." />
 
-        <CardContent className="p-6 md:p-8">
-          <div className="space-y-2">
-            <Label>Allergies and Intolerances (Optional)</Label>
-            <textarea
-              className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Nut allergies, seafood allergies, lactose intolerance, etc."
-              value={form.allergies || ""}
-              onChange={(e) => setForm({ ...form, allergies: e.target.value })}
-            ></textarea>
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="p-6">
+          <FL>Allergies and Intolerances (Optional)</FL>
+          <TTextarea
+            placeholder="Nut allergies, seafood allergies, lactose intolerance, etc."
+            value={form.allergies || ""}
+            onChange={(val) => setForm({ ...form, allergies: val })}
+            rows={5}
+          />
+        </Card>
+      </div>
 
-      <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
+      <div className="w-full lg:w-80 flex-shrink-0">
+        <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
+      </div>
     </div>
   );
 }

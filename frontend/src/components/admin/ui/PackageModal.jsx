@@ -189,7 +189,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Max Guests</label>
-                <input type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="150" value={formData.guest_max} onChange={e => setFormData({...formData, guest_max: e.target.value})} />
+                <input type="number" min="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="150" value={formData.guest_max} onChange={e => { if (Number(e.target.value) < 0) return; setFormData({...formData, guest_max: e.target.value})}} />
               </div>
               <div className="col-span-2">
                 <label className="block text-sm text-gray-600 mb-1">Short Description</label>
@@ -207,13 +207,13 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 {formData.package_type === "Event Setup Only" && (
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Total Setup Price (₱)</label>
-                    <input type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="e.g. 50000" value={formData.setup_price} onChange={e => setFormData({...formData, setup_price: e.target.value})} />
+                    <input type="number" min="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="e.g. 50000" value={formData.setup_price} onChange={e => { if (Number(e.target.value) < 0) return; setFormData({...formData, setup_price: e.target.value})}} />
                   </div>
                 )}
                 {formData.package_type === "Food + Event Setup" && (
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Price (₱) per guest</label>
-                    <input type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="e.g. 1500" value={formData.price_per_guest} onChange={e => setFormData({...formData, price_per_guest: e.target.value})} />
+                    <input type="number" min="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" placeholder="e.g. 1500" value={formData.price_per_guest} onChange={e => { if (Number(e.target.value) < 0) return; setFormData({...formData, price_per_guest: e.target.value})}} />
                     <p className="text-xs text-gray-500 mt-1">Setup is included for free.</p>
                   </div>
                 )}

@@ -12,7 +12,6 @@ const BookingSchema = new mongoose.Schema(
     package_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Package",
-      required: [true, "Package selection is required"],
     },
     event_manager_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     // staff_ids removed – use staff_assignments instead

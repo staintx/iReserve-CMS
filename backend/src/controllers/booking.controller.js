@@ -46,11 +46,12 @@ const calculateBookingPrice = async (body) => {
 	if (body.package_id) {
 		const pkg = await Package.findById(body.package_id);
 		if (pkg) {
-			const basePrice = Number(pkg.price_min) || 0;
 			const packageType = pkg.package_type || "Food + Event Setup";
 			if (packageType === "Event Setup Only") {
+				const basePrice = Number(pkg.setup_price) || 0;
 				sum += basePrice;
 			} else {
+				const basePrice = Number(pkg.price_per_guest) || 0;
 				sum += basePrice * guestCount;
 			}
 		}
@@ -231,10 +232,10 @@ exports.create = asyncHandler(async (req, res) => {
 
 	if (req.user?.role === "customer") {
 		req.body.customer_id = req.user._id;
-		req.body.status = "pending deposit";
+		req.body.status = req.body.payment_method === "cod" ? "confirmed" : "pending deposit";
 		req.body.payment_status = "pending";
 	} else if (!req.body.status) {
-		req.body.status = "pending deposit";
+		req.body.status = req.body.payment_method === "cod" ? "confirmed" : "pending deposit";
 	}
 
 	const conflict = await findBookingConflict({
@@ -325,7 +326,7 @@ exports.create = asyncHandler(async (req, res) => {
 	}
 
 	// Create payment checkout for deposit
-	if (req.user?.role === "customer" && req.body.payment_method) {
+	if (req.user?.role === "customer" && req.body.payment_method && req.body.payment_method !== "cod") {
 		try {
 			const BusinessInfo = require("../models/BusinessInfo");
 			const Payment = require("../models/Payment");
@@ -387,11 +388,12 @@ exports.create = asyncHandler(async (req, res) => {
 
 
 exports.getAll = asyncHandler(async (req, res) => {
-	res.json(await Booking.find().populate("customer_id package_id event_manager_id staff_ids"));
+	res.json(await Booking.find().populate("customer_id package_id event_manager_id"));
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
-	res.json(await Booking.find({ customer_id: req.user._id }).populate("customer_id package_id event_manager_id staff_ids"));
+	const bookings = await Booking.find({ customer_id: req.user._id }).populate("customer_id package_id event_manager_id");
+	res.json(bookings);
 });
 
 exports.getById = asyncHandler(async (req, res) => {
@@ -614,7 +616,7 @@ exports.addGuests = asyncHandler(async (req, res) => {
 	if (booking.package_id) {
 		const pkg = await Package.findById(booking.package_id);
 		if (pkg && pkg.package_type !== "Event Setup Only") {
-			pricePerHead = Number(pkg.price_min) || pricePerHead;
+			pricePerHead = Number(pkg.price_per_guest) || pricePerHead;
 		}
 	}
 	const amountDue = additionalGuests * pricePerHead;

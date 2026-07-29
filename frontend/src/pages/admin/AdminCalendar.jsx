@@ -47,10 +47,10 @@ export default function AdminCalendar() {
                 <p className="font-bold text-[#111]">August 2025</p>
                 <button className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight size={16} /></button>
               </div>
-              <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                 {DAYS.map(d => <div key={d} className="text-center text-xs font-bold text-[#9CA3AF] py-1">{d}</div>)}
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                 {Array(4).fill(null).map((_, i) => <div key={i} />)}
                 {Array(31).fill(null).map((_, i) => {
                   const day = i + 1;

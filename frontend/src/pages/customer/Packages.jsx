@@ -392,6 +392,10 @@ export default function Packages() {
                               packageId: p._id,
                               packagePrice: hasPrice ? perGuest : 0,
                               packageName: p.name,
+                              guestMin: p.guest_min || 1,
+                              guestMax: p.guest_max || 100,
+                              initialStep: 0,
+                              resetWizard: true,
                             },
                           });
                         }}

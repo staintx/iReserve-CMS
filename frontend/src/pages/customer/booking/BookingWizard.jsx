@@ -11,7 +11,7 @@ import {
 } from "../../../utils/batangas";
 import Modal from "../../../components/common/Modal";
 import { Button } from "../../../components/ui/button";
-
+import { GoldBtn } from "./components/BookingSharedUI";
 // Step Components
 import BookingStepper from "./components/BookingStepper";
 import StepServiceType from "./steps/StepServiceType";
@@ -442,6 +442,7 @@ export default function BookingWizard() {
     form.guest_count,
     form.service_type,
     form.additional_services,
+    form.selected_menu,
     initialPackagePrice,
     packageDetails,
     isCustomBooking,
@@ -506,16 +507,19 @@ export default function BookingWizard() {
           ? String(form.event_type_other || "").trim()
           : String(form.event_type || "").trim();
 
+      const finalEventType = eventTypeValue || (isFoodOnly ? "Food Delivery" : "");
+
       const payload = {
         ...form,
         customer_id: user._id,
-        event_type: eventTypeValue,
+        event_type: finalEventType,
         guest_count: parseNumber(form.guest_count),
         duration_hours: parseNumber(form.duration_hours) || 4,
         total_price: totalPrice,
         payment_method: paymentMethod,
         inventory_items: form.additional_services,
         delivery_method: isFoodOnly ? form.delivery_method : "setup",
+        selected_menu: form.selected_menu ? form.selected_menu.map(m => m._id || m) : [],
       };
 
       if (initialPackageId) {
@@ -646,6 +650,8 @@ export default function BookingWizard() {
         return (
           <StepPayment
             depositAmount={depositAmount}
+            totalPrice={totalPrice}
+            isFoodOnly={isFoodOnly}
             isSubmitting={isSubmitting}
             onSubmit={submitBooking}
             error={error}
@@ -669,23 +675,21 @@ export default function BookingWizard() {
         <div className="mb-6">{renderStep()}</div>
 
         {currentStepId !== "Payment" && (
-          <div className="mt-8 flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-soft">
-            <Button
+          <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-black/10 pt-6">
+            <GoldBtn
               variant="ghost"
-              size="lg"
               onClick={handleBack}
-              className="px-6 py-3 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               Back
-            </Button>
+            </GoldBtn>
             {(!["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(currentStepId) && !(currentStepId === "DateTime" && requireAvailabilityCheck)) && (
-              <Button
-                size="lg"
+              <GoldBtn
+                variant="primary"
                 onClick={handleNext}
-                className="px-8 py-3 font-medium shadow-sm active:scale-[0.98]"
+                className="w-full sm:w-auto"
               >
                 Continue
-              </Button>
+              </GoldBtn>
             )}
           </div>
         )}

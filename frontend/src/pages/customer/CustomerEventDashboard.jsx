@@ -43,7 +43,23 @@ export default function CustomerEventDashboard() {
     );
   }
 
-  const steps = [
+  const steps = booking.payment_method === "cod" ? [
+    { 
+      label: "Order Placed", 
+      completed: true, 
+      date: new Date(booking.createdAt).toLocaleDateString()
+    },
+    {
+      label: "Preparing Order",
+      completed: ["preparing", "ongoing", "completed"].includes(booking.status),
+      date: ["preparing", "ongoing", "completed"].includes(booking.status) ? "In Progress" : "Pending"
+    },
+    { 
+      label: "Out for Delivery & COD", 
+      completed: booking.status === "completed",
+      date: booking.status === "completed" ? "Completed" : "Upon Delivery"
+    },
+  ] : [
     { 
       label: "Reservation Submitted", 
       completed: true, 

@@ -1,6 +1,6 @@
 import React from "react";
 import { PackageOpen, Info, Plus, Minus } from "lucide-react";
-import { Card, CardContent } from "../../../../components/ui/card";
+import { Card, SH, FL } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 
 export default function StepEquipmentSelection({ form, setForm, inventoryItems }) {
@@ -58,16 +58,13 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
   const currentDecor = form.special_requests ? form.special_requests.split(', ') : [];
 
   return (
-    <Card className="overflow-hidden border-border bg-card shadow-soft">
-      <div className="border-b border-border p-6 md:p-8">
-        <h2 className="mb-2 text-2xl font-bold text-foreground">Equipment & Decor</h2>
-        <p className="text-sm text-muted-foreground">Select the equipment and add-on services you need for your event.</p>
-      </div>
+    <div className="space-y-6 max-w-5xl mx-auto py-6">
+      <SH title="Equipment & Decor" sub="Select the equipment and add-on services you need for your event." />
 
-      <CardContent className="space-y-8 p-6 md:p-8">
+      <Card className="p-6">
         {inventoryItems && inventoryItems.length > 0 ? (
-          <div>
-            <h3 className="mb-4 border-b border-border pb-2 text-sm font-semibold uppercase tracking-wider text-foreground">Available Equipment</h3>
+          <div className="mb-8">
+            <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2 text-sm uppercase tracking-wider">Available Equipment</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {inventoryItems.map((item) => {
                 const qty = getSelectedQuantity(item._id);
@@ -75,25 +72,25 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
                   <div 
                     key={item._id} 
                     className={cn(
-                      "flex flex-col justify-between rounded-xl border p-4 transition-all",
-                      qty > 0 ? "border-accent bg-accent/5 ring-1 ring-accent" : "border-border bg-background"
+                      "flex flex-col justify-between rounded-xl border-2 p-4 transition-all",
+                      qty > 0 ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-black/[0.08] bg-white hover:border-[#D4AF37]/40"
                     )}
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h4 className="font-semibold text-foreground">{item.item_name}</h4>
-                        <p className="text-sm text-muted-foreground">₱{item.rental_price?.toLocaleString() || 0} / unit</p>
+                        <h4 className="font-semibold text-[#111]">{item.item_name}</h4>
+                        <p className="text-sm text-[#6B6657]">₱{item.rental_price?.toLocaleString() || 0} / unit</p>
                       </div>
-                      <PackageOpen className={cn("w-5 h-5", qty > 0 ? "text-accent" : "text-muted-foreground")} />
+                      <PackageOpen className={cn("w-5 h-5", qty > 0 ? "text-[#D4AF37]" : "text-[#9E9E9E]")} />
                     </div>
                     
                     <div className="flex items-center justify-between mt-auto">
-                      <span className="text-sm font-medium text-muted-foreground">Quantity</span>
+                      <span className="text-sm font-medium text-[#6B6657]">Quantity</span>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleQuantityChange(item, -1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:bg-[#F7F4EE] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={qty === 0}
                         >
                           <Minus size={14} />
@@ -102,7 +99,7 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
                         <button
                           type="button"
                           onClick={() => handleQuantityChange(item, 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:bg-[#F7F4EE] transition-colors"
                         >
                           <Plus size={14} />
                         </button>
@@ -114,31 +111,30 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-black/20 p-8 text-center text-[#9E9E9E] mb-8">
             <Info className="mx-auto mb-2 h-6 w-6 opacity-50" />
             <p>No equipment inventory currently available.</p>
           </div>
         )}
 
         <div>
-          <h3 className="mb-4 border-b border-border pb-2 text-sm font-semibold uppercase tracking-wider text-foreground">Decor & Theme Preferences</h3>
+          <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2 text-sm uppercase tracking-wider">Decor & Theme Preferences</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {decorOptions.map((item) => (
-              <label key={item} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/20 cursor-pointer">
+              <label key={item} className="flex items-center gap-3 p-3 rounded-xl border border-black/[0.08] hover:bg-[#F7F4EE] cursor-pointer transition-colors">
                 <input
                   type="checkbox"
-                  className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                  className="rounded border-black/20 text-[#D4AF37] focus:ring-[#D4AF37] h-4 w-4"
                   checked={currentDecor.includes(item)}
                   onChange={() => toggleDecor(item)}
                 />
-                <span className="text-sm font-medium">{item}</span>
+                <span className="text-sm font-medium text-[#111]">{item}</span>
               </label>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Selected decor will be added to your special requests for coordination.</p>
+          <p className="text-xs text-[#9E9E9E] mt-3">Selected decor will be added to your special requests for coordination.</p>
         </div>
-
-      </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 }

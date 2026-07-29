@@ -1,8 +1,6 @@
 import React, { useState } from "react";
-import { HelpCircle, Check, Utensils, AlertCircle } from "lucide-react";
-import { Card, CardContent } from "../../../../components/ui/card";
-import { Button } from "../../../../components/ui/button";
-import { Checkbox } from "../../../../components/ui/checkbox";
+import { Check } from "lucide-react";
+import { Card, SH, TTextarea } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 import LiveEstimate from "../components/LiveEstimate";
 
@@ -35,24 +33,21 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
   const isSelected = (itemId) => form.selected_menu?.some(m => m._id === itemId);
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
-      <Card className="flex-1 overflow-hidden border-border bg-card shadow-soft">
-        <div className="border-b border-border bg-accent/5 p-6 md:p-8">
-          <h2 className="mb-2 text-2xl font-bold text-foreground">Menu Selection</h2>
-          <p className="text-sm text-muted-foreground">Choose the dishes you would like to include in your catering.</p>
-        </div>
+    <div className="flex flex-col gap-6 lg:flex-row max-w-6xl mx-auto py-6">
+      <div className="flex-1 space-y-6">
+        <SH title="Menu Selection" sub="Choose the dishes you would like to include in your catering." />
 
-        <CardContent className="space-y-6 p-6 md:p-8">
-          <div className="mb-6 flex flex-wrap gap-2">
+        <Card className="p-6 space-y-6">
+          <div className="flex flex-wrap gap-2">
             {categories.map(cat => (
               <button
                 key={cat}
                 type="button"
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm transition-all",
+                  "rounded-full px-4 py-2 text-sm transition-all font-medium",
                   activeCategory === cat 
-                    ? "bg-accent font-medium text-accent-foreground" 
-                    : "border border-border text-muted-foreground hover:border-accent hover:text-accent"
+                    ? "bg-[#D4AF37] text-[#111] shadow-sm" 
+                    : "border border-black/[0.08] bg-white text-[#6B6657] hover:border-[#D4AF37]/40 hover:text-[#111]"
                 )}
                 onClick={() => setActiveCategory(cat)}
               >
@@ -66,15 +61,16 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
               <div 
                 key={item._id} 
                 className={cn(
-                  "flex flex-col overflow-hidden rounded-2xl border transition-all",
-                  isSelected(item._id) ? "border-accent bg-accent/5 ring-1 ring-accent" : "border-border hover:border-accent/50"
+                  "flex flex-col overflow-hidden rounded-2xl border-2 transition-all cursor-pointer",
+                  isSelected(item._id) ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-black/[0.08] hover:border-[#D4AF37]/40 bg-white"
                 )}
+                onClick={() => toggleSelection(item)}
               >
                 {item.image_url && (
-                  <div className="relative h-32 w-full bg-muted">
+                  <div className="relative h-32 w-full bg-[#F7F4EE]">
                     <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
                     {isSelected(item._id) && (
-                      <div className="absolute right-2 top-2 rounded-full bg-accent p-1 text-accent-foreground shadow-sm">
+                      <div className="absolute right-2 top-2 rounded-full bg-[#D4AF37] p-1 text-[#111] shadow-sm">
                         <Check size={16} strokeWidth={3} />
                       </div>
                     )}
@@ -82,11 +78,11 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                 )}
                 <div className="flex flex-1 flex-col justify-between p-4">
                   <div>
-                    <h4 className="font-semibold text-foreground">{item.name}</h4>
-                    <p className="mb-3 mt-1 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
+                    <h4 className="font-semibold text-[#111]">{item.name}</h4>
+                    <p className="mb-3 mt-1 line-clamp-2 text-xs text-[#6B6657]">{item.description}</p>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm font-medium text-accent">
+                    <span className="text-sm font-semibold text-[#D4AF37]">
                       {item.price ? `₱${item.price.toLocaleString()}/pax` : "Included"}
                     </span>
                     <button
@@ -94,10 +90,13 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                       className={cn(
                         "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
                         isSelected(item._id) 
-                          ? "bg-primary text-primary-foreground" 
-                          : "bg-muted text-muted-foreground hover:bg-accent/10 hover:text-accent"
+                          ? "bg-[#111] text-white" 
+                          : "bg-[#F7F4EE] text-[#6B6657] hover:bg-[#D4AF37]/20 hover:text-[#111]"
                       )}
-                      onClick={() => toggleSelection(item)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelection(item);
+                      }}
                     >
                       {isSelected(item._id) ? "Selected" : "Select Food"}
                     </button>
@@ -107,40 +106,44 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
             ))}
             
             {displayedItems.length === 0 && (
-              <div className="col-span-2 py-8 text-center text-muted-foreground">
+              <div className="col-span-2 py-8 text-center text-[#9E9E9E]">
                 No menu items found for this category.
               </div>
             )}
           </div>
 
-          <div className="border-t border-border pt-6">
+          <div className="border-t border-black/10 pt-6">
             <label className="mb-3 flex cursor-pointer items-center gap-2">
-              <Checkbox 
+              <input 
+                type="checkbox" 
+                className="h-4 w-4 rounded border-black/20 text-[#D4AF37] focus:ring-[#D4AF37]"
                 checked={!!form.special_requests}
-                onCheckedChange={(checked) => {
-                  if (!checked) {
+                onChange={(e) => {
+                  if (!e.target.checked) {
                     setForm({ ...form, special_requests: "" });
                   } else {
-                    setForm({ ...form, special_requests: " " }); // trigger showing the box
+                    setForm({ ...form, special_requests: " " }); 
                   }
                 }}
               />
-              <span className="font-medium text-foreground">Other Menu Requests</span>
+              <span className="font-medium text-[#111] text-sm">Other Menu Requests</span>
             </label>
             
             {form.special_requests !== "" && (
-              <textarea
-                className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              <TTextarea
                 placeholder="Let us know if you have other menu requests..."
                 value={form.special_requests === " " ? "" : form.special_requests}
-                onChange={(e) => setForm({ ...form, special_requests: e.target.value })}
-              ></textarea>
+                onChange={(val) => setForm({ ...form, special_requests: val })}
+                rows={3}
+              />
             )}
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
 
-      <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
+      <div className="w-full lg:w-80 flex-shrink-0">
+        <LiveEstimate form={form} totalPrice={totalPrice} depositAmount={depositAmount} onNext={onNext} />
+      </div>
     </div>
   );
 }

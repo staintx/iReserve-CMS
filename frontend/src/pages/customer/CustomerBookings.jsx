@@ -35,19 +35,26 @@ export default function CustomerBookings() {
   const [packages, setPackages] = useState([]);
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
+  const [filterTab, setFilterTab] = useState("all");
 
   const { notify } = useToast();
-
   useEffect(() => {
     CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
     CustomerAPI.getPayments().then((res) => setPayments(res.data)).catch(() => setPayments([]));
     CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
   }, []);
 
-  const upcoming = useMemo(
+  const upcomingRaw = useMemo(
     () => bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status)),
     [bookings]
   );
+
+  const upcoming = useMemo(() => {
+    if (filterTab === "package") return upcomingRaw.filter(b => b.package_id);
+    if (filterTab === "custom") return upcomingRaw.filter(b => !b.package_id);
+    return upcomingRaw;
+  }, [upcomingRaw, filterTab]);
+
   const completed = useMemo(
     () => bookings.filter((b) => b.status === "completed"),
     [bookings]
@@ -168,10 +175,32 @@ export default function CustomerBookings() {
       subtitle="Manage your confirmed events"
     >
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-base font-medium text-gray-600" style={{ fontFamily: "Inter, sans-serif" }}>
-          {upcoming.length} Active Booking{upcoming.length !== 1 ? 's' : ''}
-        </h2>
-        <Button onClick={() => navigate("/customer/book")} className="rounded-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold px-5 shadow-sm">
+        <div>
+          <h2 className="text-base font-medium text-gray-600 mb-3" style={{ fontFamily: "Inter, sans-serif" }}>
+            {upcoming.length} Active Booking{upcoming.length !== 1 ? 's' : ''}
+          </h2>
+          <div className="flex space-x-2 bg-muted/30 p-1 rounded-xl">
+            <button 
+              onClick={() => setFilterTab("all")} 
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "all" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              All
+            </button>
+            <button 
+              onClick={() => setFilterTab("package")} 
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "package" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Packages
+            </button>
+            <button 
+              onClick={() => setFilterTab("custom")} 
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "custom" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Custom Bookings
+            </button>
+          </div>
+        </div>
+        <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })} className="rounded-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold px-5 shadow-sm">
           + New Booking
         </Button>
       </div>

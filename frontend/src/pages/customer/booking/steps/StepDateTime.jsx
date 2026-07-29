@@ -1,8 +1,6 @@
 import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Clock, AlertCircle, CheckCircle2, MapPin, ShieldCheck, Minus, Loader2, Check } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ChevronLeft, ChevronRight, Clock, AlertCircle, CheckCircle2, ShieldCheck, Minus, Loader2, Check } from "lucide-react";
+import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 
 export default function StepDateTime({ form, setForm, minDate, availability, suggestedDates, setAvailability, requireAvailabilityCheck, onNext }) {
@@ -91,87 +89,80 @@ export default function StepDateTime({ form, setForm, minDate, availability, sug
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-6">
-      <div className="mb-8">
-        <h2 className="mb-2 text-3xl font-bold font-serif text-foreground">Date & Time Selection</h2>
-        <p className="text-muted-foreground">Choose your event date and time. We'll automatically verify staff, inventory, and venue availability.</p>
-      </div>
+      <SH 
+        title="Date & Time Selection" 
+        sub="Choose your event date and time. We'll automatically verify staff, inventory, and venue availability." 
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left Column */}
         <div className="space-y-6">
           {/* Calendar Card */}
-          <Card className="border-border shadow-sm overflow-hidden bg-card">
-            <CardContent className="p-6">
-              <div className="mx-auto w-full max-w-[320px]">
-                <div className="mb-6 flex items-center justify-between">
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={prevMonth}
-                    className="h-8 w-8 rounded-full"
-                    disabled={currentMonth < minDateObj && currentMonth.getMonth() === minDateObj.getMonth()}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <h3 className="text-base font-bold text-foreground">
-                    {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </h3>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={nextMonth}
-                    className="h-8 w-8 rounded-full"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="mb-2 gap-1 text-center" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
-                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                    <div key={day} className="py-2 text-[11px] font-semibold text-muted-foreground/60">{day}</div>
-                  ))}
-                </div>
-
-                <div className="gap-1 text-center mb-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
-                  {calendarDays.map((date, i) => {
-                    if (!date) return <div key={`empty-${i}`} className="p-2" />;
-                    
-                    const dateStr = date.toISOString().split("T")[0];
-                    const isSelected = form.event_date === dateStr;
-                    const isPast = date < minDateObj;
-                    
-                    return (
-                      <button
-                        key={dateStr}
-                        type="button"
-                        disabled={isPast}
-                        onClick={() => setForm({ ...form, event_date: dateStr })}
-                        className={cn(
-                          "mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-sm transition-all font-medium",
-                          isPast ? "cursor-not-allowed text-muted-foreground/30" : "text-foreground hover:bg-muted/50",
-                          isSelected ? "bg-accent font-bold text-accent-foreground shadow-sm hover:bg-accent/90" : ""
-                        )}
-                      >
-                        {date.getDate()}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded bg-accent" />
-                    <span>Selected</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded border border-border flex items-center justify-center">
-                      <div className="w-4 border-t border-border -rotate-45 absolute" />
-                    </div>
-                    <span>Booked</span>
-                  </div>
-                </div>
+          <Card className="p-6">
+            <div className="mx-auto w-full max-w-[320px]">
+              <div className="mb-5 flex items-center justify-between">
+                <button 
+                  type="button"
+                  onClick={prevMonth}
+                  disabled={currentMonth < minDateObj && currentMonth.getMonth() === minDateObj.getMonth()}
+                  className="p-2 hover:bg-[#F7F4EE] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft size={17} />
+                </button>
+                <h3 style={{ fontFamily: "Playfair Display, serif" }} className="font-semibold text-[#111]">
+                  {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h3>
+                <button 
+                  type="button"
+                  onClick={nextMonth}
+                  className="p-2 hover:bg-[#F7F4EE] rounded-lg transition-colors"
+                >
+                  <ChevronRight size={17} />
+                </button>
               </div>
-            </CardContent>
+
+              <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                  <div key={day} className="text-center text-xs font-bold text-[#9E9E9E] py-1">{day}</div>
+                ))}
+              </div>
+
+              <div className="grid gap-1 mb-4" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+                {calendarDays.map((date, i) => {
+                  if (!date) return <div key={`empty-${i}`} className="p-2" />;
+                  
+                  const dateStr = date.toISOString().split("T")[0];
+                  const isSelected = form.event_date === dateStr;
+                  const isPast = date < minDateObj;
+                  
+                  return (
+                    <button
+                      key={dateStr}
+                      type="button"
+                      disabled={isPast}
+                      onClick={() => setForm({ ...form, event_date: dateStr })}
+                      className={cn(
+                        "h-9 w-full rounded-lg text-sm font-medium transition-all",
+                        isSelected ? "bg-[#D4AF37] text-[#111] shadow-sm" : 
+                        isPast ? "text-[#CCCCC5] cursor-not-allowed" : 
+                        "hover:bg-[#F7F4EE] text-[#111]"
+                      )}
+                    >
+                      {date.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-4 mt-4 text-xs text-[#9E9E9E] flex-wrap justify-center">
+                <span className="flex items-center gap-1">
+                  <span className="w-3 h-3 rounded bg-[#D4AF37] inline-block" /> Selected
+                </span>
+                <span className="flex items-center gap-1 line-through opacity-50">
+                  <span>00</span> Booked
+                </span>
+              </div>
+            </div>
           </Card>
 
         </div>
@@ -179,139 +170,124 @@ export default function StepDateTime({ form, setForm, minDate, availability, sug
         {/* Right Column */}
         <div className="space-y-6">
           {/* Time Slots Card */}
-          <Card className="border-gray-100 shadow-sm overflow-hidden bg-white rounded-2xl" style={{ fontFamily: "Inter, sans-serif" }}>
-            <CardContent className="p-6">
-              <h3 className="mb-6 flex items-center gap-2 text-[17px] font-bold text-gray-800" style={{ fontFamily: "Playfair Display, serif" }}>
-                <Clock className="h-4 w-4 text-[#D4AF37]" />
-                Event Start Time
-              </h3>
-              
-              <div className="grid grid-cols-2 gap-3">
-                {timeSlots.map(({ time, status }) => {
-                  const isSelected = selectedDisplayTime === time;
-                  const isFull = status === "full";
-                  
-                  return (
-                    <button
-                      key={time}
-                      type="button"
-                      disabled={isFull}
-                      onClick={() => handleTimeSelect(time)}
-                      className={cn(
-                        "flex flex-col items-center justify-center rounded-full border py-3 transition-colors duration-200",
-                        isFull 
-                          ? "cursor-not-allowed border-gray-100 bg-gray-50/50 text-gray-300" 
-                          : isSelected
-                            ? "border-[#D4AF37] bg-[#fdfaf3] text-[#D4AF37] shadow-sm"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                      )}
-                    >
-                      <span className={cn("text-sm font-semibold", isSelected ? "" : "")}>{time}</span>
-                      {isFull && <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-300">Full</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </CardContent>
+          <Card className="p-6">
+            <h3 className="font-semibold text-[#111] mb-4 flex items-center gap-2">
+              <Clock size={15} className="text-[#D4AF37]" /> Event Start Time
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {timeSlots.map(({ time, status }) => {
+                const isSelected = selectedDisplayTime === time;
+                const isFull = status === "full";
+                
+                return (
+                  <button
+                    key={time}
+                    type="button"
+                    disabled={isFull}
+                    onClick={() => handleTimeSelect(time)}
+                    className={cn(
+                      "py-2.5 text-sm font-medium rounded-xl border-2 transition-all",
+                      isSelected ? "border-[#D4AF37] bg-[#D4AF37]/10 text-[#111]" :
+                      isFull ? "border-black/[0.05] bg-[#F7F4EE] text-[#C5C5C5] cursor-not-allowed" :
+                      "border-black/[0.08] hover:border-[#D4AF37]/40 text-[#111]"
+                    )}
+                  >
+                    {isFull ? (
+                      <><span className="block">{time}</span><span className="text-[10px]">Full</span></>
+                    ) : (
+                      time
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </Card>
 
           {requireAvailabilityCheck && (
-            <Card className="border-border shadow-sm overflow-hidden bg-muted mt-6">
-              <CardContent className="p-6">
-                <h4 className="mb-4 text-[11px] font-bold uppercase tracking-wider text-foreground">Automatic Availability Check</h4>
-                
-                <div className="space-y-3 mb-6">
-                  {[
-                    { label: "Staff Availability" },
-                    { label: "Inventory Availability" },
-                    { label: "Venue Schedule" }
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
-                      {availability.status === "available" ? (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                          ✓ Available
-                        </span>
-                      ) : availability.status === "checking" ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-border/50 text-muted-foreground/70">
-                          <Minus className="h-3 w-3" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {availability.status === 'unavailable' && suggestedDates?.length > 0 && (
-                  <div className="mb-4 rounded-xl bg-background p-4 border border-destructive/20 shadow-sm">
-                    <p className="mb-2 text-xs font-semibold text-destructive">Unavailable. Try these alternatives:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {suggestedDates.map(d => (
-                        <button 
-                          key={d} 
-                          type="button" 
-                          onClick={() => {
-                              setForm({ ...form, event_date: d });
-                              setAvailability({ status: "idle", message: "" });
-                          }}
-                          className="rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10"
-                        >
-                          {new Date(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </button>
-                      ))}
-                    </div>
+            <div className="bg-[#F7F4EE] rounded-2xl p-5 text-sm">
+              <p className="font-semibold text-[#111] mb-2 text-xs uppercase tracking-wider">Automatic Availability Check</p>
+              
+              <div className="space-y-2 mb-4">
+                {[
+                  { label: "Staff Availability" },
+                  { label: "Inventory Availability" },
+                  { label: "Venue Schedule" }
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <span className="text-[#6B6657]">{item.label}</span>
+                    {availability.status === "available" ? (
+                      <span className="text-emerald-600 flex items-center gap-1 font-semibold text-xs">
+                        <Check size={14} /> Available
+                      </span>
+                    ) : availability.status === "checking" ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-[#9E9E9E]" />
+                    ) : (
+                      <span className="text-[#9E9E9E]">Pending</span>
+                    )}
                   </div>
-                )}
+                ))}
+              </div>
 
-                <Button 
-                  type="button"
-                  variant="default"
-                  disabled={!form.event_date || !form.start_time || availability.status === "checking"}
-                  className={cn(
-                    "w-full font-bold shadow-none border-none transition-all",
-                    availability.status === "checking"
-                      ? "bg-accent/60 text-accent-foreground/60 cursor-not-allowed"
-                      : "bg-accent text-accent-foreground hover:bg-accent/90"
-                  )}
+              {availability.status === 'unavailable' && suggestedDates?.length > 0 && (
+                <div className="mb-4 rounded-xl bg-white p-4 border border-red-200 shadow-sm">
+                  <p className="mb-2 text-xs font-semibold text-red-600">Unavailable. Try these alternatives:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedDates.map(d => (
+                      <button 
+                        key={d} 
+                        type="button" 
+                        onClick={() => {
+                            setForm({ ...form, event_date: d });
+                            setAvailability({ status: "idle", message: "" });
+                        }}
+                        className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100"
+                      >
+                        {new Date(d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(!form.event_date || !form.start_time) ? (
+                <p className="text-xs text-[#9E9E9E] mt-4">Please select a date and time to check availability.</p>
+              ) : availability.status !== "available" ? (
+                <GoldBtn 
+                  variant="outline"
+                  disabled={availability.status === "checking"}
+                  className="w-full mt-2"
                   onClick={handleManualCheck}
                 >
                   {availability.status === "checking" ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Checking Availability...
-                    </>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking...</>
                   ) : (
-                    <>
-                      <ShieldCheck className="mr-2 h-4 w-4" />
-                      Check Availability
-                    </>
+                    <><ShieldCheck className="mr-2 h-4 w-4" /> Check Availability</>
                   )}
-                </Button>
+                </GoldBtn>
+              ) : null}
 
-                {/* Result Card with Continue Button */}
-                {availability.status === "available" && (
-                  <div className="mt-4 rounded-2xl border border-emerald-300 bg-emerald-50/50 p-5 space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0" />
-                      <h4 className="text-base font-bold text-emerald-950">Date Available!</h4>
-                    </div>
-                    
-                    <p className="text-xs text-emerald-800">
-                      {formattedDateStr} at {selectedDisplayTime} — all checks passed.
-                    </p>
-
-                    <Button
-                      type="button"
-                      onClick={onNext}
-                      className="bg-accent text-accent-foreground font-bold hover:bg-accent/90 rounded-xl px-6 py-2 shadow-sm"
-                    >
-                      Continue &gt;
-                    </Button>
+              {/* Result Card with Continue Button */}
+              {availability.status === "available" && (
+                <div className="mt-4 pt-4 border-t border-black/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                    <h4 className="text-sm font-semibold text-emerald-700">Date Available!</h4>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  
+                  <p className="text-xs text-[#6B6657] mb-4">
+                    {formattedDateStr} at {selectedDisplayTime} — all checks passed.
+                  </p>
+
+                  <GoldBtn
+                    onClick={onNext}
+                    className="w-full"
+                  >
+                    Continue <ChevronRight size={15} />
+                  </GoldBtn>
+                </div>
+              )}
+            </div>
           )}
 
         </div>

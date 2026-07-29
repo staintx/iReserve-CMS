@@ -103,7 +103,7 @@ export default function Gallery() {
           <Button 
             size="lg" 
             className="px-8 font-bold" 
-            onClick={() => navigate("/customer/book")}
+            onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
           >
             Get Started Now
           </Button>

@@ -157,6 +157,11 @@ export default function BookingCard({
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusVariant}`}>
                 {statusText}
               </span>
+              {!booking.package_id && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                  Custom Booking
+                </span>
+              )}
             </div>
             <div className="text-[13px] text-gray-400 flex items-center gap-1.5">
               <span>{refCode}</span>

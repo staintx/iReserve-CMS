@@ -39,7 +39,8 @@ export default function CustomerLayout({ children }) {
 
     const isActive =
       (isLanding &&
-        ((sectionId === "top" && (!activeHash || activeHash === "#top")) || activeHash === `#${sectionId}`)) ||
+        ((sectionId === "top" && (!activeHash || activeHash === "#top")) ||
+          activeHash === `#${sectionId}`)) ||
       (location.pathname === "/gallery" && sectionId === "gallery");
 
     return navClass({ isActive });
@@ -47,11 +48,6 @@ export default function CustomerLayout({ children }) {
 
   const handleSectionNav = (sectionId) => (event) => {
     event.preventDefault();
-
-    if (sectionId === "packages") {
-      navigate("/packages");
-      return;
-    }
 
     if (sectionId === "gallery") {
       navigate("/gallery");
@@ -91,23 +87,58 @@ export default function CustomerLayout({ children }) {
             role="button"
             tabIndex={0}
           >
-            <img src={logo} alt="Caezelle's logo" className="h-9 w-9 rounded-2xl object-cover" />
+            <img
+              src={logo}
+              alt="Caezelle's logo"
+              className="h-9 w-9 rounded-2xl object-cover"
+            />
             <span>Caezelle's Catering</span>
           </div>
 
           <nav className="hidden items-center gap-6 md:flex">
-            <a href="/#top" className={sectionLinkClass("top")} onClick={handleSectionNav("top")}>Home</a>
-            <a href="/packages" className={sectionLinkClass("packages")} onClick={handleSectionNav("packages")}>Packages</a>
-            <a href="/gallery" className={sectionLinkClass("gallery")} onClick={handleSectionNav("gallery")}>Gallery</a>
-            <a href="/#testimonials" className={sectionLinkClass("testimonials")} onClick={handleSectionNav("testimonials")}>About Us</a>
-            <a href="/#contact" className={sectionLinkClass("contact")} onClick={handleSectionNav("contact")}>Contact</a>
+            <a
+              href="/#top"
+              className={sectionLinkClass("top")}
+              onClick={handleSectionNav("top")}
+            >
+              Home
+            </a>
+            <a
+              href="/gallery"
+              className={sectionLinkClass("gallery")}
+              onClick={handleSectionNav("gallery")}
+            >
+              Gallery
+            </a>
+            <a
+              href="/#testimonials"
+              className={sectionLinkClass("testimonials")}
+              onClick={handleSectionNav("testimonials")}
+            >
+              About Us
+            </a>
+            <a
+              href="/#contact"
+              className={sectionLinkClass("contact")}
+              onClick={handleSectionNav("contact")}
+            >
+              Contact
+            </a>
           </nav>
 
           <div className="flex items-center gap-3">
             {!user && (
               <>
-                <Button variant="ghost" onClick={() => navigate("/login")}>Login</Button>
-                <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Book Now</Button>
+                <Button variant="ghost" onClick={() => navigate("/login")}>
+                  Login
+                </Button>
+                <Button
+                  onClick={() =>
+                    navigate("/customer/book", { state: { resetWizard: true } })
+                  }
+                >
+                  Book Now
+                </Button>
               </>
             )}
 
@@ -116,18 +147,40 @@ export default function CustomerLayout({ children }) {
                 <DropdownMenuTrigger asChild>
                   <button className="user-menu-trigger" type="button">
                     <span className="user-menu-avatar">{initials}</span>
-                    <span className="user-menu-name">{user.full_name || "Customer"}</span>
+                    <span className="user-menu-name">
+                      {user.full_name || "Customer"}
+                    </span>
                     <span className="user-menu-caret">▾</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/customer/dashboard")}>Dashboard</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/customer/bookings")}>My Bookings</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/customer/payments")}>Payment History</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/customer/messages")}>Messages</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/customer/profile")}>Profile</DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/dashboard")}
+                  >
+                    Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/bookings")}
+                  >
+                    My Bookings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/payments")}
+                  >
+                    Payment History
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/messages")}
+                  >
+                    Messages
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/profile")}
+                  >
+                    Profile
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -142,8 +195,10 @@ export default function CustomerLayout({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">{children}</main>
-      
+      <main className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">
+        {children}
+      </main>
+
       <Button
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
         size="icon"

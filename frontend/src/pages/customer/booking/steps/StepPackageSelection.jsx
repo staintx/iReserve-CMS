@@ -83,13 +83,16 @@ export default function StepPackageSelection({
                       )}
                     </div>
 
+                    {/* Removed setup price display, only showing guest max */}
                     <div className="mt-3 flex items-center gap-2 text-xs text-[#6B6657]">
-                      <span className="rounded-full bg-black/[0.04] px-3 py-1">
-                        ₱{Number(pkg.setup_price || 0).toLocaleString()}
-                      </span>
                       {pkg.guest_max ? (
                         <span className="rounded-full bg-black/[0.04] px-3 py-1">
                           Up to {pkg.guest_max} guests
+                        </span>
+                      ) : null}
+                      {pkg.guest_min ? (
+                        <span className="rounded-full bg-black/[0.04] px-3 py-1">
+                          Min {pkg.guest_min} guests
                         </span>
                       ) : null}
                     </div>
@@ -137,14 +140,10 @@ export default function StepPackageSelection({
       {selectedPackage && scaffoldOptions.length > 0 && (
         <div className="mt-8 rounded-lg border p-4 bg-white">
           <h4 className="mb-3 font-semibold">Choose scaffold size</h4>
-          <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {scaffoldOptions.map((opt) => {
-              const area =
-                opt.area_ft2 ||
-                (opt.width_ft && opt.length_ft
-                  ? opt.width_ft * opt.length_ft
-                  : null);
               const isActive = String(opt._id) === String(selectedOptionId);
+              const dimensions = `${opt.width_ft}ft × ${opt.length_ft}ft`;
               return (
                 <button
                   key={opt._id}
@@ -154,27 +153,43 @@ export default function StepPackageSelection({
                       selected_scaffold_option_id: String(opt._id),
                       scaffold_width: opt.width_ft || undefined,
                       scaffold_length: opt.length_ft || undefined,
-                      scaffold_base_area: area || undefined,
+                      scaffold_base_area:
+                        opt.area_ft2 ||
+                        (opt.width_ft && opt.length_ft
+                          ? opt.width_ft * opt.length_ft
+                          : undefined),
                     })
                   }
                   className={cn(
-                    "w-full rounded-lg border p-3 text-left flex items-center justify-between",
+                    "w-full rounded-lg border p-4 text-left flex items-center justify-between transition-all",
                     isActive
-                      ? "border-[#D4AF37] bg-[#FDF9F3]"
-                      : "border-black/[0.06] bg-white hover:bg-[#F7F4EE]",
+                      ? "border-[#D4AF37] bg-[#FDF9F3] shadow-sm"
+                      : "border-black/[0.06] bg-white hover:border-[#D4AF37]/40 hover:bg-[#F7F4EE]",
                   )}
                 >
-                  <div>
-                    <div className="font-medium">
-                      {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft`}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold",
+                        isActive
+                          ? "bg-[#D4AF37] text-white"
+                          : "bg-gray-100 text-[#6B6657]",
+                      )}
+                    >
+                      {opt.width_ft}×{opt.length_ft}
                     </div>
-                    <div className="text-xs text-[#6B6657]">
-                      {area ? `${area} ft²` : "Custom"}
+                    <div>
+                      <div className="font-medium text-sm">
+                        {opt.label || dimensions}
+                      </div>
+                      <div className="text-xs text-[#6B6657] mt-0.5">
+                        {dimensions}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-[#6B6657]">Price</div>
-                    <div className="font-semibold">
+                    <div className="text-xs text-[#6B6657]">Price</div>
+                    <div className="font-semibold text-sm">
                       ₱{Number(opt.price || 0).toLocaleString()}
                     </div>
                   </div>
@@ -183,12 +198,23 @@ export default function StepPackageSelection({
             })}
           </div>
 
-          <div className="mt-4 text-right">
-            <div className="text-xs text-[#6B6657]">Selected setup price</div>
-            <div className="mt-1 text-lg font-semibold">
-              ₱{Number(currentPrice || 0).toLocaleString()}
+          {currentOption && (
+            <div className="mt-4 flex items-center justify-between rounded-lg bg-[#FDF9F3] px-4 py-3">
+              <div>
+                <div className="text-xs text-[#6B6657]">Selected Size</div>
+                <div className="font-medium text-sm">
+                  {currentOption.label ||
+                    `${currentOption.width_ft}ft × ${currentOption.length_ft}ft`}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-[#6B6657]">Setup Price</div>
+                <div className="text-lg font-semibold text-[#111]">
+                  ₱{Number(currentPrice || 0).toLocaleString()}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

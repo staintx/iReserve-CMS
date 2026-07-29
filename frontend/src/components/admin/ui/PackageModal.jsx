@@ -7,25 +7,41 @@ import useToast from "../../../hooks/useToast";
 export default function PackageModal({ pkg, onClose, onSave }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
+
+  // ============ FORM STATE ============
   const [formData, setFormData] = useState({
+    // Basic Info
     name: "",
-    size: "",
-    event_type: "",
     package_type: "Food Only",
+    event_type: "",
+    available: true,
+
+    // Guest & Capacity
+    guest_min: "",
     guest_max: "",
-    description: "",
+
+    // Pricing (conditional based on package_type)
     price_per_guest: "",
     setup_price: "",
-    setup_equipment: [],
-    menu_items: [],
-    available: true,
+
+    // Descriptions
+    description: "",
     fullDescription: "",
+
+    // Menu (Food packages)
+    menu_items: [],
+
+    // Inclusions & Add-ons
     inclusions: [],
     add_ons: [],
+
+    // Setup Equipment (Event Setup packages)
+    setup_equipment: [],
     scaffold_size_options: [],
     default_scaffold_option_id: "",
   });
 
+  // ============ LOCAL INPUT STATES ============
   const [newInclusion, setNewInclusion] = useState({
     category: "Equipment",
     name: "",
@@ -44,13 +60,16 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     price: "",
   });
 
+  // ============ MEDIA STATE ============
   const [imageFile, setImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
+
+  // ============ REFERENCE DATA ============
   const [inventoryList, setInventoryList] = useState([]);
   const [fullMenuList, setFullMenuList] = useState([]);
 
+  // ============ EFFECTS ============
   useEffect(() => {
-    // Fetch inventory for setup equipment
     AdminAPI.getInventory()
       .then((res) =>
         setInventoryList(
@@ -70,25 +89,26 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     if (pkg) {
       setFormData({
         name: pkg.name || "",
-        size: pkg.size || "",
-        event_type: pkg.event_type || "",
         package_type: pkg.package_type || "Food Only",
+        event_type: pkg.event_type || "",
+        available: pkg.available !== false,
+        guest_min: pkg.guest_min || "",
         guest_max: pkg.guest_max || "",
-        description: pkg.description || "",
         price_per_guest: pkg.price_per_guest || "",
         setup_price: pkg.setup_price || "",
-        setup_equipment: pkg.setup_equipment || [],
-        menu_items: pkg.menu_items || [],
-        available: pkg.available !== false,
+        description: pkg.description || "",
         fullDescription: pkg.fullDescription || "",
+        menu_items: pkg.menu_items || [],
         inclusions: pkg.inclusions || [],
         add_ons: pkg.add_ons || [],
+        setup_equipment: pkg.setup_equipment || [],
         scaffold_size_options: pkg.scaffold_size_options || [],
         default_scaffold_option_id: pkg.default_scaffold_option_id || "",
       });
     }
   }, [pkg]);
 
+  // ============ HANDLERS - Inclusions ============
   const handleAddInclusion = () => {
     if (!newInclusion.name) return;
     const qtyStr = newInclusion.qty ? ` (${newInclusion.qty})` : "";
@@ -100,19 +120,20 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     setNewInclusion({ category: "Equipment", name: "", qty: "" });
   };
 
+  const handleRemoveInclusion = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: prev.inclusions.filter((_, i) => i !== index),
+    }));
+  };
+
+  // ============ HANDLERS - Add-ons ============
   const handleAddAddOn = () => {
     if (!newAddOn.name) return;
     const qtyStr = newAddOn.qty ? ` (Qty: ${newAddOn.qty})` : "";
     const addStr = `${newAddOn.name}${qtyStr}`;
     setFormData((prev) => ({ ...prev, add_ons: [...prev.add_ons, addStr] }));
     setNewAddOn({ name: "", qty: "" });
-  };
-
-  const handleRemoveInclusion = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      inclusions: prev.inclusions.filter((_, i) => i !== index),
-    }));
   };
 
   const handleRemoveAddOn = (index) => {
@@ -122,6 +143,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     }));
   };
 
+  // ============ HANDLERS - Setup Equipment ============
   const handleAddSetupEquip = () => {
     if (!newSetupEquip.inventory_id || !newSetupEquip.quantity) return;
     setFormData((prev) => ({
@@ -144,9 +166,10 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     }));
   };
 
+  // ============ HANDLERS - Menu Items ============
   const handleAddMenuItem = () => {
     if (!newMenuItem) return;
-    if (formData.menu_items.some((m) => (m._id || m) === newMenuItem)) return; // Prevent duplicates
+    if (formData.menu_items.some((m) => (m._id || m) === newMenuItem)) return;
     setFormData((prev) => ({
       ...prev,
       menu_items: [...prev.menu_items, newMenuItem],
@@ -161,6 +184,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     }));
   };
 
+  // ============ HANDLERS - Scaffold Options ============
   const handleAddScaffoldOption = () => {
     const { label, width_ft, length_ft, price } = newScaffoldOption;
     if (!label || !width_ft || !length_ft || !price) return;
@@ -194,6 +218,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     setFormData((prev) => ({ ...prev, default_scaffold_option_id: id }));
   };
 
+  // ============ HANDLERS - Form Submit ============
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -236,9 +261,28 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     }
   };
 
+  // ============ HELPER - Get Inventory Name ============
+  const getInventoryName = (eq) => {
+    const itemData = inventoryList.find(
+      (x) => x._id === (eq.inventory_id._id || eq.inventory_id),
+    );
+    return itemData
+      ? itemData.item_name
+      : eq.inventory_id.item_name || "Unknown Item";
+  };
+
+  // ============ HELPER - Get Menu Item Name ============
+  const getMenuItemName = (mId) => {
+    const idToFind = typeof mId === "object" ? mId._id : mId;
+    const itemData = fullMenuList.find((x) => x._id === idToFind);
+    return itemData ? itemData.name : mId.name || "Unknown Dish";
+  };
+
+  // ============ RENDER ============
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-2xl h-full flex flex-col shadow-2xl animate-in slide-in-from-right overflow-hidden">
+        {/* ============ HEADER ============ */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="font-bold text-[#111] text-lg">
             {pkg ? "Edit Package" : "Add New Package"}
@@ -251,14 +295,16 @@ export default function PackageModal({ pkg, onClose, onSave }) {
           </button>
         </div>
 
+        {/* ============ SCROLLABLE CONTENT ============ */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Basic Info */}
-          <div>
-            <h3 className="font-bold text-[#111] mb-4">Basic Information</h3>
+          {/* SECTION 1: Package Identity */}
+          <section>
+            <h3 className="font-bold text-[#111] mb-4">Package Identity</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              {/* Package Name */}
+              <div className="col-span-2">
                 <label className="block text-sm text-gray-600 mb-1">
-                  Package Name
+                  Package Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -270,23 +316,29 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   }
                 />
               </div>
+
+              {/* Package Type */}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">
-                  Package Size
+                  Package Type <span className="text-red-400">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
-                  placeholder="20x70"
-                  value={formData.size}
+                  value={formData.package_type}
                   onChange={(e) =>
-                    setFormData({ ...formData, size: e.target.value })
+                    setFormData({ ...formData, package_type: e.target.value })
                   }
-                />
+                >
+                  <option value="Food Only">Food Only</option>
+                  <option value="Event Setup Only">Event Setup Only</option>
+                  <option value="Food + Event Setup">Food + Event Setup</option>
+                </select>
               </div>
+
+              {/* Event Type */}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">
-                  Event Type
+                  Event Type <span className="text-red-400">*</span>
                 </label>
                 <select
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
@@ -304,25 +356,64 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Package Type
-                </label>
-                <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
-                  value={formData.package_type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, package_type: e.target.value })
+
+              {/* Availability Toggle */}
+              <div className="col-span-2 flex items-center justify-between bg-gray-50 border border-gray-100 p-4 rounded-xl">
+                <div>
+                  <p className="font-semibold text-[#111]">
+                    Availability Status
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Toggle to make package visible to customers
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    setFormData({ ...formData, available: !formData.available })
                   }
+                  className={`w-12 h-6 rounded-full transition-colors relative flex items-center ${
+                    formData.available ? "bg-emerald-500" : "bg-gray-300"
+                  }`}
                 >
-                  <option value="Food Only">Food Only</option>
-                  <option value="Event Setup Only">Event Setup Only</option>
-                  <option value="Food + Event Setup">Food + Event Setup</option>
-                </select>
+                  <div
+                    className={`w-4 h-4 bg-white rounded-full absolute transition-all ${
+                      formData.available ? "right-1" : "left-1"
+                    }`}
+                  />
+                </button>
               </div>
+            </div>
+          </section>
+
+          {/* SECTION 2: Guest & Pricing */}
+          <section>
+            <h3 className="font-bold text-[#111] mb-4">
+              Guest Capacity & Pricing
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Guest Min (Event Setup Only) */}
+              {formData.package_type === "Event Setup Only" && (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">
+                    Minimum Guests
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                    placeholder="e.g. 50"
+                    value={formData.guest_min}
+                    onChange={(e) =>
+                      setFormData({ ...formData, guest_min: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+              {/* Guest Max */}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">
-                  Max Guests
+                  Maximum Guests
                 </label>
                 <input
                   type="number"
@@ -336,34 +427,26 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   }}
                 />
               </div>
-              <div className="col-span-2">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Short Description
-                </label>
-                <textarea
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-20"
-                  placeholder="Perfect for intimate gatherings"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                />
-              </div>
+
+              {/* Pricing - Conditional */}
               <div className="col-span-2">
                 {formData.package_type === "Food Only" && (
-                  <div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                     <label className="block text-sm text-gray-600 mb-1">
-                      Price
+                      Pricing Model
                     </label>
-                    <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 italic">
-                      Price per plate depends on menu selection.
-                    </div>
+                    <p className="text-sm text-blue-700">
+                      💡 Price per plate depends on menu selection. Configure
+                      individual menu item prices separately.
+                    </p>
                   </div>
                 )}
+
                 {formData.package_type === "Event Setup Only" && (
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">
-                      Total Setup Price (₱)
+                      Total Setup Price (₱){" "}
+                      <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="number"
@@ -381,10 +464,12 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     />
                   </div>
                 )}
+
                 {formData.package_type === "Food + Event Setup" && (
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">
-                      Price (₱) per guest
+                      Price per Guest (₱){" "}
+                      <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="number"
@@ -400,60 +485,66 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                         });
                       }}
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Setup is included for free.
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Setup is included for free
                     </p>
                   </div>
                 )}
               </div>
-              <div className="col-span-2 flex items-center justify-between bg-gray-50 border border-gray-100 p-4 rounded-xl">
-                <div>
-                  <p className="font-semibold text-[#111]">Current Status</p>
-                  <p className="text-xs text-gray-500">Package availability</p>
-                </div>
-                <button
-                  onClick={() =>
-                    setFormData({ ...formData, available: !formData.available })
+            </div>
+          </section>
+
+          {/* SECTION 3: Descriptions */}
+          <section>
+            <h3 className="font-bold text-[#111] mb-4">Descriptions</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Short Description <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-20"
+                  placeholder="Brief summary for package cards (1-2 sentences)"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
                   }
-                  className={`w-12 h-6 rounded-full transition-colors relative flex items-center ${formData.available ? "bg-emerald-500" : "bg-gray-300"}`}
-                >
-                  <div
-                    className={`w-4 h-4 bg-white rounded-full absolute transition-all ${formData.available ? "right-1" : "left-1"}`}
-                  />
-                </button>
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Full Description
+                </label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-32"
+                  placeholder="Detailed description of what this package includes"
+                  value={formData.fullDescription}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      fullDescription: e.target.value,
+                    })
+                  }
+                />
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Detailed Info */}
-          <div>
-            <h3 className="font-bold text-[#111] mb-4">Detailed Information</h3>
-            <label className="block text-sm text-gray-600 mb-1">
-              About This Package
-            </label>
-            <textarea
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-32"
-              value={formData.fullDescription}
-              onChange={(e) =>
-                setFormData({ ...formData, fullDescription: e.target.value })
-              }
-            />
-          </div>
-
-          {/* Food Menu Selection */}
+          {/* SECTION 4: Menu (Food packages only) */}
           {(formData.package_type === "Food Only" ||
             formData.package_type === "Food + Event Setup") && (
-            <div>
-              <h3 className="font-bold text-[#111] mb-4">
-                Food Menu Selection
-              </h3>
+            <section>
+              <h3 className="font-bold text-[#111] mb-4">Food Menu</h3>
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
                 <label className="block text-sm font-semibold text-gray-800 mb-1">
-                  Link Menu Items
+                  Selected Menu Items
                 </label>
                 <p className="text-xs text-gray-500 mb-3">
-                  Select dishes from your Food Menu to include in this package
+                  Choose dishes from your menu catalog to include in this
+                  package
                 </p>
+
+                {/* Add Menu Item */}
                 <div className="flex gap-2 mb-3">
                   <select
                     className="flex-1 border border-gray-200 rounded-lg px-2 text-sm bg-white"
@@ -468,55 +559,62 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     ))}
                   </select>
                   <Btn variant="primary" size="sm" onClick={handleAddMenuItem}>
-                    Add
+                    <Plus size={12} className="mr-1" /> Add
                   </Btn>
                 </div>
-                <ul className="space-y-1">
-                  {formData.menu_items.map((mId, i) => {
-                    const idToFind = typeof mId === "object" ? mId._id : mId;
-                    const itemData = fullMenuList.find(
-                      (x) => x._id === idToFind,
-                    );
-                    const dispName = itemData
-                      ? itemData.name
-                      : mId.name || "Unknown Dish";
-                    return (
+
+                {/* Menu Items List */}
+                {formData.menu_items.length > 0 ? (
+                  <ul className="space-y-1">
+                    {formData.menu_items.map((mId, i) => (
                       <li
                         key={i}
                         className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
                       >
-                        <span>{dispName}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full" />
+                          {getMenuItemName(mId)}
+                        </span>
                         <button
                           onClick={() => handleRemoveMenuItem(i)}
-                          className="text-red-400 hover:text-red-500"
+                          className="text-red-400 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
                       </li>
-                    );
-                  })}
-                </ul>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-400 italic text-center py-4">
+                    No menu items added yet
+                  </p>
+                )}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Services & Inclusions */}
-          <div>
+          {/* SECTION 5: Services, Inclusions & Add-ons */}
+          <section>
             <h3 className="font-bold text-[#111] mb-4">
-              Services, Inclusions and Add-Ons
+              Services, Inclusions & Add-ons
             </h3>
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
+            <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-6">
+              {/* Inclusions */}
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-1">
-                  Services & Inclusions
-                </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Add items with categories and quantities (e.g., Plates, Stage
-                  Setup)
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">📦</span>
+                  <label className="font-semibold text-gray-800">
+                    Services & Inclusions
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mb-3 ml-7">
+                  Items included in the base package (e.g., Plates, Stage Setup)
                 </p>
+
+                {/* Add Inclusion Form */}
                 <div className="flex gap-2 mb-3">
                   <select
-                    className="border border-gray-200 rounded-lg px-2 text-sm bg-white"
+                    className="border border-gray-200 rounded-lg px-2 text-sm bg-white w-32"
                     value={newInclusion.category}
                     onChange={(e) =>
                       setNewInclusion({
@@ -549,33 +647,51 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     }
                   />
                   <Btn variant="primary" size="sm" onClick={handleAddInclusion}>
-                    Add
+                    <Plus size={12} />
                   </Btn>
                 </div>
-                <ul className="space-y-1">
-                  {formData.inclusions.map((inc, i) => (
-                    <li
-                      key={i}
-                      className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
-                    >
-                      <span>{inc}</span>
-                      <button
-                        onClick={() => handleRemoveInclusion(i)}
-                        className="text-red-400 hover:text-red-500"
+
+                {/* Inclusions List */}
+                {formData.inclusions.length > 0 ? (
+                  <ul className="space-y-1">
+                    {formData.inclusions.map((inc, i) => (
+                      <li
+                        key={i}
+                        className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
                       >
-                        <Trash2 size={14} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                        <span className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+                          {inc}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveInclusion(i)}
+                          className="text-red-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-400 italic text-center py-2 ml-7">
+                    No inclusions added yet
+                  </p>
+                )}
               </div>
+
+              {/* Add-ons */}
               <div className="pt-4 border-t border-gray-200">
-                <label className="block text-sm font-semibold text-gray-800 mb-1">
-                  Add-Ons
-                </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Optional items that can be added (e.g., Videoke, Candy Corner)
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">✨</span>
+                  <label className="font-semibold text-gray-800">
+                    Optional Add-ons
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mb-3 ml-7">
+                  Extra items customers can add (e.g., Videoke, Candy Corner)
                 </p>
+
+                {/* Add Add-on Form */}
                 <div className="flex gap-2 mb-3">
                   <input
                     type="text"
@@ -596,35 +712,59 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     }
                   />
                   <Btn variant="primary" size="sm" onClick={handleAddAddOn}>
-                    Add
+                    <Plus size={12} />
                   </Btn>
                 </div>
-                <ul className="space-y-1">
-                  {formData.add_ons.map((add, i) => (
-                    <li
-                      key={i}
-                      className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
-                    >
-                      <span>{add}</span>
-                      <button
-                        onClick={() => handleRemoveAddOn(i)}
-                        className="text-red-400 hover:text-red-500"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
 
-              {formData.package_type === "Event Setup Only" && (
-                <div className="pt-4 border-t border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-800 mb-1">
-                    Event Setup Equipment
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">
+                {/* Add-ons List */}
+                {formData.add_ons.length > 0 ? (
+                  <ul className="space-y-1">
+                    {formData.add_ons.map((add, i) => (
+                      <li
+                        key={i}
+                        className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 bg-purple-400 rounded-full" />
+                          {add}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveAddOn(i)}
+                          className="text-red-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-gray-400 italic text-center py-2 ml-7">
+                    No add-ons added yet
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 6: Event Setup (Setup packages only) */}
+          {formData.package_type === "Event Setup Only" && (
+            <section>
+              <h3 className="font-bold text-[#111] mb-4">
+                Event Setup Configuration
+              </h3>
+              <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-6">
+                {/* Setup Equipment */}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">🔧</span>
+                    <label className="font-semibold text-gray-800">
+                      Setup Equipment
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3 ml-7">
                     Link equipment directly from your inventory
                   </p>
+
                   <div className="flex gap-2 mb-3">
                     <select
                       className="flex-1 border border-gray-200 rounded-lg px-2 text-sm bg-white"
@@ -646,7 +786,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     <input
                       type="number"
                       placeholder="Qty"
-                      className="w-20 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
                       value={newSetupEquip.quantity}
                       onChange={(e) =>
                         setNewSetupEquip({
@@ -660,113 +800,121 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                       size="sm"
                       onClick={handleAddSetupEquip}
                     >
-                      Add
+                      <Plus size={12} />
                     </Btn>
                   </div>
-                  <ul className="space-y-1">
-                    {formData.setup_equipment.map((eq, i) => {
-                      // Attempt to populate name from list if id matches (handles newly added ones)
-                      const itemData = inventoryList.find(
-                        (x) =>
-                          x._id === (eq.inventory_id._id || eq.inventory_id),
-                      );
-                      const dispName = itemData
-                        ? itemData.item_name
-                        : eq.inventory_id.item_name || "Unknown Item";
-                      return (
+
+                  {/* Equipment List */}
+                  {formData.setup_equipment.length > 0 ? (
+                    <ul className="space-y-1">
+                      {formData.setup_equipment.map((eq, i) => (
                         <li
                           key={i}
                           className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
                         >
-                          <span>
-                            {dispName}{" "}
-                            <span className="text-gray-500 text-xs ml-2">
-                              x{eq.quantity}
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                            {getInventoryName(eq)}
+                            <span className="text-gray-400 text-xs ml-2">
+                              ×{eq.quantity}
                             </span>
                           </span>
                           <button
                             onClick={() => handleRemoveSetupEquip(i)}
-                            className="text-red-400 hover:text-red-500"
+                            className="text-red-400 hover:text-red-500 transition-colors"
                           >
                             <Trash2 size={14} />
                           </button>
                         </li>
-                      );
-                    })}
-                  </ul>
-
-                  <div className="mt-6">
-                    <h4 className="font-semibold mb-2">
-                      Scaffold Size Options
-                    </h4>
-                    <p className="text-xs text-gray-500 mb-3">
-                      Add pre-defined scaffold sizes with prices for customers
-                      to choose during booking.
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic text-center py-2 ml-7">
+                      No equipment added yet
                     </p>
-                    <div className="flex gap-2 mb-3">
-                      <input
-                        type="text"
-                        placeholder="Label (e.g. Small 20x20)"
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                        value={newScaffoldOption.label}
-                        onChange={(e) =>
-                          setNewScaffoldOption({
-                            ...newScaffoldOption,
-                            label: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="number"
-                        placeholder="Width ft"
-                        className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                        value={newScaffoldOption.width_ft}
-                        onChange={(e) =>
-                          setNewScaffoldOption({
-                            ...newScaffoldOption,
-                            width_ft: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="number"
-                        placeholder="Length ft"
-                        className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                        value={newScaffoldOption.length_ft}
-                        onChange={(e) =>
-                          setNewScaffoldOption({
-                            ...newScaffoldOption,
-                            length_ft: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="number"
-                        placeholder="Price"
-                        className="w-36 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                        value={newScaffoldOption.price}
-                        onChange={(e) =>
-                          setNewScaffoldOption({
-                            ...newScaffoldOption,
-                            price: e.target.value,
-                          })
-                        }
-                      />
-                      <Btn
-                        variant="primary"
-                        size="sm"
-                        onClick={handleAddScaffoldOption}
-                      >
-                        <Plus size={12} /> Add
-                      </Btn>
-                    </div>
+                  )}
+                </div>
 
+                {/* Scaffold Size Options */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">🏗️</span>
+                    <label className="font-semibold text-gray-800">
+                      Scaffold Size Options
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3 ml-7">
+                    Add pre-defined scaffold sizes with prices for customers to
+                    choose during booking
+                  </p>
+
+                  {/* Add Scaffold Form */}
+                  <div className="flex gap-2 mb-3 flex-wrap">
+                    <input
+                      type="text"
+                      placeholder="Label (e.g. Small)"
+                      className="flex-1 min-w-[120px] border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                      value={newScaffoldOption.label}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          label: e.target.value,
+                        })
+                      }
+                    />
+                    <input
+                      type="number"
+                      placeholder="Width (ft)"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                      value={newScaffoldOption.width_ft}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          width_ft: e.target.value,
+                        })
+                      }
+                    />
+                    <input
+                      type="number"
+                      placeholder="Length (ft)"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                      value={newScaffoldOption.length_ft}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          length_ft: e.target.value,
+                        })
+                      }
+                    />
+                    <input
+                      type="number"
+                      placeholder="Price (₱)"
+                      className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                      value={newScaffoldOption.price}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          price: e.target.value,
+                        })
+                      }
+                    />
+                    <Btn
+                      variant="primary"
+                      size="sm"
+                      onClick={handleAddScaffoldOption}
+                    >
+                      <Plus size={12} className="mr-1" /> Add
+                    </Btn>
+                  </div>
+
+                  {/* Scaffold Options List */}
+                  {(formData.scaffold_size_options || []).length > 0 ? (
                     <ul className="space-y-2">
                       {(formData.scaffold_size_options || []).map(
                         (opt, idx) => (
                           <li
                             key={idx}
-                            className="flex items-center justify-between bg-white p-3 border border-gray-100 rounded-lg"
+                            className="flex items-center justify-between bg-white p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-colors"
                           >
                             <div className="flex items-center gap-3">
                               <input
@@ -784,27 +932,37 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                                     opt._id || opt.id || idx,
                                   )
                                 }
+                                className="accent-[#D4AF37]"
                               />
                               <div>
-                                <div className="font-medium">
+                                <div className="font-medium text-sm">
                                   {opt.label ||
                                     `${opt.width_ft}ft × ${opt.length_ft}ft`}
+                                  {!formData.default_scaffold_option_id &&
+                                    idx === 0 && (
+                                      <span className="ml-2 text-xs bg-[#D4AF37] text-white px-2 py-0.5 rounded-full">
+                                        Default
+                                      </span>
+                                    )}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  Dimensions: {opt.width_ft}ft × {opt.length_ft}
+                                  ft
+                                  {" · "}
+                                  Area:{" "}
                                   {opt.area_ft2 ||
-                                    (opt.width_ft && opt.length_ft
-                                      ? `${opt.width_ft * opt.length_ft} ft²`
-                                      : "—")}
+                                    opt.width_ft * opt.length_ft}{" "}
+                                  ft²
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
-                              <div className="font-semibold">
+                              <div className="font-semibold text-sm">
                                 ₱{Number(opt.price || 0).toLocaleString()}
                               </div>
                               <button
                                 onClick={() => handleRemoveScaffoldOption(idx)}
-                                className="text-red-400 hover:text-red-500"
+                                className="text-red-400 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -813,42 +971,52 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                         ),
                       )}
                     </ul>
-                  </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic text-center py-4 ml-7">
+                      No scaffold options added yet
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </section>
+          )}
 
-          {/* Media Upload */}
-          <div>
-            <h3 className="font-bold text-[#111] mb-4">Media Upload</h3>
+          {/* SECTION 7: Media Upload */}
+          <section>
+            <h3 className="font-bold text-[#111] mb-4">Media</h3>
             <div className="space-y-4">
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  onChange={(e) => setImageFile(e.target.files[0])}
-                />
-                <Upload className="text-gray-400 mb-2" size={24} />
-                <p className="text-sm font-medium text-gray-700">
-                  Drag and drop or click to upload cover image
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Landscape banner format recommended (PNG, JPG up to 10MB)
-                </p>
-                {imageFile && (
-                  <p className="text-sm text-emerald-600 font-bold mt-2">
-                    {imageFile.name}
+              {/* Cover Image */}
+              <div>
+                <label className="block text-sm font-semibold text-[#111] mb-2">
+                  Cover Image
+                </label>
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => setImageFile(e.target.files[0])}
+                  />
+                  <Upload className="text-gray-400 mb-2" size={24} />
+                  <p className="text-sm font-medium text-gray-700">
+                    Drag and drop or click to upload
                   </p>
-                )}
-                {!imageFile && pkg?.image_url && (
-                  <p className="text-sm text-blue-500 font-medium mt-2">
-                    Current image saved
+                  <p className="text-xs text-gray-500 mt-1">
+                    Landscape banner recommended (PNG, JPG up to 10MB)
                   </p>
-                )}
+                  {imageFile ? (
+                    <p className="text-sm text-emerald-600 font-bold mt-2">
+                      ✓ {imageFile.name}
+                    </p>
+                  ) : pkg?.image_url ? (
+                    <p className="text-sm text-blue-500 font-medium mt-2">
+                      Current image saved
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
+              {/* Gallery Images */}
               <div>
                 <label className="block text-sm font-semibold text-[#111] mb-2">
                   Gallery Images
@@ -870,22 +1038,22 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   <p className="text-xs text-gray-500 mt-1">
                     Select multiple images to showcase your package
                   </p>
-                  {galleryFiles.length > 0 && (
+                  {galleryFiles.length > 0 ? (
                     <p className="text-sm text-emerald-600 font-bold mt-2">
-                      {galleryFiles.length} file(s) selected
+                      ✓ {galleryFiles.length} file(s) selected
                     </p>
-                  )}
-                  {galleryFiles.length === 0 && pkg?.gallery?.length > 0 && (
+                  ) : pkg?.gallery?.length > 0 ? (
                     <p className="text-sm text-blue-500 font-medium mt-2">
                       {pkg.gallery.length} current image(s) saved
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </div>
-          </div>
+          </section>
         </div>
 
+        {/* ============ FOOTER ============ */}
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
           <Btn variant="secondary" onClick={onClose} disabled={loading}>
             Cancel
@@ -896,7 +1064,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? "Saving..." : pkg ? "Save Package" : "Add Package"}
+            {loading ? "Saving..." : pkg ? "Save Changes" : "Create Package"}
           </Btn>
         </div>
       </div>

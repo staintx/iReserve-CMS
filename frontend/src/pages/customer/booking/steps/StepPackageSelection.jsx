@@ -6,10 +6,31 @@ export default function StepPackageSelection({
   packages = [],
   selectedPackageId,
   onSelectPackage,
+  form = {},
+  setForm = () => {},
+  packageDetails = null,
 }) {
   const eventSetupPackages = (packages || []).filter(
     (pkg) => pkg?.package_type === "Event Setup Only",
   );
+
+  const selectedPackage =
+    (packages || []).find((p) => p._id === selectedPackageId) || packageDetails;
+
+  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const selectedOptionId = form.selected_scaffold_option_id;
+
+  const scaffoldOptions = Array.isArray(selectedPackage?.scaffold_size_options)
+    ? selectedPackage.scaffold_size_options
+    : [];
+
+  const currentOption = scaffoldOptions.find(
+    (o) => String(o._id) === String(selectedOptionId),
+  );
+  const currentPrice = currentOption
+    ? Number(currentOption.price || 0)
+    : Number(selectedPackage?.setup_price || 0);
 
   return (
     <div className="mx-auto max-w-6xl py-6">
@@ -111,6 +132,64 @@ export default function StepPackageSelection({
           No event setup packages are available right now. Please check back
           later.
         </Card>
+      )}
+
+      {selectedPackage && scaffoldOptions.length > 0 && (
+        <div className="mt-8 rounded-lg border p-4 bg-white">
+          <h4 className="mb-3 font-semibold">Choose scaffold size</h4>
+          <div className="grid gap-3">
+            {scaffoldOptions.map((opt) => {
+              const area =
+                opt.area_ft2 ||
+                (opt.width_ft && opt.length_ft
+                  ? opt.width_ft * opt.length_ft
+                  : null);
+              const isActive = String(opt._id) === String(selectedOptionId);
+              return (
+                <button
+                  key={opt._id}
+                  type="button"
+                  onClick={() =>
+                    updateForm({
+                      selected_scaffold_option_id: String(opt._id),
+                      scaffold_width: opt.width_ft || undefined,
+                      scaffold_length: opt.length_ft || undefined,
+                      scaffold_base_area: area || undefined,
+                    })
+                  }
+                  className={cn(
+                    "w-full rounded-lg border p-3 text-left flex items-center justify-between",
+                    isActive
+                      ? "border-[#D4AF37] bg-[#FDF9F3]"
+                      : "border-black/[0.06] bg-white hover:bg-[#F7F4EE]",
+                  )}
+                >
+                  <div>
+                    <div className="font-medium">
+                      {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft`}
+                    </div>
+                    <div className="text-xs text-[#6B6657]">
+                      {area ? `${area} ft²` : "Custom"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-[#6B6657]">Price</div>
+                    <div className="font-semibold">
+                      ₱{Number(opt.price || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 text-right">
+            <div className="text-xs text-[#6B6657]">Selected setup price</div>
+            <div className="mt-1 text-lg font-semibold">
+              ₱{Number(currentPrice || 0).toLocaleString()}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

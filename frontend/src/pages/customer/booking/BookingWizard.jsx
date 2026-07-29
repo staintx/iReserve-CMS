@@ -627,9 +627,45 @@ export default function BookingWizard() {
         return (
           <StepPackageSelection
             packages={packages}
+            form={form}
+            setForm={setForm}
+            packageDetails={packageDetails}
+            packages={packages}
             selectedPackageId={form.package_id || initialPackageId}
             onSelectPackage={(pkgId) => {
-              setForm((prev) => ({ ...prev, package_id: pkgId }));
+              const pkg =
+                packages.find((p) => p._id === pkgId) || packageDetails;
+              let selectedOptionId = pkg?.default_scaffold_option_id || null;
+              let width = null;
+              let length = null;
+              let area = null;
+              if (
+                pkg &&
+                Array.isArray(pkg.scaffold_size_options) &&
+                pkg.scaffold_size_options.length > 0
+              ) {
+                const opt =
+                  pkg.scaffold_size_options.find(
+                    (o) => String(o._id) === String(selectedOptionId),
+                  ) || pkg.scaffold_size_options[0];
+                if (opt) {
+                  selectedOptionId = String(opt._id);
+                  width = opt.width_ft || null;
+                  length = opt.length_ft || null;
+                  area =
+                    opt.area_ft2 || (width && length ? width * length : null);
+                }
+              }
+
+              setForm((prev) => ({
+                ...prev,
+                package_id: pkgId,
+                selected_scaffold_option_id:
+                  selectedOptionId || prev.selected_scaffold_option_id,
+                scaffold_width: width || prev.scaffold_width,
+                scaffold_length: length || prev.scaffold_length,
+                scaffold_base_area: area || prev.scaffold_base_area,
+              }));
             }}
           />
         );

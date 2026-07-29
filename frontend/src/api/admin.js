@@ -26,6 +26,8 @@ export const AdminAPI = {
   processRefund: (id, data) => api.post(`/bookings/${id}/refund`, data),
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),
   verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
+  scheduleOcular: (id, data) => api.post(`/bookings/${id}/ocular/schedule`, data),
+  completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),

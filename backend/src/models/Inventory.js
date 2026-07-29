@@ -4,6 +4,7 @@ const InventorySchema = new mongoose.Schema({
   item_name: String,
   quantity: Number,
   category: String,
+  minStock: Number,
   available: { type: Boolean, default: true }
 }, { timestamps: true });
 

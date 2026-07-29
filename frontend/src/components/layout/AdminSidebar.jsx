@@ -32,7 +32,7 @@ export default function AdminSidebar() {
   const [openDropdowns, setOpenDropdowns] = useState({
     finance: ["/admin/payments", "/admin/refunds"].some(p => location.pathname.includes(p)),
     bookings: location.pathname.includes("/admin/bookings"),
-    service: ["/admin/packages", "/admin/inventory"].some(p => location.pathname.includes(p)),
+    service: ["/admin/packages", "/admin/inventory", "/admin/menu"].some(p => location.pathname.includes(p)),
   });
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function AdminSidebar() {
     if (location.pathname.includes("/admin/bookings")) {
       setOpenDropdowns((prev) => ({ ...prev, bookings: true }));
     }
-    if (["/admin/packages", "/admin/inventory"].some(p => location.pathname.includes(p))) {
+    if (["/admin/packages", "/admin/inventory", "/admin/menu"].some(p => location.pathname.includes(p))) {
       setOpenDropdowns((prev) => ({ ...prev, service: true }));
     }
   }, [location.pathname]);
@@ -201,6 +201,7 @@ export default function AdminSidebar() {
               {openDropdowns.service && !isCollapsed && (
                 <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
                   <NavLink to="/admin/packages" className={subLinkClass}>Packages</NavLink>
+                  <NavLink to="/admin/menu" className={subLinkClass}>Food Menu</NavLink>
                   <NavLink to="/admin/inventory" className={subLinkClass}>Inventory</NavLink>
                 </div>
               )}

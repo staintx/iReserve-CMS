@@ -1,20 +1,70 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Download, Calculator, Check, XCircle, AlertTriangle } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
-import { REFUNDS_DATA } from "../../components/admin/ui/data";
+import { AdminAPI } from "../../api/admin";
 import { useNavigate } from "react-router-dom";
+import useToast from "../../hooks/useToast";
 
 export default function AdminRefunds() {
   const navigate = useNavigate();
+  const { notify } = useToast();
+  
   const [search, setSearch] = useState("");
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [activeRefund, setActiveRefund] = useState(null);
   const [calcPct, setCalcPct] = useState(50); // Default to 50% as example
+  const [refundReason, setRefundReason] = useState("");
+  
+  const [refunds, setRefunds] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [payments, setPayments] = useState([]);
 
-  const filtered = REFUNDS_DATA.filter(r => 
+  const loadData = () => {
+    setLoading(true);
+    Promise.all([
+      AdminAPI.getBookings(),
+      AdminAPI.getPayments()
+    ]).then(([bRes, pRes]) => {
+      // Find cancelled bookings that might have payments
+      const allPayments = pRes.data;
+      setPayments(allPayments);
+      
+      const cancelled = bRes.data.filter(b => 
+        b.status === "cancelled" || b.status === "refunded"
+      );
+      
+      const refundsData = cancelled.map(b => {
+        const bPayments = allPayments.filter(p => p.booking_id?._id === b._id || p.booking_id === b._id);
+        const totalPaid = bPayments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        
+        return {
+          _id: b._id,
+          id: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
+          customer: b.customer_id?.full_name || `${b.contact_first_name} ${b.contact_last_name}`.trim(),
+          booking: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
+          reason: b.cancellation_reason || (b.ocular_visit?.outcome === "cancel" ? "Ocular cancelled" : "Cancelled by admin/customer"),
+          deposit: totalPaid,
+          pct: b.status === "refunded" ? "100%" : "—",
+          amount: b.status === "refunded" ? totalPaid : 0, // In a real app we'd have a refund schema
+          status: b.status === "refunded" ? "approved" : (totalPaid > 0 ? "pending" : "no_refund_needed")
+        };
+      });
+      
+      // Only show refunds where a deposit was actually paid, or it was already refunded
+      setRefunds(refundsData.filter(r => r.deposit > 0 || r.status === "approved"));
+    }).catch(err => {
+      notify("Failed to load refunds", "error");
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const filtered = refunds.filter(r => 
     !search || r.customer.toLowerCase().includes(search.toLowerCase()) || r.booking.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -25,13 +75,26 @@ export default function AdminRefunds() {
     // Parse percentage or default to 50
     const pct = parseInt(refund.pct.replace("%", "")) || 50;
     setCalcPct(pct);
+    setRefundReason(refund.reason);
     setShowCalcModal(true);
   };
 
   const handleApprove = () => {
-    // Save calculated refund and approve
-    setShowCalcModal(false);
-    setActiveRefund(null);
+    const refundAmount = (activeRefund.deposit * calcPct) / 100;
+    AdminAPI.processRefund(activeRefund._id, { amount: refundAmount, reason: refundReason })
+      .then(() => {
+        // Also mark the booking as refunded
+        return AdminAPI.updateBooking(activeRefund._id, { status: "refunded" });
+      })
+      .then(() => {
+        notify(`Refund of ${fmt(refundAmount)} processed successfully.`, "success");
+        setShowCalcModal(false);
+        setActiveRefund(null);
+        loadData();
+      })
+      .catch(err => {
+        notify(err.response?.data?.message || "Failed to process refund", "error");
+      });
   };
 
   return (
@@ -66,31 +129,37 @@ export default function AdminRefunds() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map(r => (
-                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono font-bold text-[#111]">{r.id}</td>
-                    <td className="px-4 py-3 text-xs font-mono font-bold text-[#D4AF37] cursor-pointer hover:underline" onClick={() => navigate(`/admin/bookings/${r.booking}/details`)}>{r.booking}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#111]">{r.customer}</td>
-                    <td className="px-4 py-3 text-xs text-[#374151] max-w-[200px] truncate" title={r.reason}>{r.reason}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#374151]">{fmt(r.deposit)}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#111]">{r.pct}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-orange-600">{fmt(r.amount)}</td>
-                    <td className="px-4 py-3"><Badge status={r.status} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        {r.status === "pending" && (
-                          <>
-                            <button onClick={() => handleOpenCalc(r)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title="Calculate & Approve"><Calculator size={13} /></button>
-                            <button className="p-1.5 hover:bg-red-50 rounded-lg text-red-400" title="Reject"><XCircle size={13} /></button>
-                          </>
-                        )}
-                        {r.status !== "pending" && (
-                          <button className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]" title="View details"><Search size={13} /></button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {loading ? (
+                  <tr><td colSpan="9" className="text-center py-8 text-gray-500">Loading refunds...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan="9" className="text-center py-8 text-gray-500">No refunds found.</td></tr>
+                ) : (
+                  filtered.map(r => (
+                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-xs font-mono font-bold text-[#111]">REF-{r.id.substring(4)}</td>
+                      <td className="px-4 py-3 text-xs font-mono font-bold text-[#D4AF37] cursor-pointer hover:underline" onClick={() => navigate(`/admin/bookings/${r._id}/details`)}>{r.booking}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-[#111]">{r.customer}</td>
+                      <td className="px-4 py-3 text-xs text-[#374151] max-w-[200px] truncate" title={r.reason}>{r.reason}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-[#374151]">{fmt(r.deposit)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-[#111]">{r.pct}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-orange-600">{fmt(r.amount)}</td>
+                      <td className="px-4 py-3"><Badge status={r.status} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          {r.status === "pending" && (
+                            <>
+                              <button onClick={() => handleOpenCalc(r)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title="Calculate & Approve"><Calculator size={13} /></button>
+                              <button className="p-1.5 hover:bg-red-50 rounded-lg text-red-400" title="Reject"><XCircle size={13} /></button>
+                            </>
+                          )}
+                          {r.status !== "pending" && (
+                            <button className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]" title="View details" onClick={() => navigate(`/admin/bookings/${r._id}/details`)}><Search size={13} /></button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

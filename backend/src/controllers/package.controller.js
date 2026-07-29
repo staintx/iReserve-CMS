@@ -32,10 +32,20 @@ exports.create = async (req, res) => {
       gallery = results.map(r => r.secure_url);
     }
   }
+  let setup_equipment = [];
+  if (req.body.setup_equipment) {
+    try {
+      setup_equipment = JSON.parse(req.body.setup_equipment);
+    } catch (e) {
+      console.error("Failed to parse setup_equipment", e);
+    }
+  }
+
   const payload = {
     ...req.body,
     inclusions: normalizeList(req.body.inclusions),
     add_ons: normalizeList(req.body.add_ons),
+    setup_equipment,
     image_url,
     gallery
   };
@@ -78,6 +88,14 @@ exports.update = async (req, res) => {
     add_ons: req.body.add_ons ? normalizeList(req.body.add_ons) : undefined,
     gallery_to_remove: req.body.gallery_to_remove ? normalizeList(req.body.gallery_to_remove) : []
   };
+
+  if (req.body.setup_equipment) {
+    try {
+      data.setup_equipment = JSON.parse(req.body.setup_equipment);
+    } catch (e) {
+      console.error("Failed to parse setup_equipment", e);
+    }
+  }
 
   if (data.inclusions === undefined) delete data.inclusions;
   if (data.add_ons === undefined) delete data.add_ons;

@@ -1,183 +1,171 @@
-import { useEffect, useState } from "react";
-import { AdminAPI } from "../../api/admin";
+import React, { useState, useEffect } from "react";
+import { Search, Plus, Filter, Edit3, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
-import Modal from "../../components/common/Modal";
-import AdminMenuForm from "../../components/forms/AdminMenuForm";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import Btn from "../../components/admin/ui/Btn";
+import Badge from "../../components/admin/ui/Badge";
+import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import MenuModal from "../../components/admin/ui/MenuModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function AdminMenu() {
-  const [menu, setMenu] = useState([]);
-  const [show, setShow] = useState(false);
-  const [form, setForm] = useState({});
-  const [file, setFile] = useState(null);
-  const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
   const { notify } = useToast();
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  
+  const [menuItems, setMenuItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [showModal, setShowModal] = useState(false);
+  const [activeItem, setActiveItem] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
-  const load = () => AdminAPI.getMenu().then((res) => setMenu(Array.isArray(res.data) ? res.data : []));
-  useEffect(() => {
-    load();
-  }, []);
+  const categories = ["all", "Appetizer", "Soup", "Salad", "Main Course", "Pasta", "Dessert", "Beverage"];
 
-  const submit = async () => {
-    const data = new FormData();
-    Object.entries(form).forEach(([k, v]) => {
-      if (v === undefined || v === null) return;
-      data.append(k, v);
-    });
-    if (file) data.append("image", file);
-
-    try {
-      if (form._id) {
-        await AdminAPI.updateMenu(form._id, data);
-        notify("Menu item updated.", "success");
-      } else {
-        await AdminAPI.createMenu(data);
-        notify("Menu item created.", "success");
-      }
-    } catch (err) {
-      notify(err.response?.data?.message || "We could not save the menu item. Please try again.", "error");
-      return;
-    }
-
-    setShow(false); setForm({}); setFile(null); load();
+  const loadData = () => {
+    setLoading(true);
+    AdminAPI.getMenu()
+      .then(res => setMenuItems(res.data))
+      .catch(err => notify("Failed to load menu items", "error"))
+      .finally(() => setLoading(false));
   };
 
-  const edit = (m) => { setForm(m); setShow(true); };
-  const remove = (id) =>
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleOpenModal = (item = null) => {
+    setActiveItem(item);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setActiveItem(null);
+  };
+
+  const handleDelete = (id) => {
     AdminAPI.deleteMenu(id)
       .then(() => {
-        notify("Menu item deleted.", "success");
-        load();
+        notify("Menu item deleted successfully", "success");
+        setCancelTarget(null);
+        loadData();
       })
-      .catch((err) => notify(err.response?.data?.message || "We could not delete the menu item. Please try again.", "error"));
-  const toggleAvailability = (item) =>
-    AdminAPI.updateMenu(item._id, { available: !item.available })
-      .then(() => {
-        notify(item.available ? "Menu item disabled." : "Menu item enabled.", "success");
-        load();
-      })
-      .catch((err) => notify(err.response?.data?.message || "We could not update the menu item. Please try again.", "error"));
+      .catch(err => notify(err.response?.data?.message || "Failed to delete menu item", "error"));
+  };
 
-  const list = menu;
-  const categories = ["All", "Main Dishes", "Pasta", "Rice", "Desserts", "Drinks"];
-  const filtered = list.filter((item) => {
-    const matchesQuery =
-      item.name?.toLowerCase().includes(query.toLowerCase()) ||
-      item.category?.toLowerCase().includes(query.toLowerCase());
-
-    const matchesCategory = activeCategory === "All" ? true : item.category === activeCategory;
-    return matchesQuery && matchesCategory;
+  const filtered = menuItems.filter(i => {
+    const matchSearch = !search || (i.name && i.name.toLowerCase().includes(search.toLowerCase()));
+    const matchCategory = filter === "all" || i.category === filter;
+    return matchSearch && matchCategory;
   });
+
+  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
   return (
     <AdminLayout>
-      <div className="admin-page-head">
-        <div className="admin-title">
-          <h1>Food Menu</h1>
-          <p>Manage food menu items and availability</p>
+      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Food Menu Management</h2>
+          <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Menu Item</Btn>
         </div>
-        <div className="admin-actions">
-          <button className="btn" onClick={() => setShow(true)}>+ Add Menu Item</button>
-        </div>
-      </div>
 
-      <div className="admin-actions" style={{ marginBottom: "14px" }}>
-        <div className="tab-row" role="tablist" aria-label="Menu categories">
-          {categories.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={c === activeCategory ? "active" : ""}
-              onClick={() => setActiveCategory(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      </div>
+        <AdminCard className="!p-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
+              <Search size={14} className="text-[#9CA3AF]" />
+              <input 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                placeholder="Search menu items..." 
+                className="bg-transparent text-sm focus:outline-none flex-1" 
+                style={{ fontFamily: "Inter, sans-serif" }} 
+              />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {categories.map(c => (
+                <button 
+                  key={c} 
+                  onClick={() => setFilter(c)} 
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${filter === c ? "bg-[#111827] text-white" : "bg-gray-100 text-[#6B7280] hover:bg-gray-200"}`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        </AdminCard>
 
-      <div className="admin-actions" style={{ marginBottom: "12px" }}>
-        <div className="admin-search">
-          <input placeholder="Search by item or category" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-      </div>
-
-      <div className="admin-table-wrap">
-        {list.length === 0 && <p>No menu items yet.</p>}
-        {list.length > 0 && (
-          <div className="admin-card-grid menu-grid">
-            {filtered.map((item) => (
-              <div key={item._id} className="package-card">
-                <div className="package-card-media">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} />
-                  ) : (
-                    <div className="package-thumb" aria-hidden="true" />
-                  )}
-
-                  <div className="package-card-statusbar">
-                    <div className="package-card-status-text">
-                      <div className="package-card-status-label">Current Status</div>
-                      <div className="package-card-status-sub">{item.available ? "Available" : "Unavailable"}</div>
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">Loading menu...</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map(item => (
+              <AdminCard key={item._id} className="!p-0 hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+                {item.image_url ? (
+                  <div className="w-full h-40 bg-gray-100">
+                    <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-full h-40 bg-gray-100 flex items-center justify-center text-gray-400">
+                    No Image
+                  </div>
+                )}
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold text-[#111] leading-tight mb-1">{item.name}</h3>
+                      <p className="text-xs text-[#6B7280] font-medium uppercase tracking-wider">{item.category}</p>
                     </div>
-
-                    <label className="switch" aria-label="Toggle availability">
-                      <input
-                        type="checkbox"
-                        checked={item.available !== false}
-                        onChange={() => toggleAvailability(item)}
-                      />
-                      <span className="slider" />
-                    </label>
+                    <Badge status={item.available ? "available" : "unavailable"} />
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-2 flex-1">
+                    {item.description || "No description provided."}
+                  </p>
+                  
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <p className="text-lg font-bold text-[#D4AF37]">{fmt(item.price)}</p>
+                    <div className="flex gap-2">
+                      <Btn variant="secondary" size="sm" className="px-3" onClick={() => handleOpenModal(item)}>
+                        <Edit3 size={13} className="mr-1.5" /> Edit
+                      </Btn>
+                      <Btn variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 px-2" onClick={() => setCancelTarget(item)}>
+                        <Trash2 size={13} />
+                      </Btn>
+                    </div>
                   </div>
                 </div>
-
-                <div className="package-card-body">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="package-card-title" style={{ color: "#111827", textShadow: "none" }}>
-                      {item.name}
-                    </h3>
-                    {item.category ? <span className="pill muted">{item.category}</span> : null}
-                  </div>
-
-                  {item.description ? (
-                    <p className="package-card-desc" style={{ color: "#6b7280", textShadow: "none" }}>
-                      {item.description}
-                    </p>
-                  ) : null}
-
-                  <div className="package-card-actions">
-                    {item._id?.startsWith("mock-") ? null : (
-                      <>
-                        <button className="pkg-action edit" type="button" onClick={() => edit(item)} aria-label="Edit">
-                          ✎
-                        </button>
-                        <button className="pkg-action delete" type="button" onClick={() => remove(item._id)} aria-label="Delete">
-                          🗑
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+              </AdminCard>
             ))}
+            {filtered.length === 0 && (
+              <div className="col-span-full text-center py-10 text-gray-500">No menu items found.</div>
+            )}
           </div>
         )}
       </div>
 
-      {show && (
-        <Modal title="Add New Menu Item" className="menu-form-modal" onClose={() => setShow(false)}>
-          <AdminMenuForm
-            form={form}
-            setForm={setForm}
-            file={file}
-            setFile={setFile}
-            onCancel={() => setShow(false)}
-            onSubmit={submit}
-            submitLabel={form._id ? "Save Changes" : "Add Item"}
-          />
-        </Modal>
+      {showModal && (
+        <MenuModal 
+          item={activeItem} 
+          onClose={handleCloseModal} 
+          onSave={() => {
+            handleCloseModal();
+            loadData();
+          }} 
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title="Delete Food Menu Item"
+          message={`Are you sure you want to delete "${cancelTarget.name}"? This action cannot be undone.`}
+          onConfirm={() => handleDelete(cancelTarget._id)}
+          onCancel={() => setCancelTarget(null)}
+          confirmText="Delete"
+          confirmVariant="danger"
+        />
       )}
     </AdminLayout>
   );

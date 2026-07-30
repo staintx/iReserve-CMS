@@ -439,7 +439,6 @@ exports.create = asyncHandler(async (req, res) => {
 
       if (depositAmount > 0) {
         const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-        const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}`;
         const cancelUrl = `${appBaseUrl}/customer/book?status=cancelled`;
 
         const payment = await Payment.create({
@@ -452,6 +451,7 @@ exports.create = asyncHandler(async (req, res) => {
           status: "pending",
           gateway: "paymongo",
         });
+        const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}&payment_id=${payment._id}`;
 
         const checkout = await createCheckoutSession({
           amount: depositAmount,

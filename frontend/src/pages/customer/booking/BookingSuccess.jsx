@@ -40,37 +40,53 @@ export default function BookingSuccess() {
   // If redirected from PayMongo without state, we might need to fetch the latest booking if possible, 
   // but usually we can just show a generic success if we don't have the booking object.
   useEffect(() => {
-    if (!booking) {
+    const loadBooking = async () => {
+      if (booking) return;
+
       const bookingId = searchParams.get('booking_id');
       const sessionId = searchParams.get('session_id');
-      
-      if (bookingId || sessionId) {
-        CustomerAPI.getBookings()
-          .then(async (res) => {
-            let found = null;
-            if (bookingId) {
-              found = res.data.find(b => b._id === bookingId);
-            }
-            if (!found && sessionId) {
-              try {
-                const payRes = await CustomerAPI.getPayments();
-                const payment = payRes.data.find(p => p.gateway_checkout_id === sessionId);
-                if (payment && payment.booking_id) {
-                  const bId = typeof payment.booking_id === 'object' ? payment.booking_id._id : payment.booking_id;
-                  found = res.data.find(b => b._id === bId);
-                }
-              } catch (payErr) {
-                console.error("Failed to fetch payments:", payErr);
-              }
-            }
-            if (found) {
-              setBooking(found);
-            }
-          })
-          .catch((err) => console.error("Failed to fetch booking details:", err))
-          .finally(() => setIsLoading(false));
+      const paymentId = searchParams.get('payment_id');
+      if (!(bookingId || sessionId || paymentId)) return;
+
+      if (paymentId) {
+        try {
+          await CustomerAPI.verifyPayment(paymentId);
+        } catch (paymentErr) {
+          console.error("Failed to verify payment:", paymentErr);
+        }
       }
-    }
+
+      try {
+        const res = await CustomerAPI.getBookings();
+        let found = bookingId ? res.data.find((item) => item._id === bookingId) : null;
+
+        if (!found && sessionId) {
+          try {
+            const payRes = await CustomerAPI.getPayments();
+            const payment = payRes.data.find(
+              (item) => item.gateway_checkout_id === sessionId,
+            );
+            if (payment?.booking_id) {
+              const bookingIdFromPayment =
+                typeof payment.booking_id === "object"
+                  ? payment.booking_id._id
+                  : payment.booking_id;
+              found = res.data.find((item) => item._id === bookingIdFromPayment);
+            }
+          } catch (payErr) {
+            console.error("Failed to fetch payments:", payErr);
+          }
+        }
+
+        if (found) setBooking(found);
+      } catch (err) {
+        console.error("Failed to fetch booking details:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadBooking();
   }, [booking, searchParams]);
 
   const handleScheduleOcular = async () => {

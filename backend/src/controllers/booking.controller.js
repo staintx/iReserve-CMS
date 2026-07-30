@@ -2,6 +2,7 @@ const Booking = require("../models/Booking");
 const Inventory = require("../models/Inventory");
 const InventoryReservation = require("../models/InventoryReservation");
 const Package = require("../models/Package");
+const BusinessInfo = require("../models/BusinessInfo");
 
 const checkInventoryAvailability = async (
   eventDate,
@@ -132,6 +133,10 @@ const normalizeText = (value) =>
     .replace(/\s+/g, " ");
 
 const sameLocation = (requestLocation, existingLocation) => {
+  // Pickup orders happen at the caterer's fixed address and should not be
+  // blocked by venue-based event conflicts.
+  if (requestLocation?.delivery_method === "pickup") return false;
+
   const keys = ["venue_type", "province", "municipality", "barangay", "street"];
   const hasAny = keys.some((key) => Boolean(requestLocation?.[key]));
   if (!hasAny) return true;
@@ -294,6 +299,29 @@ exports.create = asyncHandler(async (req, res) => {
       req.body.payment_method === "cod" ? "confirmed" : "pending deposit";
   }
 
+  if (req.body.delivery_method === "pickup") {
+    const businessInfo = await BusinessInfo.findOne();
+    const pickupLocation =
+      businessInfo?.pickup_address?.trim() || businessInfo?.address?.trim();
+
+    if (!pickupLocation) {
+      return res.status(400).json({
+        message:
+          "Pickup is unavailable until the pickup location address is configured.",
+      });
+    }
+
+    // The caterer's address is authoritative for pickup bookings. Customer
+    // delivery-address fields are intentionally not required or persisted.
+    req.body.pickup_location = pickupLocation;
+    delete req.body.province;
+    delete req.body.municipality;
+    delete req.body.barangay;
+    delete req.body.street;
+    delete req.body.landmark;
+    delete req.body.zip_code;
+  }
+
   const conflict = await findBookingConflict({
     eventDate: req.body.event_date,
     startTime: req.body.start_time,
@@ -402,7 +430,6 @@ exports.create = asyncHandler(async (req, res) => {
     req.body.payment_method !== "cod"
   ) {
     try {
-      const BusinessInfo = require("../models/BusinessInfo");
       const Payment = require("../models/Payment");
       const { createCheckoutSession } = require("../services/payment.service");
 

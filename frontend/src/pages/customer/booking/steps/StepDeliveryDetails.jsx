@@ -9,13 +9,13 @@ import {
   GuestCounter,
   TTextarea,
 } from "../components/BookingSharedUI";
-import { cn } from "@/lib/utils";
 
 export default function StepDeliveryDetails({
   form,
   setForm,
   municipalities,
   barangays,
+  pickupAddress,
   onNext,
 }) {
   const handleGuestChange = (nextValue) => {
@@ -159,7 +159,8 @@ export default function StepDeliveryDetails({
           <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 p-6 text-[#111]">
             <p className="mb-1 font-semibold text-sm">Customer Pickup</p>
             <p className="text-xs text-[#6B6657]">
-              You will pick up the food from our main kitchen on your selected
+              You will pick up the food from{" "}
+              {pickupAddress || "the caterer's address"} on your selected
               event date and time.
             </p>
           </div>

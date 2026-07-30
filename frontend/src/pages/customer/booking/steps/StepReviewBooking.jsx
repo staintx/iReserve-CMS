@@ -17,7 +17,7 @@ import { SH } from "../components/BookingSharedUI";
 export default function StepReviewBooking({
   form,
   initialPackageName,
-  initialPackagePrice,
+  pickupAddress,
   totalPrice,
   depositAmount,
   agreements,
@@ -212,7 +212,7 @@ export default function StepReviewBooking({
                     Pickup Location
                   </p>
                   <p className="text-sm font-semibold text-[#111]">
-                    Our Main Kitchen
+                    {pickupAddress || "Caterer's address"}
                   </p>
                 </div>
               </div>

@@ -5,6 +5,7 @@ const BusinessInfoSchema = new mongoose.Schema({
   contact_number: String,
   email: String,
   address: String,
+  pickup_address: String,
   hours: String,
   facebook: String,
   instagram: String,

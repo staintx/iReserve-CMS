@@ -7,6 +7,7 @@ const DEFAULT_INFO = {
   contact_number: "",
   email: "",
   address: "",
+  pickup_address: "",
   hours: "",
   facebook: "",
   instagram: "",
@@ -115,6 +116,11 @@ export default function BusinessInfoPanel() {
 
           <div className="form-section">
             <h4>Booking Configuration</h4>
+            <label className="business-info-field">
+              <span>Pickup location address</span>
+              <textarea className="business-info-input business-info-textarea" rows="3" value={form.pickup_address} onChange={updateField("pickup_address")} placeholder="Address where customers collect pickup orders" />
+              <small>Shown to customers who choose pickup. Leave blank to use the business address above.</small>
+            </label>
             <div className="form-grid-2">
               <label className="business-info-field">
                 <span>Deposit Percentage (%)</span>

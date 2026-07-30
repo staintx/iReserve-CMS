@@ -25,12 +25,30 @@ const BookingSchema = new mongoose.Schema(
     include_food: { type: Boolean, default: true },
 
     venue_type: String,
-    province: { type: String, required: [true, "Province is required"] },
+    delivery_method: {
+      type: String,
+      enum: ["delivery", "pickup", "setup"],
+      default: "setup",
+    },
+    pickup_location: String,
+    province: {
+      type: String,
+      required: function () {
+        return this.delivery_method !== "pickup";
+      },
+    },
     municipality: {
       type: String,
-      required: [true, "Municipality/City is required"],
+      required: function () {
+        return this.delivery_method !== "pickup";
+      },
     },
-    barangay: { type: String, required: [true, "Barangay is required"] },
+    barangay: {
+      type: String,
+      required: function () {
+        return this.delivery_method !== "pickup";
+      },
+    },
     street: String,
     landmark: String,
     zip_code: String,

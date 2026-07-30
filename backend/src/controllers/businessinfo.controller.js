@@ -22,6 +22,7 @@ exports.update = asyncHandler(async (req, res) => {
     contact_number: req.body.contact_number,
     email: req.body.email,
     address: req.body.address,
+    pickup_address: req.body.pickup_address,
     hours: req.body.hours,
     facebook: req.body.facebook,
     instagram: req.body.instagram,

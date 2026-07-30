@@ -695,6 +695,7 @@ export default function BookingWizard() {
             setForm={setForm}
             municipalities={municipalities}
             barangays={barangays}
+            pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
             totalPrice={totalPrice}
             depositAmount={depositAmount}
             onNext={handleNext}
@@ -736,6 +737,7 @@ export default function BookingWizard() {
           <StepReviewBooking
             form={form}
             initialPackageName={initialPackageName}
+            pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
             totalPrice={totalPrice}
             depositAmount={depositAmount}
             agreements={agreements}

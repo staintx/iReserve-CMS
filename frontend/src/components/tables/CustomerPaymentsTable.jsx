@@ -15,6 +15,7 @@ export default function CustomerPaymentsTable({ payments, formatCurrency }) {
         return <Badge variant="default" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200">Approved</Badge>;
       case "pending":
         return <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200">Pending</Badge>;
+      case "rejected":
       case "cancelled":
       case "failed":
         return <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-200">Failed</Badge>;
@@ -40,7 +41,7 @@ export default function CustomerPaymentsTable({ payments, formatCurrency }) {
           {payments.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                No completed transactions yet.
+                No payment transactions yet.
               </TableCell>
             </TableRow>
           ) : (

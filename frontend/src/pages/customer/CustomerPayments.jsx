@@ -32,7 +32,9 @@ export default function CustomerPayments() {
                 if (vRes.data?.payment?.status === "approved") {
                   updated = true;
                 }
-              } catch (e) {}
+              } catch {
+                // A later refresh or the PayMongo webhook can still reconcile it.
+              }
             }
           }
           if (updated) {
@@ -41,7 +43,7 @@ export default function CustomerPayments() {
           }
         }
         setPayments(data);
-      } catch (error) {
+      } catch {
         setPayments([]);
       }
     };
@@ -96,10 +98,7 @@ export default function CustomerPayments() {
     [pendingPayments]
   );
 
-  const completedTransactions = useMemo(
-    () => payments.filter(p => p.status !== "pending"),
-    [payments]
-  );
+  const transactionHistory = useMemo(() => payments, [payments]);
 
   return (
     <CustomerDashboardLayout
@@ -196,10 +195,10 @@ export default function CustomerPayments() {
 
         <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-xl font-serif">Transaction History</CardTitle>
+            <CardTitle className="text-xl font-serif">All Transactions</CardTitle>
           </CardHeader>
           <CardContent>
-            <CustomerPaymentsTable payments={completedTransactions} formatCurrency={formatCurrency} />
+            <CustomerPaymentsTable payments={transactionHistory} formatCurrency={formatCurrency} />
           </CardContent>
         </Card>
       </div>

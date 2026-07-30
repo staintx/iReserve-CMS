@@ -127,7 +127,9 @@ exports.getMine = asyncHandler(async (req, res) => {
 	);
 
 	res.json(
-		await Payment.find({ customer_id: req.user._id }).populate("booking_id customer_id"),
+		await Payment.find({ customer_id: req.user._id })
+			.sort({ createdAt: -1 })
+			.populate("booking_id customer_id"),
 	);
 });
 exports.getById = asyncHandler(async (req, res) => {

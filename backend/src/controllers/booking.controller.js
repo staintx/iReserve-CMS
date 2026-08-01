@@ -134,9 +134,13 @@ const normalizeText = (value) =>
     .replace(/\s+/g, " ");
 
 const sameLocation = (requestLocation, existingLocation) => {
-  // Pickup orders happen at the caterer's fixed address and should not be
-  // blocked by venue-based event conflicts.
+  // Food Only / Pickup orders do not occupy the venue and shouldn't trigger a location conflict
   if (requestLocation?.delivery_method === "pickup") return false;
+  if (requestLocation?.service_type === "Food Only") return false;
+  if (requestLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
+  
+  // Existing Food Only orders don't block the venue either
+  if (existingLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
 
   const keys = ["venue_type", "province", "municipality", "barangay", "street"];
   const hasAny = keys.some((key) => Boolean(requestLocation?.[key]));
@@ -587,6 +591,8 @@ exports.update = asyncHandler(async (req, res) => {
       municipality: req.body.municipality || current.municipality,
       barangay: req.body.barangay || current.barangay,
       street: req.body.street || current.street,
+      delivery_method: req.body.delivery_method || current.delivery_method,
+      event_type: req.body.event_type || current.event_type,
     },
     bufferMinutes: req.body.buffer_minutes,
   });
@@ -1161,6 +1167,8 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
       municipality: req.query.municipality,
       barangay: req.query.barangay,
       street: req.query.street,
+      delivery_method: req.query.delivery_method,
+      service_type: req.query.service_type,
     },
     bufferMinutes: req.query.buffer_minutes,
   });
@@ -1274,6 +1282,8 @@ exports.suggestDates = asyncHandler(async (req, res) => {
     municipality,
     barangay,
     street,
+    delivery_method,
+    service_type,
   } = req.query;
   if (!event_date)
     return res.status(400).json({ message: "event_date is required" });
@@ -1283,7 +1293,7 @@ exports.suggestDates = asyncHandler(async (req, res) => {
   if (Number.isNaN(baseDate.getTime()))
     return res.status(400).json({ message: "Invalid date" });
 
-  const location = { venue_type, province, municipality, barangay, street };
+  const location = { venue_type, province, municipality, barangay, street, delivery_method, service_type };
   
   // Get all blocked dates in the range
   const blockedDates = await BlockedDate.find({

@@ -394,6 +394,8 @@ export default function BookingWizard() {
         municipality: form.municipality,
         barangay: form.barangay,
         street: form.street,
+        delivery_method: form.delivery_method,
+        service_type: form.service_type,
       })
         .then((res) => {
           // Normalize API truthy/falsy values
@@ -437,6 +439,8 @@ export default function BookingWizard() {
               municipality: form.municipality,
               barangay: form.barangay,
               street: form.street,
+              delivery_method: form.delivery_method,
+              service_type: form.service_type,
               range: 7,
             })
               .then((sugRes) => {

@@ -205,8 +205,15 @@ const BookingSchema = new mongoose.Schema(
 
 BookingSchema.pre("save", async function () {
   if (!this.reference) {
-    const count = await mongoose.model("Booking").countDocuments();
-    this.reference = `CAZ-${String(count + 1).padStart(6, "0")}`;
+    const lastBooking = await mongoose.model("Booking").findOne({}, "reference").sort({ reference: -1 });
+    let seq = 1;
+    if (lastBooking && lastBooking.reference) {
+      const match = lastBooking.reference.match(/CAZ-(\d+)/);
+      if (match) {
+        seq = parseInt(match[1], 10) + 1;
+      }
+    }
+    this.reference = `CAZ-${String(seq).padStart(6, "0")}`;
   }
 });
 

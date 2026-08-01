@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { listConversations } from "../../api/messages";
 import useToast from "../../hooks/useToast";
+import { MessageSquare, Clock, ChevronRight } from "lucide-react";
 
 const getShortCode = (conversation) => {
   const sourceId = conversation?.booking_id?._id || conversation?.inquiry_id?._id || conversation?._id;
@@ -70,33 +71,54 @@ export default function CustomerMessages() {
       title="Messages"
       subtitle="Communicate with Caezelle's Catering team"
     >
-      <div className="chat-list">
-        {loading && <div className="chat-list-item">Loading conversations...</div>}
-        {!loading && threads.length === 0 && (
-          <div className="chat-list-item">No conversations yet.</div>
-        )}
-        {threads.map((thread) => (
-          <div
-            key={thread._id}
-            className="chat-list-item"
-            onClick={() => navigate(`/customer/messages/${thread._id}`)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") navigate(`/customer/messages/${thread._id}`);
-            }}
-          >
-            <div className="chat-list-left">
-              <div className="chat-avatar">{getInitials(thread)}</div>
-              <div>
-                <strong>{getTitle(thread)}</strong>
-                <div className="chat-list-meta">{thread.manager_id?.full_name || "Caezelle's Support"}</div>
-                <div className="chat-list-meta">{thread.last_message || "No messages yet."}</div>
+      <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+        <div className="divide-y divide-border">
+          {loading && (
+            <div className="p-8 text-center text-muted-foreground animate-pulse">Loading conversations...</div>
+          )}
+          {!loading && threads.length === 0 && (
+            <div className="p-12 text-center flex flex-col items-center">
+              <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-4">
+                <MessageSquare className="w-8 h-8 text-muted-foreground opacity-50" />
+              </div>
+              <p className="text-lg font-medium text-foreground">No conversations yet.</p>
+              <p className="text-sm text-muted-foreground mt-1">When you book an event or make an inquiry, your chats will appear here.</p>
+            </div>
+          )}
+          {threads.map((thread) => (
+            <div
+              key={thread._id}
+              className="flex items-center justify-between p-4 sm:p-6 hover:bg-muted/30 cursor-pointer transition-colors group"
+              onClick={() => navigate(`/customer/messages/${thread._id}`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") navigate(`/customer/messages/${thread._id}`);
+              }}
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold text-lg shrink-0 group-hover:scale-105 transition-transform">
+                  {getInitials(thread)}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-foreground truncate">{getTitle(thread)}</h4>
+                  <div className="text-sm text-foreground truncate">{thread.manager_id?.full_name || "Caezelle's Support"}</div>
+                  <div className="text-sm text-muted-foreground truncate max-w-md mt-0.5">{thread.last_message || "No messages yet."}</div>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2 shrink-0 ml-4">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap bg-muted/50 px-2 py-1 rounded-md">
+                  <Clock className="w-3 h-3" />
+                  {formatDate(thread.last_message_at || thread.updatedAt)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">{getCode(thread)}</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
               </div>
             </div>
-            <div className="chat-list-meta">{getCode(thread)} · {formatDate(thread.last_message_at || thread.updatedAt)}</div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </CustomerDashboardLayout>
   );

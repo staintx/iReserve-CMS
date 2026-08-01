@@ -1,16 +1,24 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
+import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 export default function CustomerLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef(null);
+
   const navClass = ({ isActive }) =>
     `text-sm font-semibold transition ${isActive ? "text-ink-900" : "text-ink-700 hover:text-ink-900"}`;
 
@@ -31,7 +39,8 @@ export default function CustomerLayout({ children }) {
 
     const isActive =
       (isLanding &&
-        ((sectionId === "top" && (!activeHash || activeHash === "#top")) || activeHash === `#${sectionId}`)) ||
+        ((sectionId === "top" && (!activeHash || activeHash === "#top")) ||
+          activeHash === `#${sectionId}`)) ||
       (location.pathname === "/gallery" && sectionId === "gallery");
 
     return navClass({ isActive });
@@ -39,12 +48,6 @@ export default function CustomerLayout({ children }) {
 
   const handleSectionNav = (sectionId) => (event) => {
     event.preventDefault();
-    setMenuOpen(false);
-
-    if (sectionId === "packages") {
-      navigate("/packages");
-      return;
-    }
 
     if (sectionId === "gallery") {
       navigate("/gallery");
@@ -65,10 +68,6 @@ export default function CustomerLayout({ children }) {
     scrollToSection(sectionId);
   };
 
-  const handleLogoutClick = () => {
-    setMenuOpen(false);
-    setShowLogoutConfirm(true);
-  };
   const initials = (() => {
     const name = user?.full_name || user?.email || "";
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -77,70 +76,136 @@ export default function CustomerLayout({ children }) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   })();
 
-  useEffect(() => {
-    const handleClick = (event) => {
-      if (!menuRef.current || menuRef.current.contains(event.target)) return;
-      setMenuOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
   return (
     <div className="page-shell">
-      <header className="sticky top-0 z-40 px-6 py-4 border-b border-white/80 bg-white/80 backdrop-blur sm:px-10">
-        <div className="flex items-center justify-between max-w-6xl gap-6 mx-auto">
-          <div className="flex items-center gap-3 text-lg font-semibold cursor-pointer" onClick={() => navigate("/")}
+      <header className="sticky top-0 z-40 border-b bg-white/80 px-6 py-4 backdrop-blur sm:px-10">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-6">
+          <div
+            className="flex cursor-pointer items-center gap-3 text-lg font-semibold"
+            onClick={() => navigate("/")}
             onKeyDown={(event) => event.key === "Enter" && navigate("/")}
             role="button"
             tabIndex={0}
           >
-            <img src={logo} alt="Caezelle's logo" className="h-9 w-9 rounded-2xl object-cover" />
+            <img
+              src={logo}
+              alt="Caezelle's logo"
+              className="h-9 w-9 rounded-2xl object-cover"
+            />
             <span>Caezelle's Catering</span>
           </div>
 
-          <nav className="items-center hidden gap-6 md:flex">
-            <a href="/#top" className={sectionLinkClass("top")} onClick={handleSectionNav("top")}>Home</a>
-            <a href="/packages" className={sectionLinkClass("packages")} onClick={handleSectionNav("packages")}>Packages</a>
-            <a href="/gallery" className={sectionLinkClass("gallery")} onClick={handleSectionNav("gallery")}>Gallery</a>
-            <a href="/#testimonials" className={sectionLinkClass("testimonials")} onClick={handleSectionNav("testimonials")}>About Us</a>
-            <a href="/#contact" className={sectionLinkClass("contact")} onClick={handleSectionNav("contact")}>Contact</a>
+          <nav className="hidden items-center gap-6 md:flex">
+            <a
+              href="/#top"
+              className={sectionLinkClass("top")}
+              onClick={handleSectionNav("top")}
+            >
+              Home
+            </a>
+            <a
+              href="/gallery"
+              className={sectionLinkClass("gallery")}
+              onClick={handleSectionNav("gallery")}
+            >
+              Gallery
+            </a>
+            <a
+              href="/#testimonials"
+              className={sectionLinkClass("testimonials")}
+              onClick={handleSectionNav("testimonials")}
+            >
+              About Us
+            </a>
+            <a
+              href="/#contact"
+              className={sectionLinkClass("contact")}
+              onClick={handleSectionNav("contact")}
+            >
+              Contact
+            </a>
           </nav>
 
           <div className="flex items-center gap-3">
             {!user && (
               <>
-                <NavLink className="btn-ghost" to="/login">Login</NavLink>
-                <button className="btn" onClick={() => navigate("/customer/book")}>Book Now</button>
+                <Button variant="ghost" onClick={() => navigate("/login")}>
+                  Login
+                </Button>
+                <Button
+                  onClick={() =>
+                    navigate("/customer/book", { state: { resetWizard: true } })
+                  }
+                >
+                  Book Now
+                </Button>
               </>
             )}
 
             {user && (
-              <div className="user-menu" ref={menuRef}>
-                <button className="user-menu-trigger" type="button" onClick={() => setMenuOpen((prev) => !prev)}>
-                  <span className="user-menu-avatar">{initials}</span>
-                  <span className="user-menu-name">{user.full_name || "Customer"}</span>
-                  <span className="user-menu-caret">▾</span>
-                </button>
-                {menuOpen && (
-                  <div className="user-dropdown">
-                    <button className="dropdown-link" type="button" onClick={() => navigate("/customer/dashboard")}>Dashboard</button>
-                    <button className="dropdown-link" type="button" onClick={() => navigate("/customer/bookings")}>My Bookings</button>
-                    <button className="dropdown-link" type="button" onClick={() => navigate("/customer/payments")}>Payment History</button>
-                    <button className="dropdown-link" type="button" onClick={() => navigate("/customer/messages")}>Messages</button>
-                    <button className="dropdown-link" type="button" onClick={() => navigate("/customer/profile")}>Profile</button>
-                    <button className="dropdown-link logout" type="button" onClick={handleLogoutClick}>Logout</button>
-                  </div>
-                )}
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="user-menu-trigger" type="button">
+                    <span className="user-menu-avatar">{initials}</span>
+                    <span className="user-menu-name">
+                      {user.full_name || "Customer"}
+                    </span>
+                    <span className="user-menu-caret">▾</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/dashboard")}
+                  >
+                    Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/bookings")}
+                  >
+                    My Bookings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/payments")}
+                  >
+                    Payment History
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/messages")}
+                  >
+                    Messages
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate("/customer/profile")}
+                  >
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    onClick={() => setShowLogoutConfirm(true)}
+                  >
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl px-6 pt-10 pb-16 mx-auto sm:px-10">{children}</main>
-      <button className="chat-fab" type="button">💬</button>
+      <main className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">
+        {children}
+      </main>
+
+      <Button
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
+        size="icon"
+      >
+        💬
+      </Button>
+
       {showLogoutConfirm && (
         <ConfirmDialog
           message="Are you sure you want to log out?"

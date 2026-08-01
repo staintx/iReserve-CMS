@@ -1,3 +1,13 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
+import { Badge } from "../ui/badge";
+
 const STATUS_LABELS = {
   "pending deposit": "Pending Deposit",
   confirmed: "Confirmed",
@@ -7,40 +17,50 @@ const STATUS_LABELS = {
   cancelled: "Cancelled"
 };
 
-const STATUS_CLASS = {
+const STATUS_VARIANT = {
   "pending deposit": "warning",
-  confirmed: "approved",
+  confirmed: "success",
   preparing: "info",
-  ongoing: "ongoing",
-  completed: "approved",
-  cancelled: "rejected"
+  ongoing: "default",
+  completed: "success",
+  cancelled: "destructive"
 };
 
 export default function AdminBookingsCalendarTable({ items }) {
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>Event</th>
-          <th>Guests</th>
-          <th>Status</th>
-          <th>Venue</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((booking) => (
-          <tr key={booking._id}>
-            <td>{booking.event_type}</td>
-            <td>{booking.guest_count}</td>
-            <td>
-              <span className={`status-pill ${STATUS_CLASS[booking.status] || "pending"}`}>
-                {STATUS_LABELS[booking.status] || booking.status}
-              </span>
-            </td>
-            <td>{booking.venue_type || ""}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="rounded-md border border-border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Event</TableHead>
+            <TableHead>Guests</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Venue</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                No bookings for this date.
+              </TableCell>
+            </TableRow>
+          ) : (
+            items.map((booking) => (
+              <TableRow key={booking._id}>
+                <TableCell className="font-medium capitalize">{booking.event_type}</TableCell>
+                <TableCell>{booking.guest_count}</TableCell>
+                <TableCell>
+                  <Badge variant={STATUS_VARIANT[booking.status] || "secondary"} className="whitespace-nowrap">
+                    {STATUS_LABELS[booking.status] || booking.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="capitalize">{booking.venue_type || "-"}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

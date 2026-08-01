@@ -1,4 +1,9 @@
 import { Link } from "react-router-dom";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Loader2, ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function AuthVerifyEmailForm({
   email,
@@ -12,45 +17,70 @@ export default function AuthVerifyEmailForm({
   onResendOtp
 }) {
   return (
-    <div className="auth-form">
-      <div>
-        <h1 className="text-3xl font-semibold">Verify your email</h1>
-        <p className="mt-3 text-sm text-slate-500">
+    <div className="w-full max-w-md mx-auto space-y-8">
+      <div className="text-center sm:text-left">
+        <h1 className="text-3xl sm:text-4xl font-bold font-serif text-foreground tracking-tight">Verify your email</h1>
+        <p className="mt-2 text-sm sm:text-base text-muted-foreground">
           Enter the 6-digit code we sent to your email address.
         </p>
       </div>
 
       {justRegistered && (
-        <p className="auth-success mt-6">
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-sm font-medium rounded-lg">
           Registration successful. Please check your email for the OTP to verify your account.
-        </p>
+        </div>
       )}
-      {status.loading && <p className="text-sm text-slate-500 mt-6">Verifying your email...</p>}
+      
+      {status.loading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> Verifying your email...
+        </div>
+      )}
+
       {!token && (
-        <form className="mt-8 space-y-5" onSubmit={onSubmitOtp}>
-          <div className="form-field">
-            <label className="auth-input-label">EMAIL ADDRESS</label>
-            <input placeholder="you@example.com" value={email} onChange={onEmailChange} />
+        <form className="space-y-6" onSubmit={onSubmitOtp}>
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">EMAIL ADDRESS</Label>
+            <Input 
+              placeholder="you@example.com" 
+              value={email} 
+              onChange={onEmailChange} 
+              className="h-12"
+            />
           </div>
-          <div className="form-field">
-            <label className="auth-input-label">OTP (6 DIGITS)</label>
-            <input placeholder="000000" value={otp} onChange={onOtpChange} />
+          
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">OTP (6 DIGITS)</Label>
+            <Input 
+              placeholder="000000" 
+              value={otp} 
+              onChange={onOtpChange} 
+              className="h-12 text-center text-xl tracking-widest font-mono"
+              maxLength={6}
+            />
           </div>
 
-          {status.message && (
-            <p className={status.tone === "success" ? "auth-success" : status.tone === "error" ? "auth-error" : "text-sm text-slate-500"}>
+          {status.message && !status.loading && (
+            <div className={cn(
+              "p-3 text-sm font-medium rounded-lg border",
+              status.tone === "success" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-600",
+              status.tone === "error" && "bg-destructive/10 border-destructive/20 text-destructive",
+              status.tone === "info" && "bg-muted text-muted-foreground border-border"
+            )}>
               {status.message}
-            </p>
+            </div>
           )}
 
-          <button className="w-full btn" type="submit">Verify</button>
+          <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit" disabled={status.loading}>
+            Verify
+          </Button>
         </form>
       )}
 
-      <div className="mt-6 text-center text-sm text-slate-500 auth-form-resend">
+      <div className="text-center text-sm text-muted-foreground pt-4">
         Didn't receive the code?{" "}
         <button
-          className="text-brand-700 font-semibold border-none bg-none p-0 cursor-pointer hover:underline"
+          className="text-primary font-bold hover:underline"
           type="button"
           onClick={onResendOtp}
         >
@@ -58,8 +88,8 @@ export default function AuthVerifyEmailForm({
         </button>
       </div>
 
-      <div className="auth-form-footer text-sm text-slate-500">
-        Already verified? <Link className="text-brand-700 font-semibold ml-1" to="/login">Go to login</Link>
+      <div className="text-center text-sm text-muted-foreground pt-2 flex items-center justify-center gap-1">
+        Already verified? <Link className="text-primary font-bold hover:underline flex items-center ml-1" to="/login"><ArrowLeft className="w-3 h-3 mr-1" /> Go to login</Link>
       </div>
     </div>
   );

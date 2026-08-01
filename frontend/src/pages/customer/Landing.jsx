@@ -13,26 +13,30 @@ const DEFAULT_BUSINESS_INFO = {
   facebook: "https://facebook.com",
   instagram: "https://instagram.com",
   terms_url: "",
-  privacy_url: ""
+  privacy_url: "",
 };
 
 const HERO_MESSAGES = [
   {
     title: "Delicious Catering for your Special Events",
-    description: "Creating unforgettable culinary experiences with exceptional service"
+    description:
+      "Creating unforgettable culinary experiences with exceptional service",
   },
   {
     title: "Fresh Menus Crafted by Experts",
-    description: "From appetizers to desserts, every dish is prepared to impress your guests."
+    description:
+      "From appetizers to desserts, every dish is prepared to impress your guests.",
   },
   {
     title: "Elegant Setups for Every Celebration",
-    description: "Beautiful food presentation and full-service planning for weddings, birthdays, and more."
+    description:
+      "Beautiful food presentation and full-service planning for weddings, birthdays, and more.",
   },
   {
     title: "Reliable Team, Memorable Experience",
-    description: "Professional staff and seamless coordination so you can enjoy your event stress-free."
-  }
+    description:
+      "Professional staff and seamless coordination so you can enjoy your event stress-free.",
+  },
 ];
 
 const HERO_IMAGE_POOL = [
@@ -43,7 +47,7 @@ const HERO_IMAGE_POOL = [
   "https://images.pexels.com/photos/5779818/pexels-photo-5779818.jpeg?auto=compress&cs=tinysrgb&w=1600",
   "https://images.pexels.com/photos/5638748/pexels-photo-5638748.jpeg?auto=compress&cs=tinysrgb&w=1600",
   "https://images.pexels.com/photos/5638730/pexels-photo-5638730.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5638698/pexels-photo-5638698.jpeg?auto=compress&cs=tinysrgb&w=1600"
+  "https://images.pexels.com/photos/5638698/pexels-photo-5638698.jpeg?auto=compress&cs=tinysrgb&w=1600",
 ];
 
 const SWIPE_THRESHOLD = 45;
@@ -56,7 +60,7 @@ const buildHeroSlides = () => {
 
   return HERO_MESSAGES.map((slide, index) => ({
     ...slide,
-    image: shuffledImages[index % shuffledImages.length]
+    image: shuffledImages[index % shuffledImages.length],
   }));
 };
 
@@ -66,7 +70,6 @@ export default function Landing() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [heroSlides] = useState(() => buildHeroSlides());
   const swipeStartXRef = useRef(null);
-  const [packages, setPackages] = useState([]);
   const [galleryItems, setGalleryItems] = useState([]);
   const [galleryLightboxIndex, setGalleryLightboxIndex] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
@@ -86,13 +89,13 @@ export default function Landing() {
 
     const loadPublicContent = async () => {
       try {
-        const [packagesResult, galleryResult, menuResult, ratingsResult, businessResult] = await Promise.allSettled([
-          CustomerAPI.getPackages(),
-          CustomerAPI.getGallery(),
-          CustomerAPI.getMenu(),
-          CustomerAPI.getRatings(),
-          CustomerAPI.getBusinessInfo()
-        ]);
+        const [galleryResult, menuResult, ratingsResult, businessResult] =
+          await Promise.allSettled([
+            CustomerAPI.getGallery(),
+            CustomerAPI.getMenu(),
+            CustomerAPI.getRatings(),
+            CustomerAPI.getBusinessInfo(),
+          ]);
 
         if (!isMounted) return;
 
@@ -101,17 +104,18 @@ export default function Landing() {
           return Array.isArray(result.value?.data) ? result.value.data : [];
         };
 
-        setPackages(toArray(packagesResult).filter((pkg) => pkg?.available !== false));
         setGalleryItems(toArray(galleryResult));
         setMenuItems(toArray(menuResult));
         setReviews(toArray(ratingsResult));
 
         if (businessResult?.status === "fulfilled") {
-          setBusinessInfo((prev) => ({ ...prev, ...(businessResult.value?.data || {}) }));
+          setBusinessInfo((prev) => ({
+            ...prev,
+            ...(businessResult.value?.data || {}),
+          }));
         }
       } catch {
         if (!isMounted) return;
-        setPackages([]);
         setGalleryItems([]);
         setMenuItems([]);
         setReviews([]);
@@ -146,7 +150,8 @@ export default function Landing() {
     if (!rawHash) return;
 
     const legacyMap = {
-      about: "testimonials"
+      about: "testimonials",
+      packages: "gallery",
     };
 
     const sectionId = legacyMap[rawHash] || rawHash;
@@ -157,7 +162,9 @@ export default function Landing() {
   }, [location.hash]);
 
   const goToPreviousSlide = () => {
-    setActiveSlide((current) => (current - 1 + heroSlides.length) % heroSlides.length);
+    setActiveSlide(
+      (current) => (current - 1 + heroSlides.length) % heroSlides.length,
+    );
   };
 
   const goToNextSlide = () => {
@@ -198,23 +205,33 @@ export default function Landing() {
     { label: "Birthday", icon: "🎂" },
     { label: "Celebrate", icon: "🎉" },
     { label: "Baby Shower", icon: "🍼" },
-    { label: "Graduation", icon: "🎓" }
+    { label: "Graduation", icon: "🎓" },
   ];
 
-  const footerBusinessName = businessInfo.business_name || DEFAULT_BUSINESS_INFO.business_name;
-  const footerContactNumber = businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
+  const footerBusinessName =
+    businessInfo.business_name || DEFAULT_BUSINESS_INFO.business_name;
+  const footerContactNumber =
+    businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
   const footerEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
   const footerAddress = businessInfo.address || DEFAULT_BUSINESS_INFO.address;
   const footerHours = businessInfo.hours || DEFAULT_BUSINESS_INFO.hours;
 
   const footerLinks = [
     { label: "Terms & Conditions", href: businessInfo.terms_url },
-    { label: "Privacy Policy", href: businessInfo.privacy_url }
+    { label: "Privacy Policy", href: businessInfo.privacy_url },
   ].filter((link) => link.href);
 
   const socialLinks = [
-    { label: "Facebook", href: businessInfo.facebook || DEFAULT_BUSINESS_INFO.facebook, icon: "facebook" },
-    { label: "Instagram", href: businessInfo.instagram || DEFAULT_BUSINESS_INFO.instagram, icon: "instagram" }
+    {
+      label: "Facebook",
+      href: businessInfo.facebook || DEFAULT_BUSINESS_INFO.facebook,
+      icon: "facebook",
+    },
+    {
+      label: "Instagram",
+      href: businessInfo.instagram || DEFAULT_BUSINESS_INFO.instagram,
+      icon: "instagram",
+    },
   ].filter((link) => Boolean(link.href));
 
   return (
@@ -239,7 +256,15 @@ export default function Landing() {
         <div className="landing-hero-content">
           <h1>{heroSlides[activeSlide].title}</h1>
           <p>{heroSlides[activeSlide].description}</p>
-          <button className="btn" type="button" onClick={() => navigate("/packages")}>Get Started</button>
+          <button
+            className="btn"
+            type="button"
+            onClick={() =>
+              navigate("/customer/book", { state: { resetWizard: true } })
+            }
+          >
+            Book Now
+          </button>
           <div className="landing-dots">
             {heroSlides.map((slide, index) => (
               <button
@@ -260,55 +285,13 @@ export default function Landing() {
         <div className="event-types-row">
           {eventTypes.map((event) => (
             <div key={event.label} className="event-type-card">
-              <div className="event-type-icon" aria-hidden="true">{event.icon}</div>
+              <div className="event-type-icon" aria-hidden="true">
+                {event.icon}
+              </div>
               <span className="event-type-label">{event.label}</span>
             </div>
           ))}
         </div>
-      </section>
-
-      <section id="packages" className="section landing-section">
-        <h2>Our Packages</h2>
-        {packages.length === 0 ? (
-          <div className="mt-6 flex items-center justify-center py-16 text-sm text-slate-500">
-            No package yet
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-start justify-center gap-4 mt-6">
-              {packages.slice(0, 4).map((pkg) => (
-                <div key={pkg._id || pkg.name} className="landing-package-card">
-                  <div className="landing-package-title">{pkg.name}</div>
-                  <button
-                    type="button"
-                    className="landing-package-thumb"
-                    style={pkg.image_url ? { backgroundImage: `url(${pkg.image_url})` } : undefined}
-                    onClick={() => navigate(pkg._id ? `/packages/${pkg._id}` : "/packages")}
-                    aria-label={`View ${pkg.name}`}
-                  >
-                    <div className="landing-package-hover" aria-hidden="true">
-                      <div className="landing-package-hover-box">
-                        <div className="landing-package-hover-title">{pkg.name}</div>
-                        <div className="landing-package-hover-cta">
-                          <span>Learn more</span>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M5 12h12" />
-                            <path d="m13 6 6 6-6 6" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              ))}
-            </div>
-            {packages.length > 4 && (
-              <div className="flex justify-center mt-6">
-                <button className="btn-outline" onClick={() => navigate("/packages")}>See all</button>
-              </div>
-            )}
-          </>
-        )}
       </section>
 
       <section id="how-it-works" className="section landing-section soft-bg">
@@ -319,48 +302,76 @@ export default function Landing() {
               title: "1. Inquiry",
               text: "Tell us about your event and requirements.",
               icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M4 6h16v12H4z" />
                   <path d="m4 7 8 6 8-6" />
                 </svg>
-              )
+              ),
             },
             {
               title: "2. Customize",
               text: "Choose your menu and customize details.",
               icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M20 7H4" />
                   <path d="M10 7v14" />
                   <path d="M14 7v14" />
                   <path d="M6 7c0-2.2 2.7-4 6-4s6 1.8 6 4" />
                   <path d="M6 21h12" />
                 </svg>
-              )
+              ),
             },
             {
               title: "3. Enjoy",
               text: "We handle the rest on your big day.",
               icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M12 12a4 4 0 0 0 4-4" />
                   <path d="M8 8a4 4 0 0 0 4 4" />
                   <path d="M12 12v9" />
                   <path d="M8 21h8" />
                   <path d="M7 7c0-2.2 2.2-4 5-4s5 1.8 5 4" />
                 </svg>
-              )
+              ),
             },
             {
               title: "4. Confirm",
               text: "Book and pay your deposit.",
               icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M20 6v7a4 4 0 0 1-4 4H7l-3 3v-3a4 4 0 0 1-2-3V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
                   <path d="m8 10 2 2 5-5" />
                 </svg>
-              )
-            }
+              ),
+            },
           ].map((step) => (
             <div key={step.title} className="how-works-item">
               <div className="how-works-icon" aria-hidden="true">
@@ -386,24 +397,45 @@ export default function Landing() {
                 <div
                   key={item._id || item.image_url}
                   className="image-card tall cursor-pointer hover:scale-[1.02] hover:shadow-lg transition-all duration-300 bg-cover bg-center"
-                  style={item.image_url ? { backgroundImage: `url(${item.image_url})` } : undefined}
+                  style={
+                    item.image_url
+                      ? { backgroundImage: `url(${item.image_url})` }
+                      : undefined
+                  }
                   role="button"
                   tabIndex={0}
                   onClick={() => setGalleryLightboxIndex(index)}
-                  onKeyDown={(event) => event.key === "Enter" && setGalleryLightboxIndex(index)}
+                  onKeyDown={(event) =>
+                    event.key === "Enter" && setGalleryLightboxIndex(index)
+                  }
                 />
               ))}
             </div>
             <div className="flex justify-center mt-6">
-              <button className="btn-outline" type="button" onClick={() => navigate("/gallery")}>See All</button>
+              <button
+                className="btn-outline"
+                type="button"
+                onClick={() => navigate("/gallery")}
+              >
+                See All
+              </button>
             </div>
           </>
         )}
       </section>
 
       {galleryLightboxIndex !== null && galleryItems[galleryLightboxIndex] && (
-        <div className="lightbox-overlay" onClick={() => setGalleryLightboxIndex(null)}>
-          <button className="lightbox-close" type="button" onClick={() => setGalleryLightboxIndex(null)}>×</button>
+        <div
+          className="lightbox-overlay"
+          onClick={() => setGalleryLightboxIndex(null)}
+        >
+          <button
+            className="lightbox-close"
+            type="button"
+            onClick={() => setGalleryLightboxIndex(null)}
+          >
+            ×
+          </button>
           <img
             src={galleryItems[galleryLightboxIndex].image_url}
             alt={galleryItems[galleryLightboxIndex].title}
@@ -426,7 +458,11 @@ export default function Landing() {
                 <div key={food._id || food.name} className="food-card">
                   <div
                     className="image-card"
-                    style={food.image_url ? { backgroundImage: `url(${food.image_url})` } : undefined}
+                    style={
+                      food.image_url
+                        ? { backgroundImage: `url(${food.image_url})` }
+                        : undefined
+                    }
                   />
                   <div className="food-name">{food.name}</div>
                 </div>
@@ -434,7 +470,12 @@ export default function Landing() {
             </div>
             {menuItems.length > 8 && (
               <div className="flex justify-center mt-6">
-                <button className="btn-outline" onClick={() => navigate("/menu")}>See all</button>
+                <button
+                  className="btn-outline"
+                  onClick={() => navigate("/menu")}
+                >
+                  See all
+                </button>
               </div>
             )}
           </>
@@ -450,12 +491,19 @@ export default function Landing() {
         ) : (
           <div className="grid mt-6 sm:grid-cols-2 lg:grid-cols-3">
             {reviews.slice(0, 3).map((review) => {
-              const starsCount = Math.max(0, Math.min(5, Number(review.stars) || 0));
-              const starText = "★★★★★".slice(0, starsCount) + "☆☆☆☆☆".slice(0, 5 - starsCount);
+              const starsCount = Math.max(
+                0,
+                Math.min(5, Number(review.stars) || 0),
+              );
+              const starText =
+                "★★★★★".slice(0, starsCount) + "☆☆☆☆☆".slice(0, 5 - starsCount);
               const customerName = review?.customer_id?.full_name || "Customer";
 
               return (
-                <div key={review._id || `${customerName}-${review.createdAt}`} className="testimonial-card">
+                <div
+                  key={review._id || `${customerName}-${review.createdAt}`}
+                  className="testimonial-card"
+                >
                   <div className="stars">{starText}</div>
                   <p>{review.review}</p>
                   <strong>{customerName}</strong>
@@ -469,21 +517,34 @@ export default function Landing() {
       <section className="section landing-cta-surface">
         <h2>Ready to Plan Your Event?</h2>
         <p>Let's create an unforgettable experience together.</p>
-        <button className="btn" type="button" onClick={() => navigate("/packages")}>Get Started Now</button>
+        <button
+          className="btn"
+          type="button"
+          onClick={() =>
+            navigate("/customer/book", { state: { resetWizard: true } })
+          }
+        >
+          Book Now
+        </button>
       </section>
 
       <footer id="contact" className="landing-footer">
         <div className="footer-grid">
           <div className="footer-brand-panel">
             <div className="footer-brand">
-              <img className="footer-logo" src={logo} alt="Caezelle Catering Services" />
+              <img
+                className="footer-logo"
+                src={logo}
+                alt="Caezelle Catering Services"
+              />
               <div className="footer-brand-text">
                 <div className="footer-brand-title">{footerBusinessName}</div>
                 <p>Creating unforgettable culinary experiences since 2010.</p>
               </div>
             </div>
             <div className="footer-brand-summary">
-              Professional catering, memorable presentation, and attentive service for every celebration.
+              Professional catering, memorable presentation, and attentive
+              service for every celebration.
             </div>
           </div>
           <div>
@@ -498,15 +559,6 @@ export default function Landing() {
               Home
             </a>
             <a
-              href="#packages"
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToSection("packages");
-              }}
-            >
-              Packages
-            </a>
-            <a
               href="#gallery"
               onClick={(event) => {
                 event.preventDefault();
@@ -514,6 +566,15 @@ export default function Landing() {
               }}
             >
               Gallery
+            </a>
+            <a
+              href="#foods"
+              onClick={(event) => {
+                event.preventDefault();
+                scrollToSection("foods");
+              }}
+            >
+              Our Foods
             </a>
             <a
               href="#testimonials"
@@ -530,15 +591,31 @@ export default function Landing() {
             <div className="footer-contact">
               <div className="footer-contact-item">
                 <span className="footer-contact-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.3 1.7.54 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.06a2 2 0 0 1 2.11-.45c.8.24 1.64.42 2.5.54A2 2 0 0 1 22 16.92z" />
                   </svg>
                 </span>
-                <a href={`tel:${footerContactNumber.replace(/\s+/g, "")}`}>{footerContactNumber}</a>
+                <a href={`tel:${footerContactNumber.replace(/\s+/g, "")}`}>
+                  {footerContactNumber}
+                </a>
               </div>
               <div className="footer-contact-item">
                 <span className="footer-contact-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M4 6h16v12H4z" />
                     <path d="m4 7 8 6 8-6" />
                   </svg>
@@ -547,7 +624,14 @@ export default function Landing() {
               </div>
               <div className="footer-contact-item">
                 <span className="footer-contact-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M12 21s7-4.4 7-11a7 7 0 1 0-14 0c0 6.6 7 11 7 11Z" />
                     <path d="M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
                   </svg>
@@ -561,20 +645,47 @@ export default function Landing() {
             <p>{footerHours}</p>
 
             <div className="footer-policy-links">
-              {footerLinks.length > 0 ? footerLinks.map((link) => (
-                <a key={link.label} href={link.href} target="_blank" rel="noreferrer">{link.label}</a>
-              )) : <span className="footer-empty-state">Policies will appear here once configured.</span>}
+              {footerLinks.length > 0 ? (
+                footerLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {link.label}
+                  </a>
+                ))
+              ) : (
+                <span className="footer-empty-state">
+                  Policies will appear here once configured.
+                </span>
+              )}
             </div>
 
             <div className="footer-social" aria-label="Social links">
               {socialLinks.map((link) => (
-                <a key={link.label} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label}>
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={link.label}
+                >
                   {link.icon === "facebook" ? (
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
                       <path d="M22 12a10 10 0 1 0-11.6 9.9v-7h-2.3V12h2.3V9.8c0-2.3 1.4-3.6 3.5-3.6 1 0 2 .2 2 .2v2.2h-1.1c-1.1 0-1.4.7-1.4 1.4V12h2.4l-.4 2.9h-2v7A10 10 0 0 0 22 12Z" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
                       <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 4.5A3.5 3.5 0 1 1 8.5 12 3.5 3.5 0 0 1 12 8.5Zm0 2A1.5 1.5 0 1 0 13.5 12 1.5 1.5 0 0 0 12 10.5ZM17.7 6.3a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z" />
                     </svg>
                   )}
@@ -583,7 +694,9 @@ export default function Landing() {
             </div>
           </div>
         </div>
-        <div className="footer-bottom">© 2026 {footerBusinessName}. All rights reserved.</div>
+        <div className="footer-bottom">
+          © 2026 {footerBusinessName}. All rights reserved.
+        </div>
       </footer>
     </CustomerLayout>
   );

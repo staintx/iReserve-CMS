@@ -31,6 +31,8 @@ export const CustomerAPI = {
   getBookings: () => api.get("/bookings/me"),
   createBooking: (data) => api.post("/bookings", data),
   requestBookingChange: (id, data) => api.post(`/bookings/${id}/change-request`, data),
+  requestOcular: (id, data) => api.post(`/bookings/${id}/ocular/request`, data),
+  requestCancellation: (id) => api.post(`/bookings/${id}/request-cancellation`),
   addGuests: (id, data) => api.post(`/bookings/${id}/add-guests`, data),
   upgradeBooking: (id, data) => api.post(`/bookings/${id}/upgrade-booking`, data),
 

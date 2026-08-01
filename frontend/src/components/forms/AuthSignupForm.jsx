@@ -1,48 +1,86 @@
 import { Link } from "react-router-dom";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Loader2 } from "lucide-react";
 
 export default function AuthSignupForm({ form, setForm, error, loading, onSubmit }) {
   return (
-    <div className="auth-form">
-      <div>
-        <h1 className="text-3xl font-semibold">Create account</h1>
-        <p className="mt-3 text-sm text-slate-500">Start planning your event in minutes.</p>
+    <div className="w-full max-w-md mx-auto space-y-8">
+      <div className="text-center sm:text-left">
+        <h1 className="text-3xl sm:text-4xl font-bold font-serif text-foreground tracking-tight">Create account</h1>
+        <p className="mt-2 text-sm sm:text-base text-muted-foreground">Start planning your event in minutes.</p>
       </div>
 
-      <form className="mt-8 space-y-5" onSubmit={onSubmit}>
-        <div className="form-field">
-          <label className="auth-input-label">FULL NAME</label>
-          <input placeholder="Juan Dela Cruz" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} disabled={loading} />
+      <form className="space-y-5" onSubmit={onSubmit}>
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">FULL NAME</Label>
+          <Input 
+            placeholder="Juan Dela Cruz" 
+            value={form.full_name} 
+            onChange={(e) => setForm({ ...form, full_name: e.target.value })} 
+            disabled={loading} 
+            className="h-12"
+          />
         </div>
 
-        <div className="form-field">
-          <label className="auth-input-label">EMAIL ADDRESS</label>
-          <input placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} disabled={loading} />
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">EMAIL ADDRESS</Label>
+          <Input 
+            placeholder="you@example.com" 
+            value={form.email} 
+            onChange={(e) => setForm({ ...form, email: e.target.value })} 
+            disabled={loading} 
+            className="h-12"
+          />
         </div>
 
-        <div className="form-field">
-          <label className="auth-input-label">PASSWORD</label>
-          <input placeholder="••••••••" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} disabled={loading} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">PASSWORD</Label>
+            <Input 
+              placeholder="••••••••" 
+              type="password" 
+              value={form.password} 
+              onChange={(e) => setForm({ ...form, password: e.target.value })} 
+              disabled={loading} 
+              className="h-12"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">CONFIRM PASSWORD</Label>
+            <Input 
+              placeholder="••••••••" 
+              type="password" 
+              value={form.confirm} 
+              onChange={(e) => setForm({ ...form, confirm: e.target.value })} 
+              disabled={loading} 
+              className="h-12"
+            />
+          </div>
         </div>
 
-        <div className="form-field">
-          <label className="auth-input-label">CONFIRM PASSWORD</label>
-          <input placeholder="••••••••" type="password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} disabled={loading} />
-        </div>
-
-        {error && <p className="auth-error">{error}</p>}
-
-        {loading && (
-          <div className="auth-processing">
-            <div className="auth-processing-spinner"></div>
-            <p>Creating your account, please wait…</p>
+        {error && (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium rounded-lg">
+            {error}
           </div>
         )}
 
-        <button className="w-full btn" type="submit" disabled={loading}>
-          {loading ? "Creating account…" : "Create account"}
-        </button>
+        <Button className="w-full h-12 text-base font-bold shadow-sm mt-4" type="submit" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Creating account…
+            </>
+          ) : (
+            "Create account"
+          )}
+        </Button>
 
-        <p className="auth-form-footer text-sm text-slate-500">Already have an account? <Link className="text-brand-700 font-semibold ml-1" to="/login">Sign in</Link></p>
+        <p className="text-center text-sm text-muted-foreground pt-4">
+          Already have an account? <Link className="text-primary font-bold hover:underline ml-1" to="/login">Sign in</Link>
+        </p>
       </form>
     </div>
   );

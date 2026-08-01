@@ -22,11 +22,15 @@ exports.update = asyncHandler(async (req, res) => {
     contact_number: req.body.contact_number,
     email: req.body.email,
     address: req.body.address,
+    pickup_address: req.body.pickup_address,
     hours: req.body.hours,
     facebook: req.body.facebook,
     instagram: req.body.instagram,
     terms_url: req.body.terms_url,
-    privacy_url: req.body.privacy_url
+    privacy_url: req.body.privacy_url,
+    deposit_percentage: req.body.deposit_percentage,
+    custom_event_setup_price: req.body.custom_event_setup_price,
+    custom_food_and_event_price: req.body.custom_food_and_event_price
   };
 
   const updated = await BusinessInfo.findOneAndUpdate(

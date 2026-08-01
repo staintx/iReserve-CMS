@@ -5,14 +5,13 @@ import "./styles/globals.css";
 import "./styles/customer.css";
 import "./styles/admin.css";
 import AuthProvider from "./context/AuthContext.jsx";
-import ToastProvider from "./components/common/ToastProvider.jsx";
+import { Toaster } from "./components/ui/sonner.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AuthProvider>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
+      <App />
+      <Toaster />
     </AuthProvider>
   </React.StrictMode>
 );

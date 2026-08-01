@@ -1,641 +1,586 @@
-import { useEffect, useState } from "react";
-import { AdminAPI } from "../../api/admin";
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Plus,
+  Search,
+  Edit3,
+  Trash2,
+  Check,
+  Clock,
+  XCircle,
+  MoreHorizontal,
+  Filter,
+  X,
+  ChevronDown,
+} from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
-import Modal from "../../components/common/Modal";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import Btn from "../../components/admin/ui/Btn";
+import Badge from "../../components/admin/ui/Badge";
+import { KANBAN_DATA } from "../../components/admin/ui/data";
+import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import PackageModal from "../../components/admin/ui/PackageModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
+
+// Constants
+const EVENT_TYPES = [
+  "Wedding",
+  "Birthday",
+  "Corporate",
+  "Christening",
+  "Anniversary",
+  "Other",
+];
+const PACKAGE_TYPES = ["Food Only", "Event Setup Only", "Food + Event Setup"];
 
 export default function AdminPackages() {
-  const [packages, setPackages] = useState([]);
-  const [show, setShow] = useState(false);
-  const [form, setForm] = useState({});
-  const [file, setFile] = useState(null);
-  const [galleryFiles, setGalleryFiles] = useState([]);
-  const [galleryToRemove, setGalleryToRemove] = useState([]);
-  const [inclusionDraft, setInclusionDraft] = useState({ category: "", item: "", qty: "" });
-  const [addOnDraft, setAddOnDraft] = useState({ name: "", qty: "" });
-  const [error, setError] = useState("");
   const { notify } = useToast();
+  const [tab, setTab] = useState("standard");
+  const [search, setSearch] = useState("");
 
-  const inclusionCategories = ["Event Setup & Furniture", "Dining & Service Inventory"];
-
-  const initialFormState = {
-    name: "",
-    size: "",
-    description: "",
-    fullDescription: "",
-    price_min: "",
-    price_max: "",
-    available: true,
+  // Filter states
+  const [filters, setFilters] = useState({
     event_type: "",
     package_type: "",
-    max_guests: "",
-    inclusions: [],
-    add_ons: [],
-    gallery: []
-  };
+    available: "", // "true", "false", or ""
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
-  const load = () =>
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [showModal, setShowModal] = useState(false);
+  const [activePkg, setActivePkg] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+
+  const loadData = () => {
+    setLoading(true);
     AdminAPI.getPackages()
-      .then((res) => {
-        const data = Array.isArray(res.data) ? res.data : [];
-        setPackages(data);
-        setError("");
-      })
-      .catch((err) => {
-        setPackages([]);
-        const message = err.response?.data?.message || "We could not load packages. Please refresh and try again.";
-        setError(message);
-        notify(message, "error");
-      });
+      .then((res) => setPackages(res.data))
+      .catch((err) => notify("Failed to load packages", "error"))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    load();
+    loadData();
   }, []);
 
-  const formatQtyLine = (name, qty) => {
-    const cleanName = String(name || "").trim();
-    if (!cleanName) return "";
-    const cleanQty = String(qty || "").trim();
-    if (!cleanQty) return cleanName;
-    return `${cleanName} x${cleanQty}`;
+  const handleOpenModal = (pkg = null) => {
+    setActivePkg(pkg);
+    setShowModal(true);
   };
 
-  const formatInclusionLine = (category, item, qty) => {
-    const cleanCategory = String(category || "").trim();
-    const cleanItem = String(item || "").trim();
-    if (!cleanCategory || !cleanItem) return "";
-    const base = `${cleanCategory} - ${cleanItem}`;
-    return formatQtyLine(base, qty);
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setActivePkg(null);
   };
 
-  const addInclusion = () => {
-    if (!inclusionDraft.category) return;
-    const line = formatInclusionLine(inclusionDraft.category, inclusionDraft.item, inclusionDraft.qty);
-    if (!line) return;
-    const next = [...(form.inclusions || []), line];
-    setForm({ ...form, inclusions: next });
-    setInclusionDraft({ category: inclusionDraft.category, item: "", qty: "" });
-  };
-
-  const removeInclusion = (index) => {
-    const next = (form.inclusions || []).filter((_, i) => i !== index);
-    setForm({ ...form, inclusions: next });
-  };
-
-  const addAddOn = () => {
-    const line = formatQtyLine(addOnDraft.name, addOnDraft.qty);
-    if (!line) return;
-    const next = [...(form.add_ons || []), line];
-    setForm({ ...form, add_ons: next });
-    setAddOnDraft({ name: "", qty: "" });
-  };
-
-  const categorizedInclusions = (() => {
-    const base = {
-      "Event Setup & Furniture": [],
-      "Dining & Service Inventory": []
-    };
-
-    (form.inclusions || []).forEach((line, index) => {
-      const raw = String(line || "");
-      const split = raw.split(" - ");
-      const category = split[0];
-      const rest = split.length > 1 ? split.slice(1).join(" - ") : raw;
-      if (base[category]) {
-        base[category].push({ text: rest, index });
-      }
-    });
-
-    return base;
-  })();
-
-  const removeAddOn = (index) => {
-    const next = (form.add_ons || []).filter((_, i) => i !== index);
-    setForm({ ...form, add_ons: next });
-  };
-
-  const submit = async () => {
-    const data = new FormData();
-
-    const allowedKeys = [
-      "name",
-      "size",
-      "description",
-      "fullDescription",
-      "price_min",
-      "price_max",
-      "available",
-      "event_type",
-      "package_type",
-      "max_guests",
-      "inclusions",
-      "add_ons"
-    ];
-
-    allowedKeys.forEach((k) => {
-      const v = form[k];
-      if (v === undefined || v === null) return;
-      if ((k === "inclusions" || k === "add_ons") && Array.isArray(v)) {
-        data.append(k, v.join(", "));
-        return;
-      }
-      data.append(k, v);
-    });
-
-    if (file) data.append("image", file);
-    
-    galleryFiles.forEach((gf) => {
-      data.append("gallery", gf);
-    });
-
-    if (galleryToRemove.length > 0) {
-      data.append("gallery_to_remove", galleryToRemove.join(", "));
-    }
-
-    try {
-      if (form._id) {
-        await AdminAPI.updatePackage(form._id, data);
-        notify("Package updated.", "success");
-      } else {
-        await AdminAPI.createPackage(data);
-        notify("Package created.", "success");
-      }
-    } catch (err) {
-      notify(err.response?.data?.message || "We could not save the package. Please try again.", "error");
-      return;
-    }
-
-    setShow(false);
-    setForm(initialFormState);
-    setFile(null);
-    setGalleryFiles([]);
-    setGalleryToRemove([]);
-    load();
-  };
-
-  const edit = (p) => {
-    setForm({
-      ...p,
-      inclusions: Array.isArray(p.inclusions) ? p.inclusions : [],
-      add_ons: Array.isArray(p.add_ons) ? p.add_ons : [],
-      gallery: Array.isArray(p.gallery) ? p.gallery : []
-    });
-    setInclusionDraft({ category: "", item: "", qty: "" });
-    setAddOnDraft({ name: "", qty: "" });
-    setFile(null);
-    setGalleryFiles([]);
-    setGalleryToRemove([]);
-    setShow(true);
-  };
-
-  const remove = (id) =>
+  const handleDelete = (id) => {
     AdminAPI.deletePackage(id)
       .then(() => {
-        notify("Package deleted.", "success");
-        load();
+        notify("Package deleted successfully", "success");
+        setCancelTarget(null);
+        loadData();
       })
-      .catch((err) => notify(err.response?.data?.message || "We could not delete the package. Please try again.", "error"));
-
-  const toggleAvailability = (pkg) =>
-    AdminAPI.updatePackage(pkg._id, { available: !pkg.available })
-      .then(() => {
-        notify(pkg.available ? "Package disabled." : "Package enabled.", "success");
-        load();
-      })
-      .catch((err) => notify(err.response?.data?.message || "We could not update the package. Please try again.", "error"));
-
-  const list = packages;
-
-  const formatMoney = (value) => {
-    const number = Number(value);
-    return Number.isFinite(number) ? number.toLocaleString("en-PH") : "0";
+      .catch((err) =>
+        notify(
+          err.response?.data?.message || "Failed to delete package",
+          "error",
+        ),
+      );
   };
 
-  const formatPrice = (pkg) => {
-    const min = Number(pkg?.price_min);
-    const max = Number(pkg?.price_max);
-    if (Number.isFinite(min) && Number.isFinite(max) && min === max) return `₱${formatMoney(min)}`;
-    if (Number.isFinite(min) && Number.isFinite(max)) return `₱${formatMoney(min)} - ${formatMoney(max)}`;
-    if (Number.isFinite(min)) return `₱${formatMoney(min)}`;
-    if (Number.isFinite(max)) return `₱${formatMoney(max)}`;
-    return "₱0";
+  const clearFilters = () => {
+    setFilters({ event_type: "", package_type: "", available: "" });
   };
 
-  const getInclusionPreview = (pkg) => {
-    const inclusions = Array.isArray(pkg?.inclusions) ? pkg.inclusions : [];
-    const prefix = "Event Setup & Furniture - ";
-    const filtered = inclusions
-      .filter((item) => String(item || "").startsWith(prefix))
-      .map((item) => String(item || "").slice(prefix.length));
-    const preview = filtered.slice(0, 4);
-    if (preview.length >= 4) return preview;
-    return [...preview, ...Array.from({ length: 4 - preview.length }, () => "—")];
-  };
+  const hasActiveFilters =
+    filters.event_type || filters.package_type || filters.available;
+
+  // Filter packages
+  const filteredPackages = useMemo(() => {
+    return packages.filter((pkg) => {
+      // Search filter
+      if (search && !pkg.name.toLowerCase().includes(search.toLowerCase())) {
+        return false;
+      }
+      // Event type filter
+      if (filters.event_type && pkg.event_type !== filters.event_type) {
+        return false;
+      }
+      // Package type filter
+      if (filters.package_type && pkg.package_type !== filters.package_type) {
+        return false;
+      }
+      // Availability filter
+      if (filters.available === "true" && !pkg.available) {
+        return false;
+      }
+      if (filters.available === "false" && pkg.available) {
+        return false;
+      }
+      return true;
+    });
+  }, [packages, search, filters]);
+
+  const fmt = (n) =>
+    "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
   return (
     <AdminLayout>
-      <div className="admin-page-head">
-        <div className="admin-title">
-          <h1>Packages</h1>
-          <p>Create and manage event packages</p>
+      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+        {/* ============ HEADER ============ */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2
+              style={{ fontFamily: "Playfair Display, serif" }}
+              className="text-2xl font-bold text-[#111]"
+            >
+              Service Management
+            </h2>
+            <p className="text-sm text-[#6B7280] mt-1">
+              Manage your packages and custom quote requests
+            </p>
+          </div>
+          <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}>
+            <Plus size={13} /> New Package
+          </Btn>
         </div>
-        <div className="admin-actions">
+
+        {/* ============ TABS ============ */}
+        <div className="flex gap-1 border-b border-gray-200">
           <button
-            className="btn"
-            onClick={() => {
-              setForm(initialFormState);
-              setFile(null);
-              setGalleryFiles([]);
-              setGalleryToRemove([]);
-              setInclusionDraft({ category: "", item: "", qty: "" });
-              setAddOnDraft({ name: "", qty: "" });
-              setShow(true);
-            }}
+            onClick={() => setTab("standard")}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors rounded-t-lg ${
+              tab === "standard"
+                ? "border-[#D4AF37] text-[#D4AF37] bg-[#D4AF37]/5"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
           >
-            + Add New Package
+            Standard Packages
+            <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+              {packages.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setTab("custom")}
+            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors rounded-t-lg ${
+              tab === "custom"
+                ? "border-[#D4AF37] text-[#D4AF37] bg-[#D4AF37]/5"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Custom Quote Reviews
           </button>
         </div>
-      </div>
 
-      {error && <p className="auth-error">{error}</p>}
-      <div className="admin-card-grid package-grid">
-        {list.length === 0 && <p>No packages yet.</p>}
-        {list.map((p) => (
-          <div className="package-card" key={p._id}>
-            <div className="package-card-media">
-              {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="package-thumb" />}
-              <div className="package-card-statusbar">
-                <div className="package-card-status-text">
-                  <div className="package-card-status-label">Current Status</div>
-                  <div className="package-card-status-sub">
-                    {p.available === false ? "Unavailable Package" : "Available Package"}
-                  </div>
-                </div>
-                <label className="switch" aria-label="Toggle package availability">
-                  <input
-                    type="checkbox"
-                    checked={p.available !== false}
-                    onChange={() => toggleAvailability(p)}
-                  />
-                  <span className="slider" />
-                </label>
-              </div>
-
-              <div className="package-card-hero">
-                <h3 className="package-card-title">{p.name}</h3>
-                <p className="package-card-desc">{p.description || ""}</p>
-              </div>
-            </div>
-
-            <div className="package-card-body">
-              <div className="package-card-kv">
-                <div className="package-card-kv-row">
-                  <span className="package-card-k">Size:</span>
-                  <span className="package-card-v">{p.size || "-"}</span>
-                </div>
-                <div className="package-card-kv-row">
-                  <span className="package-card-k">Type:</span>
-                  <span className="package-card-v">{p.package_type || "-"}</span>
-                </div>
-                <div className="package-card-kv-row">
-                  <span className="package-card-v">{formatPrice(p)}</span>
-                </div>
-              </div>
-
-              <div className="package-card-inclusions">
-                <div className="package-card-inclusions-title">Packages included:</div>
-                <div className="package-card-inclusions-grid">
-                  {getInclusionPreview(p).map((item, index) => (
-                    <div className="package-card-inclusion" key={`${p._id}-inc-${index}`}>
-                      <span className="package-card-check">✓</span>
-                      <span className="package-card-inc-text">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="package-card-actions">
-                <button className="pkg-action edit" type="button" onClick={() => edit(p)} aria-label="Edit package">✎</button>
-                <button className="pkg-action delete" type="button" onClick={() => remove(p._id)} aria-label="Delete package">🗑</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {show && (
-        <Modal
-          title={form._id ? "Edit Package" : "Add New Package"}
-          onClose={() => setShow(false)}
-          className="modal-wide"
-        >
-          <div className="admin-modal package-form-modal">
-            <p className="modal-subtitle">Create a new event package and define its inclusions.</p>
-            <div className="form-section">
-              <h4>Basic Information</h4>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Package Name</label>
-                  <input
-                    placeholder="Birthday Package 1"
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Package Size</label>
-                  <input
-                    placeholder="20x70"
-                    value={form.size || ""}
-                    onChange={(e) => setForm({ ...form, size: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Event Type</label>
-                  <input
-                    placeholder="e.g. Wedding, Birthday, Corporate"
-                    value={form.event_type || ""}
-                    onChange={(e) => setForm({ ...form, event_type: e.target.value })}
-                    list="admin-event-types"
-                  />
-                  <datalist id="admin-event-types">
-                    <option value="Birthday" />
-                    <option value="Wedding" />
-                    <option value="Corporate" />
-                  </datalist>
-                </div>
-                <div className="form-group">
-                  <label>Package Type</label>
-                  <select
-                    value={form.package_type || ""}
-                    onChange={(e) => setForm({ ...form, package_type: e.target.value })}
+        {/* ============ STANDARD PACKAGES TAB ============ */}
+        {tab === "standard" ? (
+          <div className="space-y-4">
+            {/* Search & Filters Bar */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search */}
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 flex-1 max-w-md">
+                <Search size={14} className="text-[#9CA3AF] flex-shrink-0" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search packages by name..."
+                  className="bg-transparent text-sm focus:outline-none flex-1"
+                  style={{ fontFamily: "Inter, sans-serif" }}
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="text-gray-400 hover:text-gray-600"
                   >
-                    <option value="">Select Package Type</option>
-                    <option value="Food Only">Food Only</option>
-                    <option value="Event Setup Only">Event Setup Only</option>
-                    <option value="Food + Event Setup">Food + Event Setup</option>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Toggle Button */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border ${
+                  hasActiveFilters || showFilters
+                    ? "bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37]"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Filter size={14} />
+                Filters
+                {hasActiveFilters && (
+                  <span className="w-2 h-2 bg-[#D4AF37] rounded-full" />
+                )}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${showFilters ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {/* Active Filter Count */}
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-1 px-3 py-2 text-sm text-red-500 hover:text-red-600 font-medium"
+                >
+                  <X size={14} />
+                  Clear filters
+                </button>
+              )}
+            </div>
+
+            {/* Filter Panel */}
+            {showFilters && (
+              <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Event Type Filter */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                    Event Type
+                  </label>
+                  <select
+                    value={filters.event_type}
+                    onChange={(e) =>
+                      setFilters({ ...filters, event_type: e.target.value })
+                    }
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
+                  >
+                    <option value="">All Event Types</option>
+                    {EVENT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Package Type Filter */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                    Package Type
+                  </label>
+                  <select
+                    value={filters.package_type}
+                    onChange={(e) =>
+                      setFilters({ ...filters, package_type: e.target.value })
+                    }
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
+                  >
+                    <option value="">All Package Types</option>
+                    {PACKAGE_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Availability Filter */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+                    Availability
+                  </label>
+                  <select
+                    value={filters.available}
+                    onChange={(e) =>
+                      setFilters({ ...filters, available: e.target.value })
+                    }
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
+                  >
+                    <option value="">All Status</option>
+                    <option value="true">Available</option>
+                    <option value="false">Unavailable</option>
                   </select>
                 </div>
               </div>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Max Guests</label>
-                  <input
-                    type="number"
-                    placeholder="150"
-                    value={form.max_guests || ""}
-                    onChange={(e) => setForm({ ...form, max_guests: e.target.value })}
-                  />
-                </div>
+            )}
+
+            {/* Results Summary */}
+            {!loading && (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span>
+                  Showing{" "}
+                  <strong className="text-[#111]">
+                    {filteredPackages.length}
+                  </strong>{" "}
+                  of <strong className="text-[#111]">{packages.length}</strong>{" "}
+                  packages
+                </span>
+                {hasActiveFilters && (
+                  <span className="text-xs bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded-full">
+                    Filtered
+                  </span>
+                )}
               </div>
-              <div className="form-group">
-                <label>Short Description</label>
-                <textarea
-                  placeholder="Perfect for intimate gatherings"
-                  value={form.description || ""}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows="3"
-                />
+            )}
+
+            {/* Packages Grid */}
+            {loading ? (
+              <div className="text-center py-16">
+                <div className="inline-block w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p className="text-gray-500">Loading packages...</p>
               </div>
-            </div>
-
-            <div className="form-section">
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>
-                    {form.package_type === "Food Only" 
-                      ? "Price Per Head (₱)" 
-                      : form.package_type === "Event Setup Only" 
-                      ? "Total Setup Price (₱)" 
-                      : form.package_type === "Food + Event Setup"
-                      ? "Price Per Plate (₱)"
-                      : "Price (₱)"}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder={
-                      form.package_type === "Food Only" || form.package_type === "Food + Event Setup"
-                        ? "e.g. 500"
-                        : form.package_type === "Event Setup Only"
-                        ? "e.g. 15000"
-                        : "e.g. 15000"
-                    }
-                    value={form.price_min || ""}
-                    onChange={(e) => setForm({ ...form, price_min: e.target.value, price_max: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Current Status</label>
-                  <div className="status-row">
-                    <div className="status-meta">
-                      <div className={`badge-status ${form.available === false ? "inactive" : "active"}`}>
-                        {form.available === false ? "Unavailable" : "Available"}
-                      </div>
-                      <div className="status-hint">Package availability</div>
-                    </div>
-
-                    <label className="switch" aria-label="Toggle package availability">
-                      <input
-                        type="checkbox"
-                        checked={form.available !== false}
-                        onChange={(e) => setForm({ ...form, available: e.target.checked })}
-                      />
-                      <span className="slider" />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Detailed Information</h4>
-              <div className="form-group">
-                <label>About This Package</label>
-                <textarea
-                  placeholder="Enter the full package description, features, and highlights..."
-                  value={form.fullDescription || ""}
-                  onChange={(e) => setForm({ ...form, fullDescription: e.target.value })}
-                  rows="4"
-                />
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Services, Inclusions and Add-Ons</h4>
-
-              <div className="subsection">
-                <div className="subsection-card">
-                  <div className="subsection-card-head">
-                    <h5>Services &amp; Inclusions</h5>
-                    <p className="subsection-hint">
-                      Add items with categories and quantities (e.g., Plates, Stage Setup)
-                    </p>
-                  </div>
-
-                  <div className="inline-add-row inclusion-row">
-                    <select
-                      value={inclusionDraft.category}
-                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, category: e.target.value }))}
-                    >
-                      <option value="">Category</option>
-                      <option value="Event Setup & Furniture">Event Setup &amp; Furniture</option>
-                      <option value="Dining & Service Inventory">Dining &amp; Service Inventory</option>
-                    </select>
-
-                    <input
-                      placeholder="Item name"
-                      value={inclusionDraft.item}
-                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, item: e.target.value }))}
-                    />
-
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      min="1"
-                      value={inclusionDraft.qty}
-                      onChange={(e) => setInclusionDraft((prev) => ({ ...prev, qty: e.target.value }))}
-                    />
-
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={addInclusion}
-                      disabled={!inclusionDraft.category || !String(inclusionDraft.item || "").trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {inclusionCategories.some((category) => categorizedInclusions[category]?.length) && (
-                    <div className="inclusion-groups">
-                      {inclusionCategories.map((category) => (
-                        categorizedInclusions[category]?.length ? (
-                          <div className="inclusion-group" key={category}>
-                            <div className="inclusion-group-title">{category}</div>
-                            <div className="chip-list">
-                              {categorizedInclusions[category].map((item) => (
-                                <div className="chip" key={`${category}-${item.index}`}>
-                                  <span>{item.text}</span>
-                                  <button type="button" className="chip-x" onClick={() => removeInclusion(item.index)}>×</button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="subsection">
-                <div className="subsection-card">
-                  <div className="subsection-card-head">
-                    <h5>Add-Ons</h5>
-                    <p className="subsection-hint">
-                      Optional items that can be added (e.g., Videoke, Candy Corner)
-                    </p>
-                  </div>
-
-                  <div className="inline-add-row addon-row">
-                    <input
-                      placeholder="Add-on name"
-                      value={addOnDraft.name}
-                      onChange={(e) => setAddOnDraft((prev) => ({ ...prev, name: e.target.value }))}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Qty"
-                      min="1"
-                      value={addOnDraft.qty}
-                      onChange={(e) => setAddOnDraft((prev) => ({ ...prev, qty: e.target.value }))}
-                    />
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={addAddOn}
-                      disabled={!String(addOnDraft.name || "").trim()}
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {Array.isArray(form.add_ons) && form.add_ons.length > 0 && (
-                    <div className="chip-list">
-                      {form.add_ons.map((item, index) => (
-                        <div className="chip" key={`${item}-${index}`}>
-                          <span>{item}</span>
-                          <button type="button" className="chip-x" onClick={() => removeAddOn(index)}>×</button>
+            ) : filteredPackages.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredPackages.map((pkg) => (
+                  <AdminCard
+                    key={pkg._id}
+                    className="!p-5 hover:shadow-md transition-all duration-200 hover:border-[#D4AF37]/30 group"
+                  >
+                    {/* Card Header */}
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-[#111] truncate">
+                          {pkg.name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-[#6B7280] font-mono">
+                            #
+                            {pkg._id
+                              .substring(pkg._id.length - 6)
+                              .toUpperCase()}
+                          </p>
+                          {pkg.event_type && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                              {pkg.event_type}
+                            </span>
+                          )}
                         </div>
-                      ))}
+                      </div>
+                      <Badge
+                        status={pkg.available ? "available" : "unavailable"}
+                      />
+                    </div>
+
+                    {/* Package Image */}
+                    {pkg.image_url && (
+                      <div className="w-full h-36 mb-3 rounded-lg overflow-hidden bg-gray-100">
+                        <img
+                          src={pkg.image_url}
+                          alt={pkg.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                    )}
+
+                    {/* Package Type Badge */}
+                    <div className="mb-3">
+                      <span
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                          pkg.package_type === "Food Only"
+                            ? "bg-orange-50 text-orange-600"
+                            : pkg.package_type === "Event Setup Only"
+                              ? "bg-blue-50 text-blue-600"
+                              : "bg-purple-50 text-purple-600"
+                        }`}
+                      >
+                        {pkg.package_type}
+                      </span>
+                    </div>
+
+                    {/* Pricing */}
+                    <div className="mb-3">
+                      {pkg.package_type === "Food Only" ? (
+                        <p className="text-lg font-bold text-[#D4AF37]">
+                          Menu-based pricing
+                        </p>
+                      ) : pkg.package_type === "Event Setup Only" ? (
+                        <div>
+                          <p className="text-lg font-bold text-[#D4AF37]">
+                            {pkg.scaffold_size_options?.length > 0
+                              ? `${pkg.scaffold_size_options.length} scaffold options`
+                              : "No pricing set"}
+                          </p>
+                          {pkg.scaffold_size_options?.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              From{" "}
+                              {fmt(
+                                Math.min(
+                                  ...pkg.scaffold_size_options.map(
+                                    (o) => o.price || 0,
+                                  ),
+                                ),
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-lg font-bold text-[#D4AF37]">
+                          {fmt(pkg.price_per_guest)}
+                          <span className="text-xs text-gray-500 font-normal">
+                            /pax
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Inclusions */}
+                    <div>
+                      <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+                        Inclusions
+                      </p>
+                      <ul className="space-y-1 mb-4 h-24 overflow-y-auto">
+                        {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
+                          <li
+                            key={i}
+                            className="text-sm text-[#374151] flex items-center gap-2 truncate"
+                            title={inc}
+                          >
+                            <div className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full flex-shrink-0" />
+                            <span className="truncate">{inc}</span>
+                          </li>
+                        ))}
+                        {(pkg.inclusions || []).length > 4 && (
+                          <li className="text-xs text-gray-400 italic">
+                            +{pkg.inclusions.length - 4} more items
+                          </li>
+                        )}
+                        {(pkg.inclusions || []).length === 0 && (
+                          <li className="text-sm text-gray-400 italic">
+                            No inclusions specified
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+
+                    {/* Card Actions */}
+                    <div className="flex gap-2 pt-3 border-t border-gray-100">
+                      <Btn
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 justify-center"
+                        onClick={() => handleOpenModal(pkg)}
+                      >
+                        <Edit3 size={13} /> Edit
+                      </Btn>
+                      <Btn
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => setCancelTarget(pkg)}
+                      >
+                        <Trash2 size={13} />
+                      </Btn>
+                    </div>
+                  </AdminCard>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Search size={24} className="text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-[#111] mb-1">
+                  No packages found
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {hasActiveFilters
+                    ? "Try adjusting your filters or search criteria"
+                    : "Create your first package to get started"}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ============ CUSTOM QUOTES TAB ============ */
+          <div className="flex gap-4 overflow-x-auto pb-4 items-start min-h-[500px]">
+            {Object.entries(KANBAN_DATA).map(([column, items]) => (
+              <div
+                key={column}
+                className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-4 border border-gray-200"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-[#111] text-sm">{column}</h3>
+                  <span className="text-xs font-bold bg-white text-[#6B7280] px-2 py-0.5 rounded-full border border-gray-200">
+                    {items.length}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <AdminCard
+                      key={item.id}
+                      className="!p-4 cursor-pointer hover:border-[#D4AF37] transition-colors shadow-sm"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-mono font-bold text-[#D4AF37]">
+                          {item.id}
+                        </span>
+                        <MoreHorizontal size={14} className="text-[#9CA3AF]" />
+                      </div>
+                      <p className="font-bold text-[#111] text-sm">
+                        {item.customer}
+                      </p>
+                      <p className="text-xs text-[#6B7280] mb-3">
+                        {item.date} · {item.guests} pax
+                      </p>
+
+                      <div className="bg-gray-50 rounded-lg p-2 mb-3 border border-gray-100">
+                        <p className="text-xs text-[#374151]">
+                          <strong>Menu:</strong> {item.menu}
+                        </p>
+                        <p className="text-[11px] text-[#6B7280] mt-1 italic">
+                          "{item.requests}"
+                        </p>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                        <span className="font-bold text-[#111] text-sm">
+                          {item.budget}
+                        </span>
+                        <div className="flex gap-1">
+                          {column === "Pending Review" && (
+                            <button className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 text-blue-500 hover:bg-blue-100">
+                              <Clock size={12} />
+                            </button>
+                          )}
+                          {column !== "Approved" && (
+                            <button className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-500 hover:bg-emerald-100">
+                              <Check size={12} />
+                            </button>
+                          )}
+                          {column !== "Rejected" && (
+                            <button className="w-6 h-6 flex items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100">
+                              <XCircle size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </AdminCard>
+                  ))}
+                  {items.length === 0 && (
+                    <div className="p-4 text-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-medium">
+                      No custom quotes
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-
-            <div className="form-section">
-              <h4>Media Upload</h4>
-              <label className="upload-box">
-                <div className="upload-icon">📷</div>
-                <div className="upload-text">
-                  <p className="upload-main">Drag and drop or click to upload cover image</p>
-                  <p className="upload-hint">Landscape banner format recommended (PNG, JPG up to 10MB)</p>
-                </div>
-                <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} />
-              </label>
-              {file && <p className="upload-selected">Selected: {file.name}</p>}
-
-              <h4 style={{ marginTop: '20px' }}>Gallery Images</h4>
-              {form.gallery && form.gallery.length > 0 && (
-                <div className="admin-gallery-preview" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  {form.gallery.map((url, i) => {
-                    const isRemoved = galleryToRemove.includes(url);
-                    return (
-                      <div key={i} style={{ position: 'relative', opacity: isRemoved ? 0.3 : 1 }}>
-                        <img src={url} alt="Gallery" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px' }} />
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            if (isRemoved) {
-                              setGalleryToRemove(prev => prev.filter(item => item !== url));
-                            } else {
-                              setGalleryToRemove(prev => [...prev, url]);
-                            }
-                          }}
-                          style={{ position: 'absolute', top: 0, right: 0, background: isRemoved ? 'green' : 'red', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '50%' }}
-                        >
-                          {isRemoved ? '⟲' : '×'}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <label className="upload-box">
-                <div className="upload-icon">🖼️</div>
-                <div className="upload-text">
-                  <p className="upload-main">Upload gallery images</p>
-                  <p className="upload-hint">Select multiple images to showcase your package</p>
-                </div>
-                <input type="file" accept="image/*" multiple onChange={(e) => setGalleryFiles(Array.from(e.target.files))} />
-              </label>
-              {galleryFiles.length > 0 && <p className="upload-selected">Selected {galleryFiles.length} files</p>}
-            </div>
-
-            <div className="actions">
-              <button className="btn-outline" type="button" onClick={() => setShow(false)}>
-                Cancel
-              </button>
-              <button className="btn" onClick={submit}>
-                {form._id ? "Update Package" : "Add Package"}
-              </button>
-            </div>
+            ))}
           </div>
-        </Modal>
+        )}
+      </div>
+
+      {/* ============ MODALS ============ */}
+      {showModal && (
+        <PackageModal
+          pkg={activePkg}
+          onClose={handleCloseModal}
+          onSave={() => {
+            handleCloseModal();
+            loadData();
+          }}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title="Delete Package"
+          message={`Are you sure you want to delete the package "${cancelTarget.name}"? This action cannot be undone.`}
+          onConfirm={() => handleDelete(cancelTarget._id)}
+          onCancel={() => setCancelTarget(null)}
+          confirmText="Delete"
+          confirmVariant="danger"
+        />
       )}
     </AdminLayout>
   );

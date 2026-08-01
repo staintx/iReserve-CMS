@@ -174,6 +174,13 @@ exports.getPaymentIntent = async (intentId) => {
 	return requestPayMongo({ path: `/payment_intents/${intentId}`, method: "GET" });
 };
 
+exports.getCheckoutSession = async (checkoutSessionId) => {
+	return requestPayMongo({
+		path: `/checkout_sessions/${checkoutSessionId}`,
+		method: "GET"
+	});
+};
+
 exports.verifyWebhookSignature = ({ rawBody, signatureHeader }) => {
 	const webhookSecret = process.env.PAYMONGO_WEBHOOK_SECRET;
 	if (!webhookSecret) {

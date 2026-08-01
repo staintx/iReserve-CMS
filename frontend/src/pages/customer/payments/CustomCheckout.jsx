@@ -3,6 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import useToast from "../../../hooks/useToast";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { ShieldCheck, CreditCard, Loader2, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function CustomCheckout() {
   const location = useLocation();
@@ -54,6 +60,7 @@ export default function CustomCheckout() {
   const handlePay = async () => {
     if (!intentId) return;
     setProcessing(true);
+    setPaymentError("");
 
     try {
       let details = {};
@@ -98,8 +105,9 @@ export default function CustomCheckout() {
   if (loading) {
     return (
       <CustomerLayout>
-        <div className="booking-page" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-          <h2>Initializing secure payment...</h2>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <h2 className="text-xl font-medium text-muted-foreground font-serif">Initializing secure payment...</h2>
         </div>
       </CustomerLayout>
     );
@@ -107,103 +115,112 @@ export default function CustomCheckout() {
 
   return (
     <CustomerLayout>
-      <div className="booking-page" style={{ maxWidth: "600px", margin: "40px auto" }}>
-        <div className="booking-card">
-          <div className="booking-card-header" style={{ textAlign: "center", justifyContent: "center" }}>
-            <h3 style={{ margin: 0 }}>Secure Checkout</h3>
-          </div>
+      <div className="max-w-xl mx-auto px-4 py-12">
+        <Card className="border-border shadow-md overflow-hidden">
+          <CardHeader className="text-center pb-8 border-b border-border bg-muted/30">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldCheck className="w-6 h-6 text-primary" />
+            </div>
+            <CardTitle className="text-2xl font-bold font-serif text-foreground">Secure Checkout</CardTitle>
+            <CardDescription>Complete your {paymentType} payment securely</CardDescription>
+          </CardHeader>
           
-          <div style={{ marginBottom: "30px", padding: "20px", background: "#f8fafc", borderRadius: "8px", textAlign: "center", border: "1px solid #e2e8f0" }}>
-            <p style={{ margin: "0", fontSize: "0.875rem", color: "#64748b", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>Total Amount to Pay</p>
-            <h1 style={{ margin: "10px 0 0", color: "#0f172a", fontSize: "2.5rem" }}>₱{Number(amount).toLocaleString()}</h1>
-          </div>
-
-          <div style={{ marginBottom: "24px" }}>
-            <h4 style={{ marginBottom: "16px", color: "#334155", fontSize: "1rem", fontWeight: 600 }}>Select Payment Method</h4>
-            <div className="grid sm:grid-cols-3" style={{ gap: "12px" }}>
-              <button 
-                type="button"
-                className={selectedMethod === 'gcash' ? 'btn' : 'btn-outline'}
-                onClick={() => setSelectedMethod("gcash")}
-                style={{ padding: "12px", height: "auto" }}
-              >
-                GCash
-              </button>
-              <button 
-                type="button"
-                className={selectedMethod === 'paymaya' ? 'btn' : 'btn-outline'}
-                onClick={() => setSelectedMethod("paymaya")}
-                style={{ padding: "12px", height: "auto" }}
-              >
-                Maya
-              </button>
-              <button 
-                type="button"
-                className={selectedMethod === 'card' ? 'btn' : 'btn-outline'}
-                onClick={() => setSelectedMethod("card")}
-                style={{ padding: "12px", height: "auto" }}
-              >
-                Credit Card
-              </button>
+          <CardContent className="p-6 sm:p-8">
+            <div className="text-center p-6 bg-accent/5 rounded-2xl border border-accent/20 mb-8">
+              <p className="text-sm font-semibold text-accent uppercase tracking-widest mb-2">Total Amount to Pay</p>
+              <h1 className="text-4xl font-bold text-foreground">₱{Number(amount).toLocaleString()}</h1>
             </div>
-          </div>
 
-          {paymentError && (
-            <div className="booking-alert unavailable" style={{ marginBottom: "20px" }}>
-              <strong>Payment Failed</strong>
-              <p style={{ margin: "4px 0 0" }}>{paymentError}</p>
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Select Payment Method</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <Button 
+                    variant={selectedMethod === 'gcash' ? 'default' : 'outline'}
+                    className={cn("h-14 font-semibold", selectedMethod === 'gcash' && "bg-primary text-primary-foreground")}
+                    onClick={() => setSelectedMethod("gcash")}
+                  >
+                    GCash
+                  </Button>
+                  <Button 
+                    variant={selectedMethod === 'paymaya' ? 'default' : 'outline'}
+                    className={cn("h-14 font-semibold", selectedMethod === 'paymaya' && "bg-primary text-primary-foreground")}
+                    onClick={() => setSelectedMethod("paymaya")}
+                  >
+                    Maya
+                  </Button>
+                  <Button 
+                    variant={selectedMethod === 'card' ? 'default' : 'outline'}
+                    className={cn("h-14 font-semibold flex items-center gap-2", selectedMethod === 'card' && "bg-primary text-primary-foreground")}
+                    onClick={() => setSelectedMethod("card")}
+                  >
+                    <CreditCard className="w-4 h-4" /> Card
+                  </Button>
+                </div>
+              </div>
+
+              {paymentError && (
+                <div className="flex gap-3 p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-xl">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <div>
+                    <strong className="text-sm font-bold block mb-1">Payment Failed</strong>
+                    <p className="text-sm opacity-90">{paymentError}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedMethod === "card" && (
+                <div className="grid grid-cols-2 gap-4 p-5 bg-muted/20 border border-border rounded-xl">
+                  <div className="col-span-2 space-y-2">
+                    <Label>Name on Card</Label>
+                    <Input placeholder="John Doe" value={cardDetails.name} onChange={e => setCardDetails({...cardDetails, name: e.target.value})} />
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label>Card Number</Label>
+                    <Input placeholder="0000 0000 0000 0000" value={cardDetails.card_number} onChange={e => setCardDetails({...cardDetails, card_number: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Exp Month</Label>
+                    <Input placeholder="MM" maxLength="2" value={cardDetails.exp_month} onChange={e => setCardDetails({...cardDetails, exp_month: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Exp Year</Label>
+                    <Input placeholder="YY" maxLength="2" value={cardDetails.exp_year} onChange={e => setCardDetails({...cardDetails, exp_year: e.target.value})} />
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label>CVC</Label>
+                    <Input placeholder="123" maxLength="4" value={cardDetails.cvc} onChange={e => setCardDetails({...cardDetails, cvc: e.target.value})} />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </CardContent>
 
-          {selectedMethod === "card" && (
-            <div className="booking-grid" style={{ marginBottom: "30px" }}>
-              <label className="field span-2">
-                <span>Name on Card</span>
-                <input type="text" placeholder="John Doe" value={cardDetails.name} onChange={e => setCardDetails({...cardDetails, name: e.target.value})} />
-              </label>
-              <label className="field span-2">
-                <span>Card Number</span>
-                <input type="text" placeholder="0000 0000 0000 0000" value={cardDetails.card_number} onChange={e => setCardDetails({...cardDetails, card_number: e.target.value})} />
-              </label>
-              <label className="field">
-                <span>Exp Month</span>
-                <input type="text" placeholder="MM" maxLength="2" value={cardDetails.exp_month} onChange={e => setCardDetails({...cardDetails, exp_month: e.target.value})} />
-              </label>
-              <label className="field">
-                <span>Exp Year</span>
-                <input type="text" placeholder="YY" maxLength="2" value={cardDetails.exp_year} onChange={e => setCardDetails({...cardDetails, exp_year: e.target.value})} />
-              </label>
-              <label className="field">
-                <span>CVC</span>
-                <input type="text" placeholder="123" maxLength="4" value={cardDetails.cvc} onChange={e => setCardDetails({...cardDetails, cvc: e.target.value})} />
-              </label>
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
-            <button 
-              className="btn"
+          <CardFooter className="flex flex-col gap-3 p-6 sm:p-8 bg-muted/10 border-t border-border">
+            <Button 
+              className="w-full h-14 text-base font-bold bg-accent text-accent-foreground hover:bg-accent/90"
               onClick={handlePay} 
               disabled={processing}
-              style={{ padding: "16px", fontSize: "1.1rem" }}
             >
+              {processing && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
               {processing ? "Processing Securely..." : paymentError ? `Retry Payment (₱${Number(amount).toLocaleString()})` : `Pay ₱${Number(amount).toLocaleString()}`}
-            </button>
+            </Button>
 
-            <button 
-              className="btn-outline"
+            <Button 
+              variant="outline"
+              className="w-full h-12 text-muted-foreground hover:text-foreground"
               onClick={() => navigate("/customer/bookings", { replace: true })} 
               disabled={processing}
-              style={{ padding: "16px", fontSize: "1.1rem" }}
             >
               Cancel & Pay Later
-            </button>
-          </div>
+            </Button>
 
-          <p style={{ textAlign: "center", marginTop: "24px", fontSize: "0.75rem", color: "#94a3b8" }}>
-            Payments securely processed by PayMongo
-          </p>
-        </div>
+            <p className="text-center mt-4 text-xs font-medium text-muted-foreground/60 uppercase tracking-widest flex items-center justify-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Secured by PayMongo
+            </p>
+          </CardFooter>
+        </Card>
       </div>
     </CustomerLayout>
   );

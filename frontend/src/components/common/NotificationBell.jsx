@@ -2,6 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotificationAPI } from "../../api/notifications";
 import { getSocket } from "../../api/socket";
+import { Bell, Check, Circle } from "lucide-react";
+import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "../ui/dropdown-menu";
+import { ScrollArea } from "../ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 const formatDate = (value) => {
   if (!value) return "";
@@ -65,8 +76,6 @@ export default function NotificationBell() {
     }
   }, []);
 
-  const handleOpen = () => setOpen((current) => !current);
-
   const handleItemClick = async (notification) => {
     if (!notification.is_read) {
       await markRead(notification._id);
@@ -84,39 +93,87 @@ export default function NotificationBell() {
   const empty = useMemo(() => items.length === 0, [items]);
 
   return (
-    <div className="notification-shell">
-      <button className="topbar-icon" type="button" aria-label="Notifications" onClick={handleOpen}>
-        <span aria-hidden="true">🔔</span>
-        {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
-      </button>
-      {open && (
-        <div className="notification-panel">
-          <div className="notification-header">
-            <div>
-              <strong>Notifications</strong>
-              <span>{unreadCount} unread</span>
-            </div>
-            <button type="button" className="notification-clear" onClick={markAllRead}>Mark all read</button>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:bg-accent/10 hover:text-accent">
+          <Bell className="w-5 h-5" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      
+      <DropdownMenuContent align="end" className="w-80 sm:w-96 p-0 border-border shadow-lg">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">Notifications</span>
+            {unreadCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
+                {unreadCount} new
+              </span>
+            )}
           </div>
-          <div className="notification-list">
-            {empty && <div className="notification-empty">No notifications yet.</div>}
-            {!empty && items.map((item) => (
-              <button
-                key={item._id}
-                type="button"
-                className={`notification-item ${item.is_read ? "" : "unread"}`}
-                onClick={() => handleItemClick(item)}
-              >
-                <div>
-                  <div className="notification-title">{item.title}</div>
-                  <div className="notification-body">{item.body}</div>
-                </div>
-                <span className="notification-date">{formatDate(item.createdAt)}</span>
-              </button>
-            ))}
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={markAllRead} 
+            disabled={unreadCount === 0}
+            className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground"
+          >
+            <Check className="w-3.5 h-3.5 mr-1" />
+            Mark all read
+          </Button>
         </div>
-      )}
-    </div>
+
+        <ScrollArea className="h-[400px]">
+          {empty ? (
+            <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
+              <Bell className="w-8 h-8 mb-3 opacity-20" />
+              <p className="text-sm">No notifications yet.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {items.map((item) => (
+                <div key={item._id} className="relative group">
+                  <DropdownMenuItem
+                    className={cn(
+                      "flex flex-col items-start px-4 py-3 cursor-pointer focus:bg-accent/5",
+                      item.is_read ? "opacity-80" : "bg-accent/5"
+                    )}
+                    onClick={() => handleItemClick(item)}
+                  >
+                    <div className="flex w-full gap-3">
+                      <div className="mt-1 flex-shrink-0">
+                        {!item.is_read ? (
+                          <Circle className="w-2.5 h-2.5 fill-accent text-accent" />
+                        ) : (
+                          <div className="w-2.5 h-2.5 rounded-full border border-muted-foreground/30" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={cn("text-sm font-medium leading-none", item.is_read ? "text-foreground/80" : "text-foreground")}>
+                            {item.title}
+                          </p>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap pt-0.5">
+                            {formatDate(item.createdAt)}
+                          </span>
+                        </div>
+                        <p className={cn("text-xs line-clamp-2", item.is_read ? "text-muted-foreground" : "text-foreground/80")}>
+                          {item.body}
+                        </p>
+                      </div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="m-0" />
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../ui/table";
+import { Badge } from "../ui/badge";
+
 const ACTION_LABELS = {
   package_created: "Package Created",
   package_updated: "Package Updated",
@@ -15,16 +25,16 @@ const ACTION_LABELS = {
 };
 
 const ACTION_STYLES = {
-  package_created: "log-pill create",
-  package_updated: "log-pill update",
-  package_deleted: "log-pill delete",
-  inquiry_reviewed: "log-pill review",
-  inquiry_updated: "log-pill update",
-  inquiry_customer_status_update: "log-pill info",
-  booking_created: "log-pill create",
-  booking_created_from_inquiry: "log-pill create",
-  booking_updated: "log-pill update",
-  booking_deleted: "log-pill delete",
+  package_created: "success",
+  package_updated: "info",
+  package_deleted: "destructive",
+  inquiry_reviewed: "secondary",
+  inquiry_updated: "info",
+  inquiry_customer_status_update: "warning",
+  booking_created: "success",
+  booking_created_from_inquiry: "success",
+  booking_updated: "info",
+  booking_deleted: "destructive",
 };
 
 const ENTITY_LABELS = {
@@ -34,10 +44,10 @@ const ENTITY_LABELS = {
 };
 
 const ROLE_STYLES = {
-  admin: "log-role-pill admin",
-  manager: "log-role-pill manager",
-  staff: "log-role-pill staff",
-  customer: "log-role-pill customer",
+  admin: "default",
+  manager: "secondary",
+  staff: "outline",
+  customer: "outline",
 };
 
 function timeAgo(dateStr) {
@@ -61,7 +71,7 @@ function ChangesCell({ changes }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!changes || typeof changes !== "object" || Object.keys(changes).length === 0) {
-    return <span style={{ color: "#9ca3af", fontSize: "12px" }}>—</span>;
+    return <span className="text-muted-foreground text-xs">—</span>;
   }
 
   const entries = Object.entries(changes);
@@ -71,33 +81,29 @@ function ChangesCell({ changes }) {
   const renderEntry = ([field, val]) => {
     if (!val || typeof val !== "object") return null;
     return (
-      <div key={field} className="log-change-item">
-        <span className="log-change-field">{field}</span>
-        <span className="log-change-arrow">→</span>
-        <span className="log-change-from">{String(val.from ?? "—")}</span>
-        <span className="log-change-arrow">→</span>
-        <span className="log-change-to">{String(val.to ?? "—")}</span>
+      <div key={field} className="flex items-center gap-1.5 text-xs py-0.5">
+        <span className="font-medium text-foreground">{field}</span>
+        <span className="text-muted-foreground">→</span>
+        <span className="line-through text-muted-foreground truncate max-w-[100px]">{String(val.from ?? "—")}</span>
+        <span className="text-muted-foreground">→</span>
+        <span className="text-emerald-600 font-medium truncate max-w-[100px]">{String(val.to ?? "—")}</span>
       </div>
     );
   };
 
   return (
-    <div className="log-changes-wrap">
+    <div className="flex flex-col items-start gap-1">
       {(expanded ? entries : preview).map(renderEntry)}
       {hasMore && (
         <button
           type="button"
-          className="log-changes-toggle"
+          className="text-[10px] flex items-center gap-1 font-medium text-primary hover:underline"
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? (
-            <>
-              Show less <ChevronUp size={12} />
-            </>
+            <>Show less <ChevronUp size={10} /></>
           ) : (
-            <>
-              +{entries.length - 1} more <ChevronDown size={12} />
-            </>
+            <>+{entries.length - 1} more <ChevronDown size={10} /></>
           )}
         </button>
       )}
@@ -107,68 +113,80 @@ function ChangesCell({ changes }) {
 
 export default function AdminSystemLogsTable({ logs }) {
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>User</th>
-          <th>Action</th>
-          <th>Entity</th>
-          <th>Details</th>
-          <th>Changes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {logs.map((log) => (
-          <tr key={log._id}>
-            <td>
-              <div className="log-timestamp">
-                <span className="log-time-ago">{timeAgo(log.createdAt)}</span>
-                <span className="log-time-full" title={formatDateTime(log.createdAt)}>
-                  {formatDateTime(log.createdAt)}
-                </span>
-              </div>
-            </td>
-            <td>
-              <div className="log-user-cell">
-                <span className="log-user-name">
-                  {log.user_id?.full_name || log.user_id?.email || "System"}
-                </span>
-                {log.user_id?.role && (
-                  <span className={ROLE_STYLES[log.user_id.role] || "log-role-pill"}>
-                    {log.user_id.role}
+    <div className="rounded-md border border-border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Timestamp</TableHead>
+            <TableHead>User</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Entity</TableHead>
+            <TableHead>Details</TableHead>
+            <TableHead className="min-w-[200px]">Changes</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {logs.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                No logs found.
+              </TableCell>
+            </TableRow>
+          ) : (
+            logs.map((log) => (
+              <TableRow key={log._id}>
+                <TableCell>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-foreground">{timeAgo(log.createdAt)}</span>
+                    <span className="text-[10px] text-muted-foreground" title={formatDateTime(log.createdAt)}>
+                      {formatDateTime(log.createdAt)}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="text-sm font-medium text-foreground">
+                      {log.user_id?.full_name || log.user_id?.email || "System"}
+                    </span>
+                    {log.user_id?.role && (
+                      <Badge variant={ROLE_STYLES[log.user_id.role] || "outline"} className="text-[10px] py-0 h-4 capitalize">
+                        {log.user_id.role}
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={ACTION_STYLES[log.action] || "secondary"} className="whitespace-nowrap font-normal">
+                    {ACTION_LABELS[log.action] || log.action}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    {log.entity_type && (
+                      <span className="text-xs font-medium text-foreground capitalize">
+                        {ENTITY_LABELS[log.entity_type] || log.entity_type}
+                      </span>
+                    )}
+                    {log.entity_id && (
+                      <span className="text-[10px] text-muted-foreground bg-accent/50 px-1 rounded font-mono" title={log.entity_id}>
+                        #{log.entity_id.slice(-6).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground max-w-[250px] truncate block" title={log.details}>
+                    {log.details || "—"}
                   </span>
-                )}
-              </div>
-            </td>
-            <td>
-              <span className={ACTION_STYLES[log.action] || "log-pill"}>
-                {ACTION_LABELS[log.action] || log.action}
-              </span>
-            </td>
-            <td>
-              <div className="log-entity-cell">
-                {log.entity_type && (
-                  <span className="log-entity-type">
-                    {ENTITY_LABELS[log.entity_type] || log.entity_type}
-                  </span>
-                )}
-                {log.entity_id && (
-                  <span className="log-entity-id" title={log.entity_id}>
-                    #{log.entity_id.slice(-6)}
-                  </span>
-                )}
-              </div>
-            </td>
-            <td>
-              <span className="log-details-text">{log.details || "—"}</span>
-            </td>
-            <td>
-              <ChangesCell changes={log.changes} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                </TableCell>
+                <TableCell>
+                  <ChangesCell changes={log.changes} />
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

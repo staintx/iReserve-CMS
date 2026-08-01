@@ -275,7 +275,9 @@ export default function CustomerEventDashboard() {
             {/* Reservation Summary */}
             <Card className="border-border">
               <CardHeader className="border-b border-border pb-4 mb-4">
-                <CardTitle className="text-xl font-serif">Reservation Summary</CardTitle>
+                <CardTitle className="text-xl font-serif">
+                  {isCustomOrSetup ? "Reservation Summary" : "Order Summary"}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 text-sm">

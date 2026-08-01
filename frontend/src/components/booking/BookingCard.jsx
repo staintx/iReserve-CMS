@@ -52,6 +52,12 @@ export default function BookingCard({
   
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const serviceType = booking.service_type || (
+    booking.event_type?.toLowerCase().includes("food delivery") || booking.delivery_method !== "setup" ? "Food Only" :
+    !booking.include_food ? "Event Setup Only" : "Food and Event Setup"
+  );
+  const isFoodOnly = serviceType === "Food Only";
+
   const paidAmount = useMemo(() => {
     return payments
       .filter((p) => String(p.booking_id?._id || p.booking_id) === String(booking._id) && p.status === "approved")
@@ -79,7 +85,7 @@ export default function BookingCard({
     statusText = "Cancelled";
   }
 
-  if (booking.ocular_visit?.status === "pending" || booking.ocular_visit?.status === "requested") {
+  if (!isFoodOnly && (booking.ocular_visit?.status === "pending" || booking.ocular_visit?.status === "requested")) {
     statusVariant = "bg-blue-100 text-blue-700";
     statusText = "Ocular Pending";
   }
@@ -264,7 +270,7 @@ export default function BookingCard({
             )}
 
             {/* Ocular Request UI if booking is confirmed but no ocular yet */}
-            {booking.status === "confirmed" && (!booking.ocular_visit || booking.ocular_visit.status === "pending") && (
+            {booking.status === "confirmed" && !isFoodOnly && (!booking.ocular_visit || booking.ocular_visit.status === "pending") && (
               <div className="bg-[#FFFDF0] rounded-[16px] p-4 border border-[#FDF3C8]">
                 <p className="text-[11px] font-bold text-[#9A7D18] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Calendar size={13} /> Schedule Ocular Visit
@@ -294,7 +300,7 @@ export default function BookingCard({
             )}
 
             {/* Ocular Pending Banner */}
-            {booking.ocular_visit?.status === "requested" && (
+            {!isFoodOnly && booking.ocular_visit?.status === "requested" && (
               <div className="bg-[#F0F7FF] border border-[#E0EFFF] rounded-[16px] p-4 flex items-start gap-3">
                 <Calendar className="w-[18px] h-[18px] text-[#3B82F6] mt-0.5" />
                 <div>
@@ -307,7 +313,7 @@ export default function BookingCard({
             {/* Action Buttons */}
             <div className="flex items-center gap-3 flex-wrap pt-2">
               <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <Eye size={14} /> View Reservation
+                <Eye size={14} /> {isFoodOnly ? "View Order" : "View Reservation"}
               </button>
               <button onClick={openChangeRequest} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
                 <Settings size={14} /> Edit Details

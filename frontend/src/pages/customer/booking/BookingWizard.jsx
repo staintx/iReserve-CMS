@@ -25,6 +25,7 @@ import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPayment from "./steps/StepPayment";
 import StepEquipmentSelection from "./steps/StepEquipmentSelection";
 import StepPackageSelection from "./steps/StepPackageSelection";
+import StepPackageAddOns from "./steps/StepPackageAddOns";
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -112,6 +113,7 @@ export default function BookingWizard() {
       allergies: "",
       special_requests: "",
       additional_services: [],
+      selected_package_addons: [],
       contact_first_name: "",
       contact_last_name: "",
       contact_email: user?.email || "",
@@ -185,6 +187,7 @@ export default function BookingWizard() {
         key: "package",
       });
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
+      steps.push({ id: "PackageAddOns", label: "Add-ons", key: "addons" });
     } else if (isFoodAndEventSetup) {
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
       steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
@@ -201,6 +204,7 @@ export default function BookingWizard() {
     } else {
       // Standard Package
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
+      steps.push({ id: "PackageAddOns", label: "Add-ons", key: "addons" });
     }
 
     // ✅ Removed CostSummary step - price info now shown in Review step
@@ -256,6 +260,10 @@ export default function BookingWizard() {
       message: "",
     },
     EquipmentSelection: {
+      check: () => true,
+      message: "",
+    },
+    PackageAddOns: {
       check: () => true,
       message: "",
     },
@@ -492,6 +500,10 @@ export default function BookingWizard() {
       sum += Number(svc.price || 0) * Number(svc.quantity || 1);
     });
 
+    form.selected_package_addons?.forEach((addon) => {
+      sum += Number(addon.price || 0) * Number(addon.quantity || 1);
+    });
+
     return sum;
   }, [
     form.guest_count,
@@ -572,6 +584,7 @@ export default function BookingWizard() {
         total_price: totalPrice,
         payment_method: paymentMethod,
         inventory_items: form.additional_services,
+        service_items: form.selected_package_addons,
         delivery_method: isFoodOnly ? form.delivery_method : "setup",
         selected_menu: form.selected_menu
           ? form.selected_menu.map((m) => m._id || m)
@@ -584,6 +597,7 @@ export default function BookingWizard() {
 
       delete payload.event_type_other;
       delete payload.additional_services;
+      delete payload.selected_package_addons;
       if (!payload.contact_alt_phone) {
         delete payload.contact_alt_phone;
       }
@@ -728,6 +742,14 @@ export default function BookingWizard() {
             form={form}
             setForm={setForm}
             inventoryItems={inventoryItems}
+          />
+        );
+      case "PackageAddOns":
+        return (
+          <StepPackageAddOns
+            form={form}
+            setForm={setForm}
+            packageDetails={packageDetails}
           />
         );
       case "ContactInfo":

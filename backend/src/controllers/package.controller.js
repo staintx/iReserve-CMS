@@ -74,10 +74,19 @@ exports.create = async (req, res) => {
     }
   }
 
+  let add_ons = [];
+  if (req.body.add_ons) {
+    try {
+      add_ons = JSON.parse(req.body.add_ons);
+    } catch (e) {
+      console.error("Failed to parse add_ons", e);
+    }
+  }
+
   const payload = {
     ...req.body,
     inclusions: normalizeList(req.body.inclusions),
-    add_ons: normalizeList(req.body.add_ons),
+    add_ons,
     setup_equipment,
     scaffold_size_options,
     menu_items,
@@ -137,11 +146,18 @@ exports.update = async (req, res) => {
     inclusions: req.body.inclusions
       ? normalizeList(req.body.inclusions)
       : undefined,
-    add_ons: req.body.add_ons ? normalizeList(req.body.add_ons) : undefined,
     gallery_to_remove: req.body.gallery_to_remove
       ? normalizeList(req.body.gallery_to_remove)
       : [],
   };
+
+  if (req.body.add_ons) {
+    try {
+      data.add_ons = JSON.parse(req.body.add_ons);
+    } catch (e) {
+      console.error("Failed to parse add_ons", e);
+    }
+  }
 
   if (req.body.setup_equipment) {
     try {

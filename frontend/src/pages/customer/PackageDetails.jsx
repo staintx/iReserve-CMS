@@ -188,10 +188,17 @@ export default function PackageDetails() {
 
               {addOns.length ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-                  {addOns.map((item) => (
-                    <div className="flex items-start gap-3" key={item}>
+                  {addOns.map((item, idx) => (
+                    <div className="flex items-start gap-3" key={idx}>
                       <div className="mt-1 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                      <span className="text-foreground">{item}</span>
+                      <span className="text-foreground">
+                        {item.name || item}
+                        {item.price ? (
+                          <span className="text-muted-foreground ml-1">
+                            (₱{formatMoney(item.price)})
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
                   ))}
                 </div>

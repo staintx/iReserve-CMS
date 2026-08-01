@@ -41,7 +41,12 @@ const PackageSchema = new mongoose.Schema(
     menu_items: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }],
     available: { type: Boolean, default: true },
     inclusions: [String],
-    add_ons: [String],
+    add_ons: [
+      {
+        name: String,
+        price: Number,
+      },
+    ],
     image_url: String,
     gallery: [String],
     event_type: String,

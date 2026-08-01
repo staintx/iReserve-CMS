@@ -3,6 +3,7 @@ const Inventory = require("../models/Inventory");
 const InventoryReservation = require("../models/InventoryReservation");
 const Package = require("../models/Package");
 const BusinessInfo = require("../models/BusinessInfo");
+const BlockedDate = require("../models/BlockedDate");
 
 const checkInventoryAvailability = async (
   eventDate,
@@ -133,9 +134,13 @@ const normalizeText = (value) =>
     .replace(/\s+/g, " ");
 
 const sameLocation = (requestLocation, existingLocation) => {
-  // Pickup orders happen at the caterer's fixed address and should not be
-  // blocked by venue-based event conflicts.
+  // Food Only / Pickup orders do not occupy the venue and shouldn't trigger a location conflict
   if (requestLocation?.delivery_method === "pickup") return false;
+  if (requestLocation?.service_type === "Food Only") return false;
+  if (requestLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
+  
+  // Existing Food Only orders don't block the venue either
+  if (existingLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
 
   const keys = ["venue_type", "province", "municipality", "barangay", "street"];
   const hasAny = keys.some((key) => Boolean(requestLocation?.[key]));
@@ -320,6 +325,14 @@ exports.create = asyncHandler(async (req, res) => {
     delete req.body.street;
     delete req.body.landmark;
     delete req.body.zip_code;
+  }
+
+  // Check Blocked Dates
+  const parsedEventDate = new Date(req.body.event_date);
+  parsedEventDate.setHours(0, 0, 0, 0);
+  const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+  if (blocked) {
+    return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
   }
 
   const conflict = await findBookingConflict({
@@ -553,6 +566,14 @@ exports.update = asyncHandler(async (req, res) => {
         .status(400)
         .json({ message: "Event date must be today or later" });
     }
+    
+    // Check Blocked Dates
+    const parsedEventDate = new Date(req.body.event_date);
+    parsedEventDate.setHours(0, 0, 0, 0);
+    const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+    if (blocked) {
+      return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
+    }
   }
 
   const nextEventDate = req.body.event_date || current.event_date;
@@ -570,6 +591,8 @@ exports.update = asyncHandler(async (req, res) => {
       municipality: req.body.municipality || current.municipality,
       barangay: req.body.barangay || current.barangay,
       street: req.body.street || current.street,
+      delivery_method: req.body.delivery_method || current.delivery_method,
+      event_type: req.body.event_type || current.event_type,
     },
     bufferMinutes: req.body.buffer_minutes,
   });
@@ -1117,6 +1140,23 @@ exports.remove = asyncHandler(async (req, res) => {
 });
 
 exports.checkAvailability = asyncHandler(async (req, res) => {
+  if (!req.query.event_date) {
+    return res.status(400).json({ message: "Event date is required" });
+  }
+
+  const parsedEventDate = new Date(req.query.event_date);
+  parsedEventDate.setHours(0, 0, 0, 0);
+  const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+  if (blocked) {
+    return res.json({
+      available: false,
+      conflict_id: null,
+      inventory_issue: null,
+      blocked: true,
+      reason: blocked.reason || "This date is unavailable."
+    });
+  }
+
   const conflict = await findBookingConflict({
     eventDate: req.query.event_date,
     startTime: req.query.start_time,
@@ -1127,6 +1167,8 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
       municipality: req.query.municipality,
       barangay: req.query.barangay,
       street: req.query.street,
+      delivery_method: req.query.delivery_method,
+      service_type: req.query.service_type,
     },
     bufferMinutes: req.query.buffer_minutes,
   });
@@ -1240,6 +1282,8 @@ exports.suggestDates = asyncHandler(async (req, res) => {
     municipality,
     barangay,
     street,
+    delivery_method,
+    service_type,
   } = req.query;
   if (!event_date)
     return res.status(400).json({ message: "event_date is required" });
@@ -1249,7 +1293,17 @@ exports.suggestDates = asyncHandler(async (req, res) => {
   if (Number.isNaN(baseDate.getTime()))
     return res.status(400).json({ message: "Invalid date" });
 
-  const location = { venue_type, province, municipality, barangay, street };
+  const location = { venue_type, province, municipality, barangay, street, delivery_method, service_type };
+  
+  // Get all blocked dates in the range
+  const blockedDates = await BlockedDate.find({
+    date: {
+      $gte: new Date(new Date(event_date).setDate(new Date(event_date).getDate() - range)),
+      $lte: new Date(new Date(event_date).setDate(new Date(event_date).getDate() + range))
+    }
+  });
+  const blockedTimestamps = new Set(blockedDates.map(b => new Date(b.date).setHours(0,0,0,0)));
+
   const suggestions = [];
 
   for (let offset = 1; offset <= range && suggestions.length < 5; offset++) {
@@ -1261,6 +1315,11 @@ exports.suggestDates = asyncHandler(async (req, res) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (candidate < today) continue;
+      
+      // Skip blocked dates
+      if (blockedTimestamps.has(new Date(candidate).setHours(0,0,0,0))) {
+        continue;
+      }
 
       const conflict = await findBookingConflict({
         eventDate: candidate,

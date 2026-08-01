@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Printer, Check, Phone, Mail, MapPin, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Check, Phone, Mail, MapPin, AlertCircle, Edit, Calendar } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
 
 export default function AdminBookingDetails() {
   const { id } = useParams();
@@ -17,6 +19,23 @@ export default function AdminBookingDetails() {
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState([]);
 
+  // Modals state
+  const [showChangeModal, setShowChangeModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  
+  // Edit Form State
+  const [editForm, setEditForm] = useState({
+    guest_count: "",
+    event_date: "",
+    start_time: "",
+    venue_type: ""
+  });
+  
+  // Ocular Reschedule State
+  const [ocularDate, setOcularDate] = useState("");
+  const [ocularTime, setOcularTime] = useState("");
+
   const loadData = () => {
     setLoading(true);
     Promise.all([
@@ -25,6 +44,18 @@ export default function AdminBookingDetails() {
     ]).then(([bRes, pRes]) => {
       setBooking(bRes.data);
       setPayments(pRes.data.filter(p => p.booking_id?._id === id || p.booking_id === id));
+      
+      setEditForm({
+        guest_count: bRes.data.guest_count || "",
+        event_date: bRes.data.event_date ? new Date(bRes.data.event_date).toISOString().split('T')[0] : "",
+        start_time: bRes.data.start_time || "",
+        venue_type: bRes.data.venue_type || ""
+      });
+
+      if (bRes.data.ocular_visit) {
+        setOcularDate(bRes.data.ocular_visit.scheduled_date ? new Date(bRes.data.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
+        setOcularTime(bRes.data.ocular_visit.scheduled_time || "");
+      }
     }).catch(err => {
       notify("Failed to load booking details", "error");
     }).finally(() => setLoading(false));
@@ -72,7 +103,6 @@ export default function AdminBookingDetails() {
   const customerName = booking.customer_id?.full_name || `${booking.contact_first_name} ${booking.contact_last_name}`.trim() || "Customer";
   
   const totalPaid = payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const depositPaid = totalPaid; // Approximate for display purposes if not strictly tracked
 
   const handleApprove = () => {
     AdminAPI.updateBooking(booking._id, { status: "confirmed" })
@@ -84,17 +114,39 @@ export default function AdminBookingDetails() {
   };
 
   const handleResolveChange = () => {
-    // When updating the booking, the backend automatically sets change_request.status to approved
-    // We just send a dummy update to trigger it, or a specific resolved field if the API supported it
-    // In this backend, updating any other field (like status, or just sending an empty update) doesn't resolve it unless it's a real field change.
-    // We can "approve" by sending status: booking.status (it might not register as a change)
-    // Actually, let's just trigger a save with the same data to see if it resolves, or we can send a note.
     AdminAPI.updateBooking(booking._id, { event_theme: booking.event_theme + " " })
       .then(() => {
-        notify("Change request resolved.", "success");
+        notify("Change request marked as resolved.", "success");
+        setShowChangeModal(false);
         loadData();
       })
       .catch((err) => notify(err.response?.data?.message || "Failed to resolve change request.", "error"));
+  };
+
+  const handleUpdateDetails = (e) => {
+    e.preventDefault();
+    AdminAPI.updateBooking(booking._id, editForm)
+      .then(() => {
+        notify("Booking details updated successfully.", "success");
+        setShowEditModal(false);
+        if (showChangeModal) setShowChangeModal(false);
+        loadData();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to update booking.", "error"));
+  };
+
+  const handleScheduleOcular = (e) => {
+    e.preventDefault();
+    AdminAPI.scheduleOcular(booking._id, {
+      scheduled_date: ocularDate,
+      scheduled_time: ocularTime
+    })
+    .then(() => {
+      notify("Ocular schedule updated.", "success");
+      setShowRescheduleModal(false);
+      loadData();
+    })
+    .catch(err => notify(err.response?.data?.message || "Failed to confirm ocular schedule", "error"));
   };
 
   return (
@@ -120,7 +172,7 @@ export default function AdminBookingDetails() {
               <h4 className="font-bold text-amber-800">Pending Change Request</h4>
               <p className="text-sm text-amber-700 mt-1">{booking.change_request.message}</p>
             </div>
-            <Btn size="sm" variant="secondary" className="bg-white" onClick={handleResolveChange}>Mark as Resolved</Btn>
+            <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowChangeModal(true)}>Review Request</Btn>
           </div>
         )}
 
@@ -163,8 +215,13 @@ export default function AdminBookingDetails() {
           </AdminCard>
 
           {/* Event Info */}
-          <AdminCard className="!p-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">Event Information</p>
+          <AdminCard className="!p-5 relative">
+            <div className="flex justify-between items-center mb-3">
+              <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Event Information</p>
+              {!['cancelled', 'completed', 'refunded'].includes(booking.status) && (
+                <button onClick={() => setShowEditModal(true)} className="text-[#6B7280] hover:text-[#D4AF37] transition-colors"><Edit size={14} /></button>
+              )}
+            </div>
             <div className="space-y-2.5 text-sm">
               {[
                 ["Type", booking.event_type || "Event"], 
@@ -231,38 +288,115 @@ export default function AdminBookingDetails() {
           </AdminCard>
         </div>
 
-        {/* Ocular Request Section */}
-        {booking.ocular_visit?.status === "requested" && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 mt-5">
-            <AlertCircle className="text-blue-500 mt-0.5" size={20} />
+        {/* Ocular Section */}
+        {booking.ocular_visit && (booking.ocular_visit.status === "scheduled" || booking.ocular_visit.status === "requested") && (
+          <div className={`border rounded-xl p-4 flex items-start gap-3 mt-5 ${booking.ocular_visit.status === "requested" ? "bg-blue-50 border-blue-200" : "bg-emerald-50 border-emerald-200"}`}>
+            {booking.ocular_visit.status === "requested" ? <AlertCircle className="text-blue-500 mt-0.5" size={20} /> : <Calendar className="text-emerald-500 mt-0.5" size={20} />}
             <div className="flex-1">
-              <h4 className="font-bold text-blue-800">Ocular Visit Schedule Requested</h4>
-              <p className="text-sm text-blue-700 mt-1">
-                Customer requested an ocular visit on {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()} at {booking.ocular_visit.scheduled_time || "any time"}.
+              <h4 className={`font-bold ${booking.ocular_visit.status === "requested" ? "text-blue-800" : "text-emerald-800"}`}>
+                {booking.ocular_visit.status === "requested" ? "Ocular Visit Requested" : "Ocular Visit Scheduled"}
+              </h4>
+              <p className={`text-sm mt-1 ${booking.ocular_visit.status === "requested" ? "text-blue-700" : "text-emerald-700"}`}>
+                Date: {new Date(booking.ocular_visit.scheduled_date || booking.ocular_visit.date).toLocaleDateString()} at {booking.ocular_visit.scheduled_time || booking.ocular_visit.time || "any time"}.
               </p>
             </div>
             <div className="flex gap-2">
-              <Btn 
-                size="sm" 
-                variant="gold" 
-                onClick={() => {
-                  AdminAPI.scheduleOcular(booking._id, {
-                    scheduled_date: booking.ocular_visit.scheduled_date,
-                    scheduled_time: booking.ocular_visit.scheduled_time
-                  })
-                  .then(() => {
-                    notify("Ocular schedule confirmed", "success");
-                    loadData();
-                  })
-                  .catch(err => notify(err.response?.data?.message || "Failed to confirm", "error"));
-                }}
-              >
-                Confirm Schedule
-              </Btn>
+              {booking.ocular_visit.status === "requested" && (
+                <Btn size="sm" variant="gold" onClick={handleScheduleOcular}>
+                  Confirm Schedule
+                </Btn>
+              )}
+              {booking.ocular_visit.status === "scheduled" && (
+                <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowRescheduleModal(true)}>
+                  Reschedule
+                </Btn>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Edit Booking Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleUpdateDetails}>
+            <DialogHeader>
+              <DialogTitle>Edit Event Information</DialogTitle>
+              <DialogDescription>Modify core booking details below.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Guest Count</label>
+                <Input type="number" value={editForm.guest_count} onChange={(e) => setEditForm({...editForm, guest_count: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Event Date</label>
+                <Input type="date" value={editForm.event_date} onChange={(e) => setEditForm({...editForm, event_date: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Start Time</label>
+                <Input type="time" value={editForm.start_time} onChange={(e) => setEditForm({...editForm, start_time: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Venue Type</label>
+                <Input type="text" value={editForm.venue_type} onChange={(e) => setEditForm({...editForm, venue_type: e.target.value})} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Btn type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Btn>
+              <Btn type="submit" variant="gold">Save Changes</Btn>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Change Request Modal */}
+      <Dialog open={showChangeModal} onOpenChange={setShowChangeModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Review Customer Change Request</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-800 italic border border-gray-200">
+              "{booking?.change_request?.message}"
+            </div>
+            <p className="text-sm text-gray-600">
+              To resolve this request, you can explicitly update the booking details (which automatically resolves it) or simply mark it as resolved.
+            </p>
+          </div>
+          <DialogFooter>
+            <Btn variant="secondary" onClick={handleResolveChange}>Mark as Resolved</Btn>
+            <Btn variant="gold" onClick={() => { setShowChangeModal(false); setShowEditModal(true); }}>Edit Booking Details</Btn>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Ocular Modal */}
+      <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleScheduleOcular}>
+            <DialogHeader>
+              <DialogTitle>Reschedule Ocular Visit</DialogTitle>
+              <DialogDescription>Select a new date and time for the ocular visit.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date</label>
+                <Input type="date" value={ocularDate} onChange={(e) => setOcularDate(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Time</label>
+                <Input type="time" value={ocularTime} onChange={(e) => setOcularTime(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Btn type="button" variant="secondary" onClick={() => setShowRescheduleModal(false)}>Cancel</Btn>
+              <Btn type="submit" variant="gold">Reschedule</Btn>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </AdminLayout>
   );
 }

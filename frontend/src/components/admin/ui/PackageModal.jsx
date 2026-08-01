@@ -47,7 +47,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     name: "",
     qty: "",
   });
-  const [newAddOn, setNewAddOn] = useState({ name: "", qty: "" });
+  const [newAddOn, setNewAddOn] = useState({ name: "", price: "" });
   const [newSetupEquip, setNewSetupEquip] = useState({
     inventory_id: "",
     quantity: "",
@@ -131,11 +131,13 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
   // ============ HANDLERS - Add-ons ============
   const handleAddAddOn = () => {
-    if (!newAddOn.name) return;
-    const qtyStr = newAddOn.qty ? ` (Qty: ${newAddOn.qty})` : "";
-    const addStr = `${newAddOn.name}${qtyStr}`;
-    setFormData((prev) => ({ ...prev, add_ons: [...prev.add_ons, addStr] }));
-    setNewAddOn({ name: "", qty: "" });
+    if (!newAddOn.name || !newAddOn.price) return;
+    const newAddOnObj = {
+      name: newAddOn.name,
+      price: Number(newAddOn.price)
+    };
+    setFormData((prev) => ({ ...prev, add_ons: [...prev.add_ons, newAddOnObj] }));
+    setNewAddOn({ name: "", price: "" });
   };
 
   const handleRemoveAddOn = (index) => {
@@ -237,9 +239,9 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     try {
       const data = new FormData();
       Object.keys(formData).forEach((key) => {
-        if (key === "inclusions" || key === "add_ons") {
+        if (key === "inclusions") {
           formData[key].forEach((val) => data.append(`${key}[]`, val));
-        } else if (key === "setup_equipment" || key === "menu_items") {
+        } else if (key === "setup_equipment" || key === "menu_items" || key === "add_ons") {
           data.append(key, JSON.stringify(formData[key]));
         } else if (key === "scaffold_size_options") {
           data.append(key, JSON.stringify(formData[key]));
@@ -699,7 +701,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 <div className="flex gap-2 mb-3">
                   <input
                     type="text"
-                    placeholder="Add-on name"
+                    placeholder="Add-on name (e.g. Clown)"
                     className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
                     value={newAddOn.name}
                     onChange={(e) =>
@@ -707,12 +709,13 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     }
                   />
                   <input
-                    type="text"
-                    placeholder="Qty"
-                    className="w-20 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                    value={newAddOn.qty}
+                    type="number"
+                    min="0"
+                    placeholder="Price (₱)"
+                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    value={newAddOn.price}
                     onChange={(e) =>
-                      setNewAddOn({ ...newAddOn, qty: e.target.value })
+                      setNewAddOn({ ...newAddOn, price: e.target.value })
                     }
                   />
                   <Btn variant="primary" size="sm" onClick={handleAddAddOn}>
@@ -730,7 +733,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                       >
                         <span className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 bg-purple-400 rounded-full" />
-                          {add}
+                          {add.name} <span className="text-gray-500 font-medium ml-1">₱{Number(add.price).toLocaleString()}</span>
                         </span>
                         <button
                           onClick={() => handleRemoveAddOn(i)}

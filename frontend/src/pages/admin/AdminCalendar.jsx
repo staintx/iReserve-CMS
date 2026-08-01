@@ -1,22 +1,141 @@
-import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
+import { AdminAPI } from "../../api/admin";
+import Modal from "../../components/common/Modal";
+import useToast from "../../hooks/useToast";
 
 export default function AdminCalendar() {
+  const { notify } = useToast();
   const [view, setView] = useState("month");
-  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   
-  const events = {
-    2: [{ label: "Sofia Wedding", color: "bg-emerald-500" }],
-    8: [{ label: "Corporate Event", color: "bg-blue-500" }],
-    15: [{ label: "Debut Party", color: "bg-purple-500" }],
-    18: [{ label: "Synergy Gala", color: "bg-[#D4AF37]" }],
-    20: [{ label: "Lim Launch", color: "bg-red-400" }],
-    22: [{ label: "Ocular Visit", color: "bg-cyan-500" }],
-    25: [{ label: "Ocular Visit", color: "bg-cyan-500" }, { label: "Santos Wedding", color: "bg-emerald-500" }],
+  // Calendar State
+  const today = new Date();
+  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  
+  // Data State
+  const [bookings, setBookings] = useState([]);
+  const [blockedDates, setBlockedDates] = useState([]);
+  
+  // Modal State
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [selectedDateToBlock, setSelectedDateToBlock] = useState("");
+  const [blockReason, setBlockReason] = useState("");
+
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const fetchData = async () => {
+    try {
+      const [bookingsRes, blockedDatesRes] = await Promise.all([
+        AdminAPI.getBookings(),
+        AdminAPI.getBlockedDates()
+      ]);
+      setBookings(bookingsRes.data.filter((b) => 
+        ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status)
+      ));
+      setBlockedDates(blockedDatesRes.data);
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  const handleNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+
+  const getDayEvents = (day) => {
+    const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    targetDate.setHours(0, 0, 0, 0);
+    const targetMs = targetDate.getTime();
+
+    const events = [];
+
+    // Add Blocked Dates
+    blockedDates.forEach(bd => {
+      const bDate = new Date(bd.date);
+      bDate.setHours(0, 0, 0, 0);
+      if (bDate.getTime() === targetMs) {
+        events.push({
+          type: 'blocked',
+          id: bd._id,
+          label: bd.reason || 'Blocked',
+          color: 'bg-gray-400'
+        });
+      }
+    });
+
+    // Add Bookings
+    bookings.forEach(b => {
+      if (!b.event_date) return;
+      const bDate = new Date(b.event_date);
+      bDate.setHours(0, 0, 0, 0);
+      if (bDate.getTime() === targetMs) {
+        let color = "bg-emerald-500";
+        const evtType = b.event_type?.toLowerCase() || "";
+        if (evtType.includes("corporate")) color = "bg-blue-500";
+        else if (evtType.includes("birthday") || evtType.includes("debut")) color = "bg-purple-500";
+        else if (evtType.includes("ocular")) color = "bg-cyan-500";
+        else if (b.package_id?.name?.toLowerCase().includes("gold")) color = "bg-[#D4AF37]";
+
+        events.push({
+          type: 'booking',
+          id: b._id,
+          label: `${b.event_type || 'Event'} - ${b.customer_id?.full_name || 'Customer'}`,
+          color
+        });
+      }
+    });
+
+    return events;
+  };
+
+  const handleBlockDateSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedDateToBlock) return notify("Please select a date", "error");
+    try {
+      await AdminAPI.blockDate({ date: selectedDateToBlock, reason: blockReason });
+      notify("Date blocked successfully", "success");
+      setIsBlockModalOpen(false);
+      setBlockReason("");
+      setSelectedDateToBlock("");
+      fetchData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to block date", "error");
+    }
+  };
+
+  const handleUnblockDate = async (id) => {
+    if (!window.confirm("Are you sure you want to unblock this date?")) return;
+    try {
+      await AdminAPI.unblockDate(id);
+      notify("Date unblocked successfully", "success");
+      fetchData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to unblock date", "error");
+    }
+  };
+
+  // Find today's events for the sidebar
+  const todayEvents = useMemo(() => {
+    const t = new Date();
+    t.setHours(0,0,0,0);
+    const targetMs = t.getTime();
+    
+    return bookings.filter(b => {
+      if (!b.event_date) return false;
+      const bDate = new Date(b.event_date);
+      bDate.setHours(0,0,0,0);
+      return bDate.getTime() === targetMs;
+    });
+  }, [bookings]);
 
   return (
     <AdminLayout>
@@ -35,7 +154,9 @@ export default function AdminCalendar() {
                 </button>
               ))}
             </div>
-            <Btn variant="gold" size="sm"><Plus size={13} /> Block Date</Btn>
+            <Btn variant="gold" size="sm" onClick={() => setIsBlockModalOpen(true)}>
+              <Plus size={13} /> Block Date
+            </Btn>
           </div>
         </div>
 
@@ -43,24 +164,51 @@ export default function AdminCalendar() {
           <div className="lg:col-span-3">
             <AdminCard className="!p-5">
               <div className="flex items-center justify-between mb-5">
-                <button className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft size={16} /></button>
-                <p className="font-bold text-[#111]">August 2025</p>
-                <button className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight size={16} /></button>
+                <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft size={16} /></button>
+                <p className="font-bold text-[#111]">
+                  {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </p>
+                <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight size={16} /></button>
               </div>
               <div className="grid gap-1 mb-2" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                 {DAYS.map(d => <div key={d} className="text-center text-xs font-bold text-[#9CA3AF] py-1">{d}</div>)}
               </div>
               <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
-                {Array(4).fill(null).map((_, i) => <div key={i} />)}
-                {Array(31).fill(null).map((_, i) => {
+                {Array(firstDay).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
+                {Array(daysInMonth).fill(null).map((_, i) => {
                   const day = i + 1;
-                  const dayEvents = events[day] || [];
+                  const dayEvents = getDayEvents(day);
+                  const isToday = today.getDate() === day && today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
+                  
                   return (
-                    <div key={day} className={`min-h-[72px] p-1.5 rounded-xl border transition-colors cursor-pointer ${day === 22 ? "border-[#D4AF37] bg-[#D4AF37]/05" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"}`}>
-                      <p className={`text-xs font-semibold mb-1 ${day === 22 ? "text-[#D4AF37]" : "text-[#374151]"}`}>{day}</p>
-                      {dayEvents.map((e, ei) => (
-                        <div key={ei} className={`${e.color} text-white text-[9px] font-medium px-1.5 py-0.5 rounded-md mb-0.5 truncate`}>{e.label}</div>
-                      ))}
+                    <div 
+                      key={day} 
+                      className={`min-h-[90px] p-1.5 rounded-xl border transition-colors cursor-pointer ${isToday ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"}`}
+                      onClick={() => {
+                        const fmtDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                        setSelectedDateToBlock(fmtDate);
+                        setIsBlockModalOpen(true);
+                      }}
+                    >
+                      <p className={`text-xs font-semibold mb-1 ${isToday ? "text-[#D4AF37]" : "text-[#374151]"}`}>{day}</p>
+                      <div className="space-y-1">
+                        {dayEvents.map((e, ei) => (
+                          <div 
+                            key={ei} 
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              if (e.type === 'blocked') {
+                                handleUnblockDate(e.id);
+                              }
+                            }}
+                            className={`${e.color} text-white text-[10px] font-medium px-1.5 py-0.5 rounded-md truncate cursor-pointer hover:opacity-80 flex items-center justify-between`}
+                            title={e.label}
+                          >
+                            <span className="truncate">{e.label}</span>
+                            {e.type === 'blocked' && <Trash2 size={10} className="shrink-0 ml-1 opacity-70" />}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 })}
@@ -73,12 +221,11 @@ export default function AdminCalendar() {
               <p className="font-bold text-[#111] text-sm mb-3">Legend</p>
               {[
                 ["bg-emerald-500", "Confirmed Events"],
-                ["bg-[#D4AF37]", "Gold Package"],
                 ["bg-blue-500", "Corporate"],
                 ["bg-purple-500", "Birthday/Debut"],
+                ["bg-[#D4AF37]", "Gold Package"],
                 ["bg-cyan-500", "Ocular Visit"],
-                ["bg-red-400", "Launch/Other"],
-                ["bg-gray-300", "Blocked / Holiday"]
+                ["bg-gray-400", "Blocked / Holiday"]
               ].map(([c, l]) => (
                 <div key={l} className="flex items-center gap-2 mb-2">
                   <div className={`w-3 h-3 rounded-sm ${c} flex-shrink-0`} />
@@ -86,22 +233,54 @@ export default function AdminCalendar() {
                 </div>
               ))}
             </AdminCard>
+            
             <AdminCard className="!p-4">
-              <p className="font-bold text-[#111] text-sm mb-3">Today — Aug 22</p>
+              <p className="font-bold text-[#111] text-sm mb-3">Today — {today.toLocaleString('default', { month: 'short', day: 'numeric' })}</p>
               <div className="space-y-2">
-                <div className="p-2.5 bg-cyan-50 border border-cyan-200 rounded-xl">
-                  <p className="text-xs font-bold text-[#111]">Ocular Visit</p>
-                  <p className="text-[11px] text-[#6B7280]">Ana Villanueva · 2:00 PM</p>
-                </div>
-                <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl">
-                  <p className="text-xs font-semibold text-[#374151]">Staff Briefing</p>
-                  <p className="text-[11px] text-[#6B7280]">All staff · 9:00 AM</p>
-                </div>
+                {todayEvents.length > 0 ? todayEvents.map(evt => (
+                  <div key={evt._id} className="p-2.5 bg-blue-50 border border-blue-100 rounded-xl">
+                    <p className="text-xs font-bold text-[#111]">{evt.event_type || 'Event'}</p>
+                    <p className="text-[11px] text-[#6B7280]">{evt.customer_id?.full_name} · {evt.start_time}</p>
+                  </div>
+                )) : (
+                  <p className="text-xs text-gray-500 italic">No events today</p>
+                )}
               </div>
             </AdminCard>
           </div>
         </div>
       </div>
+
+      {isBlockModalOpen && (
+        <Modal title="Block a Date" onClose={() => setIsBlockModalOpen(false)}>
+          <form onSubmit={handleBlockDateSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">Select Date</label>
+              <input
+                type="date"
+                required
+                value={selectedDateToBlock}
+                onChange={(e) => setSelectedDateToBlock(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Reason (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Holiday, Maintenance"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg p-2"
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Btn variant="outline" type="button" onClick={() => setIsBlockModalOpen(false)}>Cancel</Btn>
+              <Btn variant="gold" type="submit">Block Date</Btn>
+            </div>
+          </form>
+        </Modal>
+      )}
     </AdminLayout>
   );
 }

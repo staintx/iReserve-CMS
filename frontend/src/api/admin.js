@@ -10,6 +10,11 @@ export const AdminAPI = {
   getSummary: () => api.get("/reports/summary"),
   getMetrics: () => api.get("/reports/metrics"),
 
+  // Blocked Dates
+  getBlockedDates: () => api.get("/blocked-dates"),
+  blockDate: (data) => api.post("/blocked-dates", data),
+  unblockDate: (id) => api.delete(`/blocked-dates/${id}`),
+
   // Inquiries
   getInquiries: () => api.get("/inquiries"),
   getInquiry: (id) => api.get(`/inquiries/${id}`),

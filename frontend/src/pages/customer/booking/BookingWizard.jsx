@@ -410,7 +410,12 @@ export default function BookingWizard() {
             });
             setSuggestedDates([]);
           } else {
-            if (res.data.inventory_issue) {
+            if (res.data.blocked) {
+              setAvailability({
+                status: "blocked",
+                message: res.data.reason || "This date is currently unavailable.",
+              });
+            } else if (res.data.inventory_issue) {
               setAvailability({
                 status: "blocked",
                 message:

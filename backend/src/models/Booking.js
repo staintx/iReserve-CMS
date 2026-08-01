@@ -25,6 +25,10 @@ const BookingSchema = new mongoose.Schema(
     include_food: { type: Boolean, default: true },
 
     venue_type: String,
+    service_type: {
+      type: String,
+      enum: ["Food Only", "Event Setup Only", "Food and Event Setup"],
+    },
     delivery_method: {
       type: String,
       enum: ["delivery", "pickup", "setup"],

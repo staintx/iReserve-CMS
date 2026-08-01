@@ -37,6 +37,8 @@ export default function CustomerBookings() {
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
   const [filterTab, setFilterTab] = useState("all");
 
+  const [customFilter, setCustomFilter] = useState("all");
+
   const { notify } = useToast();
   useEffect(() => {
     CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
@@ -51,9 +53,25 @@ export default function CustomerBookings() {
 
   const upcoming = useMemo(() => {
     if (filterTab === "package") return upcomingRaw.filter(b => b.package_id);
-    if (filterTab === "custom") return upcomingRaw.filter(b => !b.package_id);
+    if (filterTab === "custom") {
+      return upcomingRaw.filter(b => {
+        if (b.package_id) return false;
+        if (customFilter === "all") return true;
+        
+        // Use service_type if available (new bookings), else derive for existing/legacy ones
+        const st = b.service_type || (
+          b.event_type?.toLowerCase().includes("food delivery") || b.delivery_method !== "setup" ? "Food Only" :
+          !b.include_food ? "Event Setup Only" : "Food and Event Setup"
+        );
+
+        if (customFilter === "food_only") return st === "Food Only";
+        if (customFilter === "event_setup_only") return st === "Event Setup Only";
+        if (customFilter === "food_and_setup") return st === "Food and Event Setup";
+        return true;
+      });
+    }
     return upcomingRaw;
-  }, [upcomingRaw, filterTab]);
+  }, [upcomingRaw, filterTab, customFilter]);
 
   const completed = useMemo(
     () => bookings.filter((b) => b.status === "completed"),
@@ -193,12 +211,40 @@ export default function CustomerBookings() {
               Packages
             </button>
             <button 
-              onClick={() => setFilterTab("custom")} 
+              onClick={() => { setFilterTab("custom"); setCustomFilter("all"); }} 
               className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "custom" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
               Custom Bookings
             </button>
           </div>
+          {filterTab === "custom" && (
+            <div className="flex space-x-2 bg-muted/20 p-1 rounded-xl mt-3 overflow-x-auto">
+              <button 
+                onClick={() => setCustomFilter("all")} 
+                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "all" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                All Custom
+              </button>
+              <button 
+                onClick={() => setCustomFilter("food_only")} 
+                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "food_only" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Food Only
+              </button>
+              <button 
+                onClick={() => setCustomFilter("event_setup_only")} 
+                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "event_setup_only" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Event Setup Only
+              </button>
+              <button 
+                onClick={() => setCustomFilter("food_and_setup")} 
+                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "food_and_setup" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Food & Event Setup
+              </button>
+            </div>
+          )}
         </div>
         <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })} className="rounded-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold px-5 shadow-sm">
           + New Booking

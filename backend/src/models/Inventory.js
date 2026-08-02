@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 
 const InventorySchema = new mongoose.Schema({
   item_name: String,
-  quantity: Number,
+  quantity: { type: Number, min: 0 },
   category: String,
-  minStock: Number,
+  minStock: { type: Number, min: 0 },
   available: { type: Boolean, default: true }
 }, { timestamps: true });
 

@@ -495,10 +495,15 @@ exports.create = asyncHandler(async (req, res) => {
         });
         const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}&payment_id=${payment._id}`;
 
+        let pmTypes = [req.body.payment_method];
+        if (req.body.payment_method === "online_banking") {
+          pmTypes = ["dob", "dob_ubp"];
+        }
+
         const checkout = await createCheckoutSession({
           amount: depositAmount,
           currency: "PHP",
-          paymentMethodTypes: [req.body.payment_method], // Only allow the selected one
+          paymentMethodTypes: pmTypes, // Use mapped types
           description: `Deposit for Booking ${booking.reference || booking._id}`,
           successUrl,
           cancelUrl,

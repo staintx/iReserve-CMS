@@ -234,10 +234,19 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	const successUrlWithPayment = new URL(successUrl);
 	successUrlWithPayment.searchParams.set("payment_id", String(payment._id));
 
+	let mappedPaymentMethodTypes = [];
+	for (const pm of payment_method_types) {
+		if (pm === "online_banking") {
+			mappedPaymentMethodTypes.push("dob", "dob_ubp");
+		} else {
+			mappedPaymentMethodTypes.push(pm);
+		}
+	}
+
 	const checkout = await createCheckoutSession({
 		amount: payableAmount,
 		currency: "PHP",
-		paymentMethodTypes: payment_method_types,
+		paymentMethodTypes: mappedPaymentMethodTypes,
 		description: formattedDescription,
 		successUrl: successUrlWithPayment.toString(),
 		cancelUrl,

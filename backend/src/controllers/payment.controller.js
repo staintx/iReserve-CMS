@@ -36,10 +36,12 @@ const syncPaymentFromGateway = async (payment) => {
 		const checkoutRes = await getCheckoutSession(payment.gateway_checkout_id);
 		const attributes = checkoutRes?.data?.attributes || {};
 		const paymentIntent = attributes.payment_intent || {};
+		const gatewayPayments = attributes.payments || [];
+		
+		const hasPaidPayment = gatewayPayments.some(p => isSuccessfulPaymentStatus(p?.attributes?.status));
+
 		const gatewayStatus =
-			paymentIntent?.attributes?.status ||
-			attributes.payment_status ||
-			attributes.status;
+			hasPaidPayment ? "paid" : (paymentIntent?.attributes?.status || attributes.payment_status || attributes.status);
 
 		payment.gateway_payment_intent_id =
 			paymentIntent?.id || attributes.payment_intent_id || payment.gateway_payment_intent_id;

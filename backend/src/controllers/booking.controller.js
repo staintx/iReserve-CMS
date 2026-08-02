@@ -283,6 +283,29 @@ const findBookingConflict = async ({
   );
 };
 
+const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
+  if (!eventDate) return false;
+  const date = new Date(eventDate);
+  if (Number.isNaN(date.getTime())) return false;
+  
+  const dayStart = new Date(date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(date);
+  dayEnd.setHours(23, 59, 59, 999);
+  
+  const query = {
+    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    event_date: { $gte: dayStart, $lte: dayEnd },
+  };
+  if (excludeId) query._id = { $ne: excludeId };
+
+  const count = await Booking.countDocuments(query);
+  const businessInfo = await BusinessInfo.findOne();
+  const limit = businessInfo?.max_bookings_per_day || 2;
+  
+  return count >= limit;
+};
+
 exports.create = asyncHandler(async (req, res) => {
   const dateStatus = getDateStatus(req.body.event_date);
   if (!dateStatus.valid) {
@@ -333,6 +356,12 @@ exports.create = asyncHandler(async (req, res) => {
   const blocked = await BlockedDate.findOne({ date: parsedEventDate });
   if (blocked) {
     return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
+  }
+
+  // Check Max Bookings Limit
+  const maxLimitReached = await checkMaxBookingsLimit(req.body.event_date);
+  if (maxLimitReached) {
+    return res.status(409).json({ message: "This date has reached the maximum number of bookings allowed." });
   }
 
   const conflict = await findBookingConflict({
@@ -466,10 +495,15 @@ exports.create = asyncHandler(async (req, res) => {
         });
         const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}&payment_id=${payment._id}`;
 
+        let pmTypes = [req.body.payment_method];
+        if (req.body.payment_method === "online_banking") {
+          pmTypes = ["dob", "dob_ubp"];
+        }
+
         const checkout = await createCheckoutSession({
           amount: depositAmount,
           currency: "PHP",
-          paymentMethodTypes: [req.body.payment_method], // Only allow the selected one
+          paymentMethodTypes: pmTypes, // Use mapped types
           description: `Deposit for Booking ${booking.reference || booking._id}`,
           successUrl,
           cancelUrl,
@@ -573,6 +607,12 @@ exports.update = asyncHandler(async (req, res) => {
     const blocked = await BlockedDate.findOne({ date: parsedEventDate });
     if (blocked) {
       return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
+    }
+    
+    // Check Max Bookings Limit (exclude current booking)
+    const maxLimitReached = await checkMaxBookingsLimit(req.body.event_date, current._id);
+    if (maxLimitReached) {
+      return res.status(409).json({ message: "This date has reached the maximum number of bookings allowed." });
     }
   }
 
@@ -1157,6 +1197,18 @@ exports.checkAvailability = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check Max Bookings Limit
+  const maxLimitReached = await checkMaxBookingsLimit(req.query.event_date);
+  if (maxLimitReached) {
+    return res.json({
+      available: false,
+      conflict_id: null,
+      inventory_issue: null,
+      blocked: true,
+      reason: "This date has reached the maximum number of bookings allowed."
+    });
+  }
+
   const conflict = await findBookingConflict({
     eventDate: req.query.event_date,
     startTime: req.query.start_time,
@@ -1529,3 +1581,91 @@ exports.requestCancellation = asyncHandler(async (req, res) => {
 exports.checkInventoryAvailability = checkInventoryAvailability;
 exports.findBookingConflict = findBookingConflict;
 exports.filterAvailableStaff = filterAvailableStaff;
+exports.getBookedDates = asyncHandler(async (req, res) => {
+  const { month, year } = req.query;
+  if (!month || !year) {
+    return res.status(400).json({ message: "Month and year are required" });
+  }
+
+  const startOfMonth = new Date(year, month - 1, 1);
+  const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+  // 1. Get dates from BlockedDate model
+  const blockedDates = await BlockedDate.find({
+    date: { $gte: startOfMonth, $lte: endOfMonth }
+  });
+  const blockedDatesSet = new Set(blockedDates.map(b => b.date.toISOString().split('T')[0]));
+
+  // 2. Get bookings to check against max limit
+  const businessInfo = await BusinessInfo.findOne();
+  const limit = businessInfo?.max_bookings_per_day || 2;
+
+  const bookings = await Booking.find({
+    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    event_date: { $gte: startOfMonth, $lte: endOfMonth }
+  });
+
+  const dateCounts = {};
+  bookings.forEach(booking => {
+    if (booking.event_date) {
+      const d = new Date(booking.event_date).toISOString().split('T')[0];
+      dateCounts[d] = (dateCounts[d] || 0) + 1;
+    }
+  });
+
+  const fullyBookedDates = Object.keys(dateCounts).filter(dateStr => dateCounts[dateStr] >= limit);
+
+  // Merge blocked dates and fully booked dates
+  const result = Array.from(new Set([...blockedDatesSet, ...fullyBookedDates]));
+
+  res.json(result);
+});
+
+exports.getAvailableTimes = asyncHandler(async (req, res) => {
+  const { event_date, duration_hours, venue_type, province, municipality, barangay, street, delivery_method, service_type } = req.query;
+
+  if (!event_date) {
+    return res.status(400).json({ message: "Event date is required" });
+  }
+
+  // 1. Check max bookings limit for the day first.
+  // If the day is fully booked, all times are full.
+  const maxLimitReached = await checkMaxBookingsLimit(event_date);
+  
+  // Define the standard time slots
+  const timeSlots = [
+    "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"
+  ];
+
+  const results = [];
+
+  for (const time of timeSlots) {
+    if (maxLimitReached) {
+      results.push({ time, status: "full" });
+      continue;
+    }
+
+    const conflict = await findBookingConflict({
+      eventDate: event_date,
+      startTime: time,
+      durationHours: duration_hours || 4,
+      location: {
+        venue_type,
+        province,
+        municipality,
+        barangay,
+        street,
+        delivery_method,
+        service_type
+      },
+      bufferMinutes: req.query.buffer_minutes || 0
+    });
+
+    results.push({
+      time: time,
+      status: conflict ? "full" : "available"
+    });
+  }
+
+  res.json(results);
+});

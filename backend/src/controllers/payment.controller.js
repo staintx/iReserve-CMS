@@ -36,10 +36,12 @@ const syncPaymentFromGateway = async (payment) => {
 		const checkoutRes = await getCheckoutSession(payment.gateway_checkout_id);
 		const attributes = checkoutRes?.data?.attributes || {};
 		const paymentIntent = attributes.payment_intent || {};
+		const gatewayPayments = attributes.payments || [];
+		
+		const hasPaidPayment = gatewayPayments.some(p => isSuccessfulPaymentStatus(p?.attributes?.status));
+
 		const gatewayStatus =
-			paymentIntent?.attributes?.status ||
-			attributes.payment_status ||
-			attributes.status;
+			hasPaidPayment ? "paid" : (paymentIntent?.attributes?.status || attributes.payment_status || attributes.status);
 
 		payment.gateway_payment_intent_id =
 			paymentIntent?.id || attributes.payment_intent_id || payment.gateway_payment_intent_id;
@@ -234,10 +236,19 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	const successUrlWithPayment = new URL(successUrl);
 	successUrlWithPayment.searchParams.set("payment_id", String(payment._id));
 
+	let mappedPaymentMethodTypes = [];
+	for (const pm of payment_method_types) {
+		if (pm === "online_banking") {
+			mappedPaymentMethodTypes.push("dob", "dob_ubp");
+		} else {
+			mappedPaymentMethodTypes.push(pm);
+		}
+	}
+
 	const checkout = await createCheckoutSession({
 		amount: payableAmount,
 		currency: "PHP",
-		paymentMethodTypes: payment_method_types,
+		paymentMethodTypes: mappedPaymentMethodTypes,
 		description: formattedDescription,
 		successUrl: successUrlWithPayment.toString(),
 		cancelUrl,

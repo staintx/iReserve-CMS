@@ -206,16 +206,29 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 	const cancelUrl = cancel_url || `${appBaseUrl}/customer/payments?status=cancelled`;
 
-	const payment = await Payment.create({
+	let payment = await Payment.findOne({
 		booking_id: booking._id,
-		customer_id: booking.customer_id?._id || req.user._id,
-		amount: payableAmount,
-		currency: "PHP",
 		payment_type,
-		method: "paymongo",
 		status: "pending",
 		gateway: "paymongo"
 	});
+
+	if (payment) {
+		payment.amount = payableAmount;
+		payment.customer_id = booking.customer_id?._id || req.user._id;
+		await payment.save();
+	} else {
+		payment = await Payment.create({
+			booking_id: booking._id,
+			customer_id: booking.customer_id?._id || req.user._id,
+			amount: payableAmount,
+			currency: "PHP",
+			payment_type,
+			method: "paymongo",
+			status: "pending",
+			gateway: "paymongo"
+		});
+	}
 
 	let eventName = booking.event_type || "Event";
 	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
@@ -290,16 +303,29 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	const payableAmount = Number(amount || booking.total_price || 0);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
-	const payment = await Payment.create({
+	let payment = await Payment.findOne({
 		booking_id: booking._id,
-		customer_id: booking.customer_id?._id || req.user._id,
-		amount: payableAmount,
-		currency: "PHP",
 		payment_type,
-		method: "paymongo",
 		status: "pending",
 		gateway: "paymongo"
 	});
+
+	if (payment) {
+		payment.amount = payableAmount;
+		payment.customer_id = booking.customer_id?._id || req.user._id;
+		await payment.save();
+	} else {
+		payment = await Payment.create({
+			booking_id: booking._id,
+			customer_id: booking.customer_id?._id || req.user._id,
+			amount: payableAmount,
+			currency: "PHP",
+			payment_type,
+			method: "paymongo",
+			status: "pending",
+			gateway: "paymongo"
+		});
+	}
 
 	let eventName = booking.event_type || "Event";
 	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";

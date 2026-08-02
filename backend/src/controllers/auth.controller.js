@@ -29,7 +29,7 @@ exports.register = async (req, res, next) => {
 
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(409).json({ message: "Email already in use" });
+      return res.status(409).json({ message: "This email address is already registered. Please sign in or use a different email." });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -89,10 +89,10 @@ exports.login = async (req, res, next) => {
     const user = await User.findOne({
       $or: [{ email: email }, { username: email }]
     });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    if (!user) return res.status(400).json({ message: "Invalid email or password." });
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ message: "Invalid credentials" });
+    if (!match) return res.status(400).json({ message: "Invalid email or password." });
 
     if (user.role === "customer" && !user.is_verified) {
       return res.status(403).json({ message: "Please verify your email before logging in" });
@@ -151,7 +151,8 @@ exports.verifyOtp = async (req, res, next) => {
       return res.status(400).json({ message: "OTP expired. Please request a new code." });
     }
 
-    const otpHash = hashToken(otp);
+    const cleanOtp = otp.trim();
+    const otpHash = hashToken(cleanOtp);
     if (otpHash !== user.email_otp_hash) {
       return res.status(400).json({ message: "Invalid OTP" });
     }
@@ -206,6 +207,74 @@ exports.resendOtp = async (req, res, next) => {
     }
 
     res.json(response);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const buildResetLink = (token) => {
+  const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  return `${baseUrl}/reset-password?token=${token}`;
+};
+
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Return success even if not found to prevent email enumeration
+      return res.json({ message: "If that email address is in our database, we will send you an email to reset your password." });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashToken(rawToken);
+
+    user.reset_password_token = tokenHash;
+    user.reset_password_expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    const resetLink = buildResetLink(rawToken);
+
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Reset your password",
+        text: `You requested a password reset. Please click the link to reset your password: ${resetLink}`,
+        html: `<p>You requested a password reset. Please click the link to reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p>`
+      });
+    } catch (emailErr) {
+      console.error("Email send failed:", emailErr.message);
+      // We don't fail the request here, but ideally we should let the user know,
+      // or at least not expose the fact that email sending failed in a way that allows enumeration.
+    }
+
+    res.json({ message: "If that email address is in our database, we will send you an email to reset your password." });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    const tokenHash = hashToken(token);
+    const user = await User.findOne({
+      reset_password_token: tokenHash,
+      reset_password_expires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset token" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    user.password = hashed;
+    user.reset_password_token = undefined;
+    user.reset_password_expires = undefined;
+    await user.save();
+
+    res.json({ message: "Password reset successful. You may now log in." });
   } catch (err) {
     next(err);
   }

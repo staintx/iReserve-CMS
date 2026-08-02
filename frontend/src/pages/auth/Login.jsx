@@ -28,7 +28,7 @@ export default function Login() {
         navigate("/", { replace: true });
       }
     } catch (err) {
-      setError(err.response?.data?.message || "We could not sign you in. Check your email and password and try again.");
+      setError(err.response?.data?.errors?.[0] || err.response?.data?.message || "We could not sign you in. Check your email and password and try again.");
     }
   };
 

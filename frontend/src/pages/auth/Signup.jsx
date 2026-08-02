@@ -31,7 +31,7 @@ export default function Signup() {
         state: { registered: true }
       });
     } catch (err) {
-      setError(err.response?.data?.message || "We could not create your account. Please try again.");
+      setError(err.response?.data?.errors?.[0] || err.response?.data?.message || "We could not create your account. Please try again.");
     } finally {
       setLoading(false);
     }

@@ -22,7 +22,9 @@ export const CustomerAPI = {
   // inquiry + bookings
   submitInquiry: (data) => api.post("/inquiries", data),
   checkAvailability: (params) => api.get("/bookings/availability", { params }),
+  getAvailableTimes: (params) => api.get("/bookings/available-times", { params }),
   suggestDates: (params) => api.get("/bookings/availability/suggestions", { params }),
+  getBookedDates: (month, year) => api.get(`/bookings/booked-dates?month=${month}&year=${year}`),
   getInquiries: () => api.get("/inquiries/me"),
   cancelInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "cancelled" }),
   acceptInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "confirmed" }),

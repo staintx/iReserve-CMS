@@ -248,7 +248,7 @@ export default function BookingCard({
             </div>
 
             {/* Change Request Banner */}
-            {booking.change_request?.status === "pending" && (
+            {booking.change_request?.status === "pending" && booking.change_request?.message && (
               <div className="bg-[#F0F7FF] border border-[#E0EFFF] rounded-[16px] p-4 flex items-start gap-3">
                 <Send className="w-[18px] h-[18px] text-[#3B82F6] mt-0.5" />
                 <div>

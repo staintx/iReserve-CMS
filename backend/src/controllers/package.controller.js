@@ -83,10 +83,20 @@ exports.create = async (req, res) => {
     }
   }
 
+  let features = [];
+  if (req.body.features) {
+    try {
+      features = JSON.parse(req.body.features);
+    } catch (e) {
+      features = normalizeList(req.body.features);
+    }
+  }
+
   const payload = {
     ...req.body,
     inclusions: normalizeList(req.body.inclusions),
     add_ons,
+    features,
     setup_equipment,
     scaffold_size_options,
     menu_items,
@@ -189,6 +199,14 @@ exports.update = async (req, res) => {
     }
   }
 
+  if (req.body.features) {
+    try {
+      data.features = JSON.parse(req.body.features);
+    } catch (e) {
+      data.features = normalizeList(req.body.features);
+    }
+  }
+
   // Clean up undefined values
   if (data.inclusions === undefined) delete data.inclusions;
   if (data.add_ons === undefined) delete data.add_ons;
@@ -230,7 +248,12 @@ exports.update = async (req, res) => {
     "fullDescription",
     "size",
     "price_per_guest",
+    "price_label",
     "setup_price",
+    "featured",
+    "badge_text",
+    "service_type",
+    "features",
     "available",
     "event_type",
     "package_type",

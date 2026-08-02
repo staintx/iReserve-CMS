@@ -7,6 +7,10 @@ exports.packageSchema = Joi.object({
   guest_min: Joi.number().optional().allow(""),
   guest_max: Joi.number().optional().allow(""),
   price_per_guest: Joi.number().optional().allow(""),
+  price_label: Joi.string().optional().allow(""),
+  featured: Joi.boolean().optional(),
+  badge_text: Joi.string().optional().allow(""),
+  service_type: Joi.string().optional().allow(""),
   available: Joi.boolean().optional(),
   booking_requirements: Joi.string().optional(),
   cancellation_policy: Joi.string().optional(),
@@ -14,6 +18,9 @@ exports.packageSchema = Joi.object({
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   add_ons: Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
+    .optional(),
+  features: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   event_type: Joi.string().optional().allow(""),
@@ -64,6 +71,10 @@ exports.packageUpdateSchema = Joi.object({
   guest_min: Joi.number().optional().allow(""),
   guest_max: Joi.number().optional().allow(""),
   price_per_guest: Joi.number().optional().allow(""),
+  price_label: Joi.string().optional().allow(""),
+  featured: Joi.boolean().optional(),
+  badge_text: Joi.string().optional().allow(""),
+  service_type: Joi.string().optional().allow(""),
   available: Joi.boolean().optional(),
   booking_requirements: Joi.string().optional(),
   cancellation_policy: Joi.string().optional(),
@@ -71,6 +82,9 @@ exports.packageUpdateSchema = Joi.object({
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   add_ons: Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
+    .optional(),
+  features: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   event_type: Joi.string().optional().allow(""),

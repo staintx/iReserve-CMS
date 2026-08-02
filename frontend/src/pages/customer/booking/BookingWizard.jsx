@@ -55,12 +55,17 @@ export default function BookingWizard() {
 
   // --- Location State ---
   const initialEventType = location.state?.eventType || "";
+  const initialServiceType = location.state?.serviceType || "";
   const initialPackageId = location.state?.packageId || null;
   const initialPackagePrice = location.state?.packagePrice || 0;
   const initialPackageName = location.state?.packageName || "";
   const initialGuestMin = location.state?.guestMin || null;
   const initialGuestMax = location.state?.guestMax || null;
   const isCustomBooking = !initialPackageId;
+  const matchedServiceType = ["Food Only", "Event Setup Only", "Food and Event Setup"].find(
+    (service) => service.toLowerCase() === initialServiceType.toLowerCase(),
+  );
+  const shouldSkipServiceType = Boolean(initialPackageId || matchedServiceType);
 
   // --- Derived ---
   const matchedType = VALID_EVENT_TYPES.find(
@@ -97,9 +102,10 @@ export default function BookingWizard() {
       event_date: "",
       start_time: "",
       duration_hours: "4",
-      guest_count: "50",
-      service_type: "Food and Event Setup",
-      include_food: true,
+      guest_count: initialGuestMin ? String(initialGuestMin) : "50",
+      service_type: matchedServiceType || "Food and Event Setup",
+      include_food: !matchedServiceType || matchedServiceType !== "Event Setup Only",
+      package_id: initialPackageId || "",
       venue_type: "",
       indoor_outdoor: "Indoor",
       province: BATANGAS_PROVINCE,
@@ -167,7 +173,7 @@ export default function BookingWizard() {
   // --- Step Definition ---
   const wizardSteps = useMemo(() => {
     const steps = [];
-    if (isCustomBooking) {
+    if (isCustomBooking && !shouldSkipServiceType) {
       steps.push({ id: "ServiceType", label: "Service Type", key: "service" });
     }
     steps.push({ id: "DateTime", label: "Event Info", key: "datetime" });

@@ -16,6 +16,8 @@ router.post("/:id/ocular/complete", protect, authorize("admin", "staff"), ctrl.c
 router.post("/:id/ocular/request", protect, authorize("customer"), ctrl.requestOcular);
 router.post("/:id/request-cancellation", protect, authorize("customer"), ctrl.requestCancellation);
 router.get("/availability", protect, ctrl.checkAvailability);
+router.get("/booked-dates", ctrl.getBookedDates);
+router.get("/available-times", ctrl.getAvailableTimes);
 router.get("/availability/suggestions", protect, ctrl.suggestDates);
 router.get("/", protect, authorize("admin", "staff"), ctrl.getAll);
 router.get("/me", protect, ctrl.getMine);

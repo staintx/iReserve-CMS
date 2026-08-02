@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
+import { CustomerAPI } from "../../../../api/customer";
 
 export default function StepDateTime({
   form,
@@ -28,6 +29,20 @@ export default function StepDateTime({
     const d = form.event_date ? new Date(form.event_date) : new Date(minDate);
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+
+  const [bookedDates, setBookedDates] = useState([]);
+
+  useEffect(() => {
+    const fetchBookedDates = async () => {
+      try {
+        const res = await CustomerAPI.getBookedDates(currentMonth.getMonth() + 1, currentMonth.getFullYear());
+        setBookedDates(res.data || []);
+      } catch (err) {
+        console.error("Failed to fetch booked dates", err);
+      }
+    };
+    fetchBookedDates();
+  }, [currentMonth]);
 
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -54,7 +69,7 @@ export default function StepDateTime({
       new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
 
-  const timeSlots = [
+  const [timeSlots, setTimeSlots] = useState([
     { time: "09:00 AM", status: "available" },
     { time: "10:00 AM", status: "available" },
     { time: "11:00 AM", status: "available" },
@@ -66,7 +81,67 @@ export default function StepDateTime({
     { time: "05:00 PM", status: "available" },
     { time: "06:00 PM", status: "available" },
     { time: "07:00 PM", status: "available" },
-  ];
+  ]);
+
+  const [isLoadingTimes, setIsLoadingTimes] = useState(false);
+
+  useEffect(() => {
+    if (!form.event_date) return;
+    
+    let isMounted = true;
+    const fetchAvailableTimes = async () => {
+      setIsLoadingTimes(true);
+      try {
+        const res = await CustomerAPI.getAvailableTimes({
+          event_date: form.event_date,
+          duration_hours: form.duration_hours,
+          venue_type: form.venue_type,
+          province: form.province,
+          municipality: form.municipality,
+          barangay: form.barangay,
+          street: form.street,
+          delivery_method: form.delivery_method,
+          service_type: form.service_type,
+        });
+        
+        if (isMounted && res.data) {
+          const updatedSlots = res.data.map(slot => {
+            let [hours, minutes] = slot.time.split(":");
+            hours = parseInt(hours, 10);
+            const ampm = hours >= 12 ? "PM" : "AM";
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const strHours = hours < 10 ? "0" + hours : hours;
+            return {
+              time: `${strHours}:${minutes} ${ampm}`,
+              status: slot.status
+            };
+          });
+          setTimeSlots(updatedSlots);
+        }
+      } catch (err) {
+        console.error("Failed to fetch available times", err);
+      } finally {
+        if (isMounted) setIsLoadingTimes(false);
+      }
+    };
+    
+    fetchAvailableTimes();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    form.event_date,
+    form.duration_hours,
+    form.venue_type,
+    form.province,
+    form.municipality,
+    form.barangay,
+    form.street,
+    form.delivery_method,
+    form.service_type
+  ]);
 
   const handleTimeSelect = (slotTime) => {
     let [time, modifier] = slotTime.split(" ");
@@ -108,25 +183,11 @@ export default function StepDateTime({
     }
   }, [form.event_date]);
 
-  const handleManualCheck = () => {
-    if (!setAvailability) return;
-    setAvailability({
-      status: "checking",
-      message: "Checking availability...",
-    });
-    setTimeout(() => {
-      setAvailability({
-        status: "available",
-        message: "Selected time is available.",
-      });
-    }, 1200);
-  };
-
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-6">
       <SH
         title="Date & Time Selection"
-        sub="Choose your event date and time. We'll automatically verify staff, inventory, and venue availability."
+        sub="Choose your event date and time."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -189,20 +250,24 @@ export default function StepDateTime({
                   const dateStr = date.toISOString().split("T")[0];
                   const isSelected = form.event_date === dateStr;
                   const isPast = date < minDateObj;
+                  const isBooked = bookedDates.includes(dateStr);
+                  const isDisabled = isPast || isBooked;
 
                   return (
                     <button
                       key={dateStr}
                       type="button"
-                      disabled={isPast}
+                      disabled={isDisabled}
                       onClick={() => setForm({ ...form, event_date: dateStr })}
                       className={cn(
-                        "h-9 w-full rounded-lg text-sm font-medium transition-all",
+                        "h-9 w-full rounded-lg text-sm font-medium transition-all flex items-center justify-center",
                         isSelected
                           ? "bg-[#D4AF37] text-[#111] shadow-sm"
-                          : isPast
-                            ? "text-[#CCCCC5] cursor-not-allowed"
-                            : "hover:bg-[#F7F4EE] text-[#111]",
+                          : isBooked
+                            ? "line-through opacity-50 bg-[#F7F4EE] text-[#9E9E9E] cursor-not-allowed"
+                            : isPast
+                              ? "text-[#CCCCC5] cursor-not-allowed"
+                              : "hover:bg-[#F7F4EE] text-[#111]",
                       )}
                     >
                       {date.getDate()}
@@ -217,7 +282,7 @@ export default function StepDateTime({
                   Selected
                 </span>
                 <span className="flex items-center gap-1 line-through opacity-50">
-                  <span>00</span> Booked
+                  <span>{bookedDates.length < 10 ? '0' + bookedDates.length : bookedDates.length}</span> Booked
                 </span>
               </div>
             </div>
@@ -273,24 +338,18 @@ export default function StepDateTime({
               </p>
 
               <div className="space-y-2 mb-4">
-                {[
-                  { label: "Staff Availability" },
-                  { label: "Inventory Availability" },
-                  { label: "Venue Schedule" },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between">
-                    <span className="text-[#6B6657]">{item.label}</span>
-                    {availability.status === "available" ? (
-                      <span className="text-emerald-600 flex items-center gap-1 font-semibold text-xs">
-                        <Check size={14} /> Available
-                      </span>
-                    ) : availability.status === "checking" ? (
-                      <Loader2 className="h-3 w-3 animate-spin text-[#9E9E9E]" />
-                    ) : (
-                      <span className="text-[#9E9E9E]">Pending</span>
-                    )}
-                  </div>
-                ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-[#6B6657]">Date Availability</span>
+                  {availability.status === "available" ? (
+                    <span className="text-emerald-600 flex items-center gap-1 font-semibold text-xs">
+                      <Check size={14} /> Available
+                    </span>
+                  ) : availability.status === "checking" ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-[#9E9E9E]" />
+                  ) : (
+                    <span className="text-[#9E9E9E]">Pending</span>
+                  )}
+                </div>
               </div>
 
               {availability.status === "unavailable" &&
@@ -325,25 +384,10 @@ export default function StepDateTime({
                 <p className="text-xs text-[#9E9E9E] mt-4">
                   Please select a date and time to check availability.
                 </p>
-              ) : availability.status !== "available" ? (
-                <GoldBtn
-                  variant="outline"
-                  disabled={availability.status === "checking"}
-                  className="w-full mt-2"
-                  onClick={handleManualCheck}
-                >
-                  {availability.status === "checking" ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                      Checking...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="mr-2 h-4 w-4" /> Check
-                      Availability
-                    </>
-                  )}
-                </GoldBtn>
+              ) : availability.status === "checking" ? (
+                <div className="flex items-center text-[#9E9E9E] mt-4 text-xs font-medium">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking availability...
+                </div>
               ) : null}
 
               {/* Result Card with Continue Button */}

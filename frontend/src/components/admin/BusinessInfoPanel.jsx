@@ -15,7 +15,8 @@ const DEFAULT_INFO = {
   privacy_url: "",
   deposit_percentage: 20,
   custom_event_setup_price: 15000,
-  custom_food_and_event_price: 800
+  custom_food_and_event_price: 800,
+  max_bookings_per_day: 2
 };
 
 const footerItems = [
@@ -125,6 +126,10 @@ export default function BusinessInfoPanel() {
               <label className="business-info-field">
                 <span>Deposit Percentage (%)</span>
                 <input className="business-info-input" type="number" min="0" max="100" value={form.deposit_percentage} onChange={updateField("deposit_percentage")} placeholder="20" />
+              </label>
+              <label className="business-info-field">
+                <span>Max Bookings per Day</span>
+                <input className="business-info-input" type="number" min="1" value={form.max_bookings_per_day} onChange={updateField("max_bookings_per_day")} placeholder="2" />
               </label>
             </div>
             <h5 className="mt-4 mb-2 font-medium text-slate-700">Custom Bookings Base Pricing</h5>

@@ -13,7 +13,8 @@ const BusinessInfoSchema = new mongoose.Schema({
   privacy_url: String,
   deposit_percentage: { type: Number, default: 20 },
   custom_event_setup_price: { type: Number, default: 15000 },
-  custom_food_and_event_price: { type: Number, default: 800 }
+  custom_food_and_event_price: { type: Number, default: 800 },
+  max_bookings_per_day: { type: Number, default: 2 }
 }, { timestamps: true });
 
 module.exports = mongoose.model("BusinessInfo", BusinessInfoSchema);

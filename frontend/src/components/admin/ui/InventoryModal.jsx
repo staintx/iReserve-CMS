@@ -96,6 +96,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">Total Quantity</label>
               <input 
                 type="number" 
+                min="0"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
                 placeholder="0" 
                 value={formData.quantity} 
@@ -106,6 +107,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">Minimum Stock</label>
               <input 
                 type="number" 
+                min="0"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
                 placeholder="0" 
                 value={formData.minStock} 

@@ -13,7 +13,9 @@ const UserSchema = new mongoose.Schema({
   email_verify_token: String,
   email_verify_expires: Date,
   email_otp_hash: String,
-  email_otp_expires: Date
+  email_otp_expires: Date,
+  reset_password_token: String,
+  reset_password_expires: Date
 }, { timestamps: true });
 
 module.exports = mongoose.model("User", UserSchema);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
 import AuthVerifyEmailForm from "../../components/forms/AuthVerifyEmailForm";
 import logo from "../../assets/images/logo.jpg";
@@ -14,6 +14,8 @@ export default function VerifyEmail() {
   const [otp, setOtp] = useState("");
   const [status, setStatus] = useState({ loading: Boolean(token), message: "", tone: "info" });
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     const verify = async () => {
       if (!token) return;
@@ -21,13 +23,14 @@ export default function VerifyEmail() {
       try {
         const { data } = await CustomerAPI.verifyEmail(token);
         setStatus({ loading: false, message: data.message || "Email verified. You can sign in now.", tone: "success" });
+        setTimeout(() => navigate('/login'), 2000);
       } catch (err) {
         setStatus({ loading: false, message: err.response?.data?.message || "We could not verify your email. Please try again.", tone: "error" });
       }
     };
 
     verify();
-  }, [token]);
+  }, [token, navigate]);
 
   const submitOtp = async (e) => {
     e.preventDefault();
@@ -35,6 +38,7 @@ export default function VerifyEmail() {
     try {
       const { data } = await CustomerAPI.verifyOtp({ email, otp });
       setStatus({ loading: false, message: data.message || "Email verified. You can sign in now.", tone: "success" });
+      setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
       setStatus({ loading: false, message: err.response?.data?.message || "We could not verify that code. Please try again.", tone: "error" });
     }

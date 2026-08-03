@@ -44,6 +44,17 @@ const parseNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const isValidEmail = (value) => {
+  const email = String(value || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+const isValidPhone = (value) => {
+  const digits = normalizePhone(value);
+  return /^(?:63|0)?9\d{9}$/.test(digits);
+};
+
 // -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
@@ -55,12 +66,17 @@ export default function BookingWizard() {
 
   // --- Location State ---
   const initialEventType = location.state?.eventType || "";
+  const initialServiceType = location.state?.serviceType || "";
   const initialPackageId = location.state?.packageId || null;
   const initialPackagePrice = location.state?.packagePrice || 0;
   const initialPackageName = location.state?.packageName || "";
   const initialGuestMin = location.state?.guestMin || null;
   const initialGuestMax = location.state?.guestMax || null;
   const isCustomBooking = !initialPackageId;
+  const matchedServiceType = ["Food Only", "Event Setup Only", "Food and Event Setup"].find(
+    (service) => service.toLowerCase() === initialServiceType.toLowerCase(),
+  );
+  const shouldSkipServiceType = Boolean(initialPackageId || matchedServiceType);
 
   // --- Derived ---
   const matchedType = VALID_EVENT_TYPES.find(
@@ -97,9 +113,10 @@ export default function BookingWizard() {
       event_date: "",
       start_time: "",
       duration_hours: "4",
-      guest_count: "50",
-      service_type: "Food and Event Setup",
-      include_food: true,
+      guest_count: initialGuestMin ? String(initialGuestMin) : "50",
+      service_type: matchedServiceType || "Food and Event Setup",
+      include_food: !matchedServiceType || matchedServiceType !== "Event Setup Only",
+      package_id: initialPackageId || "",
       venue_type: "",
       indoor_outdoor: "Indoor",
       province: BATANGAS_PROVINCE,
@@ -167,7 +184,7 @@ export default function BookingWizard() {
   // --- Step Definition ---
   const wizardSteps = useMemo(() => {
     const steps = [];
-    if (isCustomBooking) {
+    if (isCustomBooking && !shouldSkipServiceType) {
       steps.push({ id: "ServiceType", label: "Service Type", key: "service" });
     }
     steps.push({ id: "DateTime", label: "Event Info", key: "datetime" });
@@ -272,12 +289,19 @@ export default function BookingWizard() {
       message: "Please select a package to continue.",
     },
     ContactInfo: {
-      check: () =>
-        !!form.contact_first_name &&
-        !!form.contact_last_name &&
-        !!form.contact_email &&
-        !!form.contact_phone,
-      message: "Please fill in all required contact fields.",
+      check: () => {
+        const primaryPhoneValid = isValidPhone(form.contact_phone);
+        const altPhoneValid = !form.contact_alt_phone || isValidPhone(form.contact_alt_phone);
+
+        return (
+          !!String(form.contact_first_name || "").trim() &&
+          !!String(form.contact_last_name || "").trim() &&
+          isValidEmail(form.contact_email) &&
+          primaryPhoneValid &&
+          altPhoneValid
+        );
+      },
+      message: "Please fill in all required contact fields with valid information.",
     },
     ReviewBooking: {
       check: () => agreements.terms && agreements.privacy,
@@ -557,7 +581,11 @@ export default function BookingWizard() {
 
   const handleBack = () => {
     if (step === 0 || (step === 1 && !isCustomBooking)) {
-      navigate("/customer/packages");
+      if (initialPackageId) {
+        navigate(`/packages/${initialPackageId}`);
+      } else {
+        navigate("/customer/packages");
+      }
     } else {
       setStep((s) => Math.max(s - 1, 0));
       window.scrollTo({ top: 0, behavior: "smooth" });

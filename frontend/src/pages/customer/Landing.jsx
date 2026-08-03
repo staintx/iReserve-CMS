@@ -1,5 +1,5 @@
 import CustomerLayout from "../../components/layout/CustomerLayout";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
 import logo from "../../assets/images/logo.jpg";
@@ -16,84 +16,66 @@ const DEFAULT_BUSINESS_INFO = {
   privacy_url: "",
 };
 
-const HERO_MESSAGES = [
-  {
-    title: "Delicious Catering for your Special Events",
-    description:
-      "Creating unforgettable culinary experiences with exceptional service",
-  },
-  {
-    title: "Fresh Menus Crafted by Experts",
-    description:
-      "From appetizers to desserts, every dish is prepared to impress your guests.",
-  },
-  {
-    title: "Elegant Setups for Every Celebration",
-    description:
-      "Beautiful food presentation and full-service planning for weddings, birthdays, and more.",
-  },
-  {
-    title: "Reliable Team, Memorable Experience",
-    description:
-      "Professional staff and seamless coordination so you can enjoy your event stress-free.",
-  },
-];
-
-const HERO_IMAGE_POOL = [
-  "https://images.pexels.com/photos/5638732/pexels-photo-5638732.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5779787/pexels-photo-5779787.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5876397/pexels-photo-5876397.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/4553035/pexels-photo-4553035.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5779818/pexels-photo-5779818.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5638748/pexels-photo-5638748.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5638730/pexels-photo-5638730.jpeg?auto=compress&cs=tinysrgb&w=1600",
-  "https://images.pexels.com/photos/5638698/pexels-photo-5638698.jpeg?auto=compress&cs=tinysrgb&w=1600",
-];
-
-const SWIPE_THRESHOLD = 45;
-
-const buildHeroSlides = () => {
-  const shuffledImages = [...HERO_IMAGE_POOL]
-    .map((imageUrl, index) => ({ imageUrl, order: Math.random() + index }))
-    .sort((left, right) => left.order - right.order)
-    .map((item) => item.imageUrl);
-
-  return HERO_MESSAGES.map((slide, index) => ({
-    ...slide,
-    image: shuffledImages[index % shuffledImages.length],
-  }));
+const HERO_COPY = {
+  title: "Exceptional Catering & Event Styling",
+  subheadline:
+    "Elevated menus, luxurious presentation, and seamless planning for weddings, corporate events, and once-in-a-lifetime celebrations.",
 };
+
+const HERO_IMAGE_URL =
+  "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=1600";
+
+function CateringIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 8h16" />
+      <path d="M6 8v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" />
+      <path d="M9 12h6" />
+      <path d="M8 4h8" />
+    </svg>
+  );
+}
+
+function SetupIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <path d="M8 10h8" />
+      <path d="M8 14h5" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z" />
+      <path d="m18 15 0.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" />
+    </svg>
+  );
+}
 
 export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [heroSlides] = useState(() => buildHeroSlides());
-  const swipeStartXRef = useRef(null);
   const [galleryItems, setGalleryItems] = useState([]);
   const [galleryLightboxIndex, setGalleryLightboxIndex] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [businessInfo, setBusinessInfo] = useState(DEFAULT_BUSINESS_INFO);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setActiveSlide((current) => (current + 1) % heroSlides.length);
-    }, 6000);
-
-    return () => window.clearInterval(intervalId);
-  }, [heroSlides.length]);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadPublicContent = async () => {
       try {
-        const [galleryResult, menuResult, ratingsResult, businessResult] =
+        const [galleryResult, menuResult, ratingsResult, packagesResult, businessResult] =
           await Promise.allSettled([
             CustomerAPI.getGallery(),
             CustomerAPI.getMenu(),
             CustomerAPI.getRatings(),
+            CustomerAPI.getPackages(),
             CustomerAPI.getBusinessInfo(),
           ]);
 
@@ -107,6 +89,7 @@ export default function Landing() {
         setGalleryItems(toArray(galleryResult));
         setMenuItems(toArray(menuResult));
         setReviews(toArray(ratingsResult));
+        setPackages(toArray(packagesResult));
 
         if (businessResult?.status === "fulfilled") {
           setBusinessInfo((prev) => ({
@@ -119,6 +102,7 @@ export default function Landing() {
         setGalleryItems([]);
         setMenuItems([]);
         setReviews([]);
+        setPackages([]);
         setBusinessInfo(DEFAULT_BUSINESS_INFO);
       }
     };
@@ -129,10 +113,6 @@ export default function Landing() {
       isMounted = false;
     };
   }, []);
-
-  const goToSlide = (slideIndex) => {
-    setActiveSlide(slideIndex);
-  };
 
   const scrollToSection = (sectionId) => {
     if (sectionId === "top") {
@@ -161,52 +141,56 @@ export default function Landing() {
     }, 0);
   }, [location.hash]);
 
-  const goToPreviousSlide = () => {
-    setActiveSlide(
-      (current) => (current - 1 + heroSlides.length) % heroSlides.length,
-    );
-  };
-
-  const goToNextSlide = () => {
-    setActiveSlide((current) => (current + 1) % heroSlides.length);
-  };
-
-  const handleSwipeStart = (event) => {
-    swipeStartXRef.current = event.clientX;
-  };
-
-  const resetSwipe = () => {
-    swipeStartXRef.current = null;
-  };
-
-  const handleSwipeEnd = (event) => {
-    if (swipeStartXRef.current === null) {
-      return;
-    }
-
-    const swipeDistance = event.clientX - swipeStartXRef.current;
-    resetSwipe();
-
-    if (Math.abs(swipeDistance) < SWIPE_THRESHOLD) {
-      return;
-    }
-
-    if (swipeDistance < 0) {
-      goToNextSlide();
-      return;
-    }
-
-    goToPreviousSlide();
-  };
-
-  const eventTypes = [
-    { label: "Weddings", icon: "💍" },
-    { label: "Corp Events", icon: "💼" },
-    { label: "Birthday", icon: "🎂" },
-    { label: "Celebrate", icon: "🎉" },
-    { label: "Baby Shower", icon: "🍼" },
-    { label: "Graduation", icon: "🎓" },
+  const serviceOptions = [
+    {
+      title: "Catering Service",
+      description: "Custom menus for weddings, birthdays, corporate gatherings, and private celebrations.",
+      icon: <CateringIcon />,
+      serviceType: "Food Only",
+    },
+    {
+      title: "Event Setup",
+      description: "Tables, décor, and on-site setup support designed for seamless event execution.",
+      icon: <SetupIcon />,
+      serviceType: "Event Setup Only",
+    },
+    {
+      title: "Full-Service Booking",
+      description: "A guided booking experience with package selection, add-ons, and coordination support.",
+      icon: <SparkleIcon />,
+      serviceType: "Food and Event Setup",
+    },
   ];
+
+  const featuredPackages = packages
+    .filter((pkg) => pkg?.available !== false)
+    .slice(0, 3);
+
+  const formatPrice = (amount) => {
+    if (amount === null || amount === undefined || amount === "") {
+      return null;
+    }
+
+    const numericValue = Number(amount);
+    if (Number.isNaN(numericValue)) {
+      return null;
+    }
+
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      maximumFractionDigits: 0,
+    }).format(numericValue);
+  };
+
+  const goToBooking = (payload = {}) => {
+    navigate("/customer/book", {
+      state: {
+        resetWizard: true,
+        ...payload,
+      },
+    });
+  };
 
   const footerBusinessName =
     businessInfo.business_name || DEFAULT_BUSINESS_INFO.business_name;
@@ -237,60 +221,133 @@ export default function Landing() {
   return (
     <CustomerLayout>
       <div id="top" />
-      <section
-        className="landing-hero"
-        onPointerDown={handleSwipeStart}
-        onPointerUp={handleSwipeEnd}
-        onPointerCancel={resetSwipe}
-        onPointerLeave={resetSwipe}
-      >
-        <div className="landing-hero-track" aria-hidden="true">
-          {heroSlides.map((slide, index) => (
-            <div
-              key={`${slide.image}-${index}`}
-              className={`landing-hero-slide ${index === activeSlide ? "active" : ""}`}
-              style={{ backgroundImage: `url(${slide.image})` }}
-            />
-          ))}
+      <section className="landing-hero" aria-label="Featured hero section">
+        <div className="landing-hero-visual" aria-hidden="true">
+          <img src={HERO_IMAGE_URL} alt="Lavish grazing table presentation" />
         </div>
-        <div className="landing-hero-content">
-          <h1>{heroSlides[activeSlide].title}</h1>
-          <p>{heroSlides[activeSlide].description}</p>
-          <button
-            className="btn"
-            type="button"
-            onClick={() =>
-              navigate("/customer/book", { state: { resetWizard: true } })
-            }
-          >
-            Book Now
-          </button>
-          <div className="landing-dots">
-            {heroSlides.map((slide, index) => (
-              <button
-                key={`${slide.image}-${index}`}
-                type="button"
-                className={`landing-dot ${index === activeSlide ? "active" : ""}`}
-                onClick={() => goToSlide(index)}
-                aria-label={`Show hero image ${index + 1}`}
-                aria-pressed={index === activeSlide}
-              />
-            ))}
+        <div className="landing-hero-overlay" aria-hidden="true" />
+        <div className="landing-hero-panel landing-hero-copy">
+          <p className="landing-hero-eyebrow">Elevated celebrations</p>
+          <h1>{HERO_COPY.title}</h1>
+          <p>{HERO_COPY.subheadline}</p>
+          <div className="landing-hero-actions">
+            <button className="btn landing-hero-btn-primary" type="button" onClick={() => goToBooking()}>
+              Book Now
+            </button>
+            <button
+              className="btn-outline btn-outline-light landing-hero-btn-secondary"
+              type="button"
+              onClick={() => goToBooking({ serviceType: "Food and Event Setup" })}
+            >
+              Explore Services
+            </button>
           </div>
         </div>
       </section>
 
-      <section id="event-types" className="section landing-section">
-        <h2>Event Types We Serve</h2>
-        <div className="event-types-row">
-          {eventTypes.map((event) => (
-            <div key={event.label} className="event-type-card">
-              <div className="event-type-icon" aria-hidden="true">
-                {event.icon}
+      <section id="services" className="section landing-section">
+        <div className="landing-section-heading">
+          <p className="landing-section-eyebrow">Choose your experience</p>
+          <h2>Select Your Service</h2>
+          <p>Choose the experience that fits your celebration and move straight into booking.</p>
+        </div>
+        <div className="service-feature-row">
+          {serviceOptions.map((service) => (
+            <button
+              key={service.title}
+              className="service-feature-item"
+              type="button"
+              onClick={() => goToBooking({ serviceType: service.serviceType })}
+            >
+              <div className="service-feature-icon" aria-hidden="true">
+                {service.icon}
               </div>
-              <span className="event-type-label">{event.label}</span>
-            </div>
+              <div className="service-feature-copy">
+                <h3>{service.title}</h3>
+                <p>{service.description}</p>
+              </div>
+            </button>
           ))}
+        </div>
+      </section>
+
+      <section id="packages" className="section landing-section soft-bg">
+        <div className="landing-section-heading">
+          <p className="landing-section-eyebrow">Ready to reserve</p>
+          <h2>Ready-to-Book Packages</h2>
+          <p>Browse our most requested package tiers and book right away.</p>
+        </div>
+        <div className="package-pricing-grid">
+          {featuredPackages.map((pkg, index) => {
+            const isCenterPackage = index === 1;
+            const guestRange = pkg.guest_min || pkg.guest_max
+              ? `${pkg.guest_min || 0}-${pkg.guest_max || "∞"} guests`
+              : "Flexible guest count";
+            const price = formatPrice(pkg.setup_price);
+            const badgeLabel = pkg.badge_text || (pkg.featured ? "Featured" : "Popular");
+            const displayPrice = pkg.price_label || (price ? price : "Custom quote");
+            const featureList = Array.isArray(pkg.features)
+              ? pkg.features.filter(Boolean)
+              : [];
+            const detailPath = pkg._id ? `/packages/${pkg._id}` : "/packages";
+
+            return (
+              <div
+                key={pkg._id || pkg.name}
+                className={`package-pricing-card ${isCenterPackage ? "package-pricing-card-featured" : ""}`}
+              >
+                <div className="package-pricing-media">
+                  <img src={pkg.image_url} alt={pkg.name} />
+                </div>
+                {isCenterPackage && <div className="package-pricing-badge">{badgeLabel}</div>}
+                {!isCenterPackage && badgeLabel && badgeLabel !== "Popular" ? (
+                  <div className="package-pricing-badge package-pricing-badge-muted">{badgeLabel}</div>
+                ) : null}
+                <h3>{pkg.name}</h3>
+                <p className="package-pricing-description">{pkg.description}</p>
+                <div className="package-pricing-price">{displayPrice}</div>
+                <div className="package-pricing-meta">{guestRange}</div>
+                <div className="package-pricing-meta">{price ? `${price} setup fee` : "Setup options available"}</div>
+                {featureList.length > 0 && (
+                  <ul className="package-pricing-features">
+                    {featureList.slice(0, 3).map((feature) => (
+                      <li key={feature}>{feature}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="package-pricing-actions">
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() =>
+                      goToBooking({
+                        packageId: pkg._id,
+                        packageName: pkg.name,
+                        packagePrice: pkg.setup_price || 0,
+                        guestMin: pkg.guest_min || null,
+                        guestMax: pkg.guest_max || null,
+                        serviceType:
+                          pkg.package_type === "Event Setup Only"
+                            ? "Event Setup Only"
+                            : pkg.package_type === "Food Only"
+                              ? "Food Only"
+                              : "Food and Event Setup",
+                      })
+                    }
+                  >
+                    Book This Package
+                  </button>
+                  <button
+                    className="btn-outline package-pricing-link"
+                    type="button"
+                    onClick={() => navigate(detailPath)}
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 

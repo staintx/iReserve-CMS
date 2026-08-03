@@ -167,11 +167,6 @@ export default function CustomerLayout({ children }) {
                     My Bookings
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => navigate("/customer/payments")}
-                  >
-                    Payment History
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
                     onClick={() => navigate("/customer/messages")}
                   >
                     Messages

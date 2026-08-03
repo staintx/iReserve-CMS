@@ -162,7 +162,7 @@ export default function CustomerDashboard() {
                         {booking.status}
                       </span>
                       {booking.status === "pending deposit" && (
-                        <Button size="sm" onClick={() => navigate("/customer/payments")}>
+                        <Button size="sm" onClick={() => navigate(`/customer/bookings/${booking._id}`)}>
                           Pay Deposit
                         </Button>
                       )}

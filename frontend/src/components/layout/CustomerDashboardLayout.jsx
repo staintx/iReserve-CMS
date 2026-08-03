@@ -11,7 +11,6 @@ import { Button } from "../ui/button";
 const navItems = [
   { to: "/customer/dashboard", label: "Dashboard", desc: "Overview of your events", icon: LayoutDashboard },
   { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status", icon: Calendar },
-  { to: "/customer/payments", label: "Payment History", desc: "View transactions", icon: CreditCard },
   { to: "/customer/messages", label: "Messages", desc: "Chat with our team", icon: MessageSquare }
 ];
 

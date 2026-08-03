@@ -8,7 +8,12 @@ const PackageSchema = new mongoose.Schema(
     guest_min: Number,
     guest_max: Number,
     price_per_guest: Number,
+    price_label: String,
     setup_price: Number,
+    featured: { type: Boolean, default: false },
+    badge_text: String,
+    service_type: String,
+    features: [String],
     
     // Admin-configurable scaffold size options for this package
     scaffold_size_options: [

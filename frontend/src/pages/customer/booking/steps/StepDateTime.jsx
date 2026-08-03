@@ -1,16 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  ShieldCheck,
-  Minus,
-  Loader2,
-  Check,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
+import Modal from "../../../../components/common/Modal";
 import { cn } from "@/lib/utils";
 import { CustomerAPI } from "../../../../api/customer";
 
@@ -18,19 +9,28 @@ export default function StepDateTime({
   form,
   setForm,
   minDate,
-  availability,
-  suggestedDates,
-  setAvailability,
-  requireAvailabilityCheck,
   onNext,
 }) {
+  const parseLocalDate = (value) => {
+    const [year, month, day] = String(value).split("-").map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const getDateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   // Simple calendar logic
   const [currentMonth, setCurrentMonth] = useState(() => {
-    const d = form.event_date ? new Date(form.event_date) : new Date(minDate);
+    const d = form.event_date ? parseLocalDate(form.event_date) : parseLocalDate(minDate);
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
 
   const [bookedDates, setBookedDates] = useState([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     const fetchBookedDates = async () => {
@@ -171,8 +171,7 @@ export default function StepDateTime({
   const formattedDateStr = useMemo(() => {
     if (!form.event_date) return "";
     try {
-      const parts = form.event_date.split("-");
-      const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+      const dateObj = parseLocalDate(form.event_date);
       return dateObj.toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
@@ -247,7 +246,7 @@ export default function StepDateTime({
                 {calendarDays.map((date, i) => {
                   if (!date) return <div key={`empty-${i}`} className="p-2" />;
 
-                  const dateStr = date.toISOString().split("T")[0];
+                  const dateStr = getDateKey(date);
                   const isSelected = form.event_date === dateStr;
                   const isPast = date < minDateObj;
                   const isBooked = bookedDates.includes(dateStr);
@@ -331,89 +330,64 @@ export default function StepDateTime({
             </div>
           </Card>
 
-          {requireAvailabilityCheck && (
-            <div className="bg-[#F7F4EE] rounded-2xl p-5 text-sm">
-              <p className="font-semibold text-[#111] mb-2 text-xs uppercase tracking-wider">
-                Automatic Availability Check
-              </p>
-
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#6B6657]">Date Availability</span>
-                  {availability.status === "available" ? (
-                    <span className="text-emerald-600 flex items-center gap-1 font-semibold text-xs">
-                      <Check size={14} /> Available
-                    </span>
-                  ) : availability.status === "checking" ? (
-                    <Loader2 className="h-3 w-3 animate-spin text-[#9E9E9E]" />
-                  ) : (
-                    <span className="text-[#9E9E9E]">Pending</span>
-                  )}
-                </div>
-              </div>
-
-              {availability.status === "unavailable" &&
-                suggestedDates?.length > 0 && (
-                  <div className="mb-4 rounded-xl bg-white p-4 border border-red-200 shadow-sm">
-                    <p className="mb-2 text-xs font-semibold text-red-600">
-                      Unavailable. Try these alternatives:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {suggestedDates.map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => {
-                            setForm({ ...form, event_date: d });
-                            setAvailability({ status: "idle", message: "" });
-                          }}
-                          className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100"
-                        >
-                          {new Date(d).toLocaleDateString(undefined, {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              {!form.event_date || !form.start_time ? (
-                <p className="text-xs text-[#9E9E9E] mt-4">
-                  Please select a date and time to check availability.
-                </p>
-              ) : availability.status === "checking" ? (
-                <div className="flex items-center text-[#9E9E9E] mt-4 text-xs font-medium">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking availability...
-                </div>
-              ) : null}
-
-              {/* Result Card with Continue Button */}
-              {availability.status === "available" && (
-                <div className="mt-4 pt-4 border-t border-black/10">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                    <h4 className="text-sm font-semibold text-emerald-700">
-                      Date Available!
-                    </h4>
-                  </div>
-
-                  <p className="text-xs text-[#6B6657] mb-4">
-                    {formattedDateStr} at {selectedDisplayTime} — all checks
-                    passed.
-                  </p>
-
-                  <GoldBtn onClick={onNext} className="w-full">
-                    Continue <ChevronRight size={15} />
-                  </GoldBtn>
-                </div>
-              )}
+          <div className="rounded-2xl border border-black/10 bg-[#F7F4EE]/50 p-5 text-sm">
+            <p className="font-semibold text-[#111] mb-2 text-xs uppercase tracking-wider">
+              Selected Schedule
+            </p>
+            <p className="text-base font-semibold text-[#111]">
+              {form.event_date && form.start_time
+                ? `${formattedDateStr} at ${selectedDisplayTime}`
+                : "No schedule selected yet."}
+            </p>
+            <p className="text-xs text-[#6B6657] mt-2">
+              Confirm your selected date and time before continuing.
+            </p>
+            <div className="mt-5">
+              <GoldBtn
+                onClick={() => {
+                  if (!form.event_date || !form.start_time) return;
+                  setShowConfirmModal(true);
+                }}
+                className="w-full"
+                disabled={!form.event_date || !form.start_time}
+              >
+                Continue <ChevronRight size={15} />
+              </GoldBtn>
             </div>
-          )}
+          </div>
         </div>
       </div>
+
+      {showConfirmModal && (
+        <Modal title="Confirm Schedule" onClose={() => setShowConfirmModal(false)}>
+          <div className="space-y-4 text-sm text-slate-700">
+            <p>
+              Are you sure you want to proceed with
+              <span className="font-semibold"> {formattedDateStr}</span> at
+              <span className="font-semibold"> {selectedDisplayTime}</span>?
+            </p>
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setShowConfirmModal(false)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowConfirmModal(false);
+                onNext();
+              }}
+              className="w-full rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#C09B2F] sm:w-auto"
+            >
+              Confirm & Proceed
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

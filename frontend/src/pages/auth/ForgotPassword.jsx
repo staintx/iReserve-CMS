@@ -10,11 +10,19 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [isSent, setIsSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { notify } = useToast();
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!email) {
+      setError("Email address is required.");
+      return;
+    }
+    
     setError("");
+    setIsLoading(true);
+    
     try {
       await CustomerAPI.forgotPassword({ email });
       notify("Reset link sent. Check your email.", "success");
@@ -23,6 +31,8 @@ export default function ForgotPassword() {
       const message = err.response?.data?.message || "We could not send the reset link. Please try again.";
       setError(message);
       notify(message, "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -61,6 +71,7 @@ export default function ForgotPassword() {
             <AuthForgotPasswordForm
               email={email}
               error={error}
+              isLoading={isLoading}
               onEmailChange={(e) => setEmail(e.target.value)}
               onSubmit={submit}
             />

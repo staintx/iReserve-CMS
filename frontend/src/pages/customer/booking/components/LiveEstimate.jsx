@@ -6,7 +6,7 @@ const formatCurrency = (value) => {
   return `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export default function LiveEstimate({ form, totalPrice, depositAmount, onNext }) {
+export default function LiveEstimate({ form, totalPrice, depositAmount, depositPercentage, selectedPaymentOption, setSelectedPaymentOption, onNext }) {
   const guestCount = parseInt(form.guest_count || "0", 10);
   
   // Calculate base price dynamically based on selection
@@ -20,11 +20,25 @@ export default function LiveEstimate({ form, totalPrice, depositAmount, onNext }
   
   const baseTotal = basePricePerPax * guestCount;
 
+  const displayAmount = selectedPaymentOption === "full" ? totalPrice : depositAmount;
+
   return (
     <div className="w-full flex-shrink-0 lg:w-80">
-      <div className="sticky top-24 bg-white rounded-3xl border border-gray-100 shadow-sm p-6 lg:p-8" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 lg:p-8" style={{ fontFamily: "Inter, sans-serif" }}>
+        <div className="hidden lg:block sticky top-24" style={{ maxHeight: 'calc(100vh - 96px)', overflowY: 'auto' }}>
         <h3 className="text-[19px] font-bold text-gray-900 mb-6" style={{ fontFamily: "Inter, sans-serif" }}>Live Estimate</h3>
-        
+
+        <div className="mb-4">
+          <label className="flex items-center gap-3">
+            <input type="radio" name="pay_option" value="deposit" checked={selectedPaymentOption !== "full"} onChange={() => setSelectedPaymentOption("deposit")} className="h-4 w-4" />
+            <span className="text-sm">Pay Deposit</span>
+          </label>
+          <label className="flex items-center gap-3 mt-2">
+            <input type="radio" name="pay_option" value="full" checked={selectedPaymentOption === "full"} onChange={() => setSelectedPaymentOption("full")} className="h-4 w-4" />
+            <span className="text-sm">Pay Full Amount</span>
+          </label>
+        </div>
+
         <div className="space-y-4 mb-6 text-[14px]">
           {/* Base Package/Pax */}
           {basePricePerPax > 0 && (
@@ -60,15 +74,20 @@ export default function LiveEstimate({ form, totalPrice, depositAmount, onNext }
 
         <div className="space-y-1 mb-8 text-[13px] text-gray-400 leading-relaxed">
           <p>+ service fee, transport & taxes on summary</p>
-          <p>30% deposit ≈ {formatCurrency(depositAmount)}</p>
+          <p>{depositPercentage}% deposit ≈ {formatCurrency(depositAmount)}</p>
         </div>
 
-        <Button 
-          onClick={onNext}
-          className="w-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold py-6 rounded-2xl shadow-sm flex items-center justify-center gap-2 transition-colors"
-        >
-          Continue <ChevronRight size={18} />
-        </Button>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <div className="text-sm text-gray-500">{selectedPaymentOption === "full" ? "Total" : "Amount Due Now"}</div>
+            <div className="text-2xl font-bold text-[#D4AF37]">{formatCurrency(displayAmount)}</div>
+          </div>
+          <Button onClick={onNext} className="ml-4 bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold py-3 px-4 rounded-2xl shadow-sm">
+            Continue <ChevronRight size={18} />
+          </Button>
+        </div>
+
+        </div>
       </div>
     </div>
   );

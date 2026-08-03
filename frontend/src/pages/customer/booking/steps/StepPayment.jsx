@@ -3,7 +3,7 @@ import { CreditCard, Smartphone, Banknote, ShieldCheck, Loader2 } from "lucide-r
 import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 
-export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isSubmitting, onSubmit, onBack, error }) {
+export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isSubmitting, onSubmit, onBack, error, selectedPaymentOption, setSelectedPaymentOption }) {
   const [selectedMethod, setSelectedMethod] = useState("gcash");
   
   const paymentMethods = [
@@ -24,16 +24,26 @@ export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isS
   }
 
   const handlePay = () => {
-    onSubmit(selectedMethod);
+    onSubmit(selectedMethod, selectedPaymentOption);
   };
 
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
-        <SH title="Payment Method" sub="Select how you want to pay the deposit." />
+        <SH title="Payment Method" sub="Choose whether to pay the deposit or the full amount, and select a payment method." />
         <div className="text-left sm:text-right bg-[#D4AF37]/10 rounded-xl p-4 border border-[#D4AF37]/20">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E]">{selectedMethod === "cod" ? "Total on Delivery" : "Deposit to Pay Now"}</p>
-          <p className="text-2xl font-bold text-[#D4AF37]" style={{ fontFamily: "Playfair Display, serif" }}>₱{selectedMethod === "cod" ? totalPrice?.toLocaleString() : depositAmount?.toLocaleString()}</p>
+          <div className="mb-2 flex gap-3 items-center">
+            <label className="flex items-center gap-2 text-xs">
+              <input type="radio" className="h-4 w-4" checked={selectedPaymentOption !== "full"} onChange={() => setSelectedPaymentOption("deposit")} />
+              <span>Pay Deposit</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="radio" className="h-4 w-4" checked={selectedPaymentOption === "full"} onChange={() => setSelectedPaymentOption("full")} />
+              <span>Pay Full Amount</span>
+            </label>
+          </div>
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#9E9E9E]">{selectedMethod === "cod" ? "Total on Delivery" : (selectedPaymentOption === "full" ? "Total" : "Amount to Pay Now")}</p>
+          <p className="text-2xl font-bold text-[#D4AF37]" style={{ fontFamily: "Playfair Display, serif" }}>₱{selectedMethod === "cod" ? totalPrice?.toLocaleString() : (selectedPaymentOption === "full" ? totalPrice?.toLocaleString() : depositAmount?.toLocaleString())}</p>
         </div>
       </div>
 
@@ -100,7 +110,7 @@ export default function StepPayment({ depositAmount, totalPrice, isFoodOnly, isS
             ) : selectedMethod === "cod" ? (
               "Place Order (COD)"
             ) : (
-              `Pay ₱${depositAmount?.toLocaleString()}`
+              selectedPaymentOption === "full" ? `Pay ₱${totalPrice?.toLocaleString()}` : `Pay ₱${depositAmount?.toLocaleString()}`
             )}
           </GoldBtn>
         </div>

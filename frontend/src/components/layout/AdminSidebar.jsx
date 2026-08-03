@@ -178,10 +178,7 @@ export default function AdminSidebar() {
           )}
         </div>
 
-        <NavLink to="/admin/calendar" className={linkClass}>
-          <Calendar className="w-5 h-5 shrink-0" />
-          {!isCollapsed && <span>Calendar</span>}
-        </NavLink>
+        {/* Calendar is merged into the Dashboard; standalone page removed. */}
 
         {isAdmin && (
           <>

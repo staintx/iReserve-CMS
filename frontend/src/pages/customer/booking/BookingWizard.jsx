@@ -630,6 +630,8 @@ export default function BookingWizard() {
 
       if (form.package_id || initialPackageId) {
         payload.package_id = form.package_id || initialPackageId;
+      } else {
+        delete payload.package_id;
       }
 
       delete payload.event_type_other;

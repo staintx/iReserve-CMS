@@ -307,6 +307,9 @@ const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
 };
 
 exports.create = asyncHandler(async (req, res) => {
+  if (req.body.package_id === "") {
+    delete req.body.package_id;
+  }
   const dateStatus = getDateStatus(req.body.event_date);
   if (!dateStatus.valid) {
     return res.status(400).json({ message: "Event date is invalid" });
@@ -564,6 +567,9 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
+  if (req.body.package_id === "") {
+    delete req.body.package_id;
+  }
   const current = await Booking.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Booking not found" });
 

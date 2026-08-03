@@ -327,7 +327,7 @@ export default function BookingCard({
               <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
                 <Download size={14} /> Download Invoice
               </button>
-              <button onClick={() => navigate("/customer/payments")} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+              <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
                 <Activity size={14} /> Track Payments
               </button>
             </div>

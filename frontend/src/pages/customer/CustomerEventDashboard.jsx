@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
 import { ChevronLeft, Check, Clock, AlertCircle, Settings, CalendarRange, Users, ArrowUpCircle, MessageSquare } from "lucide-react";
@@ -10,6 +10,7 @@ import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import useToast from "../../hooks/useToast";
 import { Badge } from "../../components/ui/badge";
+import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -32,6 +33,11 @@ export default function CustomerEventDashboard() {
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
 
+  const [payments, setPayments] = useState([]);
+  const [paymentLoading, setPaymentLoading] = useState(true);
+  const [payingPaymentId, setPayingPaymentId] = useState(null);
+  const [searchParams] = useSearchParams();
+
   const [requestingChange, setRequestingChange] = useState(false);
   const [requestNote, setRequestNote] = useState("");
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
@@ -40,6 +46,72 @@ export default function CustomerEventDashboard() {
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
+
+  useEffect(() => {
+    fetchBooking();
+    fetchPayments();
+    CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
+  }, [id]);
+
+  const canModifyBooking = useMemo(() => {
+    if (!booking || !booking.event_date) return false;
+    return new Date(booking.event_date).getTime() - Date.now() > THREE_DAYS_MS;
+  }, [booking]);
+
+  const bookingPayments = useMemo(() => {
+    if (!booking) return [];
+    return payments.filter((p) => p.booking_id?._id === booking._id || p.booking_id === booking._id);
+  }, [booking, payments]);
+
+  const paymentStatus = searchParams.get("status");
+
+  const totalPaid = useMemo(
+    () => bookingPayments.filter((p) => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+    [bookingPayments]
+  );
+
+  const pendingPayments = useMemo(
+    () => bookingPayments.filter((p) => p.status === "pending"),
+    [bookingPayments]
+  );
+
+  const outstandingAmount = useMemo(
+    () => pendingPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
+    [pendingPayments]
+  );
+
+  const fetchPayments = async () => {
+    setPaymentLoading(true);
+    try {
+      const pRes = await CustomerAPI.getPayments();
+      const filtered = pRes.data.filter((p) => p.booking_id?._id === id || p.booking_id === id);
+      setPayments(filtered);
+    } catch {
+      setPayments([]);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const startPayment = async (payment) => {
+    if (!payment?._id) return;
+    setPayingPaymentId(payment._id);
+
+    const amount = Number(payment.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      notify("This payment does not have a valid amount.", "error");
+      setPayingPaymentId(null);
+      return;
+    }
+
+    navigate("/customer/checkout", {
+      state: {
+        bookingId: booking._id,
+        amount,
+        paymentType: payment.payment_type || "deposit"
+      }
+    });
+  };
 
   const fetchBooking = () => {
     CustomerAPI.getBookings()
@@ -53,13 +125,9 @@ export default function CustomerEventDashboard() {
 
   useEffect(() => {
     fetchBooking();
+    fetchPayments();
     CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
   }, [id]);
-
-  const canModifyBooking = useMemo(() => {
-    if (!booking || !booking.event_date) return false;
-    return new Date(booking.event_date).getTime() - Date.now() > THREE_DAYS_MS;
-  }, [booking]);
 
   const submitAddGuests = async (event) => {
     event.preventDefault();
@@ -239,6 +307,65 @@ export default function CustomerEventDashboard() {
           <p className="text-muted-foreground flex items-center gap-2">
             Reference No: <span className="font-mono font-medium text-foreground bg-muted px-2 py-0.5 rounded">{booking.reference || booking._id.substring(0, 8).toUpperCase()}</span>
           </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 mb-8">
+          <Card className="border-border">
+            <CardHeader className="border-b border-border pb-4 mb-4">
+              <CardTitle className="text-xl font-serif">Payment Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded-2xl border border-border p-4 bg-card">
+                  <p className="text-sm font-medium text-muted-foreground">Total Paid</p>
+                  <p className="text-2xl font-bold text-foreground">₱{totalPaid.toLocaleString()}</p>
+                </div>
+                <div className="rounded-2xl border border-border p-4 bg-card">
+                  <p className="text-sm font-medium text-muted-foreground">Outstanding Balance</p>
+                  <p className="text-2xl font-bold text-foreground">₱{outstandingAmount.toLocaleString()}</p>
+                </div>
+                <div className="rounded-2xl border border-border p-4 bg-card">
+                  <p className="text-sm font-medium text-muted-foreground">Payments Recorded</p>
+                  <p className="text-2xl font-bold text-foreground">{bookingPayments.length}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {paymentLoading ? (
+                  <div className="text-muted-foreground">Loading payment details...</div>
+                ) : pendingPayments.length > 0 ? (
+                  pendingPayments.map((payment) => (
+                    <div key={payment._id} className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{payment.payment_type || "Pending Payment"}</p>
+                        <p className="text-sm text-muted-foreground">Amount due: ₱{Number(payment.amount || 0).toLocaleString()}</p>
+                      </div>
+                      <Button onClick={() => startPayment(payment)} disabled={payingPaymentId === payment._id}>
+                        {payingPaymentId === payment._id ? "Opening..." : "Pay Now"}
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-muted/50 bg-muted/10 p-4 text-sm text-muted-foreground">
+                    No outstanding payments are currently due for this booking.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="border-b border-border pb-4 mb-4">
+              <CardTitle className="text-xl font-serif">Transaction History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {paymentLoading ? (
+                <div className="text-muted-foreground">Loading transaction history...</div>
+              ) : (
+                <CustomerPaymentsTable payments={bookingPayments} formatCurrency={(value) => `₱${Number(value || 0).toLocaleString()}`} />
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -91,7 +91,7 @@ export default function CustomCheckout() {
         window.location.href = next_action_url;
       } else if (status === "succeeded") {
         notify("Payment successful!", "success");
-        navigate("/customer/payments?status=success");
+        navigate(`/customer/bookings/${bookingId}?status=success`);
       } else {
         setPaymentError("Payment is pending or failed. Please check your account or try a different method.");
         setProcessing(false);

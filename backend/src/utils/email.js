@@ -1,87 +1,111 @@
-const nodemailer = require("nodemailer");
+/**
+ * Email utility – uses the Brevo Transactional Email HTTP API.
+ *
+ * This avoids SMTP ports (25/465/587/2525) which many cloud providers
+ * (Render, Railway, Fly.io, etc.) block outright.  The HTTP API goes over
+ * port 443 (HTTPS) which is always open.
+ *
+ * Required env vars:
+ *   BREVO_API_KEY  – v3 API key from https://app.brevo.com/settings/keys/api
+ *   MAIL_FROM      – verified sender email address
+ */
 
-const getBrevoTransport = () => {
-  const host = process.env.BREVO_SMTP_HOST;
-  // Render and many cloud providers block ports 25, 465, and 587 to prevent spam.
-  // Port 2525 is typically left open for this exact reason.
-  const port = Number(process.env.BREVO_SMTP_PORT || 2525);
-  const user = process.env.BREVO_SMTP_USER;
-  const pass = process.env.BREVO_SMTP_PASS;
+const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
+
+/**
+ * Send a transactional email via the Brevo HTTP API.
+ *
+ * @param {Object}  opts
+ * @param {string}  opts.to       – recipient email address
+ * @param {string}  opts.subject  – email subject
+ * @param {string}  [opts.text]   – plain-text body
+ * @param {string}  [opts.html]   – HTML body
+ */
+const sendEmail = async ({ to, subject, text, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
   const from = process.env.MAIL_FROM;
 
-  if (!host || !user || !pass || !from) {
-    throw new Error("Brevo not configured: set BREVO_SMTP_HOST, BREVO_SMTP_USER, BREVO_SMTP_PASS, MAIL_FROM");
+  if (!apiKey || !from) {
+    throw new Error(
+      "Brevo not configured: set BREVO_API_KEY and MAIL_FROM environment variables"
+    );
   }
 
-  const transportOpts = {
-    host,
-    port,
-    auth: { user, pass },
-    connectionTimeout: 10000, // 10s to establish connection
-    greetingTimeout: 10000,   // 10s for server greeting
-    socketTimeout: 15000      // 15s for socket inactivity
+  const body = {
+    sender: { email: from },
+    to: [{ email: to }],
+    subject,
   };
 
-  // Port 465 uses implicit TLS (secure: true).
-  // Ports 587 and 2525 use STARTTLS (secure: false, the default).
-  // Explicitly setting this avoids ambiguity on cloud hosts.
-  if (port === 465) {
-    transportOpts.secure = true;
-  } else {
-    transportOpts.secure = false;
-  }
+  if (html) body.htmlContent = html;
+  if (text) body.textContent = text;
 
-  return {
-    transporter: nodemailer.createTransport(transportOpts),
-    from
-  };
-};
-
-const sendEmail = async ({ to, subject, text, html }) => {
-  const provider = process.env.MAIL_PROVIDER || "brevo";
-
-  if (provider !== "brevo") {
-    throw new Error(`Unsupported mail provider: ${provider}`);
-  }
-
-  const { transporter, from } = getBrevoTransport();
-
-  console.log(`[Email] Sending to ${to} via ${process.env.BREVO_SMTP_HOST}:${process.env.BREVO_SMTP_PORT || 2525}`);
+  console.log(`[Email] Sending to ${to} via Brevo HTTP API`);
 
   try {
-    const info = await transporter.sendMail({
-      to,
-      from,
-      subject,
-      text,
-      html
+    const res = await fetch(BREVO_SEND_URL, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify(body),
     });
-    console.log(`[Email] Sent successfully. MessageId: ${info.messageId}`);
-    return info;
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const msg = errorData.message || res.statusText;
+      throw new Error(`Brevo API ${res.status}: ${msg}`);
+    }
+
+    const data = await res.json();
+    console.log(`[Email] Sent successfully. MessageId: ${data.messageId}`);
+    return data;
   } catch (err) {
     console.error(`[Email] Failed to send to ${to}. Error: ${err.message}`);
-    if (err.responseCode) console.error(`[Email] SMTP response code: ${err.responseCode}`);
-    if (err.code) console.error(`[Email] Error code: ${err.code}`);
     throw err;
   }
 };
 
 /**
- * Call this once at server startup to verify the SMTP connection is reachable.
+ * Call this once at server startup to verify the Brevo API key is valid.
+ * Uses the /v3/account endpoint which costs nothing and confirms auth.
  * Logs success/failure — does NOT throw so the server still starts.
  */
 const verifyEmailConnection = async () => {
+  const apiKey = process.env.BREVO_API_KEY;
+
+  if (!apiKey) {
+    console.error("[Email] BREVO_API_KEY is not set — email will not work");
+    return;
+  }
+
   try {
-    const { transporter } = getBrevoTransport();
-    await transporter.verify();
-    console.log("[Email] SMTP connection verified successfully");
+    const res = await fetch("https://api.brevo.com/v3/account", {
+      headers: {
+        "accept": "application/json",
+        "api-key": apiKey,
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(
+        `Brevo API ${res.status}: ${errorData.message || res.statusText}`
+      );
+    }
+
+    const account = await res.json();
+    console.log(
+      `[Email] Brevo API key verified — account: ${account.email}`
+    );
   } catch (err) {
-    console.error("[Email] SMTP connection verification FAILED:", err.message);
-    if (err.code) console.error("[Email] Error code:", err.code);
+    console.error("[Email] Brevo API verification FAILED:", err.message);
   }
 };
 
 module.exports = {
   sendEmail,
-  verifyEmailConnection
+  verifyEmailConnection,
 };

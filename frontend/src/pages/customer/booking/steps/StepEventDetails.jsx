@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-import { BATANGAS_PROVINCE } from "../../../../utils/batangas";
 import { Card, SH, FL, TInput, TSelect, TTextarea, GuestCounter } from "../components/BookingSharedUI";
-import { cn } from "@/lib/utils";
 
 const VENUE_TYPES = [
   "Covered Court",
@@ -115,42 +113,35 @@ export default function StepEventDetails({
             <div>
               <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2">Venue Location</h3>
               
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <FL>Province</FL>
-                  <TSelect value={BATANGAS_PROVINCE} onChange={() => {}} options={[BATANGAS_PROVINCE]} disabled />
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <FL>Municipality *</FL>
-                    <TSelect
-                      value={form.municipality}
-                      onChange={(val) => setForm({ ...form, municipality: val, barangay: "" })}
-                      options={municipalities}
-                      placeholder="Select Municipality"
-                    />
-                  </div>
-                  <div>
-                    <FL>Barangay *</FL>
-                    <TSelect
-                      value={form.barangay}
-                      onChange={(val) => setForm({ ...form, barangay: val })}
-                      options={barangays}
-                      placeholder="Select Barangay"
-                      disabled={!form.municipality}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <FL>Street / Details</FL>
-                  <TInput
-                    placeholder="Purok 4, Near 7/11"
-                    value={form.street}
-                    onChange={(val) => setForm({ ...form, street: val })}
+                  <FL>Municipality *</FL>
+                  <TSelect
+                    value={form.municipality}
+                    onChange={(val) => setForm({ ...form, municipality: val, barangay: "" })}
+                    options={municipalities}
+                    placeholder="Select Municipality"
                   />
                 </div>
+                <div>
+                  <FL>Barangay *</FL>
+                  <TSelect
+                    value={form.barangay}
+                    onChange={(val) => setForm({ ...form, barangay: val })}
+                    options={barangays}
+                    placeholder="Select Barangay"
+                    disabled={!form.municipality}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <FL>Street / Details</FL>
+                <TInput
+                  placeholder="Purok 4, Near 7/11"
+                  value={form.street}
+                  onChange={(val) => setForm({ ...form, street: val })}
+                />
               </div>
             </div>
 

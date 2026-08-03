@@ -362,19 +362,14 @@ export default function QuoteWizard() {
     if (form.service_type !== "food") {
       setRequired("venue_type", "Venue type");
       setRequired("indoor_outdoor", "Indoor or outdoor");
-      setRequired("province", "Province");
-      setRequired("municipality", "Municipality");
-      setRequired("barangay", "Barangay");
-      setRequired("street", "Street name");
-      setRequired("zip_code", "Zip code");
-      setRequired("budget_range", "Budget range");
-    }
+        setRequired("municipality", "Municipality");
+        setRequired("barangay", "Barangay");
+        setRequired("street", "Street name");
+        setRequired("zip_code", "Zip code");
+        setRequired("budget_range", "Budget range");
+      }
 
-    if (form.service_type === "food") {
-      setRequired("province", "Province");
-      setRequired("municipality", "Municipality");
-      setRequired("barangay", "Barangay");
-      setRequired("street", "Street name");
+      if (form.service_type === "food") {
       setRequired("zip_code", "Zip code");
 
       if (form.delivery_method === "pickup") {
@@ -765,14 +760,6 @@ export default function QuoteWizard() {
 
                         {form.delivery_method === "delivery" && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                              <Label>Province</Label>
-                              <select className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-70 text-muted-foreground" disabled>
-                                <option value={BATANGAS_PROVINCE}>{BATANGAS_PROVINCE}</option>
-                              </select>
-                              {errors.province && <p className="text-xs text-destructive mt-1">{errors.province}</p>}
-                            </div>
-                            
                             <div className="space-y-2">
                               <Label>Municipality</Label>
                               <select
@@ -1207,14 +1194,6 @@ export default function QuoteWizard() {
                               <option value="Both">Both</option>
                             </select>
                             {errors.indoor_outdoor && <p className="text-xs text-destructive mt-1">{errors.indoor_outdoor}</p>}
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label>Province</Label>
-                            <select className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-70 text-muted-foreground" disabled>
-                              <option value={BATANGAS_PROVINCE}>{BATANGAS_PROVINCE}</option>
-                            </select>
-                            {errors.province && <p className="text-xs text-destructive mt-1">{errors.province}</p>}
                           </div>
                           
                           <div className="space-y-2">

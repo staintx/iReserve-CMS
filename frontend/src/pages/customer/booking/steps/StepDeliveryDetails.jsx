@@ -1,5 +1,4 @@
 import React from "react";
-import { BATANGAS_PROVINCE } from "../../../../utils/batangas";
 import {
   Card,
   SH,
@@ -80,15 +79,6 @@ export default function StepDeliveryDetails({
         {form.delivery_method !== "pickup" && (
           <div className="space-y-5">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <div>
-                <FL>Province</FL>
-                <TSelect
-                  value={BATANGAS_PROVINCE}
-                  onChange={() => {}}
-                  options={[BATANGAS_PROVINCE]}
-                  disabled
-                />
-              </div>
               <div>
                 <FL>Municipality</FL>
                 <TSelect

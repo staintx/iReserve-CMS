@@ -44,6 +44,17 @@ const parseNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const isValidEmail = (value) => {
+  const email = String(value || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+const isValidPhone = (value) => {
+  const digits = normalizePhone(value);
+  return /^(?:63|0)?9\d{9}$/.test(digits);
+};
+
 // -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
@@ -278,12 +289,19 @@ export default function BookingWizard() {
       message: "Please select a package to continue.",
     },
     ContactInfo: {
-      check: () =>
-        !!form.contact_first_name &&
-        !!form.contact_last_name &&
-        !!form.contact_email &&
-        !!form.contact_phone,
-      message: "Please fill in all required contact fields.",
+      check: () => {
+        const primaryPhoneValid = isValidPhone(form.contact_phone);
+        const altPhoneValid = !form.contact_alt_phone || isValidPhone(form.contact_alt_phone);
+
+        return (
+          !!String(form.contact_first_name || "").trim() &&
+          !!String(form.contact_last_name || "").trim() &&
+          isValidEmail(form.contact_email) &&
+          primaryPhoneValid &&
+          altPhoneValid
+        );
+      },
+      message: "Please fill in all required contact fields with valid information.",
     },
     ReviewBooking: {
       check: () => agreements.terms && agreements.privacy,
@@ -563,7 +581,11 @@ export default function BookingWizard() {
 
   const handleBack = () => {
     if (step === 0 || (step === 1 && !isCustomBooking)) {
-      navigate("/customer/packages");
+      if (initialPackageId) {
+        navigate(`/packages/${initialPackageId}`);
+      } else {
+        navigate("/customer/packages");
+      }
     } else {
       setStep((s) => Math.max(s - 1, 0));
       window.scrollTo({ top: 0, behavior: "smooth" });

@@ -2,7 +2,9 @@ const nodemailer = require("nodemailer");
 
 const getBrevoTransport = () => {
   const host = process.env.BREVO_SMTP_HOST;
-  const port = Number(process.env.BREVO_SMTP_PORT || 587);
+  // Render and many cloud providers block ports 25, 465, and 587 to prevent spam. 
+  // Port 2525 is typically left open for this exact reason.
+  const port = Number(process.env.BREVO_SMTP_PORT || 2525);
   const user = process.env.BREVO_SMTP_USER;
   const pass = process.env.BREVO_SMTP_PASS;
   const from = process.env.MAIL_FROM;

@@ -23,7 +23,6 @@ export default function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     setUser(data.user);
     setSessionExpired(false);
@@ -31,8 +30,12 @@ export default function AuthProvider({ children }) {
     return data.user;
   };
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("token");
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/auth/logout");
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
     localStorage.removeItem("user");
     localStorage.removeItem("booking_wizard_form");
     localStorage.removeItem("booking_wizard_step");
@@ -45,8 +48,8 @@ export default function AuthProvider({ children }) {
   // Listen for the session-expired event fired by the axios interceptor or socket handler
   useEffect(() => {
     const handleSessionExpired = () => {
-      // Only act if a user is currently logged in
-      if (localStorage.getItem("token")) {
+      // Only act if a user is currently logged in (based on our UI state)
+      if (localStorage.getItem("user")) {
         logout();
         setSessionExpired(true);
       }

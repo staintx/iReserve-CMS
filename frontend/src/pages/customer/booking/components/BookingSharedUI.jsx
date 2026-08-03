@@ -40,7 +40,7 @@ export function FL({ children }) {
   );
 }
 
-export function TInput({ value, onChange, placeholder, type = "text", icon, min, max, required }) {
+export function TInput({ value, onChange, onBlur, placeholder, type = "text", icon, min, max, required, disabled = false, hasError = false, className = "" }) {
   return (
     <div className="relative">
       {icon && <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9E9E9E] pointer-events-none">{icon}</div>}
@@ -48,13 +48,21 @@ export function TInput({ value, onChange, placeholder, type = "text", icon, min,
         type={type} 
         value={value} 
         onChange={e => onChange && onChange(e.target.value)} 
+        onBlur={onBlur}
         placeholder={placeholder}
         min={min}
         max={max}
         required={required}
+        disabled={disabled}
+        aria-invalid={hasError}
         className={cn(
-          "w-full pr-4 py-3 rounded-xl border border-black/[0.08] bg-[#F7F4EE] text-[#111] text-sm placeholder-[#9E9E9E] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37] transition-all",
-          icon ? "pl-9" : "pl-4"
+          "w-full pr-4 py-3 rounded-xl text-[#111] text-sm placeholder-[#9E9E9E] focus:outline-none transition-all",
+          hasError
+            ? "border border-red-300 bg-red-50 focus:ring-2 focus:ring-red-200 focus:border-red-400"
+            : "border border-black/[0.08] bg-[#F7F4EE] focus:ring-2 focus:ring-[#D4AF37]/50 focus:border-[#D4AF37]",
+          icon ? "pl-9" : "pl-4",
+          disabled ? "cursor-not-allowed opacity-70" : "",
+          className,
         )}
         style={{ fontFamily: "Inter, sans-serif" }} 
       />

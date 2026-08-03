@@ -276,6 +276,32 @@ export default function StepReviewBooking({
 
         {/* ============ PRICING SECTION ============ */}
         <section>
+          {/* Modification-aware summary: if original_total is provided, show additional/remaining amounts */}
+          {form.original_total && Number(form.original_total) > 0 && (
+            (() => {
+              const originalTotal = Number(form.original_total || 0);
+              const diff = totalPrice - originalTotal;
+              if (diff > 0) {
+                return (
+                  <div className="rounded-2xl p-4 mb-4 border border-emerald-100 bg-emerald-50">
+                    <p className="text-sm text-foreground font-semibold">Additional Payment Required</p>
+                    <p className="text-lg font-bold text-foreground">₱{diff.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">This reflects the increase from your previous booking total.</p>
+                  </div>
+                );
+              }
+              if (diff < 0) {
+                return (
+                  <div className="rounded-2xl p-4 mb-4 border border-blue-100 bg-blue-50">
+                    <p className="text-sm text-foreground font-semibold">Updated Remaining Balance</p>
+                    <p className="text-lg font-bold text-foreground">₱{Math.abs(diff).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">This reflects the decrease in total; your remaining balance has been adjusted.</p>
+                  </div>
+                );
+              }
+              return null;
+            })()
+          )}
           {isDelivery ? (
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 rounded-2xl bg-[#111] p-6 md:p-8 text-white shadow-md">
               <div className="text-center md:text-left">

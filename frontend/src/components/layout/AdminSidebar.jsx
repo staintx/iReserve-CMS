@@ -13,11 +13,14 @@ import {
   UtensilsCrossed, 
   LineChart, 
   Building2, 
-  TerminalSquare
+  TerminalSquare,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ConfirmDialog from "../common/ConfirmDialog";
+import NotificationBell from "../common/NotificationBell";
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
   const auth = useAuth() || {}; 
   const user = auth.user || null;
   const location = useLocation();
@@ -28,6 +31,7 @@ export default function AdminSidebar() {
   const isManager = role === "manager" || isAdmin;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   
   const [openDropdowns, setOpenDropdowns] = useState({
     finance: ["/admin/payments", "/admin/refunds"].some(p => location.pathname.includes(p)),
@@ -90,12 +94,20 @@ export default function AdminSidebar() {
   );
 
   return (
-    <aside
-      className={cn(
-        "sticky top-0 self-start flex flex-col h-screen overflow-y-auto bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0",
-        isCollapsed ? "w-20" : "w-72"
+    <>
+      {mobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
-    >
+      <aside
+        className={cn(
+          "fixed md:sticky top-0 self-start flex flex-col h-screen overflow-y-auto bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0",
+          isCollapsed ? "w-20" : "w-72",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
+      >
       <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/admin/dashboard")}>
         {!isCollapsed ? (
           <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
@@ -123,6 +135,8 @@ export default function AdminSidebar() {
 
       <nav className="flex flex-col flex-1 px-4 pt-2 pb-6 space-y-1 overflow-y-auto hide-scrollbar">
         <div className={sectionLabelClass}>Menu</div>
+        
+        <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
         
         <NavLink to="/admin/dashboard" className={linkClass}>
           <LayoutDashboard className="w-5 h-5 shrink-0" />
@@ -236,7 +250,7 @@ export default function AdminSidebar() {
 
       <div className="p-4 border-t border-border">
         {!isCollapsed ? (
-          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer">
+          <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors w-full">
             <div className="w-10 h-10 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center shrink-0">
               {initials}
             </div>
@@ -244,13 +258,40 @@ export default function AdminSidebar() {
               <div className="font-medium text-sm text-foreground truncate">{user?.full_name || "Admin"}</div>
               <div className="text-xs text-muted-foreground capitalize">{role}</div>
             </div>
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         ) : (
-          <div className="w-10 h-10 mx-auto rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center cursor-pointer hover:bg-muted">
-            {initials}
+          <div className="flex flex-col items-center gap-3 w-full">
+            <div className="w-10 h-10 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center cursor-pointer hover:bg-muted" title={user?.full_name || "Admin"}>
+              {initials}
+            </div>
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         )}
       </div>
     </aside>
+    {showLogoutConfirm && (
+      <ConfirmDialog
+        message="Are you sure you want to log out?"
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          if (auth.logout) auth.logout();
+        }}
+      />
+    )}
+    </>
   );
 }

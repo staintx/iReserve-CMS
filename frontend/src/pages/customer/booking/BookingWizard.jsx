@@ -162,6 +162,9 @@ export default function BookingWizard() {
   const guestMin = isCustomBooking ? 1 : initialGuestMin || 1;
   const guestMax = isCustomBooking ? 1000 : initialGuestMax || 500;
 
+  // Payment option: 'deposit' or 'full'
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState("deposit");
+
   // --- Memoized values ---
   const minDateObj = new Date();
   minDateObj.setDate(minDateObj.getDate() + MIN_DATE_OFFSET_DAYS);
@@ -593,7 +596,7 @@ export default function BookingWizard() {
   };
 
   // --- Submit booking ---
-  const submitBooking = async (paymentMethod) => {
+  const submitBooking = async (paymentMethod, paymentOption = "deposit") => {
     if (isSubmitting) return;
     setError("");
     try {
@@ -620,6 +623,7 @@ export default function BookingWizard() {
         duration_hours: parseNumber(form.duration_hours) || 4,
         total_price: totalPrice,
         payment_method: paymentMethod,
+        payment_type: paymentOption === "full" ? "full" : "deposit",
         inventory_items: form.additional_services,
         service_items: form.selected_package_addons,
         delivery_method: isFoodOnly ? form.delivery_method : "setup",
@@ -763,6 +767,9 @@ export default function BookingWizard() {
             totalPrice={totalPrice}
             depositAmount={depositAmount}
             onNext={handleNext}
+            depositPercentage={depositPercentage}
+            selectedPaymentOption={selectedPaymentOption}
+            setSelectedPaymentOption={setSelectedPaymentOption}
           />
         );
       case "DietaryNeeds":
@@ -773,6 +780,9 @@ export default function BookingWizard() {
             totalPrice={totalPrice}
             depositAmount={depositAmount}
             onNext={handleNext}
+            depositPercentage={depositPercentage}
+            selectedPaymentOption={selectedPaymentOption}
+            setSelectedPaymentOption={setSelectedPaymentOption}
           />
         );
       case "EquipmentSelection":
@@ -815,6 +825,8 @@ export default function BookingWizard() {
             isFoodOnly={isFoodOnly}
             isSubmitting={isSubmitting}
             onSubmit={submitBooking}
+            selectedPaymentOption={selectedPaymentOption}
+            setSelectedPaymentOption={setSelectedPaymentOption}
             onBack={handleBack}
             error={error}
           />

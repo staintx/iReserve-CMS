@@ -228,6 +228,12 @@ exports.forgotPassword = async (req, res, next) => {
       return res.json({ message: "If that email address is in our database, we will send you an email to reset your password." });
     }
 
+    // Prevent spam by ensuring a user can only request one reset link every 2 minutes.
+    // Since we set expiry to 60 mins in the future, > 58 mins means it was requested < 2 mins ago.
+    if (user.reset_password_expires && user.reset_password_expires.getTime() > Date.now() + 58 * 60 * 1000) {
+      return res.status(429).json({ message: "Please wait a couple of minutes before requesting another reset link." });
+    }
+
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = hashToken(rawToken);
 

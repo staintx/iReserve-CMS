@@ -10,6 +10,9 @@ exports.protect = async (req, res, next) => {
     req.user = await User.findById(decoded.id).select("-password");
     next();
   } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired", code: "TOKEN_EXPIRED" });
+    }
     res.status(401).json({ message: "Invalid token" });
   }
 };
@@ -28,4 +31,4 @@ exports.optionalProtect = async (req, res, next) => {
   }
 
   next();
-};
+};

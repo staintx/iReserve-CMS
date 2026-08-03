@@ -1,15 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useAuth from "../../hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import logo from "../../assets/images/logo.jpg";
 import AuthLoginForm from "../../components/forms/AuthLoginForm";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, clearSessionExpired } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  const showSessionExpired = location.state?.sessionExpired;
+
+  // Clear the sessionExpired flag in context once the login page mounts
+  useEffect(() => {
+    if (showSessionExpired) {
+      clearSessionExpired();
+    }
+  }, [showSessionExpired, clearSessionExpired]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -54,6 +64,11 @@ export default function Login() {
       </div>
       <div className="auth-right">
         <div className="auth-card surface p-10">
+          {showSessionExpired && (
+            <div className="session-expired-banner">
+              Your session has expired. Please log in again.
+            </div>
+          )}
           <AuthLoginForm
             email={email}
             password={password}
@@ -67,4 +82,4 @@ export default function Login() {
       </div>
     </div>
   );
-}
+}

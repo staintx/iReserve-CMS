@@ -12,6 +12,14 @@ export const getSocket = () => {
     transports: ["websocket"],
     auth: { token }
   });
+
+  // Auto-logout when the server rejects the socket due to an expired JWT
+  socket.on("connect_error", (err) => {
+    if (err.message === "TOKEN_EXPIRED") {
+      window.dispatchEvent(new CustomEvent("session-expired"));
+    }
+  });
+
   return socket;
 };
 

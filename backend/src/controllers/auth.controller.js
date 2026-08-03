@@ -103,7 +103,7 @@ exports.login = async (req, res, next) => {
       return res.status(403).json({ message: "Account is disabled" });
     }
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "1d" });
     res.json({ token, user: sanitizeUser(user) });
   } catch (err) {
     next(err);

@@ -98,6 +98,9 @@ io.use(async (socket, next) => {
 		socket.data.user = user;
 		return next();
 	} catch (err) {
+		if (err.name === "TokenExpiredError") {
+			return next(new Error("TOKEN_EXPIRED"));
+		}
 		return next(new Error("Invalid token"));
 	}
 });

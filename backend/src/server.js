@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/error.middleware");
+const { verifyEmailConnection } = require("./utils/email");
 const User = require("./models/User");
 const Conversation = require("./models/Conversation");
 const { canAccessConversation } = require("./utils/chatAccess");
@@ -137,4 +138,8 @@ io.on("connection", (socket) => {
 	});
 });
 
-server.listen(PORT, () => console.log(` Server on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(` Server on port ${PORT}`);
+  // Verify SMTP connection on startup so issues appear in deploy logs
+  verifyEmailConnection();
+});

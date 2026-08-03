@@ -4,8 +4,9 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { sendEmail } = require("../utils/email");
 
-const buildVerifyLink = (token) => {
-  const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+const buildVerifyLink = (req, token) => {
+  const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
+  const baseUrl = process.env.FRONTEND_URL || origin || "http://localhost:5173";
   return `${baseUrl}/verify-email?token=${token}`;
 };
 
@@ -50,7 +51,7 @@ exports.register = async (req, res, next) => {
       email_otp_expires: new Date(Date.now() + 10 * 60 * 1000)
     });
 
-    const verifyLink = buildVerifyLink(rawToken);
+    const verifyLink = buildVerifyLink(req, rawToken);
     let emailSent = true;
 
     try {
@@ -212,8 +213,9 @@ exports.resendOtp = async (req, res, next) => {
   }
 };
 
-const buildResetLink = (token) => {
-  const baseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+const buildResetLink = (req, token) => {
+  const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
+  const baseUrl = process.env.FRONTEND_URL || origin || "http://localhost:5173";
   return `${baseUrl}/reset-password?token=${token}`;
 };
 
@@ -233,7 +235,7 @@ exports.forgotPassword = async (req, res, next) => {
     user.reset_password_expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await user.save();
 
-    const resetLink = buildResetLink(rawToken);
+    const resetLink = buildResetLink(req, rawToken);
 
     try {
       await sendEmail({

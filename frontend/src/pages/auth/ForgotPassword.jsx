@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { CustomerAPI } from "../../api/customer";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import AuthForgotPasswordForm from "../../components/forms/AuthForgotPasswordForm";
 import logo from "../../assets/images/logo.jpg";
 import useToast from "../../hooks/useToast";
+import { MailCheck } from "lucide-react";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
-  const navigate = useNavigate();
+  const [isSent, setIsSent] = useState(false);
   const { notify } = useToast();
 
   const submit = async (e) => {
@@ -17,7 +18,7 @@ export default function ForgotPassword() {
     try {
       await CustomerAPI.forgotPassword({ email });
       notify("Reset link sent. Check your email.", "success");
-      navigate("/forgot-password/sent");
+      setIsSent(true);
     } catch (err) {
       const message = err.response?.data?.message || "We could not send the reset link. Please try again.";
       setError(message);
@@ -43,15 +44,28 @@ export default function ForgotPassword() {
         </div>
       </div>
 
-      <div className="auth-right">
-        <div className="auth-card surface p-10">
-          <AuthForgotPasswordForm
-            email={email}
-            error={error}
-            onEmailChange={(e) => setEmail(e.target.value)}
-            onSubmit={submit}
-          />
-        </div>
+      <div className="bg-white auth-right">
+        {isSent ? (
+          <div className="flex flex-col items-center text-center p-10 auth-card surface">
+            <div className="flex items-center justify-center w-16 h-16 mb-6 text-green-600 bg-green-100 rounded-full">
+              <MailCheck size={32} />
+            </div>
+            <h1 className="mb-2 text-2xl font-semibold">Check your inbox!</h1>
+            <p className="mb-8 text-gray-500">We sent a password reset link. It expires in 15 minutes.</p>
+            <Link to="/login" className="w-full text-center text-sm font-medium text-[var(--primary)] hover:underline mt-4 inline-block">
+              Back to login
+            </Link>
+          </div>
+        ) : (
+          <div className="p-10 auth-card surface">
+            <AuthForgotPasswordForm
+              email={email}
+              error={error}
+              onEmailChange={(e) => setEmail(e.target.value)}
+              onSubmit={submit}
+            />
+          </div>
+        )}
         <div className="auth-footer">© 2026 Caezelle's Food, Catering & Services. All rights reserved.</div>
       </div>
     </div>

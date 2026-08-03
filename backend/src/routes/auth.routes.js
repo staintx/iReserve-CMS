@@ -5,6 +5,7 @@ const { registerSchema, loginSchema, verifyOtpSchema, resendOtpSchema, forgotPas
 
 router.post("/register", validate(registerSchema), authCtrl.register);
 router.post("/login", validate(loginSchema), authCtrl.login);
+router.post("/logout", authCtrl.logout);
 router.get("/verify-email", authCtrl.verifyEmail);
 router.post("/verify-otp", validate(verifyOtpSchema), authCtrl.verifyOtp);
 router.post("/resend-otp", validate(resendOtpSchema), authCtrl.resendOtp);

@@ -2,9 +2,9 @@ import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
-export default function AuthForgotPasswordForm({ email, error, onEmailChange, onSubmit }) {
+export default function AuthForgotPasswordForm({ email, error, isLoading, onEmailChange, onSubmit }) {
   return (
     <div className="w-full max-w-md mx-auto space-y-8">
       <div className="text-center sm:text-left">
@@ -20,6 +20,7 @@ export default function AuthForgotPasswordForm({ email, error, onEmailChange, on
             value={email} 
             onChange={onEmailChange} 
             className="h-12"
+            disabled={isLoading}
           />
         </div>
 
@@ -29,8 +30,15 @@ export default function AuthForgotPasswordForm({ email, error, onEmailChange, on
           </div>
         )}
 
-        <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit">
-          Send reset link
+        <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            "Send reset link"
+          )}
         </Button>
 
         <div className="text-center text-sm text-muted-foreground pt-4 flex items-center justify-center gap-1">

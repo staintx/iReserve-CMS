@@ -35,6 +35,7 @@ const quoteRoutes = require("./routes/quote.routes");
 const messageRoutes = require("./routes/message.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const blockedDateRoutes = require("./routes/blockedDate.routes");
+const addonRoutes = require("./routes/addonRoutes");
 const startCronJobs = require("./jobs/cron");
 
 connectDB();
@@ -74,6 +75,7 @@ app.use("/api/quotes", quoteRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/blocked-dates", blockedDateRoutes);
+app.use("/api/addons", addonRoutes);
 
 app.use(errorHandler);
 

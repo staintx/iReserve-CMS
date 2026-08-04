@@ -216,6 +216,7 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
                   <NavLink to="/admin/packages" className={subLinkClass}>Packages</NavLink>
                   <NavLink to="/admin/menu" className={subLinkClass}>Food Menu</NavLink>
                   <NavLink to="/admin/gallery" className={subLinkClass}>Gallery</NavLink>
+                  <NavLink to="/admin/addons" className={subLinkClass}>Addons</NavLink>
                   <NavLink to="/admin/inventory" className={subLinkClass}>Inventory</NavLink>
                 </div>
               )}

@@ -23,7 +23,7 @@ import StepDietaryNeeds from "./steps/StepDietaryNeeds";
 import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
 import StepPayment from "./steps/StepPayment";
-import StepEquipmentSelection from "./steps/StepEquipmentSelection";
+import StepAddonSelection from "./steps/StepAddonSelection";
 import StepPackageSelection from "./steps/StepPackageSelection";
 import StepPackageAddOns from "./steps/StepPackageAddOns";
 
@@ -142,7 +142,7 @@ export default function BookingWizard() {
   });
 
   const [menuItems, setMenuItems] = useState([]);
-  const [inventoryItems, setInventoryItems] = useState([]);
+  const [addons, setAddons] = useState([]);
   const [packages, setPackages] = useState([]);
   const [error, setError] = useState("");
   const [availability, setAvailability] = useState({
@@ -217,9 +217,9 @@ export default function BookingWizard() {
         key: "dietary",
       });
       steps.push({
-        id: "EquipmentSelection",
-        label: "Equipment",
-        key: "equipment",
+        id: "AddonSelection",
+        label: "Addons",
+        key: "addons",
       });
     } else {
       // Standard Package
@@ -279,7 +279,7 @@ export default function BookingWizard() {
       check: () => true,
       message: "",
     },
-    EquipmentSelection: {
+    AddonSelection: {
       check: () => true,
       message: "",
     },
@@ -348,12 +348,12 @@ export default function BookingWizard() {
   }, []);
 
   useEffect(() => {
-    CustomerAPI.getInventory()
+    CustomerAPI.getAddons()
       .then((res) => {
         const next = Array.isArray(res.data) ? res.data : [];
-        setInventoryItems(
+        setAddons(
           next.filter(
-            (item) => item?.status === "available" || item?.available !== false,
+            (item) => item?.available !== false,
           ),
         );
       })
@@ -624,8 +624,7 @@ export default function BookingWizard() {
         total_price: totalPrice,
         payment_method: paymentMethod,
         payment_type: paymentOption === "full" ? "full" : "deposit",
-        inventory_items: form.additional_services,
-        service_items: form.selected_package_addons,
+        service_items: [...(form.selected_package_addons || []), ...(form.additional_services || [])],
         delivery_method: isFoodOnly ? form.delivery_method : "setup",
         selected_menu: form.selected_menu
           ? form.selected_menu.map((m) => m._id || m)
@@ -785,12 +784,12 @@ export default function BookingWizard() {
             setSelectedPaymentOption={setSelectedPaymentOption}
           />
         );
-      case "EquipmentSelection":
+      case "AddonSelection":
         return (
-          <StepEquipmentSelection
+          <StepAddonSelection
             form={form}
             setForm={setForm}
-            inventoryItems={inventoryItems}
+            addons={addons}
           />
         );
       case "PackageAddOns":

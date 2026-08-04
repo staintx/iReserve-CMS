@@ -3,7 +3,7 @@ import { PackageOpen, Info, Plus, Minus } from "lucide-react";
 import { Card, SH, FL } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 
-export default function StepEquipmentSelection({ form, setForm, inventoryItems }) {
+export default function StepAddonSelection({ form, setForm, addons }) {
   const getSelectedQuantity = (itemId) => {
     const found = form.additional_services.find(s => s.item_id === itemId);
     return found ? found.quantity : 0;
@@ -24,8 +24,8 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
       } else if (delta > 0) {
         existingServices.push({
           item_id: item._id,
-          name: item.item_name,
-          price: item.rental_price,
+          name: item.name,
+          price: item.price,
           quantity: delta
         });
       }
@@ -59,14 +59,14 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-6">
-      <SH title="Equipment & Decor" sub="Select the equipment and add-on services you need for your event." />
+      <SH title="Addons" sub="Select the addons you need for your event." />
 
       <Card className="p-6">
-        {inventoryItems && inventoryItems.length > 0 ? (
+        {addons && addons.length > 0 ? (
           <div className="mb-8">
-            <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2 text-sm uppercase tracking-wider">Available Equipment</h3>
+            <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2 text-sm uppercase tracking-wider">Available Addons</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {inventoryItems.map((item) => {
+              {addons.map((item) => {
                 const qty = getSelectedQuantity(item._id);
                 return (
                   <div 
@@ -78,8 +78,8 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h4 className="font-semibold text-[#111]">{item.item_name}</h4>
-                        <p className="text-sm text-[#6B6657]">₱{item.rental_price?.toLocaleString() || 0} / unit</p>
+                        <h4 className="font-semibold text-[#111]">{item.name}</h4>
+                        <p className="text-sm text-[#6B6657]">₱{item.price?.toLocaleString() || 0} / unit</p>
                       </div>
                       <PackageOpen className={cn("w-5 h-5", qty > 0 ? "text-[#D4AF37]" : "text-[#9E9E9E]")} />
                     </div>
@@ -113,7 +113,7 @@ export default function StepEquipmentSelection({ form, setForm, inventoryItems }
         ) : (
           <div className="rounded-xl border border-dashed border-black/20 p-8 text-center text-[#9E9E9E] mb-8">
             <Info className="mx-auto mb-2 h-6 w-6 opacity-50" />
-            <p>No equipment inventory currently available.</p>
+            <p>No addons currently available.</p>
           </div>
         )}
 

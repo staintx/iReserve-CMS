@@ -9,6 +9,7 @@ export const CustomerAPI = {
   getGallery: () => api.get("/gallery"),
   getRatings: () => api.get("/ratings/public"),
   getBusinessInfo: () => api.get("/business-info/public"),
+  getAddons: () => api.get("/addons"),
 
   // auth
   register: (data) => api.post("/auth/register", data),

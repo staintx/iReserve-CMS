@@ -47,6 +47,7 @@ import AdminAuditLogs from "../pages/admin/AdminAuditLogs";
 import AdminBookingDetails from "../pages/admin/AdminBookingDetails";
 import AdminProfile from "../pages/admin/AdminProfile";
 import AdminOcular from "../pages/admin/AdminOcular";
+import AdminGallery from "../pages/admin/AdminGallery";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
@@ -127,6 +128,7 @@ export default function AppRoutes() {
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
         <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
         <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMenu /></ProtectedRoute>} />
+        <Route path="/admin/gallery" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminGallery /></ProtectedRoute>} />
         <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
         <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />

@@ -11,7 +11,7 @@ import {
 } from "../../../utils/batangas";
 import Modal from "../../../components/common/Modal";
 import { Button } from "../../../components/ui/button";
-import { GoldBtn } from "./components/BookingSharedUI";
+import { PrimaryBtn } from "./components/BookingSharedUI";
 // Step Components
 import BookingStepper from "./components/BookingStepper";
 import StepServiceType from "./steps/StepServiceType";
@@ -847,22 +847,22 @@ export default function BookingWizard() {
 
         <div className="mb-6">{renderStep()}</div>
 
-        <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-black/10 pt-6">
-          <GoldBtn variant="ghost" onClick={handleBack}>
+        <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-[#E2E8F0] pt-6">
+          <PrimaryBtn variant="ghost" onClick={handleBack}>
             Back
-          </GoldBtn>
+          </PrimaryBtn>
           {currentStepId !== "Payment" &&
             !["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(
               currentStepId,
             ) &&
             !(currentStepId === "DateTime" && requireAvailabilityCheck) && (
-              <GoldBtn
+              <PrimaryBtn
                 variant="primary"
                 onClick={handleNext}
                 className="w-full sm:w-auto"
               >
                 Continue
-              </GoldBtn>
+              </PrimaryBtn>
             )}
         </div>
       </div>

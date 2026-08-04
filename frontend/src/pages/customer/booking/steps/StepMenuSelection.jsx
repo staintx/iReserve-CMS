@@ -46,8 +46,8 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                 className={cn(
                   "rounded-full px-4 py-2 text-sm transition-all font-medium",
                   activeCategory === cat 
-                    ? "bg-[#D4AF37] text-[#111] shadow-sm" 
-                    : "border border-black/[0.08] bg-white text-[#6B6657] hover:border-[#D4AF37]/40 hover:text-[#111]"
+                    ? "bg-[#4C81E0] text-white shadow-sm" 
+                    : "border border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#4C81E0]/40 hover:text-[#1E293B]"
                 )}
                 onClick={() => setActiveCategory(cat)}
               >
@@ -62,15 +62,15 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                 key={item._id} 
                 className={cn(
                   "flex flex-col overflow-hidden rounded-2xl border-2 transition-all cursor-pointer",
-                  isSelected(item._id) ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-black/[0.08] hover:border-[#D4AF37]/40 bg-white"
+                  isSelected(item._id) ? "border-[#4C81E0] bg-[#4C81E0]/5" : "border-[#E2E8F0] hover:border-[#4C81E0]/40 bg-white"
                 )}
                 onClick={() => toggleSelection(item)}
               >
                 {item.image_url && (
-                  <div className="relative h-32 w-full bg-[#F7F4EE]">
+                  <div className="relative h-32 w-full bg-[#F8FAFC]">
                     <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
                     {isSelected(item._id) && (
-                      <div className="absolute right-2 top-2 rounded-full bg-[#D4AF37] p-1 text-[#111] shadow-sm">
+                      <div className="absolute right-2 top-2 rounded-full bg-[#4C81E0] p-1 text-white shadow-sm">
                         <Check size={16} strokeWidth={3} />
                       </div>
                     )}
@@ -78,11 +78,11 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                 )}
                 <div className="flex flex-1 flex-col justify-between p-4">
                   <div>
-                    <h4 className="font-semibold text-[#111]">{item.name}</h4>
-                    <p className="mb-3 mt-1 line-clamp-2 text-xs text-[#6B6657]">{item.description}</p>
+                    <h4 className="font-semibold text-[#1E293B]">{item.name}</h4>
+                    <p className="mb-3 mt-1 line-clamp-2 text-xs text-[#64748B]">{item.description}</p>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[#D4AF37]">
+                    <span className="text-sm font-semibold text-[#4C81E0]">
                       {item.price ? `₱${item.price.toLocaleString()}/pax` : "Included"}
                     </span>
                     <button
@@ -90,8 +90,8 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                       className={cn(
                         "rounded-full px-3 py-1.5 text-xs font-medium transition-all",
                         isSelected(item._id) 
-                          ? "bg-[#111] text-white" 
-                          : "bg-[#F7F4EE] text-[#6B6657] hover:bg-[#D4AF37]/20 hover:text-[#111]"
+                          ? "bg-[#1E293B] text-white" 
+                          : "bg-[#F8FAFC] text-[#64748B] hover:bg-[#4C81E0]/20 hover:text-[#1E293B]"
                       )}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -106,17 +106,17 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
             ))}
             
             {displayedItems.length === 0 && (
-              <div className="col-span-2 py-8 text-center text-[#9E9E9E]">
+              <div className="col-span-2 py-8 text-center text-[#94A3B8]">
                 No menu items found for this category.
               </div>
             )}
           </div>
 
-          <div className="border-t border-black/10 pt-6">
+          <div className="border-t border-[#E2E8F0] pt-6">
             <label className="mb-3 flex cursor-pointer items-center gap-2">
               <input 
                 type="checkbox" 
-                className="h-4 w-4 rounded border-black/20 text-[#D4AF37] focus:ring-[#D4AF37]"
+                className="h-4 w-4 rounded border-[#CBD5E1] text-[#4C81E0] focus:ring-[#4C81E0]"
                 checked={!!form.special_requests}
                 onChange={(e) => {
                   if (!e.target.checked) {
@@ -126,7 +126,7 @@ export default function StepMenuSelection({ form, setForm, menuItems, totalPrice
                   }
                 }}
               />
-              <span className="font-medium text-[#111] text-sm">Other Menu Requests</span>
+              <span className="font-medium text-[#1E293B] text-sm">Other Menu Requests</span>
             </label>
             
             {form.special_requests !== "" && (

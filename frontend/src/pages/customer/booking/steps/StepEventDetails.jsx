@@ -43,9 +43,9 @@ export default function StepEventDetails({
       <SH title="Event Details" sub="Tell us more about your event and requirements." />
       
       {!isCustomBooking && selectedPackageName && (
-        <div className="rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 p-4 text-sm mb-6">
-          <span className="font-medium text-[#D4AF37]">Selected Package:</span>{" "}
-          <span className="font-bold text-[#111]">{selectedPackageName}</span>
+        <div className="rounded-xl bg-[#4C81E0]/10 border border-[#4C81E0]/20 p-4 text-sm mb-6">
+          <span className="font-medium text-[#4C81E0]">Selected Package:</span>{" "}
+          <span className="font-bold text-[#1E293B]">{selectedPackageName}</span>
         </div>
       )}
 
@@ -90,7 +90,7 @@ export default function StepEventDetails({
                 value={form.event_theme}
                 onChange={(val) => setForm({ ...form, event_theme: val })}
               />
-              <p className="text-xs text-[#9E9E9E] mt-2">
+              <p className="text-xs text-[#94A3B8] mt-2">
                 Enter theme name and pick a primary color.
               </p>
             </div>
@@ -99,7 +99,7 @@ export default function StepEventDetails({
               <FL>Estimated Guest Count *</FL>
               <div className="flex flex-col gap-2">
                 <GuestCounter value={currentCount} onChange={handleGuestChange} min={guestMin} max={guestMax} />
-                <p className="text-xs text-[#9E9E9E]">
+                <p className="text-xs text-[#94A3B8]">
                   {guestMin} – {guestMax} guests
                 </p>
               </div>
@@ -111,7 +111,7 @@ export default function StepEventDetails({
         <div className="space-y-6">
           <Card className="p-6 space-y-5">
             <div>
-              <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2">Venue Location</h3>
+              <h3 className="font-semibold text-[#1E293B] mb-4 border-b border-[#E2E8F0] pb-2">Venue Location</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

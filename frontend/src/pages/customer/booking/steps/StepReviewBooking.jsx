@@ -62,32 +62,32 @@ export default function StepReviewBooking({
       />
 
       {/* Main Content Card */}
-      <div className="bg-white rounded-2xl border border-black/[0.08] p-6 sm:p-8 shadow-sm space-y-8">
+      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 shadow-sm space-y-8">
         {/* ============ EVENT DETAILS SECTION ============ */}
         <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#111] mb-5">
-            <Calendar size={16} className="text-[#D4AF37]" />
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1E293B] mb-5">
+            <Calendar size={16} className="text-[#4C81E0]" />
             Event Information
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Package Name */}
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <Package size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <Package size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Package</p>
-                <p className="text-sm font-semibold text-[#111] truncate">
+                <p className="text-xs text-[#64748B]">Package</p>
+                <p className="text-sm font-semibold text-[#1E293B] truncate">
                   {initialPackageName || "Custom Package"}
                 </p>
               </div>
             </div>
 
             {/* Event Type */}
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <Tag size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <Tag size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Event Type</p>
-                <p className="text-sm font-semibold text-[#111]">
+                <p className="text-xs text-[#64748B]">Event Type</p>
+                <p className="text-sm font-semibold text-[#1E293B]">
                   {form.event_type === "Other"
                     ? form.event_type_other
                     : form.event_type || "-"}
@@ -96,48 +96,48 @@ export default function StepReviewBooking({
             </div>
 
             {/* Date */}
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <Calendar size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <Calendar size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Date</p>
-                <p className="text-sm font-semibold text-[#111]">
+                <p className="text-xs text-[#64748B]">Date</p>
+                <p className="text-sm font-semibold text-[#1E293B]">
                   {formatDate(form.event_date)}
                 </p>
               </div>
             </div>
 
             {/* Time */}
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <Clock size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <Clock size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Time</p>
-                <p className="text-sm font-semibold text-[#111]">
+                <p className="text-xs text-[#64748B]">Time</p>
+                <p className="text-sm font-semibold text-[#1E293B]">
                   {formatTime(form.start_time)}
                 </p>
               </div>
             </div>
 
             {/* Guests */}
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <Users size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <Users size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Guests</p>
-                <p className="text-sm font-semibold text-[#111]">
+                <p className="text-xs text-[#64748B]">Guests</p>
+                <p className="text-sm font-semibold text-[#1E293B]">
                   {guestCount} pax
                 </p>
               </div>
             </div>
 
             {/* Delivery Method */}
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
               {isDelivery ? (
                 <Truck size={16} className="text-blue-600 flex-shrink-0" />
               ) : (
                 <Store size={16} className="text-purple-600 flex-shrink-0" />
               )}
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Delivery Method</p>
-                <p className="text-sm font-semibold text-[#111]">
+                <p className="text-xs text-[#64748B]">Delivery Method</p>
+                <p className="text-sm font-semibold text-[#1E293B]">
                   {isDelivery ? "Delivery" : "Pickup"}
                 </p>
               </div>
@@ -147,24 +147,24 @@ export default function StepReviewBooking({
 
         {/* ============ LOCATION SECTION ============ */}
         <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#111] mb-5">
-            <MapPin size={16} className="text-[#D4AF37]" />
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1E293B] mb-5">
+            <MapPin size={16} className="text-[#4C81E0]" />
             {isDelivery ? "Delivery Address" : "Pickup Location"}
           </h3>
 
-          <div className="bg-[#F7F4EE]/50 rounded-lg p-5 space-y-3">
+          <div className="bg-[#F8FAFC]/50 rounded-lg p-5 space-y-3">
             {isDelivery ? (
               <>
                 <div className="flex items-start gap-3">
                   <MapPin
                     size={16}
-                    className="text-[#D4AF37] flex-shrink-0 mt-0.5"
+                    className="text-[#4C81E0] flex-shrink-0 mt-0.5"
                   />
                   <div>
-                    <p className="text-xs text-[#6B6657] mb-0.5">
+                    <p className="text-xs text-[#64748B] mb-0.5">
                       Complete Address
                     </p>
-                    <p className="text-sm font-semibold text-[#111]">
+                    <p className="text-sm font-semibold text-[#1E293B]">
                       {form.street && `${form.street}, `}
                       {form.barangay}, {form.municipality}, {form.province}
                     </p>
@@ -174,11 +174,11 @@ export default function StepReviewBooking({
                   <div className="flex items-start gap-3">
                     <MapPin
                       size={16}
-                      className="text-[#D4AF37] flex-shrink-0 mt-0.5 opacity-0"
+                      className="text-[#4C81E0] flex-shrink-0 mt-0.5 opacity-0"
                     />
                     <div>
-                      <p className="text-xs text-[#6B6657] mb-0.5">Landmark</p>
-                      <p className="text-sm font-semibold text-[#111]">
+                      <p className="text-xs text-[#64748B] mb-0.5">Landmark</p>
+                      <p className="text-sm font-semibold text-[#1E293B]">
                         {form.landmark}
                       </p>
                     </div>
@@ -188,13 +188,13 @@ export default function StepReviewBooking({
                   <div className="flex items-start gap-3">
                     <MapPin
                       size={16}
-                      className="text-[#D4AF37] flex-shrink-0 mt-0.5 opacity-0"
+                      className="text-[#4C81E0] flex-shrink-0 mt-0.5 opacity-0"
                     />
                     <div>
-                      <p className="text-xs text-[#6B6657] mb-0.5">
+                      <p className="text-xs text-[#64748B] mb-0.5">
                         Venue Type
                       </p>
-                      <p className="text-sm font-semibold text-[#111]">
+                      <p className="text-sm font-semibold text-[#1E293B]">
                         {form.venue_type}
                       </p>
                     </div>
@@ -208,10 +208,10 @@ export default function StepReviewBooking({
                   className="text-purple-600 flex-shrink-0 mt-0.5"
                 />
                 <div>
-                  <p className="text-xs text-[#6B6657] mb-0.5">
+                  <p className="text-xs text-[#64748B] mb-0.5">
                     Pickup Location
                   </p>
-                  <p className="text-sm font-semibold text-[#111]">
+                  <p className="text-sm font-semibold text-[#1E293B]">
                     {pickupAddress || "Caterer's address"}
                   </p>
                 </div>
@@ -222,36 +222,36 @@ export default function StepReviewBooking({
 
         {/* ============ CONTACT PERSON SECTION ============ */}
         <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#111] mb-5">
-            <User size={16} className="text-[#D4AF37]" />
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1E293B] mb-5">
+            <User size={16} className="text-[#4C81E0]" />
             Contact Person
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <User size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <User size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Name</p>
-                <p className="text-sm font-semibold text-[#111] truncate">
+                <p className="text-xs text-[#64748B]">Name</p>
+                <p className="text-sm font-semibold text-[#1E293B] truncate">
                   {form.contact_first_name} {form.contact_last_name}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3">
-              <Phone size={16} className="text-[#D4AF37] flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
+              <Phone size={16} className="text-[#4C81E0] flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-[#6B6657]">Phone</p>
-                <p className="text-sm font-semibold text-[#111]">
+                <p className="text-xs text-[#64748B]">Phone</p>
+                <p className="text-sm font-semibold text-[#1E293B]">
                   {form.contact_phone}
                 </p>
               </div>
             </div>
 
             {form.contact_email && (
-              <div className="flex items-center gap-3 bg-[#F7F4EE]/50 rounded-lg px-4 py-3 sm:col-span-2">
+              <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3 sm:col-span-2">
                 <svg
-                  className="w-4 h-4 text-[#D4AF37] flex-shrink-0"
+                  className="w-4 h-4 text-[#4C81E0] flex-shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -264,8 +264,8 @@ export default function StepReviewBooking({
                   />
                 </svg>
                 <div className="min-w-0">
-                  <p className="text-xs text-[#6B6657]">Email</p>
-                  <p className="text-sm font-semibold text-[#111] truncate">
+                  <p className="text-xs text-[#64748B]">Email</p>
+                  <p className="text-sm font-semibold text-[#1E293B] truncate">
                     {form.contact_email}
                   </p>
                 </div>
@@ -303,13 +303,13 @@ export default function StepReviewBooking({
             })()
           )}
           {isDelivery ? (
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 rounded-2xl bg-[#111] p-6 md:p-8 text-white shadow-md">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 rounded-2xl bg-[#1E293B] p-6 md:p-8 text-white shadow-md">
               <div className="text-center md:text-left">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#F7F4EE]/60">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#F8FAFC]/60">
                   Total Package Price
                 </p>
                 <p
-                  className="text-3xl md:text-4xl text-[#F7F4EE]"
+                  className="text-3xl md:text-4xl text-[#F8FAFC]"
                   style={{ fontFamily: "Playfair Display, serif" }}
                 >
                   ₱{totalPrice.toLocaleString()}
@@ -319,35 +319,35 @@ export default function StepReviewBooking({
               <div className="hidden md:block h-16 w-px bg-white/10"></div>
 
               <div className="text-center md:text-right">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#D4AF37]">
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#4C81E0]">
                   Required Deposit (
                   {Math.round((depositAmount / totalPrice) * 100)}%)
                 </p>
                 <p
-                  className="text-2xl md:text-3xl font-bold text-[#F7F4EE]"
+                  className="text-2xl md:text-3xl font-bold text-[#F8FAFC]"
                   style={{ fontFamily: "Playfair Display, serif" }}
                 >
                   ₱{depositAmount.toLocaleString()}
                 </p>
-                <p className="mt-2 text-[10px] font-medium text-[#F7F4EE]/60 uppercase tracking-wider">
+                <p className="mt-2 text-[10px] font-medium text-[#F8FAFC]/60 uppercase tracking-wider">
                   Secured payment via PayMongo
                 </p>
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl bg-[#111] p-6 md:p-8 text-white shadow-md text-center">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#F7F4EE]/60">
+            <div className="rounded-2xl bg-[#1E293B] p-6 md:p-8 text-white shadow-md text-center">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#F8FAFC]/60">
                 Total Package Price
               </p>
               <p
-                className="text-3xl md:text-4xl text-[#F7F4EE]"
+                className="text-3xl md:text-4xl text-[#F8FAFC]"
                 style={{ fontFamily: "Playfair Display, serif" }}
               >
                 ₱{totalPrice.toLocaleString()}
               </p>
               <div className="mt-4 inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <p className="text-sm text-[#F7F4EE]/80">
+                <p className="text-sm text-[#F8FAFC]/80">
                   Pay the full amount when you pick up your order
                 </p>
               </div>
@@ -357,10 +357,10 @@ export default function StepReviewBooking({
 
         {/* ============ AGREEMENTS SECTION ============ */}
         <section>
-          <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 p-4 mb-4">
+          <div className="rounded-xl border border-[#4C81E0]/20 bg-[#4C81E0]/5 p-4 mb-4">
             <div className="flex gap-3">
-              <Info className="h-5 w-5 flex-shrink-0 text-[#D4AF37] mt-0.5" />
-              <p className="text-sm text-[#6B6657] leading-relaxed">
+              <Info className="h-5 w-5 flex-shrink-0 text-[#4C81E0] mt-0.5" />
+              <p className="text-sm text-[#64748B] leading-relaxed">
                 {isDelivery
                   ? "Please review our terms and privacy policy before continuing. By proceeding, you acknowledge that deposits are non-refundable."
                   : "Please review our terms and privacy policy before continuing. By proceeding, you agree to pay the full amount upon pickup."}
@@ -369,16 +369,16 @@ export default function StepReviewBooking({
           </div>
 
           <div className="space-y-4">
-            <label className="flex items-start gap-3 cursor-pointer group p-3 rounded-lg hover:bg-[#F7F4EE]/30 transition-colors">
+            <label className="flex items-start gap-3 cursor-pointer group p-3 rounded-lg hover:bg-[#F8FAFC]/30 transition-colors">
               <input
                 type="checkbox"
-                className="mt-0.5 h-5 w-5 rounded border-black/20 text-[#D4AF37] focus:ring-[#D4AF37] transition-colors cursor-pointer"
+                className="mt-0.5 h-5 w-5 rounded border-[#CBD5E1] text-[#4C81E0] focus:ring-[#4C81E0] transition-colors cursor-pointer"
                 checked={agreements.terms}
                 onChange={(e) =>
                   setAgreements({ ...agreements, terms: e.target.checked })
                 }
               />
-              <span className="text-sm leading-relaxed text-[#6B6657] group-hover:text-[#111] transition-colors">
+              <span className="text-sm leading-relaxed text-[#64748B] group-hover:text-[#1E293B] transition-colors">
                 I have read and agree to the{" "}
                 <button
                   type="button"
@@ -386,7 +386,7 @@ export default function StepReviewBooking({
                     e.preventDefault();
                     setShowTerms(true);
                   }}
-                  className="font-semibold text-[#D4AF37] hover:underline"
+                  className="font-semibold text-[#4C81E0] hover:underline"
                 >
                   Terms & Conditions
                 </button>
@@ -394,16 +394,16 @@ export default function StepReviewBooking({
               </span>
             </label>
 
-            <label className="flex items-start gap-3 cursor-pointer group p-3 rounded-lg hover:bg-[#F7F4EE]/30 transition-colors">
+            <label className="flex items-start gap-3 cursor-pointer group p-3 rounded-lg hover:bg-[#F8FAFC]/30 transition-colors">
               <input
                 type="checkbox"
-                className="mt-0.5 h-5 w-5 rounded border-black/20 text-[#D4AF37] focus:ring-[#D4AF37] transition-colors cursor-pointer"
+                className="mt-0.5 h-5 w-5 rounded border-[#CBD5E1] text-[#4C81E0] focus:ring-[#4C81E0] transition-colors cursor-pointer"
                 checked={agreements.privacy}
                 onChange={(e) =>
                   setAgreements({ ...agreements, privacy: e.target.checked })
                 }
               />
-              <span className="text-sm leading-relaxed text-[#6B6657] group-hover:text-[#111] transition-colors">
+              <span className="text-sm leading-relaxed text-[#64748B] group-hover:text-[#1E293B] transition-colors">
                 I agree to the{" "}
                 <button
                   type="button"
@@ -411,7 +411,7 @@ export default function StepReviewBooking({
                     e.preventDefault();
                     setShowPrivacy(true);
                   }}
-                  className="font-semibold text-[#D4AF37] hover:underline"
+                  className="font-semibold text-[#4C81E0] hover:underline"
                 >
                   Privacy Policy
                 </button>{" "}

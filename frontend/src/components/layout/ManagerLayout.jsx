@@ -3,7 +3,7 @@ import ManagerHeader from "./ManagerHeader";
 
 export default function ManagerLayout({ children }) {
   return (
-    <div className="page-shell">
+    <div className="admin-layout page-shell">
       <div className="flex min-h-screen bg-slate-50">
         <ManagerSidebar />
         <div className="flex-1">

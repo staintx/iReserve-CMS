@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { Card, SH, GoldBtn } from "../components/BookingSharedUI";
+import { Card, SH, PrimaryBtn } from "../components/BookingSharedUI";
 import Modal from "../../../../components/common/Modal";
 import { cn } from "@/lib/utils";
 import { CustomerAPI } from "../../../../api/customer";
@@ -203,13 +203,13 @@ export default function StepDateTime({
                     currentMonth < minDateObj &&
                     currentMonth.getMonth() === minDateObj.getMonth()
                   }
-                  className="p-2 hover:bg-[#F7F4EE] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 hover:bg-[#F8FAFC] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={17} />
                 </button>
                 <h3
                   style={{ fontFamily: "Playfair Display, serif" }}
-                  className="font-semibold text-[#111]"
+                  className="font-semibold text-[#1E293B]"
                 >
                   {currentMonth.toLocaleString("default", {
                     month: "long",
@@ -219,7 +219,7 @@ export default function StepDateTime({
                 <button
                   type="button"
                   onClick={nextMonth}
-                  className="p-2 hover:bg-[#F7F4EE] rounded-lg transition-colors"
+                  className="p-2 hover:bg-[#F8FAFC] rounded-lg transition-colors"
                 >
                   <ChevronRight size={17} />
                 </button>
@@ -232,7 +232,7 @@ export default function StepDateTime({
                 {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
                   <div
                     key={day}
-                    className="text-center text-xs font-bold text-[#9E9E9E] py-1"
+                    className="text-center text-xs font-bold text-[#94A3B8] py-1"
                   >
                     {day}
                   </div>
@@ -261,12 +261,12 @@ export default function StepDateTime({
                       className={cn(
                         "h-9 w-full rounded-lg text-sm font-medium transition-all flex items-center justify-center",
                         isSelected
-                          ? "bg-[#D4AF37] text-[#111] shadow-sm"
+                          ? "bg-[#4C81E0] text-white shadow-sm"
                           : isBooked
-                            ? "line-through opacity-50 bg-[#F7F4EE] text-[#9E9E9E] cursor-not-allowed"
+                            ? "line-through opacity-50 bg-[#F8FAFC] text-[#94A3B8] cursor-not-allowed"
                             : isPast
-                              ? "text-[#CCCCC5] cursor-not-allowed"
-                              : "hover:bg-[#F7F4EE] text-[#111]",
+                              ? "text-[#CBD5E1] cursor-not-allowed"
+                              : "hover:bg-[#F8FAFC] text-[#1E293B]",
                       )}
                     >
                       {date.getDate()}
@@ -275,9 +275,9 @@ export default function StepDateTime({
                 })}
               </div>
 
-              <div className="flex gap-4 mt-4 text-xs text-[#9E9E9E] flex-wrap justify-center">
+              <div className="flex gap-4 mt-4 text-xs text-[#94A3B8] flex-wrap justify-center">
                 <span className="flex items-center gap-1">
-                  <span className="w-3 h-3 rounded bg-[#D4AF37] inline-block" />{" "}
+                  <span className="w-3 h-3 rounded bg-[#4C81E0] inline-block" />{" "}
                   Selected
                 </span>
                 <span className="flex items-center gap-1 line-through opacity-50">
@@ -292,58 +292,69 @@ export default function StepDateTime({
         <div className="space-y-6">
           {/* Time Slots Card */}
           <Card className="p-6">
-            <h3 className="font-semibold text-[#111] mb-4 flex items-center gap-2">
-              <Clock size={15} className="text-[#D4AF37]" /> Event Start Time
+            <h3 className="font-semibold text-[#1E293B] mb-4 flex items-center gap-2">
+              <Clock size={15} className="text-[#4C81E0]" /> Event Start Time
             </h3>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {timeSlots.map(({ time, status }) => {
-                const isSelected = selectedDisplayTime === time;
-                const isFull = status === "full";
+            {isLoadingTimes ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-[42px] animate-pulse rounded-xl bg-[#F1F5F9]"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {timeSlots.map(({ time, status }) => {
+                  const isSelected = selectedDisplayTime === time;
+                  const isFull = status === "full";
 
-                return (
-                  <button
-                    key={time}
-                    type="button"
-                    disabled={isFull}
-                    onClick={() => handleTimeSelect(time)}
-                    className={cn(
-                      "py-2.5 text-sm font-medium rounded-xl border-2 transition-all",
-                      isSelected
-                        ? "border-[#D4AF37] bg-[#D4AF37]/10 text-[#111]"
-                        : isFull
-                          ? "border-black/[0.05] bg-[#F7F4EE] text-[#C5C5C5] cursor-not-allowed"
-                          : "border-black/[0.08] hover:border-[#D4AF37]/40 text-[#111]",
-                    )}
-                  >
-                    {isFull ? (
-                      <>
-                        <span className="block">{time}</span>
-                        <span className="text-[10px]">Full</span>
-                      </>
-                    ) : (
-                      time
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                  return (
+                    <button
+                      key={time}
+                      type="button"
+                      disabled={isFull}
+                      onClick={() => handleTimeSelect(time)}
+                      className={cn(
+                        "py-2.5 text-sm font-medium rounded-xl border-2 transition-all duration-200",
+                        isSelected
+                          ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#1E293B]"
+                          : isFull
+                            ? "border-[#F1F5F9] bg-[#F8FAFC] text-[#CBD5E1] cursor-not-allowed"
+                            : "border-[#E2E8F0] hover:border-[#4C81E0]/40 text-[#1E293B]",
+                      )}
+                    >
+                      {isFull ? (
+                        <>
+                          <span className="block">{time}</span>
+                          <span className="text-[10px]">Full</span>
+                        </>
+                      ) : (
+                        time
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </Card>
 
-          <div className="rounded-2xl border border-black/10 bg-[#F7F4EE]/50 p-5 text-sm">
-            <p className="font-semibold text-[#111] mb-2 text-xs uppercase tracking-wider">
+          <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC]/50 p-5 text-sm">
+            <p className="font-semibold text-[#1E293B] mb-2 text-xs uppercase tracking-wider">
               Selected Schedule
             </p>
-            <p className="text-base font-semibold text-[#111]">
+            <p className="text-base font-semibold text-[#1E293B]">
               {form.event_date && form.start_time
                 ? `${formattedDateStr} at ${selectedDisplayTime}`
                 : "No schedule selected yet."}
             </p>
-            <p className="text-xs text-[#6B6657] mt-2">
+            <p className="text-xs text-[#64748B] mt-2">
               Confirm your selected date and time before continuing.
             </p>
             <div className="mt-5">
-              <GoldBtn
+              <PrimaryBtn
                 onClick={() => {
                   if (!form.event_date || !form.start_time) return;
                   setShowConfirmModal(true);
@@ -352,7 +363,7 @@ export default function StepDateTime({
                 disabled={!form.event_date || !form.start_time}
               >
                 Continue <ChevronRight size={15} />
-              </GoldBtn>
+              </PrimaryBtn>
             </div>
           </div>
         </div>
@@ -381,7 +392,7 @@ export default function StepDateTime({
                 setShowConfirmModal(false);
                 onNext();
               }}
-              className="w-full rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#C09B2F] sm:w-auto"
+              className="w-full rounded-lg bg-[#4C81E0] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3D6BC4] sm:w-auto"
             >
               Confirm & Proceed
             </button>

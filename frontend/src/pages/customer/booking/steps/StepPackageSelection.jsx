@@ -42,8 +42,8 @@ export default function StepPackageSelection({
                 className={cn(
                   "rounded-2xl border-2 p-4 transition-all flex flex-col",
                   isSelected
-                    ? "border-[#D4AF37] bg-[#FDF9F3] shadow-sm"
-                    : "border-black/[0.06] bg-white hover:border-[#D4AF37]/40",
+                    ? "border-[#4C81E0] bg-[#D6E4F7]/30 shadow-sm"
+                    : "border-[#F1F5F9] bg-white hover:border-[#4C81E0]/40",
                 )}
               >
                 <div className="flex gap-4">
@@ -56,7 +56,7 @@ export default function StepPackageSelection({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[#9E9E9E]">
+                      <div className="flex h-full w-full items-center justify-center text-[#94A3B8]">
                         <Package2 size={28} />
                       </div>
                     )}
@@ -66,15 +66,15 @@ export default function StepPackageSelection({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-[#111] truncate">
+                        <h3 className="font-semibold text-[#1E293B] truncate">
                           {pkg.name}
                         </h3>
-                        <p className="mt-1 text-sm text-[#6B6657] line-clamp-2">
+                        <p className="mt-1 text-sm text-[#64748B] line-clamp-2">
                           {pkg.description}
                         </p>
                       </div>
                       {isSelected && (
-                        <CheckCircle2 className="h-5 w-5 text-[#D4AF37] flex-shrink-0" />
+                        <CheckCircle2 className="h-5 w-5 text-[#4C81E0] flex-shrink-0" />
                       )}
                     </div>
 
@@ -84,13 +84,13 @@ export default function StepPackageSelection({
                         {pkg.inclusions.slice(0, 6).map((inc, idx) => (
                           <span
                             key={idx}
-                            className="text-xs rounded-full bg-black/[0.04] px-3 py-1"
+                            className="text-xs rounded-full bg-[#F1F5F9] px-3 py-1"
                           >
                             {inc}
                           </span>
                         ))}
                         {pkg.inclusions.length > 6 && (
-                          <span className="text-xs text-[#6B6657]">
+                          <span className="text-xs text-[#64748B]">
                             +{pkg.inclusions.length - 6} more
                           </span>
                         )}
@@ -107,8 +107,8 @@ export default function StepPackageSelection({
                     className={cn(
                       "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                       isSelected
-                        ? "bg-[#D4AF37] text-white"
-                        : "bg-white border border-black/[0.06] hover:bg-[#F7F4EE]",
+                        ? "bg-[#4C81E0] text-white"
+                        : "bg-white border border-[#F1F5F9] hover:bg-[#F8FAFC]",
                     )}
                   >
                     {isSelected ? "Selected" : "Select Package"}
@@ -119,7 +119,7 @@ export default function StepPackageSelection({
           })}
         </div>
       ) : (
-        <Card className="p-6 text-sm text-[#6B6657]">
+        <Card className="p-6 text-sm text-[#64748B]">
           No event setup packages are available right now. Please check back
           later.
         </Card>
@@ -128,7 +128,7 @@ export default function StepPackageSelection({
       {/* Scaffold Size Selection */}
       {selectedPackage && scaffoldOptions.length > 0 && (
         <div className="mt-8">
-          <h4 className="mb-3 font-semibold text-[#111]">
+          <h4 className="mb-3 font-semibold text-[#1E293B]">
             Select Scaffold Size
           </h4>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -159,8 +159,8 @@ export default function StepPackageSelection({
                   className={cn(
                     "w-full rounded-xl border-2 p-4 text-left transition-all",
                     isActive
-                      ? "border-[#D4AF37] bg-[#FDF9F3] shadow-sm"
-                      : "border-black/[0.06] bg-white hover:border-[#D4AF37]/40 hover:bg-[#F7F4EE]",
+                      ? "border-[#4C81E0] bg-[#D6E4F7]/30 shadow-sm"
+                      : "border-[#F1F5F9] bg-white hover:border-[#4C81E0]/40 hover:bg-[#F8FAFC]",
                   )}
                 >
                   <div className="space-y-3">
@@ -172,18 +172,18 @@ export default function StepPackageSelection({
                           className={cn(
                             "w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold transition-colors",
                             isActive
-                              ? "bg-[#D4AF37] text-white shadow-sm"
-                              : "bg-gray-100 text-[#6B6657]",
+                              ? "bg-[#4C81E0] text-white shadow-sm"
+                              : "bg-gray-100 text-[#64748B]",
                           )}
                         >
                           {opt.width_ft}×{opt.length_ft}
                         </div>
 
                         <div>
-                          <div className="font-semibold text-[#111]">
+                          <div className="font-semibold text-[#1E293B]">
                             {opt.label || dimensions}
                           </div>
-                          <div className="text-xs text-[#6B6657] mt-0.5">
+                          <div className="text-xs text-[#64748B] mt-0.5">
                             {dimensions}
                           </div>
                         </div>
@@ -191,10 +191,10 @@ export default function StepPackageSelection({
 
                       {/* Price */}
                       <div className="text-right">
-                        <div className="text-xs text-[#6B6657] mb-0.5">
+                        <div className="text-xs text-[#64748B] mb-0.5">
                           Price
                         </div>
-                        <div className="text-lg font-bold text-[#111]">
+                        <div className="text-lg font-bold text-[#1E293B]">
                           ₱{Number(opt.price || 0).toLocaleString()}
                         </div>
                       </div>
@@ -206,10 +206,10 @@ export default function StepPackageSelection({
                           size={14}
                           className={cn(
                             "flex-shrink-0",
-                            isActive ? "text-[#D4AF37]" : "text-gray-400",
+                            isActive ? "text-[#4C81E0]" : "text-gray-400",
                           )}
                         />
-                        <span className="text-xs text-[#6B6657]">
+                        <span className="text-xs text-[#64748B]">
                           {opt.guest_min && opt.guest_max
                             ? `${opt.guest_min} - ${opt.guest_max} guests`
                             : opt.guest_min

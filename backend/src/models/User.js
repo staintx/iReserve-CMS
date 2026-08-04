@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
   username: { type: String, unique: true, sparse: true, default: undefined },
   password: String,
   role: { type: String, enum: ["admin", "staff", "customer"], default: "customer" },
+  position: String,
   is_active: { type: Boolean, default: true },
   is_verified: { type: Boolean, default: false },
   email_verify_token: String,

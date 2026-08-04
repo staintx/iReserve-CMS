@@ -69,7 +69,7 @@ export default function LiveEstimate({ form, totalPrice, depositAmount, depositP
 
         <div className="mb-2 flex justify-between items-center font-bold text-[17px]">
           <span className="text-gray-900">Subtotal</span>
-          <span className="text-[#D4AF37]">{formatCurrency(totalPrice)}</span>
+          <span className="text-[#4C81E0]">{formatCurrency(totalPrice)}</span>
         </div>
 
         <div className="space-y-1 mb-8 text-[13px] text-gray-400 leading-relaxed">
@@ -80,9 +80,9 @@ export default function LiveEstimate({ form, totalPrice, depositAmount, depositP
         <div className="mb-4 flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-500">{selectedPaymentOption === "full" ? "Total" : "Amount Due Now"}</div>
-            <div className="text-2xl font-bold text-[#D4AF37]">{formatCurrency(displayAmount)}</div>
+            <div className="text-2xl font-bold text-[#4C81E0]">{formatCurrency(displayAmount)}</div>
           </div>
-          <Button onClick={onNext} className="ml-4 bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold py-3 px-4 rounded-2xl shadow-sm">
+          <Button onClick={onNext} className="ml-4 bg-[#4C81E0] hover:bg-[#3D6BC4] text-white font-semibold py-3 px-4 rounded-2xl shadow-sm transition-all duration-200">
             Continue <ChevronRight size={18} />
           </Button>
         </div>

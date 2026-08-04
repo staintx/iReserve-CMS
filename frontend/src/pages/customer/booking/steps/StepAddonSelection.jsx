@@ -73,7 +73,7 @@ export default function StepAddonSelection({ form, setForm, addons }) {
                     key={item._id} 
                     className={cn(
                       "flex flex-col justify-between rounded-xl border-2 p-4 transition-all",
-                      qty > 0 ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-black/[0.08] bg-white hover:border-[#D4AF37]/40"
+                      qty > 0 ? "border-[#4C81E0] bg-[#4C81E0]/5" : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40"
                     )}
                   >
                     <div className="flex justify-between items-start mb-4">
@@ -81,16 +81,16 @@ export default function StepAddonSelection({ form, setForm, addons }) {
                         <h4 className="font-semibold text-[#111]">{item.name}</h4>
                         <p className="text-sm text-[#6B6657]">₱{item.price?.toLocaleString() || 0} / unit</p>
                       </div>
-                      <PackageOpen className={cn("w-5 h-5", qty > 0 ? "text-[#D4AF37]" : "text-[#9E9E9E]")} />
+                      <PackageOpen className={cn("w-5 h-5", qty > 0 ? "text-[#4C81E0]" : "text-[#94A3B8]")} />
                     </div>
                     
                     <div className="flex items-center justify-between mt-auto">
-                      <span className="text-sm font-medium text-[#6B6657]">Quantity</span>
+                      <span className="text-sm font-medium text-[#64748B]">Quantity</span>
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           onClick={() => handleQuantityChange(item, -1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:bg-[#F7F4EE] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={qty === 0}
                         >
                           <Minus size={14} />
@@ -99,7 +99,7 @@ export default function StepAddonSelection({ form, setForm, addons }) {
                         <button
                           type="button"
                           onClick={() => handleQuantityChange(item, 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 hover:bg-[#F7F4EE] transition-colors"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors"
                         >
                           <Plus size={14} />
                         </button>
@@ -111,28 +111,28 @@ export default function StepAddonSelection({ form, setForm, addons }) {
             </div>
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-black/20 p-8 text-center text-[#9E9E9E] mb-8">
+          <div className="rounded-xl border border-dashed border-[#CBD5E1] p-8 text-center text-[#94A3B8] mb-8">
             <Info className="mx-auto mb-2 h-6 w-6 opacity-50" />
             <p>No addons currently available.</p>
           </div>
         )}
 
         <div>
-          <h3 className="font-semibold text-[#111] mb-4 border-b border-black/10 pb-2 text-sm uppercase tracking-wider">Decor & Theme Preferences</h3>
+          <h3 className="font-semibold text-[#1E293B] mb-4 border-b border-[#E2E8F0] pb-2 text-sm uppercase tracking-wider">Decor & Theme Preferences</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {decorOptions.map((item) => (
-              <label key={item} className="flex items-center gap-3 p-3 rounded-xl border border-black/[0.08] hover:bg-[#F7F4EE] cursor-pointer transition-colors">
+              <label key={item} className="flex items-center gap-3 p-3 rounded-xl border border-[#E2E8F0] hover:bg-[#F8FAFC] cursor-pointer transition-colors">
                 <input
                   type="checkbox"
-                  className="rounded border-black/20 text-[#D4AF37] focus:ring-[#D4AF37] h-4 w-4"
+                  className="rounded border-[#CBD5E1] text-[#4C81E0] focus:ring-[#4C81E0] h-4 w-4"
                   checked={currentDecor.includes(item)}
                   onChange={() => toggleDecor(item)}
                 />
-                <span className="text-sm font-medium text-[#111]">{item}</span>
+                <span className="text-sm font-medium text-[#1E293B]">{item}</span>
               </label>
             ))}
           </div>
-          <p className="text-xs text-[#9E9E9E] mt-3">Selected decor will be added to your special requests for coordination.</p>
+          <p className="text-xs text-[#94A3B8] mt-3">Selected decor will be added to your special requests for coordination.</p>
         </div>
       </Card>
     </div>

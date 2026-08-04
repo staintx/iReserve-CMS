@@ -7,7 +7,7 @@ export default function AdminLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-accent/5 flex text-foreground relative">
+    <div className="admin-layout min-h-screen bg-accent/5 flex text-foreground relative">
       <AdminSidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       
       {/* Floating Menu Button for mobile */}

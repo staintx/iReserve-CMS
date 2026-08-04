@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap");
+/* Google Fonts are imported globally in globals.css (Playfair Display + Work Sans) */
 
 /* Customer UI theme tokens */
 :root {
@@ -1131,7 +1131,7 @@
 
 /* Package details */
 .package-details-page {
-  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-family: inherit;
   color: #0f172a;
 }
 
@@ -1176,7 +1176,7 @@
 
 .package-hero-title {
   margin: 0;
-  font-family: "Playfair Display", "Times New Roman", serif;
+  font-family: var(--font-serif);
   font-size: clamp(28px, 4vw, 44px);
   color: #fff;
 }
@@ -1223,7 +1223,7 @@
 
 .package-section h2 {
   margin: 0 0 10px;
-  font-family: "Playfair Display", "Times New Roman", serif;
+  font-family: var(--font-serif);
   font-size: 22px;
 }
 
@@ -1333,7 +1333,7 @@
 
 .price-card h2 {
   margin: 0 0 14px;
-  font-family: "Playfair Display", "Times New Roman", serif;
+  font-family: var(--font-serif);
   font-size: 26px;
   color: #fff;
 }

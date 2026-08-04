@@ -81,7 +81,7 @@ export default function CustomerLayout({ children }) {
       <header className="sticky top-0 z-40 border-b bg-white/80 px-6 py-4 backdrop-blur sm:px-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6">
           <div
-            className="flex cursor-pointer items-center gap-3 text-lg font-semibold"
+            className="flex cursor-pointer items-center gap-3"
             onClick={() => navigate("/")}
             onKeyDown={(event) => event.key === "Enter" && navigate("/")}
             role="button"
@@ -90,9 +90,16 @@ export default function CustomerLayout({ children }) {
             <img
               src={logo}
               alt="Caezelle's logo"
-              className="h-9 w-9 rounded-2xl object-cover"
+              className="h-10 w-10 rounded-xl object-cover shadow-sm"
             />
-            <span>Caezelle's Catering</span>
+            <span className="flex flex-col leading-tight">
+              <span className="font-serif text-lg font-semibold text-ink-900">
+                Caezelle's
+              </span>
+              <span className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-ink-700">
+                Catering
+              </span>
+            </span>
           </div>
 
           <nav className="hidden items-center gap-6 md:flex">
@@ -103,6 +110,12 @@ export default function CustomerLayout({ children }) {
             >
               Home
             </a>
+            <NavLink to="/menu" className={navClass}>
+              Menu
+            </NavLink>
+            <NavLink to="/packages" className={navClass}>
+              Packages
+            </NavLink>
             <a
               href="/gallery"
               className={sectionLinkClass("gallery")}

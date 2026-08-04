@@ -40,23 +40,29 @@ export default function StepDeliveryDetails({
               min={1}
               max={1000}
             />
-            <p className="text-xs text-[#9E9E9E]">
+            <p className="text-xs text-[#94A3B8]">
               How many people are you ordering food for?
             </p>
           </div>
         </div>
 
-        <hr className="border-black/10" />
+        <hr className="border-[#E2E8F0]" />
 
         <div>
-          <h4 className="mb-4 text-sm font-semibold text-[#111]">
+          <h4 className="mb-4 text-sm font-semibold text-[#1E293B]">
             Delivery Method
           </h4>
-          <div className="flex gap-6">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-[#111]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                form.delivery_method !== "pickup"
+                  ? "border-[#4C81E0] bg-[#4C81E0]/5 text-[#1E293B]"
+                  : "border-[#E2E8F0] bg-white text-[#1E293B] hover:border-[#4C81E0]/40"
+              }`}
+            >
               <input
                 type="radio"
-                className="h-4 w-4 border-[#D4AF37] text-[#D4AF37] focus:ring-[#D4AF37]"
+                className="h-4 w-4 border-[#4C81E0] text-[#4C81E0] focus:ring-[#4C81E0]"
                 checked={form.delivery_method !== "pickup"}
                 onChange={() =>
                   setForm({ ...form, delivery_method: "delivery" })
@@ -64,10 +70,16 @@ export default function StepDeliveryDetails({
               />
               Deliver to this address
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-[#111]">
+            <label
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                form.delivery_method === "pickup"
+                  ? "border-[#4C81E0] bg-[#4C81E0]/5 text-[#1E293B]"
+                  : "border-[#E2E8F0] bg-white text-[#1E293B] hover:border-[#4C81E0]/40"
+              }`}
+            >
               <input
                 type="radio"
-                className="h-4 w-4 border-[#D4AF37] text-[#D4AF37] focus:ring-[#D4AF37]"
+                className="h-4 w-4 border-[#4C81E0] text-[#4C81E0] focus:ring-[#4C81E0]"
                 checked={form.delivery_method === "pickup"}
                 onChange={() => setForm({ ...form, delivery_method: "pickup" })}
               />
@@ -90,9 +102,6 @@ export default function StepDeliveryDetails({
                   placeholder="Select Municipality"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <FL>Barangay</FL>
                 <TSelect
@@ -103,23 +112,15 @@ export default function StepDeliveryDetails({
                   disabled={!form.municipality}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <FL>Street Name</FL>
                 <TInput
                   placeholder="Street name, building, house no."
                   value={form.street || ""}
                   onChange={(val) => setForm({ ...form, street: val })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <div>
-                <FL>Zip Code</FL>
-                <TInput
-                  placeholder="Zip Code"
-                  value={form.zip_code || ""}
-                  onChange={(val) => setForm({ ...form, zip_code: val })}
                 />
               </div>
               <div>
@@ -130,6 +131,16 @@ export default function StepDeliveryDetails({
                   onChange={(val) => setForm({ ...form, landmark: val })}
                 />
               </div>
+            </div>
+
+            <div>
+              <FL>Zip Code</FL>
+              <TInput
+                placeholder="Zip Code"
+                value={form.zip_code || ""}
+                onChange={(val) => setForm({ ...form, zip_code: val })}
+                className="max-w-xs"
+              />
             </div>
 
             <div>
@@ -146,9 +157,9 @@ export default function StepDeliveryDetails({
           </div>
         )}
         {form.delivery_method === "pickup" && (
-          <div className="rounded-xl border border-[#D4AF37]/20 bg-[#D4AF37]/5 p-6 text-[#111]">
+          <div className="rounded-xl border border-[#4C81E0]/20 bg-[#4C81E0]/5 p-6 text-[#1E293B]">
             <p className="mb-1 font-semibold text-sm">Customer Pickup</p>
-            <p className="text-xs text-[#6B6657]">
+            <p className="text-xs text-[#64748B]">
               You will pick up the food from{" "}
               {pickupAddress || "the caterer's address"} on your selected
               event date and time.
@@ -161,7 +172,7 @@ export default function StepDeliveryDetails({
         <button
           type="button"
           onClick={onNext}
-          className="rounded-lg bg-[#D4AF37] px-8 py-3 text-sm font-semibold text-white hover:bg-[#C09B2F] transition-colors"
+          className="rounded-lg bg-[#4C81E0] px-8 py-3 text-sm font-semibold text-white hover:bg-[#3D6BC4] transition-colors duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
         >
           Continue
         </button>

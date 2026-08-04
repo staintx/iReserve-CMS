@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const { auth, isAdmin } = require("../middleware/auth");
+const { protect } = require("../middleware/auth.middleware");
+const { authorize } = require("../middleware/role.middleware");
 const { getAddons, createAddon, updateAddon, deleteAddon } = require("../controllers/addonController");
 
 router.get("/", getAddons); // Public or Customer
 
 // Admin routes
-router.post("/", auth, isAdmin, createAddon);
-router.put("/:id", auth, isAdmin, updateAddon);
-router.delete("/:id", auth, isAdmin, deleteAddon);
+router.post("/", protect, authorize("admin"), createAddon);
+router.put("/:id", protect, authorize("admin"), updateAddon);
+router.delete("/:id", protect, authorize("admin"), deleteAddon);
 
 module.exports = router;

@@ -9,15 +9,26 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "../ui/button";
 
-export default function ConfirmDialog({ message, onConfirm, onCancel }) {
+export default function ConfirmDialog({
+  title = "Confirm Action",
+  message,
+  confirmText = "Confirm",
+  confirmVariant,
+  isDestructive = false,
+  onConfirm,
+  onCancel,
+}) {
+  const destructive = isDestructive || confirmVariant === "danger";
   return (
     <AlertDialog open={true} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+          <AlertDialogTitle className={cn("flex items-center gap-2", destructive && "text-destructive")}>
             <AlertCircle className="w-5 h-5" />
-            Confirm Action
+            {title}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {message}
@@ -25,8 +36,11 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            Confirm
+          <AlertDialogAction
+            onClick={onConfirm}
+            className={cn(destructive && buttonVariants({ variant: "destructive" }))}
+          >
+            {confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

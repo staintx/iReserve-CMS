@@ -21,6 +21,11 @@ export default function Badge({ status }) {
     Corporate: "bg-blue-100 text-blue-700",
     Regular: "bg-gray-100 text-gray-600",
     New: "bg-purple-100 text-purple-700",
+    "Created": "bg-emerald-100 text-emerald-700",
+    "Manual Adjustment": "bg-blue-100 text-blue-700",
+    "Reservation Allocated": "bg-amber-100 text-amber-700",
+    "Reservation Released": "bg-emerald-100 text-emerald-700",
+    "Retired": "bg-red-100 text-red-700",
   };
   const cls = map[status] || "bg-gray-100 text-gray-600";
   return (

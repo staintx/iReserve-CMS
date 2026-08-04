@@ -8,6 +8,7 @@ router.get("/availability", protect, authorize("admin"), ctrl.getAvailability);
 router.post("/", protect, authorize("admin"), ctrl.create);
 router.get("/", protect, authorize("admin"), ctrl.getAll);
 router.get("/:id", protect, authorize("admin"), ctrl.getById);
+router.get("/:id/logs", protect, authorize("admin"), ctrl.getLogs);
 router.put("/:id", protect, authorize("admin"), ctrl.update);
 router.delete("/:id", protect, authorize("admin"), ctrl.remove);
 

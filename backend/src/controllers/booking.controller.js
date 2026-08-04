@@ -1675,3 +1675,156 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
 
   res.json(results);
 });
+
+exports.scheduleOcular = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (!booking.ocular_visit) booking.ocular_visit = {};
+  booking.ocular_visit.scheduled_date = req.body.scheduled_date;
+  booking.ocular_visit.scheduled_time = req.body.scheduled_time;
+  booking.ocular_visit.status = "scheduled";
+
+  await booking.save();
+  
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "ocular_scheduled",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Ocular visit scheduled for ${new Date(req.body.scheduled_date).toLocaleDateString()} at ${req.body.scheduled_time}`,
+      ip_address: req.ip,
+    });
+  }
+
+  res.json(booking);
+});
+
+exports.completeOcular = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (!booking.ocular_visit) booking.ocular_visit = {};
+  booking.ocular_visit.status = "completed";
+  booking.ocular_visit.outcome = req.body.outcome; // 'proceed', 'cancel', 'revise'
+  booking.ocular_visit.notes = req.body.notes;
+  booking.ocular_visit.completed_at = new Date();
+
+  if (req.body.outcome === 'cancel') {
+    booking.status = 'cancelled';
+    booking.payment_status = 'refund_requested';
+  }
+
+  await booking.save();
+
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "ocular_completed",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Ocular visit completed with outcome: ${req.body.outcome}`,
+      ip_address: req.ip,
+    });
+  }
+
+  res.json(booking);
+});
+
+exports.requestOcular = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id });
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (!booking.ocular_visit) booking.ocular_visit = {};
+  booking.ocular_visit.scheduled_date = req.body.scheduled_date;
+  booking.ocular_visit.scheduled_time = req.body.scheduled_time;
+  booking.ocular_visit.status = "requested";
+  
+  await booking.save();
+  
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "ocular_requested",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Customer requested ocular visit for ${new Date(req.body.scheduled_date).toLocaleDateString()} at ${req.body.scheduled_time}`,
+      ip_address: req.ip,
+    });
+  }
+  
+  const io = req.app.get("io");
+  await notifyAdmins({
+    title: "New Ocular Request",
+    body: `Customer requested an ocular visit for booking ${booking.reference || booking._id}.`,
+    type: "info",
+    link: `/admin/ocular-visits`,
+    meta: { booking_id: booking._id }
+  }, io);
+
+  res.json(booking);
+});
+
+exports.requestChange = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id });
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  booking.change_request = {
+    status: "pending",
+    message: req.body.message,
+    requested_at: new Date()
+  };
+
+  await booking.save();
+  
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "change_request_submitted",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Customer requested a change: ${req.body.message}`,
+      ip_address: req.ip,
+    });
+  }
+
+  const io = req.app.get("io");
+  const { notifyAdmins } = require("../utils/notify");
+  await notifyAdmins({
+    title: "New Change Request",
+    body: `Customer requested a change for booking ${booking.reference || booking._id}.`,
+    type: "warning",
+    link: `/admin/bookings/${booking._id}/details`,
+    meta: { booking_id: booking._id }
+  }, io);
+
+  res.json(booking);
+});
+
+exports.resolveChangeRequest = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (!booking.change_request || booking.change_request.status !== "pending") {
+    return res.status(400).json({ message: "No pending change request found." });
+  }
+
+  booking.change_request.status = req.body.status; // 'approved' or 'rejected'
+  booking.change_request.resolved_at = new Date();
+
+  await booking.save();
+  
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "change_request_resolved",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Admin ${req.body.status} change request.`,
+      ip_address: req.ip,
+    });
+  }
+
+  res.json(booking);
+});

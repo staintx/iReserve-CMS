@@ -14,7 +14,8 @@ import {
   LineChart, 
   Building2, 
   TerminalSquare,
-  LogOut
+  LogOut,
+  Eye
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -186,11 +187,19 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
           {openDropdowns.bookings && !isCollapsed && (
             <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
               <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
-              <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>
               <NavLink to="/admin/bookings/history" className={subLinkClass}>Event History</NavLink>
             </div>
           )}
         </div>
+
+        {isAdmin && (
+          <>
+            <NavLink to="/admin/bookings/ocular" className={linkClass}>
+              <Eye className="w-5 h-5 shrink-0" />
+              {!isCollapsed && <span>Ocular Visits</span>}
+            </NavLink>
+          </>
+        )}
 
         {/* Calendar is merged into the Dashboard; standalone page removed. */}
 

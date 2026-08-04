@@ -267,9 +267,51 @@ const sendBookingStatusEmail = async ({ booking, newStatus, customerEmail }) => 
 	}
 };
 
+const sendAutoCancelEmail = async ({ booking, customerEmail }) => {
+	if (!customerEmail) return;
+
+	const bodyContent = `
+    <h2>Booking Cancelled (Auto-Cancel) ⚠️</h2>
+    <p>Your booking has been automatically cancelled because the required deposit was not received within 48 hours.</p>
+    
+    <div class="info-grid">
+      <div class="info-item">
+        <label>Reference</label>
+        <span>${booking.reference || booking._id}</span>
+      </div>
+      <div class="info-item">
+        <label>Event Type</label>
+        <span>${booking.event_type || "Event"}</span>
+      </div>
+      <div class="info-item">
+        <label>Event Date</label>
+        <span>${formatDate(booking.event_date)}</span>
+      </div>
+    </div>
+
+    <p>If this was a mistake and you still want to proceed, please create a new booking or contact us as soon as possible.</p>
+
+    <p style="text-align:center;">
+      <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/book" class="btn">Create New Booking</a>
+    </p>
+  `;
+
+	try {
+		await sendEmail({
+			to: customerEmail,
+			subject: `Booking Auto-Cancelled — ${booking.reference || booking._id} | Caezelle's Catering`,
+			html: wrapHtml("Booking Cancelled", bodyContent),
+			text: `Your booking ${booking.reference || booking._id} has been automatically cancelled due to non-payment within 48 hours.`
+		});
+	} catch (err) {
+		console.error("Failed to send auto-cancel email:", err.message);
+	}
+};
+
 module.exports = {
 	sendBookingConfirmationEmail,
 	sendPaymentReceiptEmail,
 	sendFinalInvoiceEmail,
-	sendBookingStatusEmail
+	sendBookingStatusEmail,
+	sendAutoCancelEmail
 };

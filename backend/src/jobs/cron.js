@@ -3,7 +3,7 @@ const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const { notifyAdmins, createNotification } = require('../utils/notify');
 const { createCheckoutSession } = require('../services/payment.service');
-const { sendFinalInvoiceEmail } = require('../utils/booking-emails');
+const { sendFinalInvoiceEmail, sendAutoCancelEmail } = require('../utils/booking-emails');
 
 const startCronJobs = (io) => {
     // Run every day at midnight — 3-day final invoicing + upcoming event notifications
@@ -214,6 +214,50 @@ const startCronJobs = (io) => {
             }
         } catch (error) {
             console.error('Error in auto-status transition cron:', error);
+        }
+    });
+
+    // Run every hour — 48-hour auto-cancel for unpaid deposits
+    cron.schedule('0 * * * *', async () => {
+        try {
+            console.log('Running 48-hour auto-cancel cron...');
+
+            const fortyEightHoursAgo = new Date();
+            fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+
+            const pendingBookings = await Booking.find({
+                status: "pending deposit",
+                createdAt: { $lte: fortyEightHoursAgo }
+            }).populate("customer_id");
+
+            for (const booking of pendingBookings) {
+                booking.status = "cancelled";
+                await booking.save();
+
+                // Send email
+                const customerEmail = booking.contact_email || booking.customer_id?.email;
+                if (customerEmail) {
+                    sendAutoCancelEmail({ booking, customerEmail }).catch(() => {});
+                }
+
+                const customerId = booking.customer_id?._id || booking.customer_id;
+                if (customerId) {
+                    await createNotification({
+                        userId: customerId,
+                        title: "Booking Auto-Cancelled",
+                        body: `Your booking ${booking.reference || booking._id} was cancelled due to non-payment of deposit within 48 hours.`,
+                        type: "error",
+                        link: "/customer/bookings",
+                        meta: { booking_id: booking._id }
+                    }, io);
+                }
+            }
+
+            if (pendingBookings.length > 0) {
+                console.log(`Auto-cancelled ${pendingBookings.length} bookings due to 48-hour non-payment rule.`);
+            }
+        } catch (error) {
+            console.error('Error in auto-cancel cron:', error);
         }
     });
 };

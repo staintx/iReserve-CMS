@@ -33,6 +33,7 @@ export const AdminAPI = {
   verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
   scheduleOcular: (id, data) => api.post(`/bookings/${id}/ocular/schedule`, data),
   completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
+  resolveChangeRequest: (id, data) => api.post(`/bookings/${id}/change-request/resolve`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),

@@ -8,13 +8,13 @@ import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import AdminEventCalendar from "../../components/dashboard/AdminEventCalendar";
-import { INVENTORY_DATA } from "../../components/admin/ui/data";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const [bookings, setBookings] = useState([]);
   const [summary, setSummary] = useState({});
+  const [inventoryAlerts, setInventoryAlerts] = useState([]);
 
   const KPIS = [
     { title: "Total Reservations", value: summary.totalReservations || "—", sub: "All bookings", trend: summary.reservationTrend || "", up: summary.reservationTrendUp, color: "#3B82F6" },
@@ -72,6 +72,13 @@ export default function AdminDashboard() {
       }
     };
     loadAdminDashboard();
+
+    AdminAPI.getInventoryAvailability()
+      .then((res) => {
+        const items = Array.isArray(res.data) ? res.data : [];
+        setInventoryAlerts(items.filter((item) => (item.available_quantity ?? 0) <= (item.minStock || 0)));
+      })
+      .catch(() => setInventoryAlerts([]));
   }, []);
 
   const formatEventDate = (value) => {
@@ -161,17 +168,24 @@ export default function AdminDashboard() {
             <p className="font-bold text-[#111] text-sm flex items-center gap-2"><AlertTriangle size={15} className="text-amber-500" /> Inventory Alerts</p>
             <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/inventory")}>View All</Btn>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {INVENTORY_DATA.filter((i) => i.status !== "ok").map((item) => (
-              <div key={item.id} className={`p-3 rounded-xl border ${item.status === "critical" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge status={item.status} />
-                  <span className="text-xs font-bold text-[#111]">{item.name}</span>
-                </div>
-                <p className="text-xs text-[#6B7280]">Available: <strong>{item.available}</strong> / Min: {item.minStock}</p>
-              </div>
-            ))}
-          </div>
+          {inventoryAlerts.length === 0 ? (
+            <p className="text-xs text-gray-500">No inventory alerts. All stock levels are healthy.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {inventoryAlerts.map((item) => {
+                const status = (item.available_quantity || 0) <= 0 ? "critical" : "low";
+                return (
+                  <div key={item._id} className={`p-3 rounded-xl border ${status === "critical" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge status={status} />
+                      <span className="text-xs font-bold text-[#111]">{item.item_name}</span>
+                    </div>
+                    <p className="text-xs text-[#6B7280]">Available: <strong>{item.available_quantity || 0}</strong> / Min: {item.minStock || 0}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </AdminCard>
       </div>
     </AdminLayout>

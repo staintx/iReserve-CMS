@@ -27,15 +27,28 @@ const toDateKey = (date) => {
 };
 
 exports.createStaff = asyncHandler(async (req, res) => {
-  const { full_name, email, password, role, phone, username } = req.body;
+  const { full_name, email, password, role, phone, username, position } = req.body;
   const hashed = await bcrypt.hash(password, 10);
-  const staff = await User.create({ full_name, email, password: hashed, role, phone, username });
+  const staff = await User.create({ full_name, email, password: hashed, role, phone, username, position });
   res.status(201).json(staff);
 });
 
 exports.getAllStaff = asyncHandler(async (req, res) => {
-  const staff = await User.find({ role: { $in: ["staff", "manager"] } });
-  res.json(staff);
+  const staff = await User.find({ role: { $in: ["staff", "manager"] } }).lean();
+  const staffIds = staff.map((s) => s._id);
+
+  const eventsByStaff = await Booking.aggregate([
+    { $match: { "staff_assignments.user_id": { $in: staffIds } } },
+    { $unwind: "$staff_assignments" },
+    { $match: { "staff_assignments.user_id": { $in: staffIds } } },
+    { $group: { _id: "$staff_assignments.user_id", count: { $sum: 1 } } }
+  ]);
+  const eventsMap = new Map(eventsByStaff.map((e) => [String(e._id), e.count]));
+
+  res.json(staff.map((member) => ({
+    ...member,
+    events_handled: eventsMap.get(String(member._id)) || 0
+  })));
 });
 
 exports.updateStaff = asyncHandler(async (req, res) => {
@@ -45,7 +58,8 @@ exports.updateStaff = asyncHandler(async (req, res) => {
     role: req.body.role,
     is_active: req.body.is_active,
     phone: req.body.phone,
-    username: req.body.username
+    username: req.body.username,
+    position: req.body.position
   };
 
   if (req.body.password) {

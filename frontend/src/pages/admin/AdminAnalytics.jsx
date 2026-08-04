@@ -1,15 +1,24 @@
-import React, { useState } from "react";
-import { Download, Filter, Calendar } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Download, Calendar } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
-import { REVENUE_DATA, BOOKINGS_DATA } from "../../components/admin/ui/data";
+import { AdminAPI } from "../../api/admin";
 
 export default function AdminAnalytics() {
   const [range, setRange] = useState("This Year");
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState({ monthlyRevenue: [], bookingStatus: [], topPackages: [] });
 
-  const fmt = (n) => "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 0 });
+  useEffect(() => {
+    AdminAPI.getMetrics()
+      .then((res) => setMetrics(res.data || {}))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
   return (
     <AdminLayout>
@@ -19,8 +28,8 @@ export default function AdminAnalytics() {
           <div className="flex gap-2">
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
               <Calendar size={13} className="text-[#6B7280]" />
-              <select 
-                value={range} 
+              <select
+                value={range}
                 onChange={(e) => setRange(e.target.value)}
                 className="bg-transparent text-xs font-semibold text-[#111] focus:outline-none"
               >
@@ -39,40 +48,75 @@ export default function AdminAnalytics() {
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="font-bold text-[#111]">Revenue Overview</p>
-                <p className="text-xs text-[#6B7280]">Monthly revenue vs expenses</p>
+                <p className="text-xs text-[#6B7280]">Monthly revenue from approved payments</p>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={REVENUE_DATA}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => fmt(v)} contentStyle={{ borderRadius: 12, border: "1px solid #E5E7EB", fontSize: 12 }} />
-                <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={2} fill="#D4AF37" fillOpacity={0.12} />
-                <Area type="monotone" dataKey="expenses" stroke="#E5E7EB" strokeWidth={2} fill="#F9FAFB" fillOpacity={0.5} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">Loading revenue data...</div>
+            ) : metrics.monthlyRevenue.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">No revenue recorded yet.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={metrics.monthlyRevenue}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v) => fmt(v)} contentStyle={{ borderRadius: 12, border: "1px solid #E5E7EB", fontSize: 12 }} />
+                  <Area type="monotone" dataKey="total" name="Revenue" stroke="#D4AF37" strokeWidth={2} fill="#D4AF37" fillOpacity={0.12} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </AdminCard>
 
-          {/* Bookings Volume */}
+          {/* Booking Status Breakdown */}
           <AdminCard className="!p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="font-bold text-[#111]">Bookings Volume</p>
-                <p className="text-xs text-[#6B7280]">Daily bookings received</p>
+                <p className="font-bold text-[#111]">Bookings by Status</p>
+                <p className="text-xs text-[#6B7280]">Current distribution across all bookings</p>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={BOOKINGS_DATA} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-                <Bar dataKey="bookings" fill="#111827" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">Loading booking data...</div>
+            ) : metrics.bookingStatus.length === 0 ? (
+              <div className="h-[300px] flex items-center justify-center text-sm text-gray-400">No bookings recorded yet.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={metrics.bookingStatus} barSize={32}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                  <XAxis dataKey="status" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
+                  <Bar dataKey="count" name="Bookings" fill="#111827" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </AdminCard>
         </div>
+
+        <AdminCard className="!p-5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="font-bold text-[#111]">Top Packages</p>
+              <p className="text-xs text-[#6B7280]">Most booked packages by volume</p>
+            </div>
+          </div>
+          {loading ? (
+            <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">Loading package data...</div>
+          ) : (metrics.topPackages || []).length === 0 ? (
+            <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">No package bookings recorded yet.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={metrics.topPackages} barSize={32}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
+                <Bar dataKey="bookings" name="Bookings" fill="#D4AF37" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </AdminCard>
       </div>
     </AdminLayout>
   );

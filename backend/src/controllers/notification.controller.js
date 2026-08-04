@@ -3,11 +3,19 @@ const asyncHandler = require("../utils/asyncHandler");
 
 exports.getMine = asyncHandler(async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 20), 100);
-  const items = await Notification.find({ user_id: req.user._id })
-    .sort({ createdAt: -1 })
-    .limit(limit);
-  const unreadCount = await Notification.countDocuments({ user_id: req.user._id, is_read: false });
-  res.json({ items, unreadCount });
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const skip = (page - 1) * limit;
+
+  const [items, total, unreadCount] = await Promise.all([
+    Notification.find({ user_id: req.user._id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Notification.countDocuments({ user_id: req.user._id }),
+    Notification.countDocuments({ user_id: req.user._id, is_read: false })
+  ]);
+
+  res.json({ items, unreadCount, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
 });
 
 exports.markRead = asyncHandler(async (req, res) => {

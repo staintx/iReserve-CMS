@@ -44,11 +44,14 @@ import AdminMenu from "../pages/admin/AdminMenu";
 import AdminStaff from "../pages/admin/AdminStaff";
 import AdminAnalytics from "../pages/admin/AdminAnalytics";
 import AdminBusinessInfo from "../pages/admin/AdminBusinessInfo";
-import AdminAuditLogs from "../pages/admin/AdminAuditLogs";
+import AdminSystemLogs from "../pages/admin/AdminSystemLogs";
 import AdminBookingDetails from "../pages/admin/AdminBookingDetails";
 import AdminProfile from "../pages/admin/AdminProfile";
 import AdminOcular from "../pages/admin/AdminOcular";
 import AdminGallery from "../pages/admin/AdminGallery";
+import AdminQuotesList from "../pages/admin/AdminQuotesList";
+import AdminQuoteDetails from "../pages/admin/AdminQuoteDetails";
+import AdminNotifications from "../pages/admin/AdminNotifications";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
@@ -135,7 +138,10 @@ export default function AppRoutes() {
         <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
         <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />
         <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
-        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAuditLogs /></ProtectedRoute>} />
+        <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
+        <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuotesList /></ProtectedRoute>} />
+        <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+        <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminOnly}><AdminNotifications /></ProtectedRoute>} />
         <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />
 
         {/* Manager (protected by role) */}

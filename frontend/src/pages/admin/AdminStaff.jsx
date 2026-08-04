@@ -1,22 +1,70 @@
-import React, { useState } from "react";
-import { Search, Plus, Filter, Edit3, Trash2, Calendar, Star } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Search, Plus, Filter, Edit3, Trash2, Calendar } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
-import { STAFF_DATA } from "../../components/admin/ui/data";
+import StaffModal from "../../components/admin/ui/StaffModal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
+import { AdminAPI } from "../../api/admin";
+import useToast from "../../hooks/useToast";
 
 export default function AdminStaff() {
+  const { notify } = useToast();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const roles = ["all", "Head Chef", "Event Coordinator", "Service Captain", "Pastry Chef", "Sous Chef", "Event Server", "Driver / Delivery"];
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = STAFF_DATA.filter(s => {
-    const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase());
-    const matchRole = filter === "all" || s.role === filter;
+  const [showModal, setShowModal] = useState(false);
+  const [activeStaff, setActiveStaff] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+
+  const loadData = () => {
+    setLoading(true);
+    AdminAPI.getStaff()
+      .then((res) => setStaff(Array.isArray(res.data) ? res.data : []))
+      .catch(() => notify("Failed to load staff", "error"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const positions = useMemo(() => {
+    const distinct = Array.from(new Set(staff.map((s) => s.position).filter(Boolean)));
+    return ["all", ...distinct];
+  }, [staff]);
+
+  const filtered = staff.filter(s => {
+    const matchSearch = !search || (s.full_name || "").toLowerCase().includes(search.toLowerCase());
+    const matchRole = filter === "all" || s.position === filter;
     return matchSearch && matchRole;
   });
+
+  const initials = (name) => (name || "?").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+  const handleOpenModal = (member = null) => {
+    setActiveStaff(member);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setActiveStaff(null);
+  };
+
+  const handleDelete = (id) => {
+    AdminAPI.deleteStaff(id)
+      .then(() => {
+        notify("Staff member deleted successfully", "success");
+        setCancelTarget(null);
+        loadData();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete staff member", "error"));
+  };
 
   return (
     <AdminLayout>
@@ -25,7 +73,7 @@ export default function AdminStaff() {
           <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Staff Management</h2>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Calendar size={13} /> View Schedule</Btn>
-            <Btn variant="gold" size="sm"><Plus size={13} /> Add Staff</Btn>
+            <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Staff</Btn>
           </div>
         </div>
 
@@ -33,22 +81,22 @@ export default function AdminStaff() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
               <Search size={14} className="text-[#9CA3AF]" />
-              <input 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-                placeholder="Search staff..." 
-                className="bg-transparent text-sm focus:outline-none flex-1" 
-                style={{ fontFamily: "Inter, sans-serif" }} 
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search staff..."
+                className="bg-transparent text-sm focus:outline-none flex-1"
+                style={{ fontFamily: "Inter, sans-serif" }}
               />
             </div>
             <div className="flex gap-1 flex-wrap">
-              <select 
+              <select
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 className="bg-gray-100 text-[#6B7280] text-xs font-semibold px-3 py-1.5 rounded-xl border-none focus:ring-0 outline-none capitalize"
               >
-                {roles.map(r => (
-                  <option key={r} value={r}>{r}</option>
+                {positions.map(r => (
+                  <option key={r} value={r}>{r === "all" ? "All Positions" : r}</option>
                 ))}
               </select>
             </div>
@@ -61,36 +109,34 @@ export default function AdminStaff() {
             <table className="w-full min-w-[800px]" style={{ fontFamily: "Inter, sans-serif" }}>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {["Staff Member","Role","Contact","Events Handled","Rating","Certifications","Status","Actions"].map(h => (
+                  {["Staff Member","Position","Contact","Events Handled","Status","Actions"].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map(s => (
-                  <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                {loading ? (
+                  <tr><td colSpan="6" className="text-center py-8 text-gray-500">Loading staff...</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan="6" className="text-center py-8 text-gray-500">No staff found.</td></tr>
+                ) : filtered.map(s => (
+                  <tr key={s._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center text-xs font-bold text-[#374151]">
-                          {s.avatar}
+                          {initials(s.full_name)}
                         </div>
-                        <span className="text-sm font-semibold text-[#111]">{s.name}</span>
+                        <span className="text-sm font-semibold text-[#111]">{s.full_name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#374151]">{s.role}</td>
-                    <td className="px-4 py-3 text-xs text-[#374151]">{s.phone}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#111] text-center">{s.events}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 text-xs font-semibold text-[#111]">
-                        {s.rating} <Star size={11} className="text-[#D4AF37] fill-[#D4AF37]" />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#6B7280] max-w-[150px] truncate">{s.cert}</td>
-                    <td className="px-4 py-3"><Badge status={s.status} /></td>
+                    <td className="px-4 py-3 text-xs text-[#374151]">{s.position || "—"}</td>
+                    <td className="px-4 py-3 text-xs text-[#374151]">{s.phone || s.email || "—"}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-[#111] text-center">{s.events_handled || 0}</td>
+                    <td className="px-4 py-3"><Badge status={s.is_active ? "available" : "off"} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        <button className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]"><Edit3 size={13} /></button>
-                        <button className="p-1.5 hover:bg-red-50 rounded-lg text-red-400"><Trash2 size={13} /></button>
+                        <button onClick={() => handleOpenModal(s)} className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]"><Edit3 size={13} /></button>
+                        <button onClick={() => setCancelTarget(s)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-400"><Trash2 size={13} /></button>
                       </div>
                     </td>
                   </tr>
@@ -100,6 +146,28 @@ export default function AdminStaff() {
           </div>
         </AdminCard>
       </div>
+
+      {showModal && (
+        <StaffModal
+          staff={activeStaff}
+          onClose={handleCloseModal}
+          onSave={() => {
+            handleCloseModal();
+            loadData();
+          }}
+        />
+      )}
+
+      {cancelTarget && (
+        <ConfirmDialog
+          title="Delete Staff Member"
+          message={`Are you sure you want to delete "${cancelTarget.full_name}"? This action cannot be undone.`}
+          onConfirm={() => handleDelete(cancelTarget._id)}
+          onCancel={() => setCancelTarget(null)}
+          confirmText="Delete"
+          confirmVariant="danger"
+        />
+      )}
     </AdminLayout>
   );
 }

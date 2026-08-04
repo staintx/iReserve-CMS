@@ -14,7 +14,8 @@ export default function InventoryModal({ item, onClose, onSave }) {
     minStock: "",
     supplier: "",
     status: "available",
-    available: true
+    available: true,
+    reason: ""
   });
 
   useEffect(() => {
@@ -115,6 +116,19 @@ export default function InventoryModal({ item, onClose, onSave }) {
               />
             </div>
           </div>
+
+          {item && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Reason for change <span className="text-gray-400">(optional, shown in the item's log)</span></label>
+              <textarea
+                rows={2}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] resize-none"
+                placeholder="e.g. Restocked from supplier, damaged units written off..."
+                value={formData.reason}
+                onChange={e => setFormData({...formData, reason: e.target.value})}
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Status</label>

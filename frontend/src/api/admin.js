@@ -39,6 +39,7 @@ export const AdminAPI = {
   getPayments: () => api.get("/payments"),
   createPayment: (data) => api.post("/payments", data),
   updatePayment: (id, data) => api.put(`/payments/${id}`, data),
+  verifyPayment: (id) => api.post(`/payments/${id}/verify`),
 
   // Packages
   getPackages: () => api.get("/packages"),
@@ -58,6 +59,7 @@ export const AdminAPI = {
   createInventory: (data) => api.post("/inventory", data),
   updateInventory: (id, data) => api.put(`/inventory/${id}`, data),
   deleteInventory: (id) => api.delete(`/inventory/${id}`),
+  getInventoryLogs: (id) => api.get(`/inventory/${id}/logs`),
 
   // Addons
   getAddons: () => api.get("/addons"),

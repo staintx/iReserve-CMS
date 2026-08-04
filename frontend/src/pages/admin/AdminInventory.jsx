@@ -26,7 +26,7 @@ export default function AdminInventory() {
   const loadData = () => {
     setLoading(true);
     // Use getAvailability to also get reserved quantities
-    AdminAPI.getInventory()
+    AdminAPI.getInventoryAvailability()
       .then(res => setInventory(res.data))
       .catch(err => notify("Failed to load inventory", "error"))
       .finally(() => setLoading(false));

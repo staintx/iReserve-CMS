@@ -389,11 +389,11 @@ export default function CustomerEventDashboard() {
                     <div className="text-xs text-muted-foreground">Select a new tier</div>
                   </div>
                 </Button>
-                <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 items-center justify-center border-dashed" onClick={() => setRequestingChange(true)}>
-                  <MessageSquare className="w-5 h-5 text-amber-500" />
+                <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 items-center justify-center border-dashed" onClick={() => setRequestingChange(true)} disabled={booking.change_request?.status === 'pending'}>
+                  <MessageSquare className={`w-5 h-5 ${booking.change_request?.status === 'pending' ? 'text-gray-400' : 'text-amber-500'}`} />
                   <div className="text-center">
-                    <div className="font-medium">Request Change</div>
-                    <div className="text-xs text-muted-foreground">Modifications & Requests</div>
+                    <div className="font-medium">{booking.change_request?.status === 'pending' ? "Change Pending" : "Request Change"}</div>
+                    <div className="text-xs text-muted-foreground">{booking.change_request?.status === 'pending' ? "Awaiting admin review" : "Modifications & Requests"}</div>
                   </div>
                 </Button>
               </div>
@@ -516,11 +516,11 @@ export default function CustomerEventDashboard() {
                   <div className="bg-white/60 p-4 rounded-xl border border-emerald-100">
                     <div className="flex items-center gap-3 mb-1">
                       <CalendarRange className="w-4 h-4 text-emerald-600" />
-                      <p className="font-semibold text-emerald-900">{new Date(booking.ocular_visit.date).toLocaleDateString()}</p>
+                      <p className="font-semibold text-emerald-900">{new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <Clock className="w-4 h-4 text-emerald-600" />
-                      <p className="text-sm font-medium text-emerald-700">{booking.ocular_visit.time || "Any time"}</p>
+                      <p className="text-sm font-medium text-emerald-700">{booking.ocular_visit.scheduled_time || "Any time"}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -537,6 +537,22 @@ export default function CustomerEventDashboard() {
                   <p className="text-sm text-blue-800 mb-3">Your request is being reviewed by the admin.</p>
                   <div className="bg-white/60 p-3 rounded-lg border border-blue-100 text-sm">
                     <strong>Requested:</strong> {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {booking.ocular_visit && booking.ocular_visit.status === "completed" && (
+              <Card className="bg-gray-50 border-gray-200">
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <h3 className="font-semibold text-gray-800 mb-0 text-sm uppercase tracking-wider">Ocular Visit</h3>
+                  <Badge variant="outline" className="bg-gray-200 text-gray-800 border-gray-300">Completed</Badge>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-3">The ocular visit for your event has been completed.</p>
+                  <div className="bg-white/60 p-3 rounded-lg border border-gray-200 text-sm flex justify-between">
+                    <span><strong>Outcome:</strong> <span className="capitalize">{booking.ocular_visit.outcome === 'proceed' ? 'Proceeding' : booking.ocular_visit.outcome}</span></span>
+                    <Check className="w-4 h-4 text-gray-500" />
                   </div>
                 </CardContent>
               </Card>

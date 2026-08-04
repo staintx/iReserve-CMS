@@ -186,7 +186,9 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
           {openDropdowns.bookings && !isCollapsed && (
             <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
               <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
-              <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>
+              {isAdmin && (
+                <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>
+              )}
               <NavLink to="/admin/bookings/history" className={subLinkClass}>Event History</NavLink>
             </div>
           )}
@@ -214,6 +216,7 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
                   <NavLink to="/admin/packages" className={subLinkClass}>Packages</NavLink>
                   <NavLink to="/admin/menu" className={subLinkClass}>Food Menu</NavLink>
                   <NavLink to="/admin/gallery" className={subLinkClass}>Gallery</NavLink>
+                  <NavLink to="/admin/addons" className={subLinkClass}>Addons</NavLink>
                   <NavLink to="/admin/inventory" className={subLinkClass}>Inventory</NavLink>
                 </div>
               )}

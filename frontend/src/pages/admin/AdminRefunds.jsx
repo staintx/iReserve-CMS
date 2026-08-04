@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Download, Calculator, Check, XCircle, AlertTriangle } from "lucide-react";
+import { Search, Download, Calculator, Check, XCircle, AlertTriangle, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -100,61 +100,73 @@ export default function AdminRefunds() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Refunds & Cancellations</h2>
-          <Btn variant="secondary" size="sm"><Download size={13} /> Export Report</Btn>
+        <div className="flex flex-col gap-4 mb-4">
+          <div className="flex items-center text-sm font-medium text-[#6B7280]">
+            <ChevronLeft size={16} className="mr-1" />
+            <span className="cursor-pointer hover:text-[#111]">Finance</span>
+            <ChevronRight size={14} className="mx-2 text-gray-300" />
+            <span className="text-[#111] font-bold">Refund Queue</span>
+          </div>
         </div>
 
-        <AdminCard className="!p-4">
-          <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 max-w-sm">
-            <Search size={14} className="text-[#9CA3AF]" />
-            <input 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
-              placeholder="Search refunds..." 
-              className="bg-transparent text-sm focus:outline-none flex-1" 
-              style={{ fontFamily: "Inter, sans-serif" }} 
-            />
-          </div>
-        </AdminCard>
-
         <AdminCard className="!p-0 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="font-bold text-[#111] text-lg">Refund Requests</h3>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]" style={{ fontFamily: "Inter, sans-serif" }}>
-              <thead className="bg-gray-50 border-b border-gray-200">
+            <table className="w-full min-w-[1000px]" style={{ fontFamily: "Inter, sans-serif" }}>
+              <thead className="bg-[#F9FAFB] border-b border-gray-100">
                 <tr>
-                  {["Refund ID","Booking","Customer","Reason","Deposit Paid","Refund %","Amount Due","Status","Actions"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider">{h}</th>
+                  {["REF ID", "CUSTOMER", "BOOKING", "DEPOSIT PAID", "REFUND %", "REFUND AMOUNT", "REASON", "STATUS", "ACTIONS"].map(h => (
+                    <th key={h} className="px-6 py-4 text-left text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 bg-white">
                 {loading ? (
                   <tr><td colSpan="9" className="text-center py-8 text-gray-500">Loading refunds...</td></tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan="9" className="text-center py-8 text-gray-500">No refunds found.</td></tr>
                 ) : (
                   filtered.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-xs font-mono font-bold text-[#111]">REF-{r.id.substring(4)}</td>
-                      <td className="px-4 py-3 text-xs font-mono font-bold text-[#D4AF37] cursor-pointer hover:underline" onClick={() => navigate(`/admin/bookings/${r._id}/details`)}>{r.booking}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-[#111]">{r.customer}</td>
-                      <td className="px-4 py-3 text-xs text-[#374151] max-w-[200px] truncate" title={r.reason}>{r.reason}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-[#374151]">{fmt(r.deposit)}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-[#111]">{r.pct}</td>
-                      <td className="px-4 py-3 text-sm font-bold text-orange-600">{fmt(r.amount)}</td>
-                      <td className="px-4 py-3"><Badge status={r.status} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1">
+                    <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 text-xs font-bold text-[#D4AF37]">REF-{r.id.substring(r.id.length - 3)}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-[#111]">{r.customer}</td>
+                      <td className="px-6 py-4 text-xs font-mono text-[#6B7280]">
+                        {r.booking.includes('-') ? (
+                          <div className="leading-tight">
+                            {r.booking.split('-')[0]}-<br/>{r.booking.split('-')[1]}
+                          </div>
+                        ) : r.booking}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-[#111]">{fmt(r.deposit)}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-[#111]">{r.pct}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-[#EF4444]">{r.amount === 0 ? "₱0" : fmt(r.amount)}</td>
+                      <td className="px-6 py-4 text-xs text-[#6B7280] max-w-[150px] leading-relaxed">{r.reason}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
+                          r.status === "pending" ? "bg-[#FFF9E6] text-[#D4AF37]" :
+                          r.status === "approved" ? "bg-[#E6F4EA] text-[#1E8E3E]" :
+                          r.status === "rejected" ? "bg-[#FCE8E8] text-[#EF4444]" :
+                          "bg-gray-100 text-gray-700"
+                        }`}>
+                          {r.status.charAt(0).toUpperCase() + r.status.slice(1).replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
                           {r.status === "pending" && (
-                            <>
-                              <button onClick={() => handleOpenCalc(r)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500" title="Calculate & Approve"><Calculator size={13} /></button>
-                              <button className="p-1.5 hover:bg-red-50 rounded-lg text-red-400" title="Reject"><XCircle size={13} /></button>
-                            </>
+                            <div className="flex flex-col gap-1.5">
+                              <button onClick={() => handleOpenCalc(r)} className="px-3 py-1 bg-[#D4AF37] hover:bg-[#B8972E] text-[#111] text-xs font-bold rounded-full transition-colors whitespace-nowrap">Approve</button>
+                              <button className="px-3 py-1 bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap">Reject</button>
+                            </div>
                           )}
-                          {r.status !== "pending" && (
-                            <button className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]" title="View details" onClick={() => navigate(`/admin/bookings/${r._id}/details`)}><Search size={13} /></button>
+                          {r.status === "approved" && (
+                            <button className="px-4 py-1.5 bg-[#111827] hover:bg-black text-white text-xs font-bold rounded-full transition-colors whitespace-nowrap">Mark Completed</button>
                           )}
+                          <button className="text-[#9CA3AF] hover:text-[#111] transition-colors p-1" title="View document" onClick={() => navigate(`/admin/bookings/${r._id}/details`)}>
+                            <FileText size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>

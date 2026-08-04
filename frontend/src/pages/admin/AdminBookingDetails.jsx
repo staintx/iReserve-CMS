@@ -114,7 +114,7 @@ export default function AdminBookingDetails() {
   };
 
   const handleResolveChange = () => {
-    AdminAPI.updateBooking(booking._id, { event_theme: booking.event_theme + " " })
+    AdminAPI.resolveChangeRequest(booking._id, { status: "approved" })
       .then(() => {
         notify("Change request marked as resolved.", "success");
         setShowChangeModal(false);

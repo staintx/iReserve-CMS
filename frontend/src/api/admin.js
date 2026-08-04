@@ -33,6 +33,7 @@ export const AdminAPI = {
   verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
   scheduleOcular: (id, data) => api.post(`/bookings/${id}/ocular/schedule`, data),
   completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
+  resolveChangeRequest: (id, data) => api.post(`/bookings/${id}/change-request/resolve`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),
@@ -57,6 +58,12 @@ export const AdminAPI = {
   createInventory: (data) => api.post("/inventory", data),
   updateInventory: (id, data) => api.put(`/inventory/${id}`, data),
   deleteInventory: (id) => api.delete(`/inventory/${id}`),
+
+  // Addons
+  getAddons: () => api.get("/addons"),
+  createAddon: (data) => api.post("/addons", data),
+  updateAddon: (id, data) => api.put(`/addons/${id}`, data),
+  deleteAddon: (id) => api.delete(`/addons/${id}`),
 
   // Gallery
   getGallery: () => api.get("/gallery"),

@@ -4,9 +4,6 @@ import {
   Search,
   Edit3,
   Trash2,
-  Check,
-  Clock,
-  XCircle,
   MoreHorizontal,
   Filter,
   X,
@@ -16,8 +13,8 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
-import { KANBAN_DATA } from "../../components/admin/ui/data";
 import { AdminAPI } from "../../api/admin";
+import { useNavigate } from "react-router-dom";
 import useToast from "../../hooks/useToast";
 import PackageModal from "../../components/admin/ui/PackageModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -35,6 +32,7 @@ const PACKAGE_TYPES = ["Food Only", "Event Setup Only", "Food + Event Setup"];
 
 export default function AdminPackages() {
   const { notify } = useToast();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("standard");
   const [search, setSearch] = useState("");
 
@@ -49,6 +47,9 @@ export default function AdminPackages() {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [quotes, setQuotes] = useState([]);
+  const [quotesLoading, setQuotesLoading] = useState(true);
+
   const [showModal, setShowModal] = useState(false);
   const [activePkg, setActivePkg] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -61,9 +62,21 @@ export default function AdminPackages() {
       .finally(() => setLoading(false));
   };
 
+  const loadQuotes = () => {
+    setQuotesLoading(true);
+    AdminAPI.getQuotes()
+      .then((res) => setQuotes(Array.isArray(res.data) ? res.data : []))
+      .catch(() => notify("Failed to load custom quotes", "error"))
+      .finally(() => setQuotesLoading(false));
+  };
+
   useEffect(() => {
     loadData();
+    loadQuotes();
   }, []);
+
+  const pendingQuotes = quotes.filter((q) => q.status !== "converted");
+  const convertedQuotes = quotes.filter((q) => q.status === "converted");
 
   const handleOpenModal = (pkg = null) => {
     setActivePkg(pkg);
@@ -485,77 +498,71 @@ export default function AdminPackages() {
         ) : (
           /* ============ CUSTOM QUOTES TAB ============ */
           <div className="flex gap-4 overflow-x-auto pb-4 items-start min-h-[500px]">
-            {Object.entries(KANBAN_DATA).map(([column, items]) => (
-              <div
-                key={column}
-                className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-4 border border-gray-200"
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-[#111] text-sm">{column}</h3>
-                  <span className="text-xs font-bold bg-white text-[#6B7280] px-2 py-0.5 rounded-full border border-gray-200">
-                    {items.length}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {items.map((item) => (
-                    <AdminCard
-                      key={item.id}
-                      className="!p-4 cursor-pointer hover:border-[#D4AF37] transition-colors shadow-sm"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-mono font-bold text-[#D4AF37]">
-                          {item.id}
-                        </span>
-                        <MoreHorizontal size={14} className="text-[#9CA3AF]" />
-                      </div>
-                      <p className="font-bold text-[#111] text-sm">
-                        {item.customer}
-                      </p>
-                      <p className="text-xs text-[#6B7280] mb-3">
-                        {item.date} · {item.guests} pax
-                      </p>
-
-                      <div className="bg-gray-50 rounded-lg p-2 mb-3 border border-gray-100">
-                        <p className="text-xs text-[#374151]">
-                          <strong>Menu:</strong> {item.menu}
+            {quotesLoading ? (
+              <div className="w-full text-center py-16 text-gray-500">Loading custom quotes...</div>
+            ) : (
+              [
+                { column: "Pending Review", items: pendingQuotes },
+                { column: "Converted", items: convertedQuotes },
+              ].map(({ column, items }) => (
+                <div
+                  key={column}
+                  className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-4 border border-gray-200"
+                >
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-[#111] text-sm">{column}</h3>
+                    <span className="text-xs font-bold bg-white text-[#6B7280] px-2 py-0.5 rounded-full border border-gray-200">
+                      {items.length}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {items.map((item) => (
+                      <AdminCard
+                        key={item._id}
+                        className="!p-4 cursor-pointer hover:border-[#D4AF37] transition-colors shadow-sm"
+                        onClick={() => navigate(`/admin/quotes/${item._id}/details`)}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs font-mono font-bold text-[#D4AF37]">
+                            {item._id.slice(-6).toUpperCase()}
+                          </span>
+                          <MoreHorizontal size={14} className="text-[#9CA3AF]" />
+                        </div>
+                        <p className="font-bold text-[#111] text-sm">
+                          {item.full_name || item.customer_id?.full_name || "Unknown"}
                         </p>
-                        <p className="text-[11px] text-[#6B7280] mt-1 italic">
-                          "{item.requests}"
+                        <p className="text-xs text-[#6B7280] mb-3">
+                          {item.event_date ? new Date(item.event_date).toLocaleDateString() : "No date"} · {item.guest_count || "—"} pax
                         </p>
-                      </div>
 
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                        <span className="font-bold text-[#111] text-sm">
-                          {item.budget}
-                        </span>
-                        <div className="flex gap-1">
-                          {column === "Pending Review" && (
-                            <button className="w-6 h-6 flex items-center justify-center rounded bg-blue-50 text-blue-500 hover:bg-blue-100">
-                              <Clock size={12} />
-                            </button>
-                          )}
-                          {column !== "Approved" && (
-                            <button className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-500 hover:bg-emerald-100">
-                              <Check size={12} />
-                            </button>
-                          )}
-                          {column !== "Rejected" && (
-                            <button className="w-6 h-6 flex items-center justify-center rounded bg-red-50 text-red-500 hover:bg-red-100">
-                              <XCircle size={12} />
-                            </button>
+                        <div className="bg-gray-50 rounded-lg p-2 mb-3 border border-gray-100">
+                          <p className="text-xs text-[#374151]">
+                            <strong>Event:</strong> {item.event_type || "—"}
+                          </p>
+                          {item.notes && (
+                            <p className="text-[11px] text-[#6B7280] mt-1 italic">
+                              "{item.notes}"
+                            </p>
                           )}
                         </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                          <span className="font-bold text-[#111] text-sm">
+                            {item.budget_range || "—"}
+                          </span>
+                          <span className="text-xs text-[#D4AF37] font-semibold">View Details →</span>
+                        </div>
+                      </AdminCard>
+                    ))}
+                    {items.length === 0 && (
+                      <div className="p-4 text-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-medium">
+                        No custom quotes
                       </div>
-                    </AdminCard>
-                  ))}
-                  {items.length === 0 && (
-                    <div className="p-4 text-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-medium">
-                      No custom quotes
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </div>

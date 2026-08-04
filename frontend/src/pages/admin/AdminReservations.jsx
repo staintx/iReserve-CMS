@@ -1,27 +1,45 @@
 import React, { useState, useEffect } from "react";
-import { Download, Plus, Search, Filter, Eye, Check, Edit3, Printer, XCircle } from "lucide-react";
+import { Download, Plus, Eye, Check, Edit3, XCircle } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import ConflictModal from "../../components/admin/ui/ConflictModal";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import DataTable from "../../components/admin/table/DataTable";
+import TableToolbar from "../../components/admin/table/TableToolbar";
+import FilterPopover from "../../components/admin/table/FilterPopover";
+import FilterChip from "../../components/admin/table/FilterChip";
+import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
+import DetailDrawer from "../../components/admin/table/DetailDrawer";
+import DrawerField from "../../components/admin/table/DrawerField";
+import BulkActionBar from "../../components/admin/table/BulkActionBar";
+import Pagination from "../../components/admin/table/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 export default function AdminReservations() {
   const navigate = useNavigate();
   const { notify } = useToast();
-  
+  const [searchParams] = useSearchParams();
+
   const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [showConflict, setShowConflict] = useState(false);
   const [approvedId, setApprovedId] = useState(null);
-  
+
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [bulkCancelConfirm, setBulkCancelConfirm] = useState(false);
+
+  const [drawerRow, setDrawerRow] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
   const statuses = ["all", "pending deposit", "confirmed", "completed", "cancelled", "change requests"];
 
@@ -31,7 +49,7 @@ export default function AdminReservations() {
       .then((res) => {
         setBookings(res.data);
       })
-      .catch((err) => {
+      .catch(() => {
         notify("Failed to load bookings", "error");
       })
       .finally(() => setLoading(false));
@@ -44,11 +62,10 @@ export default function AdminReservations() {
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
   // Map API fields to table columns
-  const formattedBookings = bookings.map(b => {
-    // Check if there is a pending change request
+  const formattedBookings = bookings.map((b) => {
     const hasChangeRequest = b.change_request?.status === "pending";
     const mappedStatus = hasChangeRequest ? "change requests" : b.status;
-    
+
     return {
       _id: b._id,
       id: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
@@ -58,6 +75,7 @@ export default function AdminReservations() {
       pkg: b.package_id?.name || "Custom",
       guests: b.guest_count || 0,
       date: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
+      rawDate: b.event_date ? new Date(b.event_date) : null,
       venue: b.venue_type || "TBA",
       depositStatus: b.payment_status === "deposit_paid" || b.payment_status === "fully_paid" ? "Paid" : "Pending",
       finalPayment: b.payment_status === "fully_paid" ? "Paid" : "Pending",
@@ -68,15 +86,17 @@ export default function AdminReservations() {
     };
   });
 
-  const filtered = formattedBookings.filter(r => {
+  const filtered = formattedBookings.filter((r) => {
     const matchStatus = filter === "all" || r.status === filter;
     const matchSearch = !search || r.customer.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
+    const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
+    const matchDateTo = !dateRange.to || (r.rawDate && r.rawDate <= new Date(`${dateRange.to}T23:59:59`));
+    return matchStatus && matchSearch && matchDateFrom && matchDateTo;
   });
 
+  const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
+
   const handleApprove = (id) => {
-    // In a real app we might call an API to check availability first.
-    // For now, we'll just confirm the booking manually if it has issues, or normally approve it.
     AdminAPI.updateBooking(id, { status: "confirmed" })
       .then(() => {
         setApprovedId(id);
@@ -84,7 +104,7 @@ export default function AdminReservations() {
         setTimeout(() => setApprovedId(null), 2000);
         loadData();
       })
-      .catch(err => {
+      .catch((err) => {
         if (err.response?.status === 409) {
           setShowConflict(true);
         } else {
@@ -103,25 +123,99 @@ export default function AdminReservations() {
       .catch((err) => notify(err.response?.data?.message || "Failed to cancel booking", "error"));
   };
 
+  const cancellableSelected = selectedIds.filter((id) => {
+    const r = filtered.find((x) => x._id === id);
+    return r && r.rawStatus !== "cancelled" && r.rawStatus !== "completed";
+  });
+
+  const handleBulkCancel = async () => {
+    const ids = cancellableSelected;
+    const results = await Promise.allSettled(ids.map((id) => AdminAPI.updateBooking(id, { status: "cancelled" })));
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed === 0) {
+      notify(`${ids.length} booking${ids.length === 1 ? "" : "s"} cancelled.`, "success");
+    } else {
+      notify(`${ids.length - failed} cancelled, ${failed} failed.`, failed === ids.length ? "error" : "warning");
+    }
+    setBulkCancelConfirm(false);
+    setSelectedIds([]);
+    loadData();
+  };
+
+  const buildRowActions = (r) => [
+    { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(r) },
+    ...(r.rawStatus === "pending deposit" || r.status === "change requests"
+      ? [{ key: "approve", label: "Approve", icon: Check, onSelect: () => handleApprove(r._id) }]
+      : []),
+    { key: "edit", label: "Open full details", icon: Edit3, onSelect: () => navigate(`/admin/bookings/${r._id}/details`) },
+    ...(r.rawStatus !== "cancelled" && r.rawStatus !== "completed"
+      ? [{ key: "cancel", label: "Cancel booking", icon: XCircle, destructive: true, onSelect: () => setCancelTarget(r) }]
+      : []),
+  ];
+
+  // Reservations is the busiest workflow in the portal, so its table is cut
+  // to the 6 columns that support a quick approve/cancel decision; everything
+  // else (event type, package, guests, venue, deposit) lives in the drawer.
+  const columns = [
+    {
+      key: "id",
+      header: "Booking ID",
+      render: (r) => <span className="text-xs font-mono font-bold text-[#D4AF37]">{r.id}</span>,
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      render: (r) => (
+        <div>
+          <p className="text-sm font-semibold text-[#111]">{r.customer}</p>
+          <p className="text-xs text-[#9CA3AF]">{r.email}</p>
+        </div>
+      ),
+    },
+    { key: "date", header: "Date", className: "text-xs text-[#374151] whitespace-nowrap" },
+    { key: "status", header: "Status", render: (r) => <Badge status={r.status} /> },
+    { key: "finalPayment", header: "Final Pay", render: (r) => <Badge status={r.finalPayment} /> },
+    { key: "coordinator", header: "Coordinator", className: "text-xs text-[#374151]" },
+    {
+      key: "actions",
+      header: "Actions",
+      stopRowClick: true,
+      render: (r) => <RowActionsMenu actions={buildRowActions(r)} />,
+    },
+  ];
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
         {showConflict && (
-          <ConflictModal 
-            onClose={() => setShowConflict(false)} 
-            onApprove={() => { 
-              setShowConflict(false); 
-              // Usually the admin resolves the conflict manually in details
+          <ConflictModal
+            onClose={() => setShowConflict(false)}
+            onApprove={() => {
+              setShowConflict(false);
               notify("Please resolve the conflict in the booking details.", "warning");
-            }} 
+            }}
           />
         )}
 
         {cancelTarget && (
           <ConfirmDialog
-            message={`Are you sure you want to cancel booking ${cancelTarget.id}?`}
+            title="Cancel Booking"
+            message={`Are you sure you want to cancel booking ${cancelTarget.id}? This cannot be undone.`}
+            confirmText="Yes, cancel booking"
+            confirmVariant="danger"
             onConfirm={() => handleCancel(cancelTarget._id)}
             onCancel={() => setCancelTarget(null)}
+          />
+        )}
+
+        {bulkCancelConfirm && (
+          <ConfirmDialog
+            title="Cancel Bookings"
+            message={`Cancel ${cancellableSelected.length} selected booking${cancellableSelected.length === 1 ? "" : "s"}? This cannot be undone.`}
+            confirmText="Yes, cancel"
+            confirmVariant="danger"
+            onConfirm={handleBulkCancel}
+            onCancel={() => setBulkCancelConfirm(false)}
           />
         )}
 
@@ -133,88 +227,146 @@ export default function AdminReservations() {
           </div>
         </div>
 
-        {/* Filter bar */}
+        {/* Toolbar / bulk action bar */}
         <AdminCard className="!p-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
-              <Search size={14} className="text-[#9CA3AF]" />
-              <input 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-                placeholder="Search by ID or customer..." 
-                className="bg-transparent text-sm focus:outline-none flex-1" 
-                style={{ fontFamily: "Inter, sans-serif" }} 
+          {selectedIds.length > 0 ? (
+            <BulkActionBar
+              count={selectedIds.length}
+              onClear={() => setSelectedIds([])}
+              actions={[
+                {
+                  key: "cancel",
+                  label: `Cancel${cancellableSelected.length ? ` (${cancellableSelected.length})` : ""}`,
+                  destructive: true,
+                  disabled: cancellableSelected.length === 0,
+                  onSelect: () => setBulkCancelConfirm(true),
+                },
+              ]}
+            />
+          ) : (
+            <>
+              <TableToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Search by ID or customer..."
+                quickFilters={statuses.map((s) => ({ value: s, label: s }))}
+                activeQuickFilter={filter}
+                onQuickFilterChange={setFilter}
+                right={
+                  <FilterPopover
+                    label="Date Range"
+                    activeCount={dateRange.from || dateRange.to ? 1 : 0}
+                    onApply={() => setDateRange(draftDateRange)}
+                    onClear={() => {
+                      setDraftDateRange({ from: "", to: "" });
+                      setDateRange({ from: "", to: "" });
+                    }}
+                  >
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-[#374151] block mb-1">From</label>
+                        <input
+                          type="date"
+                          value={draftDateRange.from}
+                          onChange={(e) => setDraftDateRange((d) => ({ ...d, from: e.target.value }))}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-[#374151] block mb-1">To</label>
+                        <input
+                          type="date"
+                          value={draftDateRange.to}
+                          onChange={(e) => setDraftDateRange((d) => ({ ...d, to: e.target.value }))}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        />
+                      </div>
+                    </div>
+                  </FilterPopover>
+                }
               />
-            </div>
-            <div className="flex gap-1 flex-wrap">
-              {statuses.map(s => (
-                <button 
-                  key={s} 
-                  onClick={() => setFilter(s)} 
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${filter === s ? "bg-[#111827] text-white" : "bg-gray-100 text-[#6B7280] hover:bg-gray-200"}`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <Btn variant="secondary" size="sm"><Filter size={13} /> Date Range</Btn>
-          </div>
+              {(dateRange.from || dateRange.to) && (
+                <div className="flex items-center gap-2 mt-3">
+                  <FilterChip
+                    label={`Date: ${dateRange.from || "…"} – ${dateRange.to || "…"}`}
+                    onRemove={() => {
+                      setDateRange({ from: "", to: "" });
+                      setDraftDateRange({ from: "", to: "" });
+                    }}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </AdminCard>
 
         {/* Table */}
         <AdminCard className="!p-0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]" style={{ fontFamily: "Inter, sans-serif" }}>
-              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
-                <tr>
-                  {["Booking ID","Customer","Event Type","Package","Guests","Date","Venue","Deposit","Final Pay","Status","Coordinator","Actions"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <tr><td colSpan="12" className="text-center py-8 text-gray-500">Loading bookings...</td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan="12" className="text-center py-8 text-gray-500">No bookings found.</td></tr>
-                ) : (
-                  filtered.map(r => (
-                    <tr key={r._id} className={`hover:bg-gray-50 transition-colors ${approvedId === r._id ? "bg-emerald-50" : ""}`}>
-                      <td className="px-4 py-3 text-xs font-mono font-bold text-[#D4AF37]">{r.id}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-semibold text-[#111]">{r.customer}</p>
-                        <p className="text-xs text-[#9CA3AF]">{r.email}</p>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[#374151]">{r.eventType}</td>
-                      <td className="px-4 py-3 text-xs text-[#374151]">{r.pkg}</td>
-                      <td className="px-4 py-3 text-xs text-[#374151] text-center">{r.guests}</td>
-                      <td className="px-4 py-3 text-xs text-[#374151] whitespace-nowrap">{r.date}</td>
-                      <td className="px-4 py-3 text-xs text-[#374151] max-w-[130px] truncate">{r.venue}</td>
-                      <td className="px-4 py-3"><Badge status={r.depositStatus} /></td>
-                      <td className="px-4 py-3"><Badge status={r.finalPayment} /></td>
-                      <td className="px-4 py-3"><Badge status={r.status} /></td>
-                      <td className="px-4 py-3 text-xs text-[#374151]">{r.coordinator}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => navigate(`/admin/bookings/${r._id}/details`)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 transition-colors" title="View"><Eye size={13} /></button>
-                          {(r.rawStatus === "pending deposit" || r.status === "change requests") && (
-                            <button onClick={() => handleApprove(r._id)} className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-500 transition-colors" title="Approve"><Check size={13} /></button>
-                          )}
-                          <button onClick={() => navigate(`/admin/bookings/${r._id}/details`)} className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280] transition-colors" title="Edit"><Edit3 size={13} /></button>
-                          <button className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280] transition-colors" title="Print Invoice"><Printer size={13} /></button>
-                          <button onClick={() => setCancelTarget(r)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-400 transition-colors" title="Cancel"><XCircle size={13} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
-            <p className="text-xs text-[#6B7280]">Showing {filtered.length} of {bookings.length} reservations</p>
-          </div>
+          <DataTable
+            columns={columns}
+            rows={pageRows}
+            getRowId={(r) => r._id}
+            loading={loading}
+            emptyTitle="No bookings found."
+            emptyHint={search || filter !== "all" || dateRange.from || dateRange.to ? "Try adjusting your search or filters." : undefined}
+            onRowClick={(r) => setDrawerRow(r)}
+            rowHighlight={(r) => approvedId === r._id}
+            selectable
+            selectedIds={selectedIds}
+            onSelectedIdsChange={setSelectedIds}
+            minWidth="880px"
+          />
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
+
+        <DetailDrawer
+          open={!!drawerRow}
+          onOpenChange={(open) => !open && setDrawerRow(null)}
+          title={drawerRow?.customer}
+          description={drawerRow ? `Booking ${drawerRow.id}` : ""}
+          footer={
+            drawerRow && (
+              <>
+                {(drawerRow.rawStatus === "pending deposit" || drawerRow.status === "change requests") && (
+                  <Btn variant="secondary" size="sm" onClick={() => handleApprove(drawerRow._id)}>
+                    <Check size={13} /> Approve
+                  </Btn>
+                )}
+                {drawerRow.rawStatus !== "cancelled" && drawerRow.rawStatus !== "completed" && (
+                  <Btn
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      const row = drawerRow;
+                      setDrawerRow(null);
+                      setCancelTarget(row);
+                    }}
+                  >
+                    <XCircle size={13} /> Cancel booking
+                  </Btn>
+                )}
+                <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
+                  Open full details
+                </Btn>
+              </>
+            )
+          }
+        >
+          {drawerRow && (
+            <div className="grid grid-cols-2 gap-4">
+              <DrawerField label="Event Type" value={drawerRow.eventType} />
+              <DrawerField label="Package" value={drawerRow.pkg} />
+              <DrawerField label="Guests" value={drawerRow.guests} />
+              <DrawerField label="Venue" value={drawerRow.venue} />
+              <DrawerField label="Deposit" value={<Badge status={drawerRow.depositStatus} />} />
+              <DrawerField label="Final Payment" value={<Badge status={drawerRow.finalPayment} />} />
+              <DrawerField label="Status" value={<Badge status={drawerRow.status} />} />
+              <DrawerField label="Coordinator" value={drawerRow.coordinator} />
+              <DrawerField label="Total" value={fmt(drawerRow.total)} full />
+              <DrawerField label="Email" value={drawerRow.email || "—"} full />
+            </div>
+          )}
+        </DetailDrawer>
       </div>
     </AdminLayout>
   );

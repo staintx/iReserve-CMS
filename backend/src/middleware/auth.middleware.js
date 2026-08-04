@@ -17,8 +17,14 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-// Optional auth for public routes: if a valid token exists, attach req.user.
-// If no token (or invalid token), continue as anonymous.
+// Admin authorization check
+exports.isAdmin = (req, res, next) => {
+  if (req.user && req.user.role === "admin") { // adjust 'role === "admin"' to match your User schema field
+    return next();
+  }
+  return res.status(403).json({ message: "Access denied. Admin only." });
+};
+
 exports.optionalProtect = async (req, res, next) => {
   const token = req.cookies?.token;
   if (!token) return next();
@@ -31,4 +37,4 @@ exports.optionalProtect = async (req, res, next) => {
   }
 
   next();
-};
+};

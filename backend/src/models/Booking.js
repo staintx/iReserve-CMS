@@ -139,6 +139,7 @@ const BookingSchema = new mongoose.Schema(
         "ongoing",
         "completed",
         "cancelled",
+        "refunded",
       ],
       default: "pending deposit",
     },

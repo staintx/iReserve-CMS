@@ -1,16 +1,27 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Filter, Edit3, Trash2, Calendar } from "lucide-react";
+import { Eye, Plus, Edit3, Trash2, Calendar } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import StaffModal from "../../components/admin/ui/StaffModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import { useNavigate } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import DataTable from "../../components/admin/table/DataTable";
+import TableToolbar from "../../components/admin/table/TableToolbar";
+import FilterPopover from "../../components/admin/table/FilterPopover";
+import FilterChip from "../../components/admin/table/FilterChip";
+import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
+import DetailDrawer from "../../components/admin/table/DetailDrawer";
+import DrawerField from "../../components/admin/table/DrawerField";
+import Pagination from "../../components/admin/table/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 export default function AdminStaff() {
   const { notify } = useToast();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -20,6 +31,10 @@ export default function AdminStaff() {
   const [showModal, setShowModal] = useState(false);
   const [activeStaff, setActiveStaff] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [drawerRow, setDrawerRow] = useState(null);
+
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [draftStatusFilter, setDraftStatusFilter] = useState("all");
 
   const loadData = () => {
     setLoading(true);
@@ -38,13 +53,16 @@ export default function AdminStaff() {
     return ["all", ...distinct];
   }, [staff]);
 
-  const filtered = staff.filter(s => {
+  const filtered = staff.filter((s) => {
     const matchSearch = !search || (s.full_name || "").toLowerCase().includes(search.toLowerCase());
-    const matchRole = filter === "all" || s.position === filter;
-    return matchSearch && matchRole;
+    const matchPosition = filter === "all" || s.position === filter;
+    const matchStatus = statusFilter === "all" || (statusFilter === "available" ? s.is_active : !s.is_active);
+    return matchSearch && matchPosition && matchStatus;
   });
 
-  const initials = (name) => (name || "?").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
+
+  const initials = (name) => (name || "?").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const handleOpenModal = (member = null) => {
     setActiveStaff(member);
@@ -61,10 +79,45 @@ export default function AdminStaff() {
       .then(() => {
         notify("Staff member deleted successfully", "success");
         setCancelTarget(null);
+        setDrawerRow(null);
         loadData();
       })
       .catch((err) => notify(err.response?.data?.message || "Failed to delete staff member", "error"));
   };
+
+  // Staff isn't the busiest workflow, so it keeps 4 columns — the fields
+  // that actually support a quick roster scan — not Reservations' 6.
+  const columns = [
+    {
+      key: "name",
+      header: "Staff Member",
+      render: (s) => (
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center text-xs font-bold text-[#374151] shrink-0">
+            {initials(s.full_name)}
+          </div>
+          <span className="text-sm font-semibold text-[#111]">{s.full_name}</span>
+        </div>
+      ),
+    },
+    { key: "position", header: "Position", render: (s) => <span className="text-xs text-[#374151]">{s.position || "—"}</span> },
+    { key: "status", header: "Status", render: (s) => <Badge status={s.is_active ? "available" : "off"} /> },
+    { key: "events", header: "Events Handled", className: "text-center", render: (s) => <span className="text-sm font-semibold text-[#111]">{s.events_handled || 0}</span> },
+    {
+      key: "actions",
+      header: "Actions",
+      stopRowClick: true,
+      render: (s) => (
+        <RowActionsMenu
+          actions={[
+            { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(s) },
+            { key: "edit", label: "Edit staff member", icon: Edit3, onSelect: () => handleOpenModal(s) },
+            { key: "delete", label: "Delete staff member", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(s) },
+          ]}
+        />
+      ),
+    },
+  ];
 
   return (
     <AdminLayout>
@@ -72,78 +125,64 @@ export default function AdminStaff() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Staff Management</h2>
           <div className="flex gap-2 flex-wrap">
-            <Btn variant="secondary" size="sm"><Calendar size={13} /> View Schedule</Btn>
+            <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}><Calendar size={13} /> View Schedule</Btn>
             <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Staff</Btn>
           </div>
         </div>
 
         <AdminCard className="!p-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
-              <Search size={14} className="text-[#9CA3AF]" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search staff..."
-                className="bg-transparent text-sm focus:outline-none flex-1"
-                style={{ fontFamily: "Inter, sans-serif" }}
-              />
-            </div>
-            <div className="flex gap-1 flex-wrap">
-              <select
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                className="bg-gray-100 text-[#6B7280] text-xs font-semibold px-3 py-1.5 rounded-xl border-none focus:ring-0 outline-none capitalize"
+          <TableToolbar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search staff..."
+            quickFilters={positions.map((p) => ({ value: p, label: p === "all" ? "All Positions" : p }))}
+            activeQuickFilter={filter}
+            onQuickFilterChange={setFilter}
+            right={
+              <FilterPopover
+                label="Status"
+                activeCount={statusFilter !== "all" ? 1 : 0}
+                onApply={() => setStatusFilter(draftStatusFilter)}
+                onClear={() => {
+                  setDraftStatusFilter("all");
+                  setStatusFilter("all");
+                }}
               >
-                {positions.map(r => (
-                  <option key={r} value={r}>{r === "all" ? "All Positions" : r}</option>
-                ))}
-              </select>
+                <div className="space-y-1.5">
+                  {["all", "available", "off"].map((v) => (
+                    <label key={v} className="flex items-center gap-2 text-sm text-[#374151] capitalize cursor-pointer">
+                      <input
+                        type="radio"
+                        name="staff-status"
+                        checked={draftStatusFilter === v}
+                        onChange={() => setDraftStatusFilter(v)}
+                      />
+                      {v === "all" ? "All statuses" : v}
+                    </label>
+                  ))}
+                </div>
+              </FilterPopover>
+            }
+          />
+          {statusFilter !== "all" && (
+            <div className="flex items-center gap-2 mt-3">
+              <FilterChip label={`Status: ${statusFilter}`} onRemove={() => { setStatusFilter("all"); setDraftStatusFilter("all"); }} />
             </div>
-            <Btn variant="secondary" size="sm"><Filter size={13} /> Filters</Btn>
-          </div>
+          )}
         </AdminCard>
 
         <AdminCard className="!p-0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]" style={{ fontFamily: "Inter, sans-serif" }}>
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {["Staff Member","Position","Contact","Events Handled","Status","Actions"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <tr><td colSpan="6" className="text-center py-8 text-gray-500">Loading staff...</td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center py-8 text-gray-500">No staff found.</td></tr>
-                ) : filtered.map(s => (
-                  <tr key={s._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center text-xs font-bold text-[#374151]">
-                          {initials(s.full_name)}
-                        </div>
-                        <span className="text-sm font-semibold text-[#111]">{s.full_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#374151]">{s.position || "—"}</td>
-                    <td className="px-4 py-3 text-xs text-[#374151]">{s.phone || s.email || "—"}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#111] text-center">{s.events_handled || 0}</td>
-                    <td className="px-4 py-3"><Badge status={s.is_active ? "available" : "off"} /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <button onClick={() => handleOpenModal(s)} className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]"><Edit3 size={13} /></button>
-                        <button onClick={() => setCancelTarget(s)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-400"><Trash2 size={13} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            rows={pageRows}
+            getRowId={(s) => s._id}
+            loading={loading}
+            emptyTitle="No staff found."
+            emptyHint={search || filter !== "all" || statusFilter !== "all" ? "Try adjusting your search or filters." : undefined}
+            onRowClick={(s) => setDrawerRow(s)}
+            minWidth="700px"
+          />
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
       </div>
 
@@ -168,6 +207,51 @@ export default function AdminStaff() {
           confirmVariant="danger"
         />
       )}
+
+      <DetailDrawer
+        open={!!drawerRow}
+        onOpenChange={(open) => !open && setDrawerRow(null)}
+        title={drawerRow?.full_name}
+        description={drawerRow?.position || ""}
+        footer={
+          drawerRow && (
+            <>
+              <Btn
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  const row = drawerRow;
+                  setDrawerRow(null);
+                  setCancelTarget(row);
+                }}
+              >
+                <Trash2 size={13} /> Delete
+              </Btn>
+              <Btn
+                variant="gold"
+                size="sm"
+                onClick={() => {
+                  const row = drawerRow;
+                  setDrawerRow(null);
+                  handleOpenModal(row);
+                }}
+              >
+                <Edit3 size={13} /> Edit staff member
+              </Btn>
+            </>
+          )
+        }
+      >
+        {drawerRow && (
+          <div className="grid grid-cols-2 gap-4">
+            <DrawerField label="Phone" value={drawerRow.phone || "—"} />
+            <DrawerField label="Email" value={drawerRow.email || "—"} />
+            <DrawerField label="Position" value={drawerRow.position || "—"} />
+            <DrawerField label="Status" value={<Badge status={drawerRow.is_active ? "available" : "off"} />} />
+            <DrawerField label="Events Handled" value={drawerRow.events_handled || 0} full />
+          </div>
+        )}
+      </DetailDrawer>
     </AdminLayout>
   );
 }

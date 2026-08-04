@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Filter, Edit3, Trash2 } from "lucide-react";
+import { Eye, Plus, Edit3, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -8,33 +8,66 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import DataTable from "../../components/admin/table/DataTable";
+import TableToolbar from "../../components/admin/table/TableToolbar";
+import FilterPopover from "../../components/admin/table/FilterPopover";
+import FilterChip from "../../components/admin/table/FilterChip";
+import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
+import DetailDrawer from "../../components/admin/table/DetailDrawer";
+import DrawerField from "../../components/admin/table/DrawerField";
+import Pagination from "../../components/admin/table/Pagination";
+import usePagination from "../../hooks/usePagination";
 
 export default function AdminInventory() {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  
+
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [showModal, setShowModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [drawerRow, setDrawerRow] = useState(null);
+
+  const [availabilityFilter, setAvailabilityFilter] = useState("all");
+  const [draftAvailabilityFilter, setDraftAvailabilityFilter] = useState("all");
+
+  const [logState, setLogState] = useState({ itemId: null, entries: [] });
 
   const categories = ["all", "Equipment", "Furniture", "Tableware", "Decorations"];
+
+  const eventLabel = {
+    created: "Created",
+    manual_adjustment: "Manual Adjustment",
+    reservation_allocated: "Reservation Allocated",
+    reservation_released: "Reservation Released",
+    retired: "Retired",
+  };
 
   const loadData = () => {
     setLoading(true);
     // Use getAvailability to also get reserved quantities
     AdminAPI.getInventoryAvailability()
-      .then(res => setInventory(res.data))
-      .catch(err => notify("Failed to load inventory", "error"))
+      .then((res) => setInventory(res.data))
+      .catch(() => notify("Failed to load inventory", "error"))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!drawerRow) return;
+    AdminAPI.getInventoryLogs(drawerRow._id)
+      .then((res) => setLogState({ itemId: drawerRow._id, entries: res.data }))
+      .catch(() => notify("Failed to load inventory log", "error"));
+  }, [drawerRow?._id]);
+
+  const logsLoading = !!drawerRow && logState.itemId !== drawerRow._id;
+  const logs = drawerRow && logState.itemId === drawerRow._id ? logState.entries : [];
 
   const handleOpenModal = (item = null) => {
     setActiveItem(item);
@@ -51,16 +84,44 @@ export default function AdminInventory() {
       .then(() => {
         notify("Inventory item deleted successfully", "success");
         setCancelTarget(null);
+        setDrawerRow(null);
         loadData();
       })
-      .catch(err => notify(err.response?.data?.message || "Failed to delete item", "error"));
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete item", "error"));
   };
 
-  const filtered = inventory.filter(i => {
+  const filtered = inventory.filter((i) => {
     const matchSearch = !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
     const matchCategory = filter === "all" || i.category === filter;
-    return matchSearch && matchCategory;
+    const matchAvailability = availabilityFilter === "all" || (availabilityFilter === "available" ? i.available : !i.available);
+    return matchSearch && matchCategory && matchAvailability;
   });
+
+  const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
+
+  // Inventory keeps 4 columns — what an admin actually scans stock levels
+  // for — not Reservations' 6. Total stock / reserved / min stock move to
+  // the drawer, which also hosts the per-item Inventory Log.
+  const columns = [
+    { key: "item", header: "Item Name", render: (i) => <span className="text-sm font-semibold text-[#111]">{i.item_name}</span> },
+    { key: "category", header: "Category", className: "text-xs text-[#374151]" },
+    { key: "available", header: "Available", className: "text-center", render: (i) => <span className="text-sm font-semibold text-emerald-600">{i.available_quantity || 0}</span> },
+    { key: "status", header: "Status", render: (i) => <Badge status={i.available ? "available" : "unavailable"} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      stopRowClick: true,
+      render: (item) => (
+        <RowActionsMenu
+          actions={[
+            { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(item) },
+            { key: "edit", label: "Edit item", icon: Edit3, onSelect: () => handleOpenModal(item) },
+            { key: "delete", label: "Delete item", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(item) },
+          ]}
+        />
+      ),
+    },
+  ];
 
   return (
     <AdminLayout>
@@ -71,80 +132,72 @@ export default function AdminInventory() {
         </div>
 
         <AdminCard className="!p-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
-              <Search size={14} className="text-[#9CA3AF]" />
-              <input 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-                placeholder="Search inventory..." 
-                className="bg-transparent text-sm focus:outline-none flex-1" 
-                style={{ fontFamily: "Inter, sans-serif" }} 
-              />
+          <TableToolbar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search inventory..."
+            quickFilters={categories.map((c) => ({ value: c, label: c }))}
+            activeQuickFilter={filter}
+            onQuickFilterChange={setFilter}
+            right={
+              <FilterPopover
+                label="Availability"
+                activeCount={availabilityFilter !== "all" ? 1 : 0}
+                onApply={() => setAvailabilityFilter(draftAvailabilityFilter)}
+                onClear={() => {
+                  setDraftAvailabilityFilter("all");
+                  setAvailabilityFilter("all");
+                }}
+              >
+                <div className="space-y-1.5">
+                  {["all", "available", "unavailable"].map((v) => (
+                    <label key={v} className="flex items-center gap-2 text-sm text-[#374151] capitalize cursor-pointer">
+                      <input
+                        type="radio"
+                        name="inventory-availability"
+                        checked={draftAvailabilityFilter === v}
+                        onChange={() => setDraftAvailabilityFilter(v)}
+                      />
+                      {v === "all" ? "All items" : v}
+                    </label>
+                  ))}
+                </div>
+              </FilterPopover>
+            }
+          />
+          {availabilityFilter !== "all" && (
+            <div className="flex items-center gap-2 mt-3">
+              <FilterChip label={`Status: ${availabilityFilter}`} onRemove={() => { setAvailabilityFilter("all"); setDraftAvailabilityFilter("all"); }} />
             </div>
-            <div className="flex gap-1 flex-wrap">
-              {categories.map(c => (
-                <button 
-                  key={c} 
-                  onClick={() => setFilter(c)} 
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${filter === c ? "bg-[#111827] text-white" : "bg-gray-100 text-[#6B7280] hover:bg-gray-200"}`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-            <Btn variant="secondary" size="sm"><Filter size={13} /> Filters</Btn>
-          </div>
+          )}
         </AdminCard>
 
         <AdminCard className="!p-0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]" style={{ fontFamily: "Inter, sans-serif" }}>
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {["Item Name","Category","Total Stock","Reserved","Available","Min Stock","Status","Actions"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <tr><td colSpan="8" className="text-center py-8 text-gray-500">Loading inventory...</td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan="8" className="text-center py-8 text-gray-500">No inventory found.</td></tr>
-                ) : (
-                  filtered.map(item => (
-                    <tr key={item._id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-semibold text-[#111]">{item.item_name}</td>
-                      <td className="px-4 py-3 text-xs text-[#374151]">{item.category}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-[#111] text-center">{item.quantity}</td>
-                      <td className="px-4 py-3 text-xs text-orange-600 font-semibold text-center">{item.reserved_quantity || 0}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-emerald-600 text-center">{item.available_quantity || 0}</td>
-                      <td className="px-4 py-3 text-xs text-[#6B7280] text-center">{item.minStock || 0}</td>
-                      <td className="px-4 py-3"><Badge status={item.available ? "available" : "unavailable"} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1">
-                          <button onClick={() => handleOpenModal(item)} className="p-1.5 hover:bg-gray-100 rounded-lg text-[#6B7280]"><Edit3 size={13} /></button>
-                          <button onClick={() => setCancelTarget(item)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-400"><Trash2 size={13} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            rows={pageRows}
+            getRowId={(i) => i._id}
+            loading={loading}
+            emptyTitle="No inventory found."
+            emptyHint={search || filter !== "all" || availabilityFilter !== "all" ? "Try adjusting your search or filters." : undefined}
+            onRowClick={(i) => setDrawerRow(i)}
+            minWidth="680px"
+          />
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
       </div>
 
       {showModal && (
-        <InventoryModal 
-          item={activeItem} 
-          onClose={handleCloseModal} 
+        <InventoryModal
+          item={activeItem}
+          onClose={handleCloseModal}
           onSave={() => {
             handleCloseModal();
             loadData();
-          }} 
+            // Force a fresh fetch of the item's log/detail rather than showing
+            // stale data behind the modal — reopen the drawer to see updates.
+            setDrawerRow(null);
+          }}
         />
       )}
 
@@ -158,6 +211,82 @@ export default function AdminInventory() {
           confirmVariant="danger"
         />
       )}
+
+      <DetailDrawer
+        open={!!drawerRow}
+        onOpenChange={(open) => !open && setDrawerRow(null)}
+        title={drawerRow?.item_name}
+        description={drawerRow?.category}
+        footer={
+          drawerRow && (
+            <>
+              <Btn
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  const row = drawerRow;
+                  setDrawerRow(null);
+                  setCancelTarget(row);
+                }}
+              >
+                <Trash2 size={13} /> Delete
+              </Btn>
+              <Btn
+                variant="gold"
+                size="sm"
+                onClick={() => {
+                  const row = drawerRow;
+                  setDrawerRow(null);
+                  handleOpenModal(row);
+                }}
+              >
+                <Edit3 size={13} /> Edit item
+              </Btn>
+            </>
+          )
+        }
+      >
+        {drawerRow && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <DrawerField label="Total Stock" value={drawerRow.quantity} />
+              <DrawerField label="Reserved" value={drawerRow.reserved_quantity || 0} />
+              <DrawerField label="Available" value={drawerRow.available_quantity || 0} />
+              <DrawerField label="Min Stock" value={drawerRow.minStock || 0} />
+              <DrawerField label="Status" value={<Badge status={drawerRow.available ? "available" : "unavailable"} />} full />
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] mb-3">Inventory Log</p>
+              {logsLoading ? (
+                <p className="text-xs text-gray-400">Loading log…</p>
+              ) : logs.length === 0 ? (
+                <p className="text-xs text-gray-400">No stock changes recorded yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {logs.map((entry) => (
+                    <div key={entry._id}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge status={eventLabel[entry.event_type] || entry.event_type} />
+                        {entry.delta !== 0 && (
+                          <span className={`text-xs font-bold ${entry.delta > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                            {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+                          </span>
+                        )}
+                      </div>
+                      {entry.reason && <p className="text-xs text-[#374151]">{entry.reason}</p>}
+                      <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+                        {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </DetailDrawer>
     </AdminLayout>
   );
 }

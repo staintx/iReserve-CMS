@@ -47,6 +47,7 @@ const checkInventoryAvailability = async (
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification, notifyAdmins } = require("../utils/notify");
 const logAction = require("../utils/logAction");
+const writeInventoryLog = require("../utils/writeInventoryLog");
 const {
   sendBookingConfirmationEmail,
   sendBookingStatusEmail,
@@ -450,6 +451,16 @@ exports.create = asyncHandler(async (req, res) => {
       }));
     if (reservations.length > 0) {
       await InventoryReservation.insertMany(reservations);
+      reservations.forEach((r) =>
+        writeInventoryLog({
+          inventory_id: r.inventory_id,
+          event_type: "reservation_allocated",
+          delta: -r.quantity,
+          actor_id: req.user?._id,
+          booking_id: booking._id,
+          reason: `Booking ${booking.reference || booking._id} confirmed`,
+        }),
+      );
     }
   }
 
@@ -720,13 +731,34 @@ exports.update = asyncHandler(async (req, res) => {
         }));
       if (reservations.length > 0) {
         await InventoryReservation.insertMany(reservations);
+        reservations.forEach((r) =>
+          writeInventoryLog({
+            inventory_id: r.inventory_id,
+            event_type: "reservation_allocated",
+            delta: -r.quantity,
+            actor_id: req.user?._id,
+            booking_id: updated._id,
+            reason: `Booking ${updated.reference || updated._id} confirmed`,
+          }),
+        );
       }
     }
   } else if (
     current.status === "confirmed" &&
     ["cancelled", "refunded"].includes(updated.status)
   ) {
+    const releasedReservations = await InventoryReservation.find({ booking_id: updated._id });
     await InventoryReservation.deleteMany({ booking_id: updated._id });
+    releasedReservations.forEach((r) =>
+      writeInventoryLog({
+        inventory_id: r.inventory_id,
+        event_type: "reservation_released",
+        delta: r.quantity,
+        actor_id: req.user?._id,
+        booking_id: updated._id,
+        reason: `Booking ${updated.reference || updated._id} ${updated.status}`,
+      }),
+    );
   }
 
   // Build changes object for the log

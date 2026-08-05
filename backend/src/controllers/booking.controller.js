@@ -143,9 +143,11 @@ const sameLocation = (requestLocation, existingLocation) => {
   // Existing Food Only orders don't block the venue either
   if (existingLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
 
+  // If the request doesn't have a municipality yet, we can't definitively say it's the same location.
+  // Returning true here would cause province-only conflicts.
+  if (!requestLocation?.municipality) return false;
+
   const keys = ["venue_type", "province", "municipality", "barangay", "street"];
-  const hasAny = keys.some((key) => Boolean(requestLocation?.[key]));
-  if (!hasAny) return false;
 
   return keys.every((key) => {
     const requested = requestLocation?.[key];

@@ -416,6 +416,7 @@ export default function BookingWizard() {
       CustomerAPI.checkAvailability({
         event_date: form.event_date,
         start_time: form.start_time,
+        duration_hours: form.duration_hours,
         venue_type: form.venue_type,
         province: form.province,
         municipality: form.municipality,
@@ -478,8 +479,12 @@ export default function BookingWizard() {
               .catch(() => {});
           }
         })
-        .catch(() => {
-          setAvailability({ status: "idle", message: "" });
+        .catch((err) => {
+          console.error("Availability check failed:", err);
+          setAvailability({ 
+            status: "idle", 
+            message: err.message || "Failed to check availability." 
+          });
           setSuggestedDates([]);
         });
     }, 400);

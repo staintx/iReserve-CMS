@@ -145,7 +145,7 @@ const sameLocation = (requestLocation, existingLocation) => {
 
   const keys = ["venue_type", "province", "municipality", "barangay", "street"];
   const hasAny = keys.some((key) => Boolean(requestLocation?.[key]));
-  if (!hasAny) return true;
+  if (!hasAny) return false;
 
   return keys.every((key) => {
     const requested = requestLocation?.[key];

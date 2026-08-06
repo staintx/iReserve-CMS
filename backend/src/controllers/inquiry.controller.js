@@ -9,15 +9,32 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     ...req.body,
     customer_id: req.user?._id || req.body.customer_id
   };
+
+  // Anti-spam check: prevent duplicate submissions within 60 seconds
+  const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+  const recentInquiry = await Inquiry.findOne({
+    customer_id: payload.customer_id,
+    createdAt: { $gte: oneMinuteAgo }
+  });
+
+  if (recentInquiry) {
+    return res.status(429).json({ 
+      message: "You are submitting inquiries too quickly. Please wait a moment before trying again." 
+    });
+  }
   
   // Here we could perform initial availability checks without reserving
   // e.g., if we know a date is completely blocked
   
   const inquiry = await Inquiry.create(payload);
   
-  // Send notification to admin (pseudo code, adapt to existing system)
-  // notifyAdmin({ type: "NEW_INQUIRY", inquiryId: inquiry._id });
-  
+  const { notifyAdmins } = require("../utils/notify");
+  await notifyAdmins({
+    title: "New Inquiry Submitted",
+    body: `A new inquiry (${inquiry.reference}) has been submitted by ${inquiry.contact_first_name} ${inquiry.contact_last_name}.`,
+    type: "new_inquiry",
+    link: "/admin/bookings/inquiries"
+  });
   res.status(201).json(inquiry);
 });
 
@@ -27,13 +44,18 @@ exports.getInquiries = asyncHandler(async (req, res) => {
   if (req.user.role === "customer") {
     query.customer_id = req.user._id;
   }
-  const inquiries = await Inquiry.find(query).populate("customer_id", "first_name last_name email phone");
+  const inquiries = await Inquiry.find(query)
+    .sort({ createdAt: -1 })
+    .populate("customer_id", "first_name last_name email phone");
   res.json(inquiries);
 });
 
 // Get single inquiry
 exports.getInquiryById = asyncHandler(async (req, res) => {
-  const inquiry = await Inquiry.findById(req.params.id).populate("customer_id", "first_name last_name email phone").populate("package_id");
+  const inquiry = await Inquiry.findById(req.params.id)
+    .populate("customer_id", "first_name last_name email phone")
+    .populate("package_id")
+    .populate("selected_menu");
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
   
   // Security check for customer

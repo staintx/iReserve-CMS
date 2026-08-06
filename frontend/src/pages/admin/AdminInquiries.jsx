@@ -41,7 +41,7 @@ export default function AdminInquiries() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "inquiry", "quote_sent", "customer_accepted"];
+  const statuses = ["all", "Recent", "Pending Review", "Quotation Sent", "Revision Requested", "Quote Accepted"];
 
   const loadData = () => {
     setLoading(true);
@@ -63,13 +63,14 @@ export default function AdminInquiries() {
 
   // Map API fields to table columns
   const formattedBookings = bookings
-    .filter((b) => ["inquiry", "quote_sent", "customer_accepted"].includes(b.status))
+    .filter((b) => b.status !== "Converted to Booking" && b.status !== "Cancelled")
     .map((b) => {
       const mappedStatus = b.status;
 
     return {
       _id: b._id,
       id: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
+      createdAt: b.createdAt,
       customer: b.customer_id?.full_name || `${b.contact_first_name} ${b.contact_last_name}`.trim() || "Unknown",
       email: b.customer_id?.email || b.contact_email || "",
       eventType: b.event_type || "Event",
@@ -88,7 +89,16 @@ export default function AdminInquiries() {
   });
 
   const filtered = formattedBookings.filter((r) => {
-    const matchStatus = filter === "all" || r.status === filter;
+    let matchStatus = false;
+    if (filter === "all") {
+      matchStatus = true;
+    } else if (filter === "Recent") {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      matchStatus = r.createdAt && new Date(r.createdAt) >= sevenDaysAgo;
+    } else {
+      matchStatus = r.status === filter;
+    }
     const matchSearch = !search || r.customer.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
     const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
     const matchDateTo = !dateRange.to || (r.rawDate && r.rawDate <= new Date(`${dateRange.to}T23:59:59`));
@@ -143,11 +153,7 @@ export default function AdminInquiries() {
     loadData();
   };
 
-  const buildRowActions = (r) => [
-    { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(r) },
-    { key: "edit", label: "Open full details", icon: Edit3, onSelect: () => navigate(`/admin/bookings/inquiries`) },
-    { key: "cancel", label: "Cancel inquiry", icon: XCircle, destructive: true, onSelect: () => setCancelTarget(r) }
-  ];
+  // Actions are rendered inline
 
   // Reservations is the busiest workflow in the portal, so its table is cut
   // to the 6 columns that support a quick approve/cancel decision; everything
@@ -155,7 +161,7 @@ export default function AdminInquiries() {
   const columns = [
     {
       key: "id",
-      header: "Booking ID",
+      header: "Inquiry ID",
       render: (r) => <span className="text-xs font-mono font-bold text-[#D4AF37]">{r.id}</span>,
     },
     {
@@ -170,13 +176,49 @@ export default function AdminInquiries() {
     },
     { key: "date", header: "Date", className: "text-xs text-[#374151] whitespace-nowrap" },
     { key: "status", header: "Status", render: (r) => <Badge status={r.status} /> },
-    { key: "finalPayment", header: "Final Pay", render: (r) => <Badge status={r.finalPayment} /> },
-    { key: "coordinator", header: "Coordinator", className: "text-xs text-[#374151]" },
+    { key: "eventType", header: "Event Type", className: "text-xs text-[#374151]" },
+    { key: "guests", header: "Guests", render: (r) => <span className="text-xs text-[#374151]">{r.guests} pax</span> },
     {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
-      render: (r) => <RowActionsMenu actions={buildRowActions(r)} />,
+      render: (r) => {
+        return (
+          <div className="flex items-center gap-2">
+            {r.rawStatus === "Pending Review" && (
+              <>
+                <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+                  <Plus size={13} /> Create Quote
+                </button>
+                <button onClick={() => setCancelTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
+                  <XCircle size={13} /> Reject
+                </button>
+              </>
+            )}
+            
+            {(r.rawStatus === "Quotation Sent" || r.rawStatus === "Revision Requested") && (
+              <>
+                <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+                  <Edit3 size={13} /> Edit Quote
+                </button>
+                <button onClick={() => setCancelTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
+                  <XCircle size={13} /> Reject
+                </button>
+              </>
+            )}
+
+            {r.rawStatus === "Quote Accepted" && (
+              <button onClick={() => handleApprove(r._id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 transition-colors shadow-sm">
+                <Check size={13} /> Convert to Booking
+              </button>
+            )}
+
+            <button onClick={() => setDrawerRow(r)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors ml-auto">
+              <Eye size={13} /> View
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -219,7 +261,6 @@ export default function AdminInquiries() {
           <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Inquiries</h2>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
-            <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
           </div>
         </div>
 
@@ -319,7 +360,7 @@ export default function AdminInquiries() {
           open={!!drawerRow}
           onOpenChange={(open) => !open && setDrawerRow(null)}
           title={drawerRow?.customer}
-          description={drawerRow ? `Booking ${drawerRow.id}` : ""}
+          description={drawerRow ? `Inquiry ${drawerRow.id}` : ""}
           footer={
             drawerRow && (
               <>
@@ -338,10 +379,10 @@ export default function AdminInquiries() {
                       setCancelTarget(row);
                     }}
                   >
-                    <XCircle size={13} /> Cancel booking
+                    <XCircle size={13} /> Cancel inquiry
                   </Btn>
                 )}
-                <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
+                <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/quotes/${drawerRow._id}/details`)}>
                   Open full details
                 </Btn>
               </>

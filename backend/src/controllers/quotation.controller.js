@@ -29,6 +29,17 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   res.status(201).json(quotation);
 });
 
+// Get all quotations (Admin)
+exports.getAllQuotations = asyncHandler(async (req, res) => {
+  const quotations = await Quotation.find()
+    .populate({
+      path: "inquiry_id",
+      populate: { path: "customer_id", select: "first_name last_name email phone" }
+    })
+    .sort({ createdAt: -1 });
+  res.json(quotations);
+});
+
 // Get all quotations for an inquiry
 exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
   const quotations = await Quotation.find({ inquiry_id: req.params.inquiryId }).sort({ version_number: -1 });

@@ -26,6 +26,10 @@ export default function Badge({ status }) {
     "Reservation Allocated": "bg-amber-100 text-amber-700",
     "Reservation Released": "bg-emerald-100 text-emerald-700",
     "Retired": "bg-red-100 text-red-700",
+    "Pending Review": "bg-amber-100 text-amber-800 border border-amber-200",
+    "Quotation Sent": "bg-blue-100 text-blue-800 border border-blue-200",
+    "Revision Requested": "bg-orange-100 text-orange-800 border border-orange-200",
+    "Quote Accepted": "bg-emerald-100 text-emerald-800 border border-emerald-200",
   };
   const cls = map[status] || "bg-gray-100 text-gray-600";
   return (

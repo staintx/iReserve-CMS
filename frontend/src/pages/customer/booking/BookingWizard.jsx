@@ -835,7 +835,7 @@ export default function BookingWizard() {
           {currentStepId === "ReviewBooking" ? (
             <PrimaryBtn
               variant="primary"
-              onClick={submitBooking}
+              onClick={() => submitBooking()}
               className="w-full sm:w-auto"
               disabled={!agreements.terms || !agreements.privacy || isSubmitting}
             >

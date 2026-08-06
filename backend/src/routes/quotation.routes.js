@@ -15,6 +15,7 @@ router.post("/:id/reject", quotationController.rejectQuotation);
 
 // Admin actions
 router.use(authorize("admin", "manager"));
+router.get("/", quotationController.getAllQuotations);
 router.post("/", quotationController.createQuotation);
 
 module.exports = router;

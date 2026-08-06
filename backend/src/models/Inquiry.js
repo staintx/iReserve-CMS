@@ -23,6 +23,17 @@ const InquirySchema = new mongoose.Schema(
     special_requests: String,
     dietary_requirements: String,
 
+    delivery_method: { type: String, enum: ["delivery", "pickup", "setup"] },
+    selected_menu: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }],
+    service_items: [
+      {
+        name: String,
+        description: String,
+        quantity: Number,
+        price: Number,
+      }
+    ],
+
     contact_first_name: { type: String, required: true },
     contact_last_name: { type: String, required: true },
     contact_email: { type: String, required: true },

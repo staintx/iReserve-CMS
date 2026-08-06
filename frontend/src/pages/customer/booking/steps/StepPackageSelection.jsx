@@ -2,6 +2,14 @@ import { Card, SH, SectionTitle, StepShell, focusRing, formatPeso } from "../com
 import { CheckCircle2, Package2, Users, Ruler } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// The wizard's `service_type` strings don't match the Package model's
+// `package_type` enum 1:1 (e.g. "Food and Event Setup" vs "Food + Event Setup"),
+// so map explicitly instead of comparing the raw strings.
+const PACKAGE_TYPE_BY_SERVICE_TYPE = {
+  "Event Setup Only": "Event Setup Only",
+  "Food and Event Setup": "Food + Event Setup",
+};
+
 export default function StepPackageSelection({
   packages = [],
   selectedPackageId,
@@ -10,8 +18,12 @@ export default function StepPackageSelection({
   setForm = () => {},
   packageDetails = null,
 }) {
-  const eventSetupPackages = (packages || []).filter(
-    (pkg) => pkg?.package_type === "Event Setup Only",
+  const targetPackageType =
+    PACKAGE_TYPE_BY_SERVICE_TYPE[form.service_type] || "Event Setup Only";
+  const isOptional = form.service_type === "Food and Event Setup";
+
+  const matchingPackages = (packages || []).filter(
+    (pkg) => pkg?.package_type === targetPackageType,
   );
 
   const selectedPackage =
@@ -28,8 +40,16 @@ export default function StepPackageSelection({
   return (
     <StepShell>
       <SH
-        title="Choose an Event Setup Package"
-        sub="Each package includes setup equipment managed by our team."
+        title={
+          isOptional
+            ? "Start from a Package (Optional)"
+            : "Choose an Event Setup Package"
+        }
+        sub={
+          isOptional
+            ? "Base your booking on one of our Food + Event Setup packages, or skip ahead and build everything yourself."
+            : "Each package includes setup equipment managed by our team."
+        }
       />
 
       <div
@@ -40,9 +60,9 @@ export default function StepPackageSelection({
       >
         {/* Packages */}
         <div>
-          {eventSetupPackages.length > 0 ? (
+          {matchingPackages.length > 0 ? (
             <div className="grid max-h-[56vh] grid-cols-1 gap-3 overflow-y-auto pr-0.5 xl:grid-cols-2">
-              {eventSetupPackages.map((pkg) => {
+              {matchingPackages.map((pkg) => {
                 const isSelected = selectedPackageId === pkg._id;
                 return (
                   <button
@@ -106,6 +126,12 @@ export default function StepPackageSelection({
                             )}
                           </span>
                         )}
+
+                        {isOptional && pkg.price_per_guest > 0 && (
+                          <span className="mt-2 block text-[13px] font-semibold text-[#4C81E0]">
+                            {formatPeso(pkg.price_per_guest)}/pax
+                          </span>
+                        )}
                       </span>
                     </span>
 
@@ -125,8 +151,9 @@ export default function StepPackageSelection({
             </div>
           ) : (
             <Card className="p-6 text-center text-sm text-[#64748B]">
-              No event setup packages are available right now. Please check back
-              later.
+              {isOptional
+                ? "No ready-made packages are available right now — continue to build your booking from scratch."
+                : "No event setup packages are available right now. Please check back later."}
             </Card>
           )}
         </div>

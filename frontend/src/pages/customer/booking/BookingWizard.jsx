@@ -211,6 +211,11 @@ export default function BookingWizard() {
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
       steps.push({ id: "PackageAddOns", label: "Add-ons", key: "addons" });
     } else if (isFoodAndEventSetup) {
+      steps.push({
+        id: "PackageSelection",
+        label: "Package",
+        key: "package",
+      });
       steps.push({ id: "EventDetails", label: "Event Details", key: "event" });
       steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
       steps.push({
@@ -289,7 +294,11 @@ export default function BookingWizard() {
       message: "",
     },
     PackageSelection: {
-      check: () => !!form.package_id || !!initialPackageId,
+      // Event Setup Only bookings must start from an admin package; Food and
+      // Event Setup bookings may optionally start from one and customize
+      // everything else afterward.
+      check: () =>
+        isEventSetupOnly ? !!form.package_id || !!initialPackageId : true,
       message: "Please select a package to continue.",
     },
     ContactInfo: {
@@ -406,6 +415,29 @@ export default function BookingWizard() {
       inventory_items: inventoryItemsFromPackage,
     }));
   }, [packageDetails, form.service_type]);
+
+  // If a Food + Event Setup package is selected, seed selected_menu from the
+  // package's menu items (matched against the already-loaded menu catalog so
+  // full item details — price, category, etc. — are available). Customers can
+  // still add/remove dishes afterward in the Menu step.
+  useEffect(() => {
+    if (!packageDetails) return;
+    if (form.service_type !== "Food and Event Setup") return;
+    if (!Array.isArray(packageDetails.menu_items)) return;
+    if (menuItems.length === 0) return;
+
+    const packageMenuIds = packageDetails.menu_items.map((m) =>
+      String(m?._id || m),
+    );
+    const menuFromPackage = menuItems.filter((item) =>
+      packageMenuIds.includes(String(item._id)),
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      selected_menu: menuFromPackage,
+    }));
+  }, [packageDetails, form.service_type, menuItems]);
 
   // --- Availability auto-check ---
   useEffect(() => {
@@ -527,7 +559,13 @@ export default function BookingWizard() {
             ? packagePrice
             : customEventSetupPrice;
       } else if (form.service_type === "Food and Event Setup") {
-        sum += customFoodEventPricePerPax * pax;
+        const selectedPackageId = form.package_id || initialPackageId;
+        const packagePricePerGuest = Number(packageDetails?.price_per_guest || 0);
+        const pricePerPax =
+          selectedPackageId && packagePricePerGuest > 0
+            ? packagePricePerGuest
+            : customFoodEventPricePerPax;
+        sum += pricePerPax * pax;
       } else if (form.service_type === "Food Only") {
         if (form.selected_menu && form.selected_menu.length > 0) {
           const perPaxCost = form.selected_menu.reduce(
@@ -850,7 +888,7 @@ export default function BookingWizard() {
         return (
           <StepReviewBooking
             form={form}
-            initialPackageName={initialPackageName}
+            initialPackageName={packageDetails?.name || initialPackageName}
             pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
             totalPrice={totalPrice}
             depositAmount={depositAmount}

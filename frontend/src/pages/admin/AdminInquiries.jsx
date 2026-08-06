@@ -20,7 +20,7 @@ import BulkActionBar from "../../components/admin/table/BulkActionBar";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 
-export default function AdminReservations() {
+export default function AdminInquiries() {
   const navigate = useNavigate();
   const { notify } = useToast();
   const [searchParams] = useSearchParams();
@@ -41,11 +41,11 @@ export default function AdminReservations() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "pending deposit", "confirmed", "completed", "cancelled", "change requests"];
+  const statuses = ["all", "inquiry", "quote_sent", "customer_accepted"];
 
   const loadData = () => {
     setLoading(true);
-    AdminAPI.getBookings()
+    AdminAPI.getInquiries()
       .then((res) => {
         setBookings(res.data);
       })
@@ -63,10 +63,9 @@ export default function AdminReservations() {
 
   // Map API fields to table columns
   const formattedBookings = bookings
-    .filter((b) => !["inquiry", "quote_sent", "customer_accepted"].includes(b.status))
+    .filter((b) => ["inquiry", "quote_sent", "customer_accepted"].includes(b.status))
     .map((b) => {
-      const hasChangeRequest = b.change_request?.status === "pending";
-      const mappedStatus = hasChangeRequest ? "change requests" : b.status;
+      const mappedStatus = b.status;
 
     return {
       _id: b._id,
@@ -99,10 +98,10 @@ export default function AdminReservations() {
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
   const handleApprove = (id) => {
-    AdminAPI.updateBooking(id, { status: "confirmed" })
+    AdminAPI.createBookingFromInquiry(id, {})
       .then(() => {
         setApprovedId(id);
-        notify("Booking approved successfully.", "success");
+        notify("Inquiry converted to booking successfully.", "success");
         setTimeout(() => setApprovedId(null), 2000);
         loadData();
       })
@@ -116,7 +115,7 @@ export default function AdminReservations() {
   };
 
   const handleCancel = (id) => {
-    AdminAPI.updateBooking(id, { status: "cancelled" })
+    AdminAPI.updateInquiry(id, { status: "Cancelled" })
       .then(() => {
         notify("Booking cancelled successfully.", "success");
         setCancelTarget(null);
@@ -132,7 +131,7 @@ export default function AdminReservations() {
 
   const handleBulkCancel = async () => {
     const ids = cancellableSelected;
-    const results = await Promise.allSettled(ids.map((id) => AdminAPI.updateBooking(id, { status: "cancelled" })));
+    const results = await Promise.allSettled(ids.map((id) => AdminAPI.updateInquiry(id, { status: "Cancelled" })));
     const failed = results.filter((r) => r.status === "rejected").length;
     if (failed === 0) {
       notify(`${ids.length} booking${ids.length === 1 ? "" : "s"} cancelled.`, "success");
@@ -146,13 +145,8 @@ export default function AdminReservations() {
 
   const buildRowActions = (r) => [
     { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(r) },
-    ...(r.rawStatus === "pending deposit" || r.status === "change requests"
-      ? [{ key: "approve", label: "Approve", icon: Check, onSelect: () => handleApprove(r._id) }]
-      : []),
-    { key: "edit", label: "Open full details", icon: Edit3, onSelect: () => navigate(`/admin/bookings/${r._id}/details`) },
-    ...(r.rawStatus !== "cancelled" && r.rawStatus !== "completed"
-      ? [{ key: "cancel", label: "Cancel booking", icon: XCircle, destructive: true, onSelect: () => setCancelTarget(r) }]
-      : []),
+    { key: "edit", label: "Open full details", icon: Edit3, onSelect: () => navigate(`/admin/bookings/inquiries`) },
+    { key: "cancel", label: "Cancel inquiry", icon: XCircle, destructive: true, onSelect: () => setCancelTarget(r) }
   ];
 
   // Reservations is the busiest workflow in the portal, so its table is cut
@@ -201,9 +195,9 @@ export default function AdminReservations() {
 
         {cancelTarget && (
           <ConfirmDialog
-            title="Cancel Booking"
-            message={`Are you sure you want to cancel booking ${cancelTarget.id}? This cannot be undone.`}
-            confirmText="Yes, cancel booking"
+            title="Cancel Inquiry"
+            message={`Are you sure you want to cancel inquiry ${cancelTarget.id}? This cannot be undone.`}
+            confirmText="Yes, cancel inquiry"
             confirmVariant="danger"
             onConfirm={() => handleCancel(cancelTarget._id)}
             onCancel={() => setCancelTarget(null)}
@@ -212,7 +206,7 @@ export default function AdminReservations() {
 
         {bulkCancelConfirm && (
           <ConfirmDialog
-            title="Cancel Bookings"
+            title="Cancel Inquiries"
             message={`Cancel ${cancellableSelected.length} selected booking${cancellableSelected.length === 1 ? "" : "s"}? This cannot be undone.`}
             confirmText="Yes, cancel"
             confirmVariant="danger"
@@ -222,7 +216,7 @@ export default function AdminReservations() {
         )}
 
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Reservations</h2>
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Inquiries</h2>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
             <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>

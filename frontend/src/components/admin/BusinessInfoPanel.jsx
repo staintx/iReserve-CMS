@@ -132,17 +132,7 @@ export default function BusinessInfoPanel() {
                 <input className="business-info-input" type="number" min="1" value={form.max_bookings_per_day} onChange={updateField("max_bookings_per_day")} placeholder="2" />
               </label>
             </div>
-            <h5 className="mt-4 mb-2 font-medium text-slate-700">Custom Bookings Base Pricing</h5>
-            <div className="form-grid-2">
-              <label className="business-info-field">
-                <span>Event Setup Only (Fixed Price)</span>
-                <input className="business-info-input" type="number" value={form.custom_event_setup_price} onChange={updateField("custom_event_setup_price")} placeholder="15000" />
-              </label>
-              <label className="business-info-field">
-                <span>Food & Event Setup (Per Pax)</span>
-                <input className="business-info-input" type="number" value={form.custom_food_and_event_price} onChange={updateField("custom_food_and_event_price")} placeholder="800" />
-              </label>
-            </div>
+
           </div>
 
           <div className="form-section">

@@ -26,7 +26,7 @@ export const CustomerAPI = {
   getAvailableTimes: (params) => api.get("/bookings/available-times", { params }),
   suggestDates: (params) => api.get("/bookings/availability/suggestions", { params }),
   getBookedDates: (month, year) => api.get(`/bookings/booked-dates?month=${month}&year=${year}`),
-  getInquiries: () => api.get("/inquiries/me"),
+  getInquiries: () => api.get("/inquiries"),
   cancelInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "cancelled" }),
   acceptInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "confirmed" }),
   updateInquiryDate: (id, data) => api.patch(`/inquiries/me/${id}/date`, data),
@@ -38,6 +38,7 @@ export const CustomerAPI = {
   requestCancellation: (id) => api.post(`/bookings/${id}/request-cancellation`),
   addGuests: (id, data) => api.post(`/bookings/${id}/add-guests`, data),
   upgradeBooking: (id, data) => api.post(`/bookings/${id}/upgrade-booking`, data),
+  acceptQuote: (id, data) => api.put(`/bookings/${id}/accept-quote`, data),
 
   // profile
   getProfile: () => api.get("/users/me"),

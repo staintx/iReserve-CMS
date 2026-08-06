@@ -133,15 +133,24 @@ const BookingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        "pending deposit",
-        "confirmed",
-        "preparing",
-        "ongoing",
-        "completed",
-        "cancelled",
-        "refunded",
+        "inquiry", // Legacy
+        "quote_sent", // Legacy
+        "customer_accepted", // Legacy
+        "pending deposit", // Legacy
+        "Deposit Pending",
+        "Confirmed",
+        "Ocular Scheduled",
+        "Final Payment Pending",
+        "Ready for Event",
+        "preparing", // Legacy
+        "ongoing", // Legacy
+        "Completed",
+        "completed", // Legacy
+        "Cancelled",
+        "cancelled", // Legacy
+        "refunded", // Legacy
       ],
-      default: "pending deposit",
+      default: "Deposit Pending",
     },
 
     staff_assignments: [

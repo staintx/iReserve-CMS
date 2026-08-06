@@ -25,6 +25,11 @@ const startCronJobs = (io) => {
             let count = 0;
             let invoiceCount = 0;
             for (const booking of upcomingBookings) {
+                // Skip if ocular visit is requested/scheduled but not completed with 'proceed'
+                if (booking.ocular_visit?.status && (booking.ocular_visit.status !== "completed" || booking.ocular_visit.outcome !== "proceed")) {
+                    continue;
+                }
+
                 // 1. Notify Admins
                 await notifyAdmins({
                     title: "Upcoming Event",
@@ -45,16 +50,29 @@ const startCronJobs = (io) => {
                         const successUrl = `${appBaseUrl}/customer/payments?status=success`;
                         const cancelUrl = `${appBaseUrl}/customer/payments?status=cancelled`;
 
-                        const payment = await Payment.create({
+                        let payment = await Payment.findOne({
                             booking_id: booking._id,
-                            customer_id: booking.customer_id?._id || booking.customer_id,
-                            amount: balance,
-                            currency: "PHP",
                             payment_type: "balance",
-                            method: "paymongo",
                             status: "pending",
                             gateway: "paymongo"
                         });
+
+                        if (payment) {
+                            payment.amount = balance;
+                            payment.customer_id = booking.customer_id?._id || booking.customer_id;
+                            await payment.save();
+                        } else {
+                            payment = await Payment.create({
+                                booking_id: booking._id,
+                                customer_id: booking.customer_id?._id || booking.customer_id,
+                                amount: balance,
+                                currency: "PHP",
+                                payment_type: "balance",
+                                method: "paymongo",
+                                status: "pending",
+                                gateway: "paymongo"
+                            });
+                        }
 
                         const checkout = await createCheckoutSession({
                             amount: balance,

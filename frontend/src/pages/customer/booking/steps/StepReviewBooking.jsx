@@ -58,7 +58,7 @@ export default function StepReviewBooking({
     <div className="max-w-4xl mx-auto py-6 space-y-6">
       <SH
         title="Review & Confirm"
-        sub="Please review all details before proceeding to payment."
+        sub="Please review all details before submitting your inquiry."
       />
 
       {/* Main Content Card */}
@@ -330,7 +330,7 @@ export default function StepReviewBooking({
                   ₱{depositAmount.toLocaleString()}
                 </p>
                 <p className="mt-2 text-[10px] font-medium text-[#F8FAFC]/60 uppercase tracking-wider">
-                  Secured payment via PayMongo
+                  Payment is required after quote is approved
                 </p>
               </div>
             </div>

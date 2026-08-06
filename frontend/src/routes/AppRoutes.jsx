@@ -14,6 +14,7 @@ import Landing from "../pages/customer/Landing";
 import CustomCheckout from "../pages/customer/payments/CustomCheckout";
 
 import CustomerBookings from "../pages/customer/CustomerBookings";
+import CustomerInquiries from "../pages/customer/CustomerInquiries";
 import CustomerDashboard from "../pages/customer/CustomerDashboard";
 import CustomerMessages from "../pages/customer/CustomerMessages";
 import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
@@ -35,6 +36,7 @@ import AdminPayments from "../pages/admin/AdminPayments";
 import AdminRefunds from "../pages/admin/AdminRefunds";
 import AdminCustomers from "../pages/admin/AdminCustomers";
 import AdminReservations from "../pages/admin/AdminReservations";
+import AdminInquiries from "../pages/admin/AdminInquiries";
 import AdminBookingsHistory from "../pages/admin/AdminBookingsHistory";
 import AdminBookingWizard from "../pages/admin/AdminBookingWizard";
 import AdminPackages from "../pages/admin/AdminPackages";
@@ -111,6 +113,7 @@ export default function AppRoutes() {
         <Route path="/customer/booking-success" element={<ProtectedRoute><BookingSuccess /></ProtectedRoute>} />
 
         <Route path="/customer/bookings" element={<ProtectedRoute><CustomerBookings /></ProtectedRoute>} />
+        <Route path="/customer/inquiries" element={<ProtectedRoute><CustomerInquiries /></ProtectedRoute>} />
         <Route path="/customer/bookings/:id" element={<ProtectedRoute><CustomerEventDashboard /></ProtectedRoute>} />
         <Route path="/customer/checkout" element={<ProtectedRoute><CustomCheckout /></ProtectedRoute>} />
         <Route path="/customer/messages" element={<ProtectedRoute><CustomerMessages /></ProtectedRoute>} />
@@ -126,6 +129,7 @@ export default function AppRoutes() {
         <Route path="/admin/refunds" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRefunds /></ProtectedRoute>} />
         <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCustomers /></ProtectedRoute>} />
         <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminOnly}><AdminReservations /></ProtectedRoute>} />
+        <Route path="/admin/bookings/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
         <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
         <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingWizard /></ProtectedRoute>} />
         <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingDetails /></ProtectedRoute>} />

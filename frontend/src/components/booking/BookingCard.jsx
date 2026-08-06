@@ -83,6 +83,15 @@ export default function BookingCard({
   } else if (booking.status === "cancelled") {
     statusVariant = "bg-red-100 text-red-700";
     statusText = "Cancelled";
+  } else if (booking.status === "inquiry") {
+    statusVariant = "bg-blue-100 text-blue-700";
+    statusText = "Pending Review";
+  } else if (booking.status === "quote_sent") {
+    statusVariant = "bg-yellow-100 text-yellow-700";
+    statusText = "Quote Sent";
+  } else if (booking.status === "customer_accepted") {
+    statusVariant = "bg-emerald-100 text-emerald-700";
+    statusText = "Quote Accepted";
   }
 
   if (!isFoodOnly && (booking.ocular_visit?.status === "pending" || booking.ocular_visit?.status === "requested")) {
@@ -311,26 +320,34 @@ export default function BookingCard({
             )}
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-3 flex-wrap pt-2">
-              <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <Eye size={14} /> {isFoodOnly ? "View Order" : "View Reservation"}
-              </button>
-              <button onClick={openChangeRequest} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <Settings size={14} /> Edit Details
-              </button>
-              <button onClick={() => setUpgradingBooking(booking)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <TrendingUp size={14} /> Upgrade Package
-              </button>
-              <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <Plus size={14} /> Add Services
-              </button>
-              <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <Download size={14} /> Download Invoice
-              </button>
-              <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                <Activity size={14} /> Track Payments
-              </button>
-            </div>
+            {["inquiry", "quote_sent", "customer_accepted"].includes(booking.status) ? (
+              <div className="flex items-center gap-3 flex-wrap pt-2">
+                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <Eye size={14} /> View Inquiry
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 flex-wrap pt-2">
+                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <Eye size={14} /> {isFoodOnly ? "View Order" : "View Reservation"}
+                </button>
+                <button onClick={openChangeRequest} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <Settings size={14} /> Edit Details
+                </button>
+                <button onClick={() => setUpgradingBooking(booking)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <TrendingUp size={14} /> Upgrade Package
+                </button>
+                <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <Plus size={14} /> Add Services
+                </button>
+                <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <Download size={14} /> Download Invoice
+                </button>
+                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+                  <Activity size={14} /> Track Payments
+                </button>
+              </div>
+            )}
             
             <div className="flex items-center gap-3 pt-2">
               {booking.status === "pending deposit" && (
@@ -338,8 +355,18 @@ export default function BookingCard({
                   Pay Deposit
                 </button>
               )}
+              {booking.status === "quote_sent" && (
+                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-6 py-2 bg-emerald-500 text-white rounded-full text-[13px] font-bold hover:bg-emerald-600 transition-colors shadow-sm">
+                  Review & Accept Quote
+                </button>
+              )}
+              {booking.status === "customer_accepted" && (
+                <button onClick={() => startPayment(booking, false)} className="px-6 py-2 bg-[#D4AF37] text-gray-900 rounded-full text-[13px] font-bold hover:bg-[#C5A028] transition-colors shadow-sm">
+                  Pay Deposit
+                </button>
+              )}
               
-              {booking.status !== "cancelled" && booking.status !== "completed" && (
+              {!["cancelled", "completed", "inquiry", "quote_sent", "customer_accepted"].includes(booking.status) && (
                 <button 
                   onClick={handleCancellationRequest}
                   disabled={isCancelling || booking.change_request?.status === "pending"}

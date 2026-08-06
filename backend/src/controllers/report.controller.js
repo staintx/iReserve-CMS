@@ -2,7 +2,7 @@ const Booking = require("../models/Booking");
 
 const Payment = require("../models/Payment");
 const Package = require("../models/Package");
-const Quote = require("../models/Quote");
+const Inquiry = require("../models/Inquiry");
 const asyncHandler = require("../utils/asyncHandler");
 
 exports.dashboardSummary = asyncHandler(async (req, res) => {
@@ -12,7 +12,7 @@ exports.dashboardSummary = asyncHandler(async (req, res) => {
 
   const [totalInquiries, pendingQuotations, upcomingBookings, monthlyRevenueAggr, completedEvents] = await Promise.all([
     0,
-    Quote.countDocuments({ status: "pending" }),
+    Inquiry.countDocuments({ status: "Pending Review" }),
     Booking.countDocuments({ event_date: { $gte: new Date() }, status: { $ne: "cancelled" } }),
     Payment.aggregate([
       { $match: { status: "approved", createdAt: { $gte: startOfMonth } } },
@@ -38,7 +38,7 @@ exports.dashboardMetrics = asyncHandler(async (req, res) => {
   const [summary, monthlyRevenue, bookingStatus, eventTypes, topPackages, recentBookings, recentInquiries] = await Promise.all([
     Promise.all([
       0,
-      Quote.countDocuments({ status: "pending" }),
+      Inquiry.countDocuments({ status: "Pending Review" }),
       Booking.countDocuments({ event_date: { $gte: new Date() }, status: { $ne: "cancelled" } }),
       Payment.aggregate([
         { $match: { status: "approved", createdAt: { $gte: startOfMonth } } },

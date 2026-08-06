@@ -1,5 +1,6 @@
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
+const Inquiry = require("../models/Inquiry");
 const InventoryReservation = require("../models/InventoryReservation");
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification } = require("../utils/notify");
@@ -16,7 +17,7 @@ const {
 	isFailedEvent
 } = require("../services/payment.service");
 const BusinessInfo = require("../models/BusinessInfo");
-const { sendPaymentReceiptEmail } = require("../utils/booking-emails");
+const { sendPaymentReceiptEmail, sendBookingConfirmationEmail } = require("../utils/booking-emails");
 
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
@@ -54,6 +55,13 @@ const syncPaymentFromGateway = async (payment) => {
 	if (payment.status === "approved") {
 		await payment.save();
 		if (payment.booking_id) await syncBookingStatus(payment.booking_id);
+		if (payment.inquiry_id) { 
+			const inq = await Inquiry.findById(payment.inquiry_id); 
+			if(inq) { 
+				inq.status = "Deposit Paid"; 
+				await inq.save(); 
+			} 
+		}
 	} else if (payment.gateway_payment_intent_id) {
 		await payment.save();
 	}
@@ -95,13 +103,20 @@ async function syncBookingStatus(bookingId) {
 				.filter(item => item.inventory_id)
 				.map(item => ({
 					inventory_id: item.inventory_id,
-					booking_id: booking._id,
+					booking_id: bookingId,
 					event_date: booking.event_date,
 					quantity: item.quantity
 				}));
 			if (reservations.length > 0) {
 				await InventoryReservation.insertMany(reservations);
 			}
+		}
+
+		// Send booking confirmation email since it transitioned to confirmed
+		const fullBooking = await Booking.findById(bookingId).populate("customer_id");
+		const customerEmail = fullBooking?.contact_email || fullBooking?.customer_id?.email;
+		if (customerEmail) {
+			sendBookingConfirmationEmail({ booking: fullBooking, customerEmail }).catch(() => {});
 		}
 	}
 }
@@ -175,6 +190,7 @@ exports.remove = asyncHandler(async (req, res) => { await Payment.findByIdAndDel
 exports.createCheckout = asyncHandler(async (req, res) => {
 	const {
 		booking_id,
+		inquiry_id,
 		amount,
 		payment_type = "deposit",
 		payment_method_types = ["gcash", "paymaya", "card"],
@@ -182,22 +198,33 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		cancel_url
 	} = req.body;
 
-	if (!booking_id) {
-		return res.status(400).json({ message: "booking_id is required" });
+	if (!booking_id && !inquiry_id) {
+		return res.status(400).json({ message: "booking_id or inquiry_id is required" });
 	}
 
-	const booking = await Booking.findById(booking_id).populate("customer_id");
-	if (!booking) {
-		return res.status(404).json({ message: "Booking not found" });
+	let targetDoc = null;
+	let eventName = "Event";
+	let customerId = req.user._id;
+
+	if (booking_id) {
+		targetDoc = await Booking.findById(booking_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
+	} else if (inquiry_id) {
+		targetDoc = await Inquiry.findById(inquiry_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Inquiry not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
 	}
 
-	const isOwner = String(booking.customer_id?._id) === String(req.user._id);
+	const isOwner = String(customerId) === String(req.user._id);
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) {
-		return res.status(403).json({ message: "Not allowed to pay for this booking" });
+		return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 	}
 
-	const fallbackAmount = Number(booking.total_price || 0);
+	const fallbackAmount = Number(targetDoc.total_price || 0);
 	const payableAmount = Number(amount || fallbackAmount);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
 		return res.status(400).json({ message: "Invalid amount" });
@@ -207,7 +234,8 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	const cancelUrl = cancel_url || `${appBaseUrl}/customer/payments?status=cancelled`;
 
 	let payment = await Payment.findOne({
-		booking_id: booking._id,
+		booking_id: booking_id ? targetDoc._id : undefined,
+		inquiry_id: inquiry_id ? targetDoc._id : undefined,
 		payment_type,
 		status: "pending",
 		gateway: "paymongo"
@@ -215,12 +243,13 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 
 	if (payment) {
 		payment.amount = payableAmount;
-		payment.customer_id = booking.customer_id?._id || req.user._id;
+		payment.customer_id = customerId || req.user._id;
 		await payment.save();
 	} else {
 		payment = await Payment.create({
-			booking_id: booking._id,
-			customer_id: booking.customer_id?._id || req.user._id,
+			booking_id: booking_id ? targetDoc._id : undefined,
+			inquiry_id: inquiry_id ? targetDoc._id : undefined,
+			customer_id: customerId || req.user._id,
 			amount: payableAmount,
 			currency: "PHP",
 			payment_type,
@@ -230,24 +259,22 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		});
 	}
 
-	let eventName = booking.event_type || "Event";
 	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
 	const formattedDescription = `${eventName} Booking - ${paymentLabel}`;
 
-	const contactName = (booking.contact_first_name && booking.contact_last_name) 
-		? `${booking.contact_first_name} ${booking.contact_last_name}` 
-		: booking.contact_first_name || booking.contact_last_name;
+	const contactName = (targetDoc.contact_first_name && targetDoc.contact_last_name) 
+		? `${targetDoc.contact_first_name} ${targetDoc.contact_last_name}` 
+		: targetDoc.contact_first_name || targetDoc.contact_last_name;
 
 	const customerDetails = {
-		name: contactName || booking.customer_id?.full_name || req.user?.full_name || "Customer",
-		email: booking.contact_email || booking.customer_id?.email || req.user?.email || "customer@example.com",
-		phone: booking.contact_phone || booking.customer_id?.phone || req.user?.phone
+		name: contactName || targetDoc.customer_id?.full_name || req.user?.full_name || "Customer",
+		email: targetDoc.contact_email || targetDoc.customer_id?.email || req.user?.email || "customer@example.com",
+		phone: targetDoc.contact_phone || targetDoc.customer_id?.phone || req.user?.phone
 	};
-	const successUrl = new URL(
+	const successUrlObj = new URL(
 		success_url || `${appBaseUrl}/customer/payments?status=success`,
-	).toString();
-	const successUrlWithPayment = new URL(successUrl);
-	successUrlWithPayment.searchParams.set("payment_id", String(payment._id));
+	);
+	successUrlObj.searchParams.set("payment_id", String(payment._id));
 
 	let mappedPaymentMethodTypes = [];
 	for (const pm of payment_method_types) {
@@ -263,12 +290,13 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		currency: "PHP",
 		paymentMethodTypes: mappedPaymentMethodTypes,
 		description: formattedDescription,
-		successUrl: successUrlWithPayment.toString(),
+		successUrl: successUrlObj.toString(),
 		cancelUrl,
 		metadata: {
 			local_payment_id: String(payment._id),
-			booking_id: String(booking._id),
-			customer_id: String(booking.customer_id?._id || req.user._id),
+			booking_id: booking_id ? String(targetDoc._id) : undefined,
+			inquiry_id: inquiry_id ? String(targetDoc._id) : undefined,
+			customer_id: String(customerId || req.user._id),
 			payment_type
 		},
 		customer: customerDetails
@@ -290,21 +318,36 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 });
 
 exports.createIntent = asyncHandler(async (req, res) => {
-	const { booking_id, amount, payment_type = "deposit" } = req.body;
+	const { booking_id, inquiry_id, amount, payment_type = "deposit" } = req.body;
 	
-	if (!booking_id) return res.status(400).json({ message: "booking_id is required" });
-	const booking = await Booking.findById(booking_id).populate("customer_id");
-	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (!booking_id && !inquiry_id) return res.status(400).json({ message: "booking_id or inquiry_id is required" });
+	
+	let targetDoc = null;
+	let eventName = "Event";
+	let customerId = req.user._id;
 
-	const isOwner = String(booking.customer_id?._id) === String(req.user._id);
+	if (booking_id) {
+		targetDoc = await Booking.findById(booking_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
+	} else if (inquiry_id) {
+		targetDoc = await Inquiry.findById(inquiry_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Inquiry not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
+	}
+
+	const isOwner = String(customerId) === String(req.user._id);
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
-	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this booking" });
+	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 
-	const payableAmount = Number(amount || booking.total_price || 0);
+	const payableAmount = Number(amount || targetDoc.total_price || 0);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
 	let payment = await Payment.findOne({
-		booking_id: booking._id,
+		booking_id: booking_id ? targetDoc._id : undefined,
+		inquiry_id: inquiry_id ? targetDoc._id : undefined,
 		payment_type,
 		status: "pending",
 		gateway: "paymongo"
@@ -312,12 +355,13 @@ exports.createIntent = asyncHandler(async (req, res) => {
 
 	if (payment) {
 		payment.amount = payableAmount;
-		payment.customer_id = booking.customer_id?._id || req.user._id;
+		payment.customer_id = customerId || req.user._id;
 		await payment.save();
 	} else {
 		payment = await Payment.create({
-			booking_id: booking._id,
-			customer_id: booking.customer_id?._id || req.user._id,
+			booking_id: booking_id ? targetDoc._id : undefined,
+			inquiry_id: inquiry_id ? targetDoc._id : undefined,
+			customer_id: customerId || req.user._id,
 			amount: payableAmount,
 			currency: "PHP",
 			payment_type,
@@ -327,7 +371,6 @@ exports.createIntent = asyncHandler(async (req, res) => {
 		});
 	}
 
-	let eventName = booking.event_type || "Event";
 	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
 	
 	const intent = await createPaymentIntent({
@@ -335,8 +378,9 @@ exports.createIntent = asyncHandler(async (req, res) => {
 		description: `${eventName} Booking - ${paymentLabel}`,
 		metadata: {
 			local_payment_id: String(payment._id),
-			booking_id: String(booking._id),
-			customer_id: String(booking.customer_id?._id || req.user._id),
+			booking_id: booking_id ? String(targetDoc._id) : undefined,
+			inquiry_id: inquiry_id ? String(targetDoc._id) : undefined,
+			customer_id: String(customerId || req.user._id),
 			payment_type
 		}
 	});
@@ -454,8 +498,13 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 
 	await payment.save();
 
-	if (payment.booking_id) {
-		await syncBookingStatus(payment.booking_id);
+	if (payment.booking_id) await syncBookingStatus(payment.booking_id);
+	if (payment.inquiry_id) { 
+		const inq = await Inquiry.findById(payment.inquiry_id); 
+		if(inq) { 
+			inq.status = "Deposit Paid"; 
+			await inq.save(); 
+		} 
 	}
 
 	const io = req.app.get("io");

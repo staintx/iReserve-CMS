@@ -1,7 +1,8 @@
 import { toast } from "sonner";
+import { useCallback } from "react";
 
 export default function useToast() {
-  const notify = (message, type = "info", options = {}) => {
+  const notify = useCallback((message, type = "info", options = {}) => {
     if (type === "success") {
       return toast.success(message, options);
     } else if (type === "error") {
@@ -11,11 +12,11 @@ export default function useToast() {
     } else {
       return toast(message, options);
     }
-  };
+  }, []);
 
-  const removeToast = (id) => {
+  const removeToast = useCallback((id) => {
     toast.dismiss(id);
-  };
+  }, []);
 
   return { notify, removeToast };
 }

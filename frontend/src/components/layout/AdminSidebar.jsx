@@ -185,6 +185,8 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
           </button>
           {openDropdowns.bookings && !isCollapsed && (
             <div className="ml-6 pl-4 mt-1 mb-2 border-l border-border space-y-1 py-1">
+              <NavLink to="/admin/bookings/inquiries" className={subLinkClass}>Inquiries</NavLink>
+              <NavLink to="/admin/quotes" className={subLinkClass}>Quotations</NavLink>
               <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>
               {isAdmin && (
                 <NavLink to="/admin/bookings/ocular" className={subLinkClass}>Ocular Visits</NavLink>

@@ -229,8 +229,7 @@ export default function BookingWizard() {
 
     // ✅ Removed CostSummary step - price info now shown in Review step
     steps.push({ id: "ContactInfo", label: "Contact Info", key: "contact" });
-    steps.push({ id: "ReviewBooking", label: "Review Booking", key: "review" });
-    steps.push({ id: "Payment", label: "Payment", key: "payment" });
+    steps.push({ id: "ReviewBooking", label: "Review Inquiry", key: "review" });
     return steps;
   }, [isCustomBooking, isFoodOnly, isEventSetupOnly, isFoodAndEventSetup]);
 
@@ -649,23 +648,14 @@ export default function BookingWizard() {
         delete payload.contact_alt_phone;
       }
 
-      const bookingRes = await CustomerAPI.createBooking(payload);
-      const newBooking = bookingRes.data;
+      const inquiryRes = await CustomerAPI.submitInquiry(payload);
+      const newInquiry = inquiryRes.data;
 
       sessionStorage.removeItem(SESSION_STORAGE_KEY_FORM);
       sessionStorage.removeItem(SESSION_STORAGE_KEY_STEP);
 
-      notify("Redirecting to secure payment...", "success");
-
-      if (newBooking.payment_intent_url) {
-        window.location.href = newBooking.payment_intent_url;
-      } else if (newBooking.checkout_url) {
-        window.location.href = newBooking.checkout_url;
-      } else {
-        navigate("/customer/booking-success", {
-          state: { booking: newBooking },
-        });
-      }
+      notify("Inquiry submitted successfully! We will review and send you a quotation.", "success");
+      navigate("/customer/inquiries");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to submit booking");
       setIsSubmitting(false);
@@ -821,20 +811,6 @@ export default function BookingWizard() {
             setShowPrivacy={setShowPrivacy}
           />
         );
-      case "Payment":
-        return (
-          <StepPayment
-            depositAmount={depositAmount}
-            totalPrice={totalPrice}
-            isFoodOnly={isFoodOnly}
-            isSubmitting={isSubmitting}
-            onSubmit={submitBooking}
-            selectedPaymentOption={selectedPaymentOption}
-            setSelectedPaymentOption={setSelectedPaymentOption}
-            onBack={handleBack}
-            error={error}
-          />
-        );
       default:
         return null;
     }
@@ -856,7 +832,16 @@ export default function BookingWizard() {
           <PrimaryBtn variant="ghost" onClick={handleBack}>
             Back
           </PrimaryBtn>
-          {currentStepId !== "Payment" &&
+          {currentStepId === "ReviewBooking" ? (
+            <PrimaryBtn
+              variant="primary"
+              onClick={submitBooking}
+              className="w-full sm:w-auto"
+              disabled={!agreements.terms || !agreements.privacy || isSubmitting}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Inquiry"}
+            </PrimaryBtn>
+          ) : (
             !["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(
               currentStepId,
             ) &&
@@ -868,7 +853,8 @@ export default function BookingWizard() {
               >
                 Continue
               </PrimaryBtn>
-            )}
+            )
+          )}
         </div>
       </div>
 

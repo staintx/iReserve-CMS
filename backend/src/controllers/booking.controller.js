@@ -1,4 +1,6 @@
 const Booking = require("../models/Booking");
+const Inquiry = require("../models/Inquiry");
+const Quotation = require("../models/Quotation");
 const Inventory = require("../models/Inventory");
 const InventoryReservation = require("../models/InventoryReservation");
 const Package = require("../models/Package");
@@ -325,12 +327,10 @@ exports.create = asyncHandler(async (req, res) => {
 
   if (req.user?.role === "customer") {
     req.body.customer_id = req.user._id;
-    req.body.status =
-      req.body.payment_method === "cod" ? "confirmed" : "pending deposit";
+    req.body.status = "inquiry";
     req.body.payment_status = "pending";
   } else if (!req.body.status) {
-    req.body.status =
-      req.body.payment_method === "cod" ? "confirmed" : "pending deposit";
+    req.body.status = "inquiry";
   }
 
   if (req.body.delivery_method === "pickup") {
@@ -364,36 +364,8 @@ exports.create = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: `This date is blocked: ${blocked.reason || 'Unavailable'}` });
   }
 
-  // Check Max Bookings Limit
-  const maxLimitReached = await checkMaxBookingsLimit(req.body.event_date);
-  if (maxLimitReached) {
-    return res.status(409).json({ message: "This date has reached the maximum number of bookings allowed." });
-  }
-
-  const conflict = await findBookingConflict({
-    eventDate: req.body.event_date,
-    startTime: req.body.start_time,
-    durationHours: req.body.duration_hours,
-    location: req.body,
-    bufferMinutes: req.body.buffer_minutes,
-  });
-  if (conflict) {
-    return res.status(409).json({
-      message: "Booking conflict detected for the selected date/time",
-      conflict_id: conflict._id,
-    });
-  }
-
-  const invCheck = await checkInventoryAvailability(
-    req.body.event_date,
-    req.body.inventory_items,
-  );
-  if (!invCheck.available) {
-    return res.status(409).json({
-      message: `Inventory conflict: Not enough '${invCheck.itemName}' available on this date.`,
-    });
-  }
-
+  // Conflict checks (max bookings, schedule conflicts, inventory) are bypassed during inquiry creation
+  // to allow the Admin to review and suggest alternatives.
   // Filter out conflicting staff members
   const requestedStaffIds = [];
   if (req.body.event_manager_id)
@@ -475,76 +447,14 @@ exports.create = asyncHandler(async (req, res) => {
     ip_address: req.ip,
   });
 
-  // Send booking confirmation email
+  // Send booking confirmation email only if immediately confirmed (e.g., COD)
   const customerEmail = booking.contact_email || req.user?.email;
-  if (customerEmail) {
+  if (customerEmail && booking.status === "confirmed") {
     sendBookingConfirmationEmail({ booking, customerEmail }).catch(() => {});
   }
 
-  // Create payment checkout for deposit
-  if (
-    req.user?.role === "customer" &&
-    req.body.payment_method &&
-    req.body.payment_method !== "cod"
-  ) {
-    try {
-      const Payment = require("../models/Payment");
-      const { createCheckoutSession } = require("../services/payment.service");
-
-      const businessInfo = await BusinessInfo.findOne();
-      const depositPercentage = businessInfo?.deposit_percentage ?? 20;
-      const depositAmount = (booking.total_price * depositPercentage) / 100;
-
-      if (depositAmount > 0) {
-        const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-        const cancelUrl = `${appBaseUrl}/customer/book?status=cancelled`;
-
-        const payment = await Payment.create({
-          booking_id: booking._id,
-          customer_id: booking.customer_id,
-          amount: depositAmount,
-          currency: "PHP",
-          payment_type: "deposit",
-          method: req.body.payment_method, // "gcash", "paymaya", "card"
-          status: "pending",
-          gateway: "paymongo",
-        });
-        const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}&payment_id=${payment._id}`;
-
-        let pmTypes = [req.body.payment_method];
-        if (req.body.payment_method === "online_banking") {
-          pmTypes = ["dob", "dob_ubp"];
-        }
-
-        const checkout = await createCheckoutSession({
-          amount: depositAmount,
-          currency: "PHP",
-          paymentMethodTypes: pmTypes, // Use mapped types
-          description: `Deposit for Booking ${booking.reference || booking._id}`,
-          successUrl,
-          cancelUrl,
-          metadata: {
-            local_payment_id: String(payment._id),
-            booking_id: String(booking._id),
-            customer_id: String(booking.customer_id),
-            payment_type: "deposit",
-          },
-        });
-
-        payment.gateway_checkout_id = checkout.data.id;
-        payment.checkout_url = checkout.data.attributes.checkout_url;
-        await payment.save();
-
-        return res.status(201).json({
-          ...booking.toObject(),
-          checkout_url: payment.checkout_url,
-        });
-      }
-    } catch (err) {
-      console.error("PayMongo Checkout Error:", err);
-      // Fallback to regular booking if payment creation fails
-    }
-  }
+  // Payment is NOT triggered during inquiry creation.
+  // It will be triggered after the quote is accepted by the customer.
 
   res.status(201).json(booking);
 });
@@ -1861,4 +1771,222 @@ exports.resolveChangeRequest = asyncHandler(async (req, res) => {
   }
 
   res.json(booking);
+});
+
+exports.sendQuote = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (booking.status !== "inquiry") {
+    return res.status(400).json({ message: "Only inquiries can receive quotes." });
+  }
+
+  if (req.body.total_price) {
+    booking.total_price = req.body.total_price;
+  }
+  
+  if (req.body.note) {
+    booking.event_manager_notes.push({
+      note: req.body.note,
+      created_at: new Date()
+    });
+  }
+
+  booking.status = "quote_sent";
+  await booking.save();
+
+  // Notify customer
+  const io = req.app.get("io");
+  if (io && booking.customer_id) {
+    const { createNotification } = require("../controllers/notification.controller");
+    await createNotification({
+      userId: booking.customer_id,
+      title: "Quote Received",
+      body: `You have received a quote for your event on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : 'N/A'}.`,
+      type: "info",
+      link: `/customer/bookings/${booking._id}`,
+      meta: { booking_id: booking._id }
+    }, io);
+  }
+
+  res.json({ message: "Quote sent successfully", booking });
+});
+
+exports.acceptQuote = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (booking.status !== "quote_sent") {
+    return res.status(400).json({ message: "Only sent quotes can be accepted." });
+  }
+
+  // Double check inventory and conflicts before accepting
+  const { checkMaxBookingsLimit, findBookingConflict, checkInventoryAvailability } = module.exports;
+  
+  const maxLimitReached = await checkMaxBookingsLimit(booking.event_date, booking._id);
+  if (maxLimitReached) {
+    return res.status(409).json({ message: "This date has reached the maximum number of bookings allowed." });
+  }
+
+  const conflict = await findBookingConflict({
+    eventDate: booking.event_date,
+    startTime: booking.start_time,
+    durationHours: booking.duration_hours,
+    location: booking,
+    bufferMinutes: 60, // Default buffer
+    excludeId: booking._id
+  });
+  if (conflict) {
+    return res.status(409).json({ message: "Booking conflict detected for this date/time. Please contact admin." });
+  }
+
+  const invCheck = await checkInventoryAvailability(
+    booking.event_date,
+    booking.inventory_items
+  );
+  if (!invCheck.available) {
+    return res.status(409).json({ message: `Inventory conflict: Not enough '${invCheck.itemName}' available.` });
+  }
+
+  booking.status = "customer_accepted";
+  
+  // Set payment method if provided
+  if (req.body.payment_method) {
+    booking.payment_method = req.body.payment_method;
+  }
+
+  // Create payment checkout
+  let checkout_url = null;
+  if (booking.payment_method) {
+    try {
+      const Payment = require("../models/Payment");
+      const { createCheckoutSession } = require("../services/payment.service");
+      const BusinessInfo = require("../models/BusinessInfo");
+
+      const businessInfo = await BusinessInfo.findOne();
+      const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+      const depositAmount = (booking.total_price * depositPercentage) / 100;
+
+      if (depositAmount > 0) {
+        const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+        const cancelUrl = `${appBaseUrl}/customer/bookings/${booking._id}?payment=cancelled`;
+
+        const payment = await Payment.create({
+          booking_id: booking._id,
+          customer_id: booking.customer_id,
+          amount: depositAmount,
+          currency: "PHP",
+          payment_type: "deposit",
+          method: booking.payment_method,
+          status: "pending",
+          gateway: "paymongo",
+        });
+        
+        const successUrl = `${appBaseUrl}/customer/booking-success?booking_id=${booking._id}&payment_id=${payment._id}`;
+
+        let pmTypes = [booking.payment_method];
+        if (booking.payment_method === "online_banking") {
+          pmTypes = ["dob", "dob_ubp"];
+        }
+
+        const checkout = await createCheckoutSession({
+          amount: depositAmount,
+          currency: "PHP",
+          paymentMethodTypes: pmTypes,
+          description: `Deposit for Booking ${booking.reference || booking._id}`,
+          successUrl,
+          cancelUrl,
+          metadata: {
+            local_payment_id: String(payment._id),
+            booking_id: String(booking._id),
+            customer_id: String(booking.customer_id),
+            payment_type: "deposit",
+          },
+        });
+
+        payment.gateway_checkout_id = checkout.data.id;
+        payment.checkout_url = checkout.data.attributes.checkout_url;
+        await payment.save();
+        
+        checkout_url = payment.checkout_url;
+      }
+    } catch (err) {
+      console.error("PayMongo Checkout Error during acceptQuote:", err);
+      return res.status(500).json({ message: "Failed to generate payment link. Please try again." });
+    }
+  }
+
+  await booking.save();
+  
+  // Create system log
+  const { logAction } = require("../services/audit.service");
+  await logAction({
+    user_id: req.user._id,
+    action: "quote_accepted",
+    entity_type: "booking",
+    entity_id: booking._id,
+    details: `Customer accepted quote for booking ${booking.reference}`,
+    ip_address: req.ip,
+  });
+
+  res.json({ message: "Quote accepted", booking, checkout_url });
+});
+
+exports.convertInquiry = asyncHandler(async (req, res) => {
+  const inquiryId = req.params.id;
+  const inquiry = await Inquiry.findById(inquiryId);
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+  if (inquiry.converted_booking_id) return res.status(400).json({ message: "Inquiry already converted to booking" });
+
+  const quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
+  if (!quotation) return res.status(400).json({ message: "No accepted quotation found for this inquiry" });
+
+  const payload = {
+    customer_id: inquiry.customer_id,
+    package_id: quotation.package_id || inquiry.package_id,
+    event_type: inquiry.event_type,
+    event_date: inquiry.event_date,
+    start_time: inquiry.start_time,
+    guest_count: quotation.guest_count || inquiry.guest_count,
+    venue_type: inquiry.venue_type,
+    province: inquiry.province,
+    municipality: inquiry.municipality,
+    barangay: inquiry.barangay,
+    street: inquiry.street,
+    landmark: inquiry.landmark,
+    zip_code: inquiry.zip_code,
+    
+    menu_items: quotation.menu_items || [],
+    additional_charges: [],
+    
+    dietary_restrictions: inquiry.dietary_requirements,
+    special_requests: inquiry.special_requests,
+    
+    contact_first_name: inquiry.contact_first_name,
+    contact_last_name: inquiry.contact_last_name,
+    contact_email: inquiry.contact_email,
+    contact_phone: inquiry.contact_phone,
+    contact_alt_phone: inquiry.contact_alt_phone,
+    contact_method: inquiry.contact_method,
+    
+    total_price: quotation.total_cost,
+    payment_status: "deposit_paid", // Since conversion happens after deposit
+    status: "Confirmed",
+  };
+
+  if (quotation.transportation_fee) payload.additional_charges.push({ name: "Transportation", amount: quotation.transportation_fee });
+  if (quotation.equipment_fee) payload.additional_charges.push({ name: "Equipment", amount: quotation.equipment_fee });
+  if (quotation.decoration_fee) payload.additional_charges.push({ name: "Decoration", amount: quotation.decoration_fee });
+
+  const newBooking = await Booking.create(payload);
+
+  inquiry.status = "Converted to Booking";
+  inquiry.converted_booking_id = newBooking._id;
+  await inquiry.save();
+
+  // Assuming Payment is synced separately or maybe we link existing payments
+  const Payment = require("../models/Payment");
+  await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
+
+  res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });
 });

@@ -1,6 +1,9 @@
 const Payment = require("../models/Payment");
 const Booking = require("../models/Booking");
+const Inquiry = require("../models/Inquiry");
 const InventoryReservation = require("../models/InventoryReservation");
+const Quotation = require("../models/Quotation");
+const Package = require("../models/Package");
 const asyncHandler = require("../utils/asyncHandler");
 const { createNotification } = require("../utils/notify");
 const {
@@ -16,10 +19,144 @@ const {
 	isFailedEvent
 } = require("../services/payment.service");
 const BusinessInfo = require("../models/BusinessInfo");
-const { sendPaymentReceiptEmail } = require("../utils/booking-emails");
+const { sendPaymentReceiptEmail, sendBookingConfirmationEmail } = require("../utils/booking-emails");
 
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
+
+async function convertInquiryToBooking(inquiryId, payment) {
+	const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
+	if (!inquiry) return null;
+
+	// Check if already converted to avoid duplicate booking documents
+	if (inquiry.converted_booking_id) {
+		const existingBooking = await Booking.findById(inquiry.converted_booking_id);
+		if (existingBooking) {
+			if (payment) {
+				payment.booking_id = existingBooking._id;
+				await payment.save();
+				await syncBookingStatus(existingBooking._id);
+			}
+			return existingBooking;
+		}
+	}
+
+	// Find latest approved/sent quotation for this inquiry
+	const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
+
+	// Derive service_type
+	const serviceType = inquiry.service_type || (
+		inquiry.delivery_method === "setup" ? "Food and Event Setup" :
+		inquiry.event_type?.toLowerCase().includes("food delivery") ? "Food Only" : "Food and Event Setup"
+	);
+
+	// Build menu items array
+	let menuItems = [];
+	if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
+		menuItems = quotation.menu_items;
+	} else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
+		menuItems = inquiry.selected_menu.map(m => ({ name: m.name || String(m), price: m.price || 0 }));
+	}
+
+	// Build service items / add-ons array
+	let serviceItems = [];
+	if (quotation && quotation.add_ons && quotation.add_ons.length > 0) {
+		serviceItems = quotation.add_ons;
+	} else if (inquiry.service_items && inquiry.service_items.length > 0) {
+		serviceItems = inquiry.service_items;
+	}
+
+	// Additional charges from quotation fees
+	const additionalCharges = [];
+	if (quotation?.transportation_fee > 0) additionalCharges.push({ name: "Transportation Fee", amount: quotation.transportation_fee });
+	if (quotation?.equipment_fee > 0) additionalCharges.push({ name: "Equipment Rental Fee", amount: quotation.equipment_fee });
+	if (quotation?.decoration_fee > 0) additionalCharges.push({ name: "Styling & Decoration Fee", amount: quotation.decoration_fee });
+
+	// Build inventory items for reservation from Package setup_equipment
+	let inventoryItems = [];
+	if (inquiry.package_id) {
+		const pkg = await Package.findById(inquiry.package_id._id || inquiry.package_id);
+		if (pkg && pkg.setup_equipment && pkg.setup_equipment.length > 0) {
+			inventoryItems = pkg.setup_equipment.map(eq => ({
+				inventory_id: eq.inventory_id,
+				quantity: eq.quantity || 1
+			}));
+		}
+	}
+
+	const totalPrice = quotation?.total_cost || inquiry.total_price || payment?.amount || 0;
+
+	// Create the new Booking document
+	const bookingData = {
+		customer_id: inquiry.customer_id?._id || inquiry.customer_id,
+		package_id: quotation?.package_id || inquiry.package_id?._id || inquiry.package_id,
+		event_type: inquiry.event_type,
+		event_date: inquiry.event_date,
+		start_time: inquiry.start_time,
+		guest_count: quotation?.guest_count || inquiry.guest_count,
+		include_food: true,
+		venue_type: inquiry.venue_type || "Venue",
+		service_type: serviceType,
+		delivery_method: inquiry.delivery_method || "setup",
+		province: inquiry.province || "N/A",
+		municipality: inquiry.municipality || "N/A",
+		barangay: inquiry.barangay || "N/A",
+		street: inquiry.street || "",
+		landmark: inquiry.landmark || "",
+		zip_code: inquiry.zip_code || "",
+		menu_items: menuItems,
+		service_items: serviceItems,
+		additional_charges: additionalCharges,
+		special_requests: inquiry.special_requests || "",
+		dietary_restrictions: inquiry.dietary_requirements || "",
+		contact_first_name: inquiry.contact_first_name,
+		contact_last_name: inquiry.contact_last_name,
+		contact_email: inquiry.contact_email,
+		contact_phone: inquiry.contact_phone,
+		contact_alt_phone: inquiry.contact_alt_phone || "",
+		total_price: totalPrice,
+		payment_status: "deposit_paid",
+		status: "Confirmed",
+		inventory_items: inventoryItems
+	};
+
+	const newBooking = await Booking.create(bookingData);
+
+	// Update Inquiry status and converted_booking_id
+	inquiry.status = "Converted to Booking";
+	inquiry.converted_booking_id = newBooking._id;
+	await inquiry.save();
+
+	// Update Payment object
+	if (payment) {
+		payment.booking_id = newBooking._id;
+		await payment.save();
+	}
+
+	// Generate InventoryReservation records for event date!
+	if (inventoryItems.length > 0) {
+		const reservations = inventoryItems
+			.filter(item => item.inventory_id)
+			.map(item => ({
+				inventory_id: item.inventory_id,
+				booking_id: newBooking._id,
+				event_date: newBooking.event_date,
+				quantity: item.quantity || 1
+			}));
+		if (reservations.length > 0) {
+			await InventoryReservation.insertMany(reservations);
+		}
+	}
+
+	// Send booking confirmation email
+	const fullBooking = await Booking.findById(newBooking._id).populate("customer_id");
+	const customerEmail = fullBooking?.contact_email || fullBooking?.customer_id?.email;
+	if (customerEmail) {
+		sendBookingConfirmationEmail({ booking: fullBooking, customerEmail }).catch(() => {});
+	}
+
+	return newBooking;
+}
 
 const syncPaymentFromGateway = async (payment) => {
 	if (!payment || payment.status === "approved") return payment;
@@ -54,6 +191,9 @@ const syncPaymentFromGateway = async (payment) => {
 	if (payment.status === "approved") {
 		await payment.save();
 		if (payment.booking_id) await syncBookingStatus(payment.booking_id);
+		if (payment.inquiry_id) { 
+			await convertInquiryToBooking(payment.inquiry_id, payment);
+		}
 	} else if (payment.gateway_payment_intent_id) {
 		await payment.save();
 	}
@@ -95,13 +235,20 @@ async function syncBookingStatus(bookingId) {
 				.filter(item => item.inventory_id)
 				.map(item => ({
 					inventory_id: item.inventory_id,
-					booking_id: booking._id,
+					booking_id: bookingId,
 					event_date: booking.event_date,
 					quantity: item.quantity
 				}));
 			if (reservations.length > 0) {
 				await InventoryReservation.insertMany(reservations);
 			}
+		}
+
+		// Send booking confirmation email since it transitioned to confirmed
+		const fullBooking = await Booking.findById(bookingId).populate("customer_id");
+		const customerEmail = fullBooking?.contact_email || fullBooking?.customer_id?.email;
+		if (customerEmail) {
+			sendBookingConfirmationEmail({ booking: fullBooking, customerEmail }).catch(() => {});
 		}
 	}
 }
@@ -175,6 +322,7 @@ exports.remove = asyncHandler(async (req, res) => { await Payment.findByIdAndDel
 exports.createCheckout = asyncHandler(async (req, res) => {
 	const {
 		booking_id,
+		inquiry_id,
 		amount,
 		payment_type = "deposit",
 		payment_method_types = ["gcash", "paymaya", "card"],
@@ -182,22 +330,33 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		cancel_url
 	} = req.body;
 
-	if (!booking_id) {
-		return res.status(400).json({ message: "booking_id is required" });
+	if (!booking_id && !inquiry_id) {
+		return res.status(400).json({ message: "booking_id or inquiry_id is required" });
 	}
 
-	const booking = await Booking.findById(booking_id).populate("customer_id");
-	if (!booking) {
-		return res.status(404).json({ message: "Booking not found" });
+	let targetDoc = null;
+	let eventName = "Event";
+	let customerId = req.user._id;
+
+	if (booking_id) {
+		targetDoc = await Booking.findById(booking_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
+	} else if (inquiry_id) {
+		targetDoc = await Inquiry.findById(inquiry_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Inquiry not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
 	}
 
-	const isOwner = String(booking.customer_id?._id) === String(req.user._id);
+	const isOwner = String(customerId) === String(req.user._id);
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) {
-		return res.status(403).json({ message: "Not allowed to pay for this booking" });
+		return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 	}
 
-	const fallbackAmount = Number(booking.total_price || 0);
+	const fallbackAmount = Number(targetDoc.total_price || 0);
 	const payableAmount = Number(amount || fallbackAmount);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
 		return res.status(400).json({ message: "Invalid amount" });
@@ -207,7 +366,8 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	const cancelUrl = cancel_url || `${appBaseUrl}/customer/payments?status=cancelled`;
 
 	let payment = await Payment.findOne({
-		booking_id: booking._id,
+		booking_id: booking_id ? targetDoc._id : undefined,
+		inquiry_id: inquiry_id ? targetDoc._id : undefined,
 		payment_type,
 		status: "pending",
 		gateway: "paymongo"
@@ -215,12 +375,13 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 
 	if (payment) {
 		payment.amount = payableAmount;
-		payment.customer_id = booking.customer_id?._id || req.user._id;
+		payment.customer_id = customerId || req.user._id;
 		await payment.save();
 	} else {
 		payment = await Payment.create({
-			booking_id: booking._id,
-			customer_id: booking.customer_id?._id || req.user._id,
+			booking_id: booking_id ? targetDoc._id : undefined,
+			inquiry_id: inquiry_id ? targetDoc._id : undefined,
+			customer_id: customerId || req.user._id,
 			amount: payableAmount,
 			currency: "PHP",
 			payment_type,
@@ -230,24 +391,22 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		});
 	}
 
-	let eventName = booking.event_type || "Event";
 	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
 	const formattedDescription = `${eventName} Booking - ${paymentLabel}`;
 
-	const contactName = (booking.contact_first_name && booking.contact_last_name) 
-		? `${booking.contact_first_name} ${booking.contact_last_name}` 
-		: booking.contact_first_name || booking.contact_last_name;
+	const contactName = (targetDoc.contact_first_name && targetDoc.contact_last_name) 
+		? `${targetDoc.contact_first_name} ${targetDoc.contact_last_name}` 
+		: targetDoc.contact_first_name || targetDoc.contact_last_name;
 
 	const customerDetails = {
-		name: contactName || booking.customer_id?.full_name || req.user?.full_name || "Customer",
-		email: booking.contact_email || booking.customer_id?.email || req.user?.email || "customer@example.com",
-		phone: booking.contact_phone || booking.customer_id?.phone || req.user?.phone
+		name: contactName || targetDoc.customer_id?.full_name || req.user?.full_name || "Customer",
+		email: targetDoc.contact_email || targetDoc.customer_id?.email || req.user?.email || "customer@example.com",
+		phone: targetDoc.contact_phone || targetDoc.customer_id?.phone || req.user?.phone
 	};
-	const successUrl = new URL(
+	const successUrlObj = new URL(
 		success_url || `${appBaseUrl}/customer/payments?status=success`,
-	).toString();
-	const successUrlWithPayment = new URL(successUrl);
-	successUrlWithPayment.searchParams.set("payment_id", String(payment._id));
+	);
+	successUrlObj.searchParams.set("payment_id", String(payment._id));
 
 	let mappedPaymentMethodTypes = [];
 	for (const pm of payment_method_types) {
@@ -263,12 +422,13 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		currency: "PHP",
 		paymentMethodTypes: mappedPaymentMethodTypes,
 		description: formattedDescription,
-		successUrl: successUrlWithPayment.toString(),
+		successUrl: successUrlObj.toString(),
 		cancelUrl,
 		metadata: {
 			local_payment_id: String(payment._id),
-			booking_id: String(booking._id),
-			customer_id: String(booking.customer_id?._id || req.user._id),
+			booking_id: booking_id ? String(targetDoc._id) : undefined,
+			inquiry_id: inquiry_id ? String(targetDoc._id) : undefined,
+			customer_id: String(customerId || req.user._id),
 			payment_type
 		},
 		customer: customerDetails
@@ -290,21 +450,36 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 });
 
 exports.createIntent = asyncHandler(async (req, res) => {
-	const { booking_id, amount, payment_type = "deposit" } = req.body;
+	const { booking_id, inquiry_id, amount, payment_type = "deposit" } = req.body;
 	
-	if (!booking_id) return res.status(400).json({ message: "booking_id is required" });
-	const booking = await Booking.findById(booking_id).populate("customer_id");
-	if (!booking) return res.status(404).json({ message: "Booking not found" });
+	if (!booking_id && !inquiry_id) return res.status(400).json({ message: "booking_id or inquiry_id is required" });
+	
+	let targetDoc = null;
+	let eventName = "Event";
+	let customerId = req.user._id;
 
-	const isOwner = String(booking.customer_id?._id) === String(req.user._id);
+	if (booking_id) {
+		targetDoc = await Booking.findById(booking_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Booking not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
+	} else if (inquiry_id) {
+		targetDoc = await Inquiry.findById(inquiry_id).populate("customer_id");
+		if (!targetDoc) return res.status(404).json({ message: "Inquiry not found" });
+		eventName = targetDoc.event_type;
+		customerId = targetDoc.customer_id?._id || req.user._id;
+	}
+
+	const isOwner = String(customerId) === String(req.user._id);
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
-	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this booking" });
+	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 
-	const payableAmount = Number(amount || booking.total_price || 0);
+	const payableAmount = Number(amount || targetDoc.total_price || 0);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
 	let payment = await Payment.findOne({
-		booking_id: booking._id,
+		booking_id: booking_id ? targetDoc._id : undefined,
+		inquiry_id: inquiry_id ? targetDoc._id : undefined,
 		payment_type,
 		status: "pending",
 		gateway: "paymongo"
@@ -312,12 +487,13 @@ exports.createIntent = asyncHandler(async (req, res) => {
 
 	if (payment) {
 		payment.amount = payableAmount;
-		payment.customer_id = booking.customer_id?._id || req.user._id;
+		payment.customer_id = customerId || req.user._id;
 		await payment.save();
 	} else {
 		payment = await Payment.create({
-			booking_id: booking._id,
-			customer_id: booking.customer_id?._id || req.user._id,
+			booking_id: booking_id ? targetDoc._id : undefined,
+			inquiry_id: inquiry_id ? targetDoc._id : undefined,
+			customer_id: customerId || req.user._id,
 			amount: payableAmount,
 			currency: "PHP",
 			payment_type,
@@ -327,7 +503,6 @@ exports.createIntent = asyncHandler(async (req, res) => {
 		});
 	}
 
-	let eventName = booking.event_type || "Event";
 	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
 	
 	const intent = await createPaymentIntent({
@@ -335,8 +510,9 @@ exports.createIntent = asyncHandler(async (req, res) => {
 		description: `${eventName} Booking - ${paymentLabel}`,
 		metadata: {
 			local_payment_id: String(payment._id),
-			booking_id: String(booking._id),
-			customer_id: String(booking.customer_id?._id || req.user._id),
+			booking_id: booking_id ? String(targetDoc._id) : undefined,
+			inquiry_id: inquiry_id ? String(targetDoc._id) : undefined,
+			customer_id: String(customerId || req.user._id),
 			payment_type
 		}
 	});
@@ -454,8 +630,11 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 
 	await payment.save();
 
-	if (payment.booking_id) {
-		await syncBookingStatus(payment.booking_id);
+	if (payment.status === "approved") {
+		if (payment.booking_id) await syncBookingStatus(payment.booking_id);
+		if (payment.inquiry_id) { 
+			await convertInquiryToBooking(payment.inquiry_id, payment);
+		}
 	}
 
 	const io = req.app.get("io");

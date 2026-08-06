@@ -1,5 +1,21 @@
-import React, { useState, useEffect } from "react";
-import { Download, Plus, Eye, Check, Edit3, XCircle } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { 
+  Download, 
+  Plus, 
+  Eye, 
+  Check, 
+  Edit3, 
+  XCircle, 
+  Calendar, 
+  Clock, 
+  Users, 
+  CreditCard, 
+  CheckCircle2, 
+  AlertCircle, 
+  Send,
+  UserCheck,
+  FileText
+} from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -41,13 +57,13 @@ export default function AdminReservations() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "pending deposit", "confirmed", "completed", "cancelled", "change requests"];
+  const statuses = ["all", "confirmed", "pending deposit", "change requests", "completed", "cancelled"];
 
   const loadData = () => {
     setLoading(true);
     AdminAPI.getBookings()
       .then((res) => {
-        setBookings(res.data);
+        setBookings(res.data || []);
       })
       .catch(() => {
         notify("Failed to load bookings", "error");
@@ -59,40 +75,67 @@ export default function AdminReservations() {
     loadData();
   }, []);
 
-  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
+  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Map API fields to table columns
-  const formattedBookings = bookings.map((b) => {
-    const hasChangeRequest = b.change_request?.status === "pending";
-    const mappedStatus = hasChangeRequest ? "change requests" : b.status;
+  const formattedBookings = useMemo(() => {
+    return bookings
+      .filter((b) => !["inquiry", "quote_sent", "customer_accepted"].includes(b.status))
+      .map((b) => {
+        // Fix: Only treat as active change request if status is pending AND message is non-empty!
+        const hasChangeRequest = b.change_request?.status === "pending" && Boolean(b.change_request?.message?.trim());
+        const mappedStatus = hasChangeRequest ? "change requests" : b.status;
 
-    return {
-      _id: b._id,
-      id: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
-      customer: b.customer_id?.full_name || `${b.contact_first_name} ${b.contact_last_name}`.trim() || "Unknown",
-      email: b.customer_id?.email || b.contact_email || "",
-      eventType: b.event_type || "Event",
-      pkg: b.package_id?.name || "Custom",
-      guests: b.guest_count || 0,
-      date: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
-      rawDate: b.event_date ? new Date(b.event_date) : null,
-      venue: b.venue_type || "TBA",
-      depositStatus: b.payment_status === "deposit_paid" || b.payment_status === "fully_paid" ? "Paid" : "Pending",
-      finalPayment: b.payment_status === "fully_paid" ? "Paid" : "Pending",
-      status: mappedStatus,
-      rawStatus: b.status,
-      coordinator: b.event_manager_id?.full_name || "—",
-      total: b.total_price || 0,
-    };
-  });
+        return {
+          _id: b._id,
+          id: b.reference || `BK-${b._id.substring(b._id.length - 6).toUpperCase()}`,
+          customer: b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || "Unknown Customer",
+          email: b.customer_id?.email || b.contact_email || "N/A",
+          phone: b.contact_phone || b.customer_id?.phone || "N/A",
+          eventType: b.event_type || "Catering Event",
+          pkg: b.package_id?.name || "Custom Catering",
+          guests: b.guest_count || 0,
+          date: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
+          startTime: b.start_time || "",
+          rawDate: b.event_date ? new Date(b.event_date) : null,
+          venue: b.venue_type || b.municipality || "TBA",
+          depositStatus: b.payment_status === "deposit_paid" || b.payment_status === "fully_paid" ? "Paid" : "Pending",
+          finalPayment: b.payment_status === "fully_paid" ? "Paid" : "Pending",
+          status: mappedStatus,
+          rawStatus: b.status,
+          hasChangeRequest,
+          changeNote: b.change_request?.message || "",
+          coordinator: b.event_manager_id?.full_name || "Unassigned",
+          total: b.total_price || 0,
+          rawBooking: b
+        };
+      });
+  }, [bookings]);
 
-  const filtered = formattedBookings.filter((r) => {
-    const matchStatus = filter === "all" || r.status === filter;
-    const matchSearch = !search || r.customer.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
-    const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
-    const matchDateTo = !dateRange.to || (r.rawDate && r.rawDate <= new Date(`${dateRange.to}T23:59:59`));
-    return matchStatus && matchSearch && matchDateFrom && matchDateTo;
-  });
+  // Compute Top KPI Metrics
+  const kpiStats = useMemo(() => {
+    const total = formattedBookings.length;
+    const confirmed = formattedBookings.filter((r) => ["confirmed", "Confirmed", "Converted to Booking"].includes(r.rawStatus)).length;
+    const depositPending = formattedBookings.filter((r) => ["pending deposit", "Deposit Pending"].includes(r.rawStatus)).length;
+    const changeRequests = formattedBookings.filter((r) => r.hasChangeRequest).length;
+
+    return { total, confirmed, depositPending, changeRequests };
+  }, [formattedBookings]);
+
+  const filtered = useMemo(() => {
+    return formattedBookings.filter((r) => {
+      const matchStatus = filter === "all" || r.status.toLowerCase() === filter.toLowerCase() || (filter === "confirmed" && ["confirmed", "converted to booking"].includes(r.rawStatus.toLowerCase()));
+      const matchSearch = !search || 
+        r.customer.toLowerCase().includes(search.toLowerCase()) || 
+        r.id.toLowerCase().includes(search.toLowerCase()) ||
+        r.eventType.toLowerCase().includes(search.toLowerCase());
+
+      const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
+      const matchDateTo = !dateRange.to || (r.rawDate && r.rawDate <= new Date(`${dateRange.to}T23:59:59`));
+
+      return matchStatus && matchSearch && matchDateFrom && matchDateTo;
+    });
+  }, [formattedBookings, filter, search, dateRange]);
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
@@ -100,7 +143,7 @@ export default function AdminReservations() {
     AdminAPI.updateBooking(id, { status: "confirmed" })
       .then(() => {
         setApprovedId(id);
-        notify("Booking approved successfully.", "success");
+        notify("Booking approved and confirmed successfully.", "success");
         setTimeout(() => setApprovedId(null), 2000);
         loadData();
       })
@@ -143,19 +186,16 @@ export default function AdminReservations() {
   };
 
   const buildRowActions = (r) => [
-    { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(r) },
-    ...(r.rawStatus === "pending deposit" || r.status === "change requests"
-      ? [{ key: "approve", label: "Approve", icon: Check, onSelect: () => handleApprove(r._id) }]
+    { key: "view", label: "Quick Details", icon: Eye, onSelect: () => setDrawerRow(r) },
+    ...(r.rawStatus === "pending deposit" || r.hasChangeRequest
+      ? [{ key: "approve", label: "Approve / Confirm", icon: Check, onSelect: () => handleApprove(r._id) }]
       : []),
-    { key: "edit", label: "Open full details", icon: Edit3, onSelect: () => navigate(`/admin/bookings/${r._id}/details`) },
+    { key: "edit", label: "Open Full Booking Page", icon: Edit3, onSelect: () => navigate(`/admin/bookings/${r._id}/details`) },
     ...(r.rawStatus !== "cancelled" && r.rawStatus !== "completed"
-      ? [{ key: "cancel", label: "Cancel booking", icon: XCircle, destructive: true, onSelect: () => setCancelTarget(r) }]
+      ? [{ key: "cancel", label: "Cancel Booking", icon: XCircle, destructive: true, onSelect: () => setCancelTarget(r) }]
       : []),
   ];
 
-  // Reservations is the busiest workflow in the portal, so its table is cut
-  // to the 6 columns that support a quick approve/cancel decision; everything
-  // else (event type, package, guests, venue, deposit) lives in the drawer.
   const columns = [
     {
       key: "id",
@@ -172,10 +212,46 @@ export default function AdminReservations() {
         </div>
       ),
     },
-    { key: "date", header: "Date", className: "text-xs text-[#374151] whitespace-nowrap" },
-    { key: "status", header: "Status", render: (r) => <Badge status={r.status} /> },
-    { key: "finalPayment", header: "Final Pay", render: (r) => <Badge status={r.finalPayment} /> },
-    { key: "coordinator", header: "Coordinator", className: "text-xs text-[#374151]" },
+    {
+      key: "eventInfo",
+      header: "Event & Package",
+      render: (r) => (
+        <div>
+          <p className="text-sm font-semibold text-slate-800">{r.eventType}</p>
+          <p className="text-xs text-slate-500">{r.pkg}</p>
+        </div>
+      ),
+    },
+    { 
+      key: "date", 
+      header: "Event Date", 
+      render: (r) => (
+        <div>
+          <span className="text-xs font-semibold text-slate-700 block">{r.date}</span>
+          {r.startTime && <span className="text-[11px] text-slate-400">{r.startTime}</span>}
+        </div>
+      )
+    },
+    { 
+      key: "guests", 
+      header: "Guests", 
+      render: (r) => <span className="text-xs font-semibold text-slate-700">{r.guests} pax</span> 
+    },
+    { 
+      key: "total", 
+      header: "Total Cost", 
+      render: (r) => <span className="text-xs font-bold text-slate-900">{fmt(r.total)}</span> 
+    },
+    { 
+      key: "status", 
+      header: "Status", 
+      render: (r) => <Badge status={r.status} /> 
+    },
+    { 
+      key: "depositStatus", 
+      header: "Deposit", 
+      render: (r) => <Badge status={r.depositStatus} /> 
+    },
     {
       key: "actions",
       header: "Actions",
@@ -186,7 +262,7 @@ export default function AdminReservations() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
         {showConflict && (
           <ConflictModal
             onClose={() => setShowConflict(false)}
@@ -219,11 +295,63 @@ export default function AdminReservations() {
           />
         )}
 
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Reservations</h2>
+        {/* Page Header */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">
+              Reservations Management
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Track customer bookings, process event confirmations, and manage scheduled catering reservations.
+            </p>
+          </div>
+
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
             <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
+          </div>
+        </div>
+
+        {/* Top KPI Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Active</span>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{kpiStats.total}</h3>
+            </div>
+          </div>
+
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmed</span>
+              <h3 className="text-2xl font-bold text-emerald-700 mt-0.5">{kpiStats.confirmed}</h3>
+            </div>
+          </div>
+
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Deposit Pending</span>
+              <h3 className="text-2xl font-bold text-amber-800 mt-0.5">{kpiStats.depositPending}</h3>
+            </div>
+          </div>
+
+          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+              <Send className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Change Requests</span>
+              <h3 className="text-2xl font-bold text-indigo-900 mt-0.5">{kpiStats.changeRequests}</h3>
+            </div>
           </div>
         </div>
 
@@ -248,7 +376,7 @@ export default function AdminReservations() {
               <TableToolbar
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Search by ID or customer..."
+                searchPlaceholder="Search by Booking ID, customer name, event type..."
                 quickFilters={statuses.map((s) => ({ value: s, label: s }))}
                 activeQuickFilter={filter}
                 onQuickFilterChange={setFilter}
@@ -264,7 +392,7 @@ export default function AdminReservations() {
                   >
                     <div className="space-y-3">
                       <div>
-                        <label className="text-xs font-semibold text-[#374151] block mb-1">From</label>
+                        <label className="text-xs font-semibold text-[#374151] block mb-1">From Date</label>
                         <input
                           type="date"
                           value={draftDateRange.from}
@@ -273,7 +401,7 @@ export default function AdminReservations() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-[#374151] block mb-1">To</label>
+                        <label className="text-xs font-semibold text-[#374151] block mb-1">To Date</label>
                         <input
                           type="date"
                           value={draftDateRange.to}
@@ -300,36 +428,37 @@ export default function AdminReservations() {
           )}
         </AdminCard>
 
-        {/* Table */}
+        {/* Data Table */}
         <AdminCard className="!p-0 overflow-hidden">
           <DataTable
             columns={columns}
             rows={pageRows}
             getRowId={(r) => r._id}
             loading={loading}
-            emptyTitle="No bookings found."
-            emptyHint={search || filter !== "all" || dateRange.from || dateRange.to ? "Try adjusting your search or filters." : undefined}
+            emptyTitle="No reservation records found."
+            emptyHint={search || filter !== "all" || dateRange.from || dateRange.to ? "Try adjusting your search or filter keywords." : undefined}
             onRowClick={(r) => setDrawerRow(r)}
             rowHighlight={(r) => approvedId === r._id}
             selectable
             selectedIds={selectedIds}
             onSelectedIdsChange={setSelectedIds}
-            minWidth="880px"
+            minWidth="980px"
           />
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
 
+        {/* Quick Drawer Panel */}
         <DetailDrawer
           open={!!drawerRow}
           onOpenChange={(open) => !open && setDrawerRow(null)}
           title={drawerRow?.customer}
-          description={drawerRow ? `Booking ${drawerRow.id}` : ""}
+          description={drawerRow ? `Booking Reference: ${drawerRow.id}` : ""}
           footer={
             drawerRow && (
               <>
-                {(drawerRow.rawStatus === "pending deposit" || drawerRow.status === "change requests") && (
+                {(drawerRow.rawStatus === "pending deposit" || drawerRow.hasChangeRequest) && (
                   <Btn variant="secondary" size="sm" onClick={() => handleApprove(drawerRow._id)}>
-                    <Check size={13} /> Approve
+                    <Check size={13} /> Approve / Confirm
                   </Btn>
                 )}
                 {drawerRow.rawStatus !== "cancelled" && drawerRow.rawStatus !== "completed" && (
@@ -342,28 +471,42 @@ export default function AdminReservations() {
                       setCancelTarget(row);
                     }}
                   >
-                    <XCircle size={13} /> Cancel booking
+                    <XCircle size={13} /> Cancel Booking
                   </Btn>
                 )}
                 <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
-                  Open full details
+                  Open Full Page
                 </Btn>
               </>
             )
           }
         >
           {drawerRow && (
-            <div className="grid grid-cols-2 gap-4">
-              <DrawerField label="Event Type" value={drawerRow.eventType} />
-              <DrawerField label="Package" value={drawerRow.pkg} />
-              <DrawerField label="Guests" value={drawerRow.guests} />
-              <DrawerField label="Venue" value={drawerRow.venue} />
-              <DrawerField label="Deposit" value={<Badge status={drawerRow.depositStatus} />} />
-              <DrawerField label="Final Payment" value={<Badge status={drawerRow.finalPayment} />} />
-              <DrawerField label="Status" value={<Badge status={drawerRow.status} />} />
-              <DrawerField label="Coordinator" value={drawerRow.coordinator} />
-              <DrawerField label="Total" value={fmt(drawerRow.total)} full />
-              <DrawerField label="Email" value={drawerRow.email || "—"} full />
+            <div className="space-y-6">
+              {drawerRow.hasChangeRequest && (
+                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-xs space-y-1">
+                  <strong className="text-indigo-950 font-bold flex items-center gap-1.5">
+                    <Send className="w-4 h-4 text-indigo-600" /> Pending Customer Change Request:
+                  </strong>
+                  <p className="text-indigo-800 leading-relaxed pl-5">{drawerRow.changeNote}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <DrawerField label="Event Type" value={drawerRow.eventType} />
+                <DrawerField label="Package" value={drawerRow.pkg} />
+                <DrawerField label="Guest Count" value={`${drawerRow.guests} pax`} />
+                <DrawerField label="Event Date" value={drawerRow.date} />
+                <DrawerField label="Start Time" value={drawerRow.startTime || "TBD"} />
+                <DrawerField label="Venue Location" value={drawerRow.venue} />
+                <DrawerField label="Deposit Status" value={<Badge status={drawerRow.depositStatus} />} />
+                <DrawerField label="Final Payment" value={<Badge status={drawerRow.finalPayment} />} />
+                <DrawerField label="Current Status" value={<Badge status={drawerRow.status} />} />
+                <DrawerField label="Coordinator" value={drawerRow.coordinator} />
+                <DrawerField label="Total Price" value={fmt(drawerRow.total)} full />
+                <DrawerField label="Contact Email" value={drawerRow.email || "—"} full />
+                <DrawerField label="Contact Phone" value={drawerRow.phone || "—"} full />
+              </div>
             </div>
           )}
         </DetailDrawer>

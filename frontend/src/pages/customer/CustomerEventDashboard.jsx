@@ -47,6 +47,8 @@ export default function CustomerEventDashboard() {
   const [ocularTime, setOcularTime] = useState("");
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
 
+  const [isAcceptingQuote, setIsAcceptingQuote] = useState(false);
+
   useEffect(() => {
     fetchBooking();
     fetchPayments();
@@ -222,6 +224,27 @@ export default function CustomerEventDashboard() {
     }
   };
 
+  const acceptQuote = async () => {
+    try {
+      setIsAcceptingQuote(true);
+      // Wait we need payment_method to accept quote for the deposit.
+      // But maybe we can default to "gcash" or let them choose? 
+      // The user chose payment_method during booking wizard, it should be saved in `booking.payment_method`.
+      const response = await CustomerAPI.acceptQuote(booking._id, { payment_method: booking.payment_method || "gcash" });
+      notify("Quote accepted successfully! Redirecting to payment...", "success");
+      
+      if (response.data.checkout_url) {
+        window.location.assign(response.data.checkout_url);
+      } else {
+        fetchBooking();
+      }
+    } catch (error) {
+      notify(error.response?.data?.message || "Failed to accept quote.", "error");
+    } finally {
+      setIsAcceptingQuote(false);
+    }
+  };
+
   if (loading) {
     return (
       <CustomerDashboardLayout title="Event Dashboard">
@@ -372,8 +395,30 @@ export default function CustomerEventDashboard() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
             
+            {/* Quote Action Panel (Only for quote_sent) */}
+            {booking.status === "quote_sent" && (
+              <Card className="border-emerald-200 bg-emerald-50">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-emerald-800 font-semibold text-lg">Quote Ready for Review</h3>
+                      <p className="text-emerald-700 text-sm mt-1">Please review the details and accept the quote to secure your booking.</p>
+                    </div>
+                    <Button 
+                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white" 
+                      size="lg"
+                      onClick={acceptQuote}
+                      disabled={isAcceptingQuote}
+                    >
+                      {isAcceptingQuote ? "Processing..." : "Accept Quote & Pay Deposit"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Action Buttons Panel */}
-            {!['completed', 'cancelled', 'refunded'].includes(booking.status) && (
+            {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Button variant="outline" className="h-auto py-4 flex flex-col gap-2 items-center justify-center border-dashed" onClick={() => setAddingGuests(true)}>
                   <Users className="w-5 h-5 text-blue-500" />

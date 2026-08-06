@@ -6,78 +6,121 @@ import { createConversation } from "../../api/messages";
 import useToast from "../../hooks/useToast";
 import BookingCard from "../../components/booking/BookingCard";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import { Card, CardContent } from "../../components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { CalendarClock, PlusCircle, AlertCircle } from "lucide-react";
-
-const formatCurrency = (value) => {
-  if (value === undefined || value === null || value === "") return "-";
-  return `₱${Number(value).toLocaleString()}`;
-};
+import { 
+  CalendarClock, 
+  Plus, 
+  AlertCircle, 
+  Search, 
+  Filter, 
+  CheckCircle2, 
+  Calendar, 
+  CreditCard, 
+  Sparkles,
+  RefreshCw,
+  Clock,
+  History
+} from "lucide-react";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 export default function CustomerBookings() {
   const navigate = useNavigate();
+  const { notify } = useToast();
+
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [payingBookingId, setPayingBookingId] = useState(null);
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusTab, setStatusTab] = useState("all");
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
+
+  // Dialog States
   const [requestingBooking, setRequestingBooking] = useState(null);
   const [requestNote, setRequestNote] = useState("");
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
   const [addingGuestsBooking, setAddingGuestsBooking] = useState(null);
   const [additionalGuests, setAdditionalGuests] = useState(0);
   const [isSubmittingGuests, setIsSubmittingGuests] = useState(false);
-  
+
   const [upgradingBooking, setUpgradingBooking] = useState(null);
-  const [packages, setPackages] = useState([]);
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
-  const [filterTab, setFilterTab] = useState("all");
 
-  const [customFilter, setCustomFilter] = useState("all");
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [bRes, pRes, pkgRes] = await Promise.all([
+        CustomerAPI.getBookings(),
+        CustomerAPI.getPayments(),
+        CustomerAPI.getPackages()
+      ]);
+      setBookings(bRes.data || []);
+      setPayments(pRes.data || []);
+      setPackages(pkgRes.data || []);
+    } catch (err) {
+      notify("Failed to load booking details.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const { notify } = useToast();
   useEffect(() => {
-    CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
-    CustomerAPI.getPayments().then((res) => setPayments(res.data)).catch(() => setPayments([]));
-    CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
+    loadData();
   }, []);
 
-  const upcomingRaw = useMemo(
-    () => bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status)),
-    [bookings]
-  );
+  // Compute KPI counts
+  const kpiStats = useMemo(() => {
+    const total = bookings.length;
+    const confirmed = bookings.filter((b) => ["Confirmed", "confirmed", "Converted to Booking"].includes(b.status)).length;
+    const depositNeeded = bookings.filter((b) => ["Deposit Pending", "pending deposit"].includes(b.status)).length;
+    const completed = bookings.filter((b) => ["Completed", "completed"].includes(b.status)).length;
 
-  const upcoming = useMemo(() => {
-    if (filterTab === "package") return upcomingRaw.filter(b => b.package_id);
-    if (filterTab === "custom") {
-      return upcomingRaw.filter(b => {
-        if (b.package_id) return false;
-        if (customFilter === "all") return true;
-        
-        // Use service_type if available (new bookings), else derive for existing/legacy ones
+    return { total, confirmed, depositNeeded, completed };
+  }, [bookings]);
+
+  // Filtered Bookings List
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      const rawStatus = (b.status || "").toLowerCase();
+
+      // 1. Status Filter
+      if (statusTab === "confirmed" && !["confirmed", "converted to booking"].includes(rawStatus)) return false;
+      if (statusTab === "deposit_needed" && !["deposit pending", "pending deposit"].includes(rawStatus)) return false;
+      if (statusTab === "completed" && !["completed"].includes(rawStatus)) return false;
+      if (statusTab === "cancelled" && !["cancelled"].includes(rawStatus)) return false;
+
+      // 2. Service Type Filter
+      if (serviceTypeFilter !== "all") {
         const st = b.service_type || (
           b.event_type?.toLowerCase().includes("food delivery") || b.delivery_method !== "setup" ? "Food Only" :
           !b.include_food ? "Event Setup Only" : "Food and Event Setup"
         );
+        if (st !== serviceTypeFilter) return false;
+      }
 
-        if (customFilter === "food_only") return st === "Food Only";
-        if (customFilter === "event_setup_only") return st === "Event Setup Only";
-        if (customFilter === "food_and_setup") return st === "Food and Event Setup";
-        return true;
-      });
-    }
-    return upcomingRaw;
-  }, [upcomingRaw, filterTab, customFilter]);
+      // 3. Search Query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const ref = (b.reference || b._id || "").toLowerCase();
+        const type = (b.event_type || "").toLowerCase();
+        const name = `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.toLowerCase();
 
-  const completed = useMemo(
-    () => bookings.filter((b) => b.status === "completed"),
-    [bookings]
-  );
+        return ref.includes(q) || type.includes(q) || name.includes(q);
+      }
 
+      return true;
+    });
+  }, [bookings, statusTab, serviceTypeFilter, searchQuery]);
+
+  // Payment Checkout Action
   const startPayment = async (booking, isBalance = false) => {
     if (!booking?._id) return;
 
@@ -96,16 +139,25 @@ export default function CustomerBookings() {
       return;
     }
 
-    setPayingBookingId(booking._id);
-    navigate("/customer/checkout", {
-      state: {
-        bookingId: booking._id,
+    try {
+      notify("Generating checkout session for payment...", "info");
+      const res = await CustomerAPI.createPaymentCheckout({
+        booking_id: booking._id,
         amount,
-        paymentType: isBalance ? "balance" : "deposit"
+        payment_type: isBalance ? "balance" : "deposit"
+      });
+
+      if (res.data?.checkout_url) {
+        window.location.assign(res.data.checkout_url);
+      } else {
+        notify("Could not generate checkout session.", "error");
       }
-    });
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to start payment checkout.", "error");
+    }
   };
 
+  // Add Guests Handler
   const submitAddGuests = async (event, directBooking = null, directGuests = 0) => {
     if (event) event.preventDefault();
     
@@ -124,13 +176,12 @@ export default function CustomerBookings() {
       
       notify("Guests added successfully. Redirecting to payment...", "success");
       
-      if (response.data.checkout_url) {
+      if (response.data?.checkout_url) {
         window.location.assign(response.data.checkout_url);
       } else {
         setAddingGuestsBooking(null);
         setAdditionalGuests(0);
-        const bRes = await CustomerAPI.getBookings();
-        setBookings(bRes.data);
+        loadData();
       }
     } catch (error) {
       notify(error.response?.data?.message || "We could not add guests. Please try again.", "error");
@@ -139,6 +190,7 @@ export default function CustomerBookings() {
     }
   };
 
+  // Upgrade Package Handler
   const submitUpgrade = async (event) => {
     event.preventDefault();
     if (!upgradingBooking) return;
@@ -153,7 +205,7 @@ export default function CustomerBookings() {
       
       notify("Package upgraded! Redirecting to payment...", "success");
       
-      if (response.data.checkout_url) {
+      if (response.data?.checkout_url) {
         window.location.assign(response.data.checkout_url);
       }
     } catch (error) {
@@ -163,6 +215,7 @@ export default function CustomerBookings() {
     }
   };
 
+  // Submit Change Request Handler
   const submitChangeRequest = async (event) => {
     event.preventDefault();
     if (!requestingBooking) return;
@@ -176,8 +229,8 @@ export default function CustomerBookings() {
     try {
       setIsSubmittingRequest(true);
       const response = await CustomerAPI.requestBookingChange(requestingBooking._id, { message: nextMessage });
-      setBookings((prev) => prev.map((booking) => (booking._id === response.data._id ? response.data : booking)));
-      notify("Your change request was sent to the admin.", "success");
+      setBookings((prev) => prev.map((b) => (b._id === response.data._id ? response.data : b)));
+      notify("Your change request was sent to the admin team.", "success");
       setRequestingBooking(null);
       setRequestNote("");
     } catch (error) {
@@ -190,79 +243,167 @@ export default function CustomerBookings() {
   return (
     <CustomerDashboardLayout
       title="My Bookings"
-      subtitle="Manage your confirmed events"
+      subtitle="Manage your event reservations, track payment balances, and coordinate event arrangements"
     >
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-base font-medium text-gray-600 mb-3" style={{ fontFamily: "Inter, sans-serif" }}>
-            {upcoming.length} Active Booking{upcoming.length !== 1 ? 's' : ''}
-          </h2>
-          <div className="flex space-x-2 bg-muted/30 p-1 rounded-xl">
-            <button 
-              onClick={() => setFilterTab("all")} 
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "all" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              All
-            </button>
-            <button 
-              onClick={() => setFilterTab("package")} 
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "package" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Packages
-            </button>
-            <button 
-              onClick={() => { setFilterTab("custom"); setCustomFilter("all"); }} 
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${filterTab === "custom" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Custom Bookings
-            </button>
+      {/* Top Banner & KPI Stat Cards */}
+      <div className="mb-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
+          <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div>
+            <h2 className="text-xl font-serif font-bold tracking-tight mb-1 flex items-center gap-2">
+              <Calendar className="w-6 h-6 text-amber-400" /> Event Reservations
+            </h2>
+            <p className="text-xs text-slate-300">
+              View your confirmed catering reservations, track remaining balances, and manage your event details.
+            </p>
           </div>
-          {filterTab === "custom" && (
-            <div className="flex space-x-2 bg-muted/20 p-1 rounded-xl mt-3 overflow-x-auto">
-              <button 
-                onClick={() => setCustomFilter("all")} 
-                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "all" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                All Custom
-              </button>
-              <button 
-                onClick={() => setCustomFilter("food_only")} 
-                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "food_only" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Food Only
-              </button>
-              <button 
-                onClick={() => setCustomFilter("event_setup_only")} 
-                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "event_setup_only" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Event Setup Only
-              </button>
-              <button 
-                onClick={() => setCustomFilter("food_and_setup")} 
-                className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${customFilter === "food_and_setup" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Food & Event Setup
-              </button>
-            </div>
-          )}
+          
+          <Button 
+            onClick={() => navigate("/customer/book", { state: { resetWizard: true } })} 
+            className="rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 py-2.5 shadow-md flex items-center gap-2 shrink-0 transition-transform active:scale-95 text-xs"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" /> Book an Event
+          </Button>
         </div>
-        <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })} className="rounded-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold px-5 shadow-sm">
-          + New Booking
-        </Button>
+
+        {/* KPI Cards Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium mb-2">
+              <span>Total Bookings</span>
+              <Calendar className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{kpiStats.total}</div>
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium mb-2">
+              <span>Confirmed & Reserved</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="text-2xl font-bold text-emerald-700">{kpiStats.confirmed}</div>
+          </div>
+
+          <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between transition-colors ${
+            kpiStats.depositNeeded > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
+          }`}>
+            <div className="flex items-center justify-between text-xs font-semibold mb-2 text-amber-800">
+              <span>Deposit Needed</span>
+              <CreditCard className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="text-2xl font-bold text-amber-900">{kpiStats.depositNeeded}</div>
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-medium mb-2">
+              <span>Completed Events</span>
+              <History className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-2xl font-bold text-slate-900">{kpiStats.completed}</div>
+          </div>
+        </div>
       </div>
 
+      {/* Filter & Search Bar Toolbar */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+            <button
+              onClick={() => setStatusTab("all")}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                statusTab === "all" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              All Bookings ({kpiStats.total})
+            </button>
+            <button
+              onClick={() => setStatusTab("confirmed")}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                statusTab === "confirmed" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Confirmed ({kpiStats.confirmed})
+            </button>
+            <button
+              onClick={() => setStatusTab("deposit_needed")}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                statusTab === "deposit_needed" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Deposit Needed ({kpiStats.depositNeeded})
+            </button>
+            <button
+              onClick={() => setStatusTab("completed")}
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
+                statusTab === "completed" ? "bg-slate-200 text-slate-800 shadow-sm" : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              Completed ({kpiStats.completed})
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative w-full md:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              type="text"
+              placeholder="Search reference, event..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 text-xs rounded-xl border-slate-200 focus:ring-amber-500 focus:border-amber-500"
+            />
+          </div>
+        </div>
+
+        {/* Sub Filters: Service Type */}
+        <div className="pt-3 border-t border-slate-100 flex items-center gap-2 overflow-x-auto text-xs">
+          <span className="text-slate-400 font-medium flex items-center gap-1 shrink-0">
+            <Filter className="w-3.5 h-3.5" /> Service Type:
+          </span>
+          {["all", "Food Only", "Event Setup Only", "Food and Event Setup"].map((st) => (
+            <button
+              key={st}
+              onClick={() => setServiceTypeFilter(st)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+                serviceTypeFilter === st
+                  ? "bg-amber-100 text-amber-900 border border-amber-300 font-semibold"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {st === "all" ? "All Services" : st}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Bookings List Cards */}
       <div className="space-y-4">
-        {upcoming.length === 0 ? (
-          <Card className="border-dashed border-border bg-muted/30">
+        {loading ? (
+          <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 space-y-3">
+            <RefreshCw className="w-8 h-8 animate-spin text-amber-500 mx-auto" />
+            <p className="text-sm font-medium">Loading your event reservations...</p>
+          </div>
+        ) : filteredBookings.length === 0 ? (
+          <Card className="border-dashed border-slate-300 bg-slate-50/50">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <CalendarClock className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
-              <p className="text-lg font-medium text-foreground">No active bookings yet.</p>
-              <p className="text-sm text-muted-foreground mt-1 mb-6">Ready to plan your next event?</p>
-              <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Book Now</Button>
+              <CalendarClock className="w-12 h-12 text-slate-300 mb-3" />
+              <h3 className="text-base font-bold text-slate-800">No bookings found</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                {searchQuery || statusTab !== "all" || serviceTypeFilter !== "all"
+                  ? "Try clearing or adjusting your search filters above."
+                  : "You don't have any confirmed bookings yet. Submit a quote request or start a new booking!"}
+              </p>
+              <Button 
+                onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                className="mt-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 text-xs shadow-sm"
+              >
+                + Book an Event
+              </Button>
             </CardContent>
           </Card>
         ) : (
-          upcoming.map(booking => {
+          filteredBookings.map((booking) => {
             const canRequestChangeLocal = booking.event_date 
               ? new Date(booking.event_date).getTime() - Date.now() > THREE_DAYS_MS 
               : false;
@@ -295,51 +436,22 @@ export default function CustomerBookings() {
                 submitAddGuests={submitAddGuests}
                 isSubmittingGuests={isSubmittingGuests}
                 setAdditionalGuestsGlobal={setAdditionalGuests}
-                onBookingUpdate={() => {
-                  CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
-                }}
+                onBookingUpdate={loadData}
               />
             );
           })
         )}
       </div>
 
-      <Card className="mt-12 border-border">
-        <CardHeader>
-          <CardTitle className="text-xl font-serif">Past Events</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {completed.map((item) => (
-              <div key={item._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/10 hover:bg-muted/30 transition-colors">
-                <div>
-                  <strong className="text-foreground">{item.event_type}</strong>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {item.event_date ? new Date(item.event_date).toLocaleDateString() : ""}
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-sm font-medium">{formatCurrency(item.total_price)}</div>
-                  <Button variant="outline" size="sm">Write review</Button>
-                </div>
-              </div>
-            ))}
-            {completed.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">No past events yet.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Add Guests Dialog */}
       <Dialog open={!!addingGuestsBooking} onOpenChange={(open) => !open && setAddingGuestsBooking(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={submitAddGuests}>
             <DialogHeader>
-              <DialogTitle>Add Guests</DialogTitle>
+              <DialogTitle>Add Additional Guests</DialogTitle>
               <DialogDescription className="pt-2">
-                You currently have <strong className="text-foreground">{addingGuestsBooking?.guest_count}</strong> guests.
-                Adding more guests costs <strong className="text-foreground">₱500 per head</strong>. This will generate a payment link for the difference.
+                You currently have <strong className="text-foreground">{addingGuestsBooking?.guest_count}</strong> guests booked.
+                Adding more guests costs <strong className="text-foreground">₱500 per head</strong>. This will generate a payment checkout link for the difference.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -435,17 +547,17 @@ export default function CustomerBookings() {
         <DialogContent className="sm:max-w-[500px]">
           <form onSubmit={submitChangeRequest}>
             <DialogHeader>
-              <DialogTitle>Request booking change</DialogTitle>
+              <DialogTitle>Request Booking Details Change</DialogTitle>
               <DialogDescription className="pt-2">
-                Describe the booking details you want changed. 
+                Describe the details you want changed for this reservation. 
                 <strong className="text-foreground block mt-1">Note: Sensitive actions such as Date Change, Venue Change, Downgrades, or Full Cancellations require Admin approval.</strong>
-                The admin will review your request and process custom refunds or new quotes if applicable.
+                Our team will review your request and process custom refunds or invoices if applicable.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70" htmlFor="booking-change-request">
-                  Change request
+                  Change Request Details
                 </label>
                 <textarea
                   id="booking-change-request"
@@ -453,7 +565,7 @@ export default function CustomerBookings() {
                   rows={6}
                   value={requestNote}
                   onChange={(event) => setRequestNote(event.target.value)}
-                  placeholder="Example: Please update the guest count to 80 and move the venue to..."
+                  placeholder="Example: Please update our start time to 1:00 PM and change venue to..."
                 />
               </div>
               {requestingBooking && requestingBooking.event_date && (new Date(requestingBooking.event_date).getTime() - Date.now() <= THREE_DAYS_MS) && (

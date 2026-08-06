@@ -4,11 +4,39 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import Modal from "../../components/common/Modal";
+import QuotationBuilderModal from "../../components/admin/quotation/QuotationBuilderModal";
+import { 
+  User, Mail, Phone, Calendar, Clock, MapPin, 
+  DollarSign, Info, List, ArrowLeft, CheckCircle2,
+  FileText, Activity, Utensils, Send, RefreshCw
+} from "lucide-react";
+import Badge from "../../components/admin/ui/Badge";
 
-const DetailRow = ({ label, value, children }) => (
-  <div style={{ marginBottom: "8px" }}>
-    <span style={{ color: "#64748b", fontSize: "0.85rem", textTransform: "uppercase", fontWeight: 600, display: "block" }}>{label}</span>
-    <div style={{ fontSize: "1rem", color: "#0f172a", fontWeight: 500 }}>{children || value || "-"}</div>
+const DetailCard = ({ title, icon: Icon, children }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow duration-300">
+    <div className="bg-slate-50/50 px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+      <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100 text-[#D4AF37]">
+        <Icon size={18} />
+      </div>
+      <h3 className="font-bold text-slate-800 text-lg tracking-tight">{title}</h3>
+    </div>
+    <div className="p-5 flex-1 space-y-5">
+      {children}
+    </div>
+  </div>
+);
+
+const DetailRow = ({ icon: Icon, label, value, children }) => (
+  <div className="flex gap-4 items-start group">
+    <div className="mt-0.5 text-slate-400 group-hover:text-[#D4AF37] transition-colors">
+      <Icon size={16} />
+    </div>
+    <div className="flex-1">
+      <span className="text-[0.7rem] uppercase tracking-wider font-bold text-slate-400 block mb-1">{label}</span>
+      <div className="text-[0.95rem] text-slate-800 font-medium leading-relaxed">
+        {children || value || <span className="text-slate-300 italic">Not specified</span>}
+      </div>
+    </div>
   </div>
 );
 
@@ -20,18 +48,12 @@ export default function AdminQuoteDetails() {
   const [loading, setLoading] = useState(true);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [packages, setPackages] = useState([]);
   
-  const [convertForm, setConvertForm] = useState({
-    package_id: "",
-    total_price: ""
-  });
-
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       try {
-        const res = await AdminAPI.getQuote(id);
+        const res = await AdminAPI.getInquiry(id);
         if (isMounted) setQuote(res.data);
       } catch (err) {
         notify(err.response?.data?.message || "Could not load quote details.", "error");
@@ -40,30 +62,16 @@ export default function AdminQuoteDetails() {
       }
     };
     load();
-
-    AdminAPI.getPackages().then(res => setPackages(res.data || [])).catch(() => {});
-
     return () => { isMounted = false; };
   }, [id, notify]);
-
-  const handleConvert = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const payload = { ...convertForm };
-      const res = await AdminAPI.convertToBooking(id, payload);
-      notify("Quote converted to booking successfully!", "success");
-      navigate(`/admin/bookings/${res.data.booking._id}/details`);
-    } catch (err) {
-      notify(err.response?.data?.message || "Could not convert quote.", "error");
-      setSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
       <AdminLayout>
-        <div className="p-8 text-center text-slate-500">Loading quote details...</div>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#D4AF37] rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium animate-pulse">Loading inquiry details...</p>
+        </div>
       </AdminLayout>
     );
   }
@@ -71,119 +79,292 @@ export default function AdminQuoteDetails() {
   if (!quote) {
     return (
       <AdminLayout>
-        <div className="p-8 text-center text-slate-500">Quote not found.</div>
+        <div className="p-12 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
+            <Info className="text-slate-400" size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Inquiry Not Found</h2>
+          <p className="text-slate-500 mb-6">The inquiry you are looking for does not exist or has been deleted.</p>
+          <button className="px-6 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium" onClick={() => navigate("/admin/bookings/inquiries")}>
+            Return to Inquiries
+          </button>
+        </div>
       </AdminLayout>
     );
   }
 
   return (
     <AdminLayout>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-ink-900 mb-1">Quote Details</h1>
-          <div className="text-slate-500 text-sm">ID: {quote._id}</div>
-        </div>
-        <div className="flex gap-2">
-          <button className="btn-outline" onClick={() => navigate("/admin/quotes")}>Back</button>
-          {quote.status !== "converted" && (
-            <button className="btn" onClick={() => setShowConvertModal(true)}>Convert to Booking</button>
-          )}
-          {quote.status === "converted" && quote.converted_booking_id && (
-            <button className="btn" onClick={() => navigate(`/admin/bookings/${quote.converted_booking_id}/details`)}>View Booking</button>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden mb-6">
-        <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+      <div className="max-w-6xl mx-auto pb-12">
+        {/* Header Section */}
+        <div className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="text-lg font-bold text-ink-900">{quote.event_type}</h2>
-            <div className="text-sm text-slate-500 mt-1">{quote.event_date ? new Date(quote.event_date).toLocaleDateString() : "Date TBD"}</div>
-          </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-semibold ${quote.status === 'converted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-            {quote.status.toUpperCase()}
-          </span>
-        </div>
-
-        <div className="p-6 grid sm:grid-cols-2 gap-8">
-          <div>
-            <h3 className="text-md font-semibold text-slate-700 mb-4 pb-2 border-b">Customer Info</h3>
-            <div className="space-y-4">
-              <DetailRow label="Name" value={quote.full_name || quote.customer_id?.full_name} />
-              <DetailRow label="Email" value={quote.email || quote.customer_id?.email} />
-              <DetailRow label="Phone" value={quote.phone || quote.customer_id?.phone} />
+            <button 
+              onClick={() => navigate("/admin/bookings/inquiries")}
+              className="group flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 mb-4 transition-colors"
+            >
+              <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+              Back to Inquiries
+            </button>
+            <div className="flex items-center gap-4">
+              <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-slate-900">
+                Inquiry Details
+              </h1>
+              <Badge status={quote.status} />
             </div>
-
-            <h3 className="text-md font-semibold text-slate-700 mt-8 mb-4 pb-2 border-b">Event Details</h3>
-            <div className="space-y-4">
-              <DetailRow label="Theme" value={quote.event_theme} />
-              <DetailRow label="Guest Count" value={quote.guest_count} />
-              <DetailRow label="Time / Duration" value={`${quote.start_time || "TBD"} (${quote.duration_hours || "?"} hours)`} />
-              <DetailRow label="Venue Type" value={quote.venue_type} />
-              <DetailRow label="Address" value={`${quote.street || ""}, ${quote.barangay || ""}, ${quote.municipality || ""}, ${quote.province || ""}`} />
-            </div>
+            <p className="text-sm font-mono text-slate-500 mt-2 flex items-center gap-2">
+              <FileText size={14} /> REF: {quote.reference || quote._id}
+            </p>
           </div>
 
-          <div>
-            <h3 className="text-md font-semibold text-slate-700 mb-4 pb-2 border-b">Preferences</h3>
-            <div className="space-y-4">
-              <DetailRow label="Selected Menu">
-                {quote.selected_menu?.length > 0 ? quote.selected_menu.join(", ") : "None specified"}
-              </DetailRow>
-              <DetailRow label="Dietary Restrictions" value={quote.dietary_restrictions} />
-              <DetailRow label="Allergies" value={quote.allergies} />
-              <DetailRow label="Furniture Setup" value={quote.furniture_setup?.join(", ")} />
-              <DetailRow label="Dining Inventory" value={quote.dining_inventory?.join(", ")} />
-              <DetailRow label="Add-ons" value={quote.add_ons?.join(", ")} />
-              <DetailRow label="Notes">
-                <div className="whitespace-pre-wrap">{quote.notes || "None"}</div>
-              </DetailRow>
+          <div className="flex flex-wrap gap-3">
+            {quote.status !== "Converted to Booking" && (
+              <button 
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white text-sm font-semibold rounded-lg hover:from-slate-800 hover:to-slate-700 shadow-md shadow-slate-900/10 transition-all hover:-translate-y-0.5"
+                onClick={() => setShowConvertModal(true)}
+              >
+                <Activity size={16} />
+                {quote.status === "Pending Review" || quote.status === "Revision Requested" ? "Generate Quotation" : "Update Status"}
+              </button>
+            )}
+            {quote.converted_booking_id && (
+              <button 
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#D4AF37] text-white text-sm font-semibold rounded-lg hover:bg-[#C5A030] shadow-md shadow-[#D4AF37]/20 transition-all hover:-translate-y-0.5"
+                onClick={() => navigate(`/admin/bookings/${quote.converted_booking_id}/details`)}
+              >
+                <CheckCircle2 size={16} />
+                View Confirmed Booking
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Status Alert Banners */}
+        {quote.status === "Quotation Sent" && (
+          <div className="mb-6 p-4 bg-blue-50/90 border border-blue-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-600 text-white rounded-lg shadow-sm">
+                <Send size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-blue-950 text-sm">Formal Quotation Issued & Sent to Customer</h4>
+                <p className="text-xs text-blue-700 mt-0.5">A quotation has been created and sent to {quote.contact_first_name} {quote.contact_last_name}. Awaiting customer response.</p>
+              </div>
             </div>
+            <button
+              onClick={() => setShowConvertModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
+            >
+              Edit / Revise Quotation
+            </button>
+          </div>
+        )}
+
+        {quote.status === "Pending Review" && (
+          <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500 text-white rounded-lg shadow-sm">
+                <Clock size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-amber-950 text-sm">Action Needed: Quotation Pending</h4>
+                <p className="text-xs text-amber-700 mt-0.5">This customer inquiry is awaiting pricing calculations and a formal quotation from the admin.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowConvertModal(true)}
+              className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c5a030] text-slate-900 text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
+            >
+              Build Quotation
+            </button>
+          </div>
+        )}
+
+        {quote.status === "Revision Requested" && (
+          <div className="mb-6 p-4 bg-orange-50/90 border border-orange-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-orange-500 text-white rounded-lg shadow-sm">
+                <RefreshCw size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-orange-950 text-sm">Revision Requested by Customer</h4>
+                <p className="text-xs text-orange-700 mt-0.5">The customer requested modifications to the previously issued quotation. Click below to generate a new version.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowConvertModal(true)}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
+            >
+              Create New Version (v2)
+            </button>
+          </div>
+        )}
+
+        {/* Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Main Column */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Event Specifics Card */}
+            <DetailCard title="Event Specifics" icon={Calendar}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+                <DetailRow icon={Utensils} label="Event Type" value={quote.event_type} />
+                <DetailRow icon={User} label="Guest Count" value={quote.guest_count ? `${quote.guest_count} Pax` : null} />
+                <DetailRow icon={Calendar} label="Event Date">
+                  {quote.event_date ? (
+                    <span className="font-semibold text-slate-800">
+                      {new Date(quote.event_date).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </span>
+                  ) : null}
+                </DetailRow>
+                <DetailRow icon={Clock} label="Time / Duration" value={quote.start_time ? `${quote.start_time}` : null} />
+                <DetailRow icon={MapPin} label="Venue Type" value={quote.venue_type} />
+                <DetailRow icon={MapPin} label="Full Address">
+                  {quote.street || quote.barangay || quote.municipality || quote.province ? (
+                    <span className="leading-snug block text-slate-700">
+                      {[quote.street, quote.barangay, quote.municipality, quote.province].filter(Boolean).join(", ")}
+                    </span>
+                  ) : null}
+                </DetailRow>
+                <DetailRow icon={Utensils} label="Delivery Method" value={quote.delivery_method ? quote.delivery_method.toUpperCase() : null} />
+              </div>
+            </DetailCard>
+
+            {/* Food & Service Details Card */}
+            {(quote.selected_menu?.length > 0 || quote.service_items?.length > 0) && (
+              <DetailCard title="Food & Service Order" icon={Utensils}>
+                {quote.selected_menu?.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Menu</h4>
+                    <div className="space-y-2">
+                      {quote.selected_menu.map((menu, i) => (
+                        <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
+                          <span className="font-medium text-slate-700">{menu.name || "Menu Item"}</span>
+                          <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {quote.service_items?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Add-ons / Services</h4>
+                    <div className="space-y-2">
+                      {quote.service_items.map((svc, i) => (
+                        <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
+                          <div>
+                            <span className="font-medium text-slate-700 block">{svc.name}</span>
+                            {svc.description && <span className="text-xs text-slate-400">{svc.description}</span>}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-semibold text-slate-500">₱{svc.price} <span className="text-xs font-normal">x{svc.quantity}</span></span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </DetailCard>
+            )}
+
+            {/* Preferences & Requests Card */}
+            <DetailCard title="Preferences & Special Requests" icon={List}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8 mb-6">
+                <DetailRow icon={DollarSign} label="Budget Range">
+                  {quote.budget_range ? (
+                    <span className="px-3 py-1 bg-green-50 text-green-700 rounded-md font-medium text-sm border border-green-100">
+                      {quote.budget_range}
+                    </span>
+                  ) : null}
+                </DetailRow>
+                <DetailRow icon={Info} label="Dietary Restrictions">
+                  {quote.dietary_requirements ? (
+                    <span className="text-amber-600 font-medium bg-amber-50 px-3 py-1 rounded-md border border-amber-100 text-sm">
+                      {quote.dietary_requirements}
+                    </span>
+                  ) : null}
+                </DetailRow>
+              </div>
+              <div className="pt-4 border-t border-slate-100">
+                <DetailRow icon={FileText} label="Additional Notes & Requests">
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-slate-700 whitespace-pre-wrap mt-2">
+                    {quote.special_requests || "No special requests provided."}
+                  </div>
+                </DetailRow>
+              </div>
+            </DetailCard>
+
+          </div>
+
+          {/* Sidebar Column */}
+          <div className="space-y-6">
+            
+            {/* Customer Info Card */}
+            <DetailCard title="Customer Profile" icon={User}>
+              <DetailRow icon={User} label="Primary Contact">
+                <div className="font-bold text-slate-900 text-lg">
+                  {quote.contact_first_name} {quote.contact_last_name}
+                </div>
+              </DetailRow>
+              <DetailRow icon={Mail} label="Email Address">
+                <a href={`mailto:${quote.contact_email}`} className="text-blue-600 hover:underline">
+                  {quote.contact_email}
+                </a>
+              </DetailRow>
+              <DetailRow icon={Phone} label="Contact Number">
+                <a href={`tel:${quote.contact_phone}`} className="text-slate-700 hover:text-slate-900">
+                  {quote.contact_phone}
+                </a>
+              </DetailRow>
+              {quote.contact_alt_phone && (
+                <DetailRow icon={Phone} label="Alternate Number">
+                  {quote.contact_alt_phone}
+                </DetailRow>
+              )}
+            </DetailCard>
+
+            {/* Quick Actions / Status Summary (Optional Sidebar Widget) */}
+            <div className="bg-slate-900 rounded-xl p-6 text-white shadow-lg overflow-hidden relative">
+              {/* Decorative background element */}
+              <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+              
+              <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                <Activity size={18} className="text-[#D4AF37]" /> Next Steps
+              </h3>
+              <p className="text-sm text-slate-300 mb-5 leading-relaxed">
+                Review the customer's requirements thoroughly before generating their formal quotation.
+              </p>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <div className={`w-2 h-2 rounded-full ${quote.status === 'Pending Review' ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`}></div>
+                  <span className="text-slate-200">Review Request</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm opacity-50">
+                  <div className="w-2 h-2 rounded-full bg-slate-600"></div>
+                  <span className="text-slate-200">Generate Quote</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm opacity-50">
+                  <div className="w-2 h-2 rounded-full bg-slate-600"></div>
+                  <span className="text-slate-200">Await Customer Acceptance</span>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
 
       {showConvertModal && (
-        <Modal title="Convert Quote to Booking" onClose={() => setShowConvertModal(false)}>
-          <div className="p-6">
-            <p className="text-sm text-slate-600 mb-4">
-              Converting this quote will automatically create a booking for this customer.
-              You can optionally assign a specific package or explicitly set the total price.
-            </p>
-            <form onSubmit={handleConvert} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Assign Package (Optional)</label>
-                <select 
-                  className="w-full p-2 border border-slate-300 rounded"
-                  value={convertForm.package_id}
-                  onChange={(e) => setConvertForm({...convertForm, package_id: e.target.value})}
-                >
-                  <option value="">-- Custom Build / Calculate Automatically --</option>
-                  {packages.map(p => (
-                    <option key={p._id} value={p._id}>{p.name} (₱{p.base_price})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Override Total Price (Optional)</label>
-                <input 
-                  type="number" 
-                  className="w-full p-2 border border-slate-300 rounded" 
-                  placeholder="e.g. 50000"
-                  value={convertForm.total_price}
-                  onChange={(e) => setConvertForm({...convertForm, total_price: e.target.value})}
-                />
-                <p className="text-xs text-slate-500 mt-1">Leave empty to auto-calculate price based on package and pax.</p>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-6">
-                <button type="button" className="btn-outline" onClick={() => setShowConvertModal(false)}>Cancel</button>
-                <button type="submit" className="btn" disabled={submitting}>Convert</button>
-              </div>
-            </form>
-          </div>
-        </Modal>
+        <QuotationBuilderModal 
+          inquiry={quote} 
+          onClose={() => setShowConvertModal(false)}
+          onSuccess={() => {
+            setShowConvertModal(false);
+            window.location.reload();
+          }}
+        />
       )}
 
     </AdminLayout>

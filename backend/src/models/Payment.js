@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const PaymentSchema = new mongoose.Schema({
   booking_id: { type: mongoose.Schema.Types.ObjectId, ref: "Booking" },
+  inquiry_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inquiry" },
   customer_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   amount: Number,
   currency: { type: String, default: "PHP" },

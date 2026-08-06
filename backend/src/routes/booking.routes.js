@@ -5,10 +5,13 @@ const { authorize } = require("../middleware/role.middleware");
 const validate = require("../middleware/validate.middleware");
 const { bookingSchema } = require("../validations/booking.validation");
 
+router.post("/convert-inquiry/:id", protect, authorize("admin", "staff"), ctrl.convertInquiry);
 router.post("/", protect, authorize("admin", "staff", "customer"), validate(bookingSchema), ctrl.create);
 
 router.post("/:id/change-request", protect, authorize("customer"), ctrl.requestChange);
 router.post("/:id/change-request/resolve", protect, authorize("admin", "staff"), ctrl.resolveChangeRequest);
+router.put("/:id/send-quote", protect, authorize("admin", "staff"), ctrl.sendQuote);
+router.put("/:id/accept-quote", protect, authorize("customer"), ctrl.acceptQuote);
 router.post("/:id/add-guests", protect, authorize("customer"), ctrl.addGuests);
 router.post("/:id/upgrade-booking", protect, authorize("customer"), ctrl.upgradeBooking);
 router.post("/:id/verify-returns", protect, authorize("admin", "staff"), ctrl.verifyReturns);

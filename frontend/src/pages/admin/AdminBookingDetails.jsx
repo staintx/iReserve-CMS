@@ -1,6 +1,28 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Printer, Check, Phone, Mail, MapPin, AlertCircle, Edit, Calendar } from "lucide-react";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Printer, 
+  Check, 
+  Phone, 
+  Mail, 
+  MapPin, 
+  AlertCircle, 
+  Edit, 
+  Calendar, 
+  Clock, 
+  Users, 
+  CreditCard, 
+  Send, 
+  Utensils, 
+  FileText, 
+  XCircle, 
+  CheckCircle2, 
+  RefreshCw,
+  MessageSquare,
+  UserCheck
+} from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -9,6 +31,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
+import { createConversation } from "../../api/messages";
 
 export default function AdminBookingDetails() {
   const { id } = useParams();
@@ -23,42 +46,73 @@ export default function AdminBookingDetails() {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  
-  // Edit Form State
-  const [editForm, setEditForm] = useState({
-    guest_count: "",
-    event_date: "",
-    start_time: "",
-    venue_type: ""
-  });
-  
-  // Ocular Reschedule State
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+
+  // Form states
+  const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
+  const [editForm, setEditForm] = useState({ guest_count: "", event_date: "", start_time: "", venue_type: "", status: "" });
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
 
-  const loadData = () => {
+  const loadData = async () => {
     setLoading(true);
-    Promise.all([
-      AdminAPI.getBooking(id),
-      AdminAPI.getPayments()
-    ]).then(([bRes, pRes]) => {
-      setBooking(bRes.data);
-      setPayments(pRes.data.filter(p => p.booking_id?._id === id || p.booking_id === id));
-      
+    try {
+      // 1. Try fetching booking directly
+      let bookingData = null;
+      try {
+        const bRes = await AdminAPI.getBooking(id);
+        bookingData = bRes.data;
+      } catch (err) {
+        // Fallback: check if id is an inquiry or converted booking ID
+        try {
+          const inqRes = await AdminAPI.getInquiry(id);
+          if (inqRes.data?.converted_booking_id) {
+            const bRes2 = await AdminAPI.getBooking(inqRes.data.converted_booking_id);
+            bookingData = bRes2.data;
+          } else {
+            bookingData = inqRes.data;
+          }
+        } catch (inqErr) {
+          // Fallback: search in getBookings list
+          const allB = await AdminAPI.getBookings();
+          bookingData = allB.data.find(b => b._id === id || b.reference === id || b.converted_booking_id === id);
+        }
+      }
+
+      if (!bookingData) {
+        setBooking(null);
+        return;
+      }
+
+      setBooking(bookingData);
+
+      // Fetch payments for this booking
+      try {
+        const pRes = await AdminAPI.getPayments();
+        const bId = bookingData._id;
+        setPayments((pRes.data || []).filter(p => String(p.booking_id?._id || p.booking_id) === String(bId) || String(p.inquiry_id?._id || p.inquiry_id) === String(bId)));
+      } catch (pErr) {
+        setPayments([]);
+      }
+
+      // Populate edit form
       setEditForm({
-        guest_count: bRes.data.guest_count || "",
-        event_date: bRes.data.event_date ? new Date(bRes.data.event_date).toISOString().split('T')[0] : "",
-        start_time: bRes.data.start_time || "",
-        venue_type: bRes.data.venue_type || ""
+        guest_count: bookingData.guest_count || "",
+        event_date: bookingData.event_date ? new Date(bookingData.event_date).toISOString().split('T')[0] : "",
+        start_time: bookingData.start_time || "",
+        venue_type: bookingData.venue_type || "",
+        status: bookingData.status || ""
       });
 
-      if (bRes.data.ocular_visit) {
-        setOcularDate(bRes.data.ocular_visit.scheduled_date ? new Date(bRes.data.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
-        setOcularTime(bRes.data.ocular_visit.scheduled_time || "");
+      if (bookingData.ocular_visit) {
+        setOcularDate(bookingData.ocular_visit.scheduled_date ? new Date(bookingData.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
+        setOcularTime(bookingData.ocular_visit.scheduled_time || "");
       }
-    }).catch(err => {
-      notify("Failed to load booking details", "error");
-    }).finally(() => setLoading(false));
+    } catch (err) {
+      notify("Failed to load booking details.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -70,8 +124,9 @@ export default function AdminBookingDetails() {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="p-6 min-h-screen bg-[#F9FAFB] flex items-center justify-center">
-          <p className="text-gray-500">Loading booking details...</p>
+        <div className="p-12 min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center space-y-3">
+          <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
+          <p className="text-sm font-medium text-slate-500">Loading reservation details...</p>
         </div>
       </AdminLayout>
     );
@@ -80,37 +135,64 @@ export default function AdminBookingDetails() {
   if (!booking) {
     return (
       <AdminLayout>
-        <div className="p-6 min-h-screen bg-[#F9FAFB] flex items-center justify-center">
-          <p className="text-gray-500">Booking not found.</p>
+        <div className="p-12 min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-amber-500" />
+          <h3 className="text-lg font-serif font-bold text-slate-900">Booking Record Not Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm">
+            We could not locate a booking or inquiry matching ID: <code className="font-mono">{id}</code>. It may have been deleted or converted.
+          </p>
+          <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/reservations")}>
+            <ChevronLeft size={14} /> Return to Reservations
+          </Btn>
         </div>
       </AdminLayout>
     );
   }
   
-  const TIMELINE_STEPS = ["Booking Requested", "Deposit Paid", "Approved", "Ocular Scheduled", "Staff Assigned", "Final Payment", "Ready for Event", "Completed"];
+  const TIMELINE_STEPS = ["Inquiry Received", "Quotation Sent", "Quote Accepted", "Deposit Paid", "Confirmed", "Ocular Scheduled", "Ready for Event", "Completed"];
   
   let completedIdx = 0;
-  if (booking.status === "completed") completedIdx = 7;
-  else if (booking.status === "ongoing" || booking.status === "preparing") completedIdx = 6;
-  else if (booking.payment_status === "fully_paid") completedIdx = 5;
-  else if (booking.event_manager_id) completedIdx = 4;
-  else if (booking.ocular_visit?.status === "scheduled") completedIdx = 3;
-  else if (booking.status === "confirmed") completedIdx = 2;
-  else if (booking.payment_status === "deposit_paid") completedIdx = 1;
+  const rawStatus = (booking.status || "").toLowerCase();
 
-  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
+  if (rawStatus === "completed") completedIdx = 7;
+  else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) completedIdx = 6;
+  else if (booking.ocular_visit?.status === "scheduled" || rawStatus === "ocular scheduled") completedIdx = 5;
+  else if (["confirmed", "converted to booking"].includes(rawStatus)) completedIdx = 4;
+  else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") completedIdx = 3;
+  else if (rawStatus === "customer_accepted") completedIdx = 2;
+  else if (rawStatus === "quote_sent") completedIdx = 1;
 
-  const customerName = booking.customer_id?.full_name || `${booking.contact_first_name} ${booking.contact_last_name}`.trim() || "Customer";
+  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const customerName = booking.customer_id?.full_name || `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim() || "Customer";
   
   const totalPaid = payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const remainingBalance = Math.max(0, (booking.total_price || 0) - totalPaid);
 
   const handleApprove = () => {
     AdminAPI.updateBooking(booking._id, { status: "confirmed" })
       .then(() => {
-        notify("Booking approved successfully.", "success");
+        notify("Booking approved and confirmed successfully.", "success");
         loadData();
       })
       .catch((err) => notify(err.response?.data?.message || "Failed to approve booking.", "error"));
+  };
+
+  const handleSendQuote = (e) => {
+    e.preventDefault();
+    if (!quoteForm.total_price) {
+      notify("Please enter the total price for the quote.", "error");
+      return;
+    }
+    AdminAPI.sendQuote(booking._id, { 
+      total_price: Number(quoteForm.total_price), 
+      notes: quoteForm.notes 
+    })
+    .then(() => {
+      notify("Quote sent to customer successfully.", "success");
+      setShowQuoteModal(false);
+      loadData();
+    })
+    .catch((err) => notify(err.response?.data?.message || "Failed to send quote.", "error"));
   };
 
   const handleResolveChange = () => {
@@ -149,254 +231,349 @@ export default function AdminBookingDetails() {
     .catch(err => notify(err.response?.data?.message || "Failed to confirm ocular schedule", "error"));
   };
 
+  const openCustomerChat = async () => {
+    try {
+      const convo = await createConversation({ booking_id: booking._id });
+      navigate(`/admin/messages/${convo._id}`);
+    } catch (err) {
+      notify(err.response?.data?.message || "Could not open chat thread.", "error");
+    }
+  };
+
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
-        <div className="flex items-center gap-3 flex-wrap">
-          <button onClick={() => navigate("/admin/bookings/reservations")} className="text-[#6B7280] hover:text-[#111] flex items-center gap-1 text-sm transition-colors">
-            <ChevronLeft size={15} /> Reservations
-          </button>
-          <ChevronRight size={13} className="text-[#D1D5DB]" />
-          <span className="text-sm font-semibold text-[#111]">{booking.reference || booking._id}</span>
-          <Badge status={booking.status} />
-          <div className="ml-auto flex gap-2">
-            <Btn size="sm" variant="secondary"><Printer size={13} /> Print Invoice</Btn>
-            {booking.status === "pending deposit" && <Btn size="sm" variant="gold" onClick={handleApprove}><Check size={13} /> Approve Booking</Btn>}
+      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+        
+        {/* Top Breadcrumb & Action Navigation */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <button onClick={() => navigate("/admin/bookings/reservations")} className="hover:text-slate-900 flex items-center gap-1 font-medium transition-colors">
+              <ChevronLeft size={14} /> Reservations
+            </button>
+            <ChevronRight size={12} className="text-slate-300" />
+            <span className="font-mono font-bold text-amber-700">{booking.reference || `BK-${booking._id.substring(0,6).toUpperCase()}`}</span>
+            <Badge status={booking.status} />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Btn size="sm" variant="secondary" onClick={() => window.print()}>
+              <Printer size={13} /> Print Invoice
+            </Btn>
+
+            <Btn size="sm" variant="secondary" onClick={openCustomerChat}>
+              <MessageSquare size={13} /> Message Customer
+            </Btn>
+
+            {booking.status === "inquiry" && (
+              <Btn size="sm" variant="gold" onClick={() => setShowQuoteModal(true)}>
+                <Send size={13} /> Send Official Quote
+              </Btn>
+            )}
+
+            {["pending deposit", "Deposit Pending"].includes(booking.status) && (
+              <Btn size="sm" variant="gold" onClick={handleApprove}>
+                <Check size={13} /> Confirm & Approve Booking
+              </Btn>
+            )}
+
+            {!["cancelled", "completed"].includes(rawStatus) && (
+              <Btn size="sm" variant="secondary" onClick={() => setShowEditModal(true)}>
+                <Edit size={13} /> Edit Details
+              </Btn>
+            )}
           </div>
         </div>
 
-        {booking.change_request?.status === "pending" && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <AlertCircle className="text-amber-500 mt-0.5" size={20} />
-            <div className="flex-1">
-              <h4 className="font-bold text-amber-800">Pending Change Request</h4>
-              <p className="text-sm text-amber-700 mt-1">{booking.change_request.message}</p>
+        {/* Change Request Alert Banner */}
+        {booking.change_request?.status === "pending" && booking.change_request?.message && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-start justify-between gap-4 text-xs">
+            <div className="flex items-start gap-3">
+              <Send className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="font-bold text-indigo-950 text-sm">Customer Change Request Pending Review</h4>
+                <p className="text-indigo-800 mt-0.5 leading-relaxed">{booking.change_request.message}</p>
+              </div>
             </div>
-            <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowChangeModal(true)}>Review Request</Btn>
+            <Btn size="sm" variant="gold" className="shrink-0" onClick={() => setShowChangeModal(true)}>
+              Review Request
+            </Btn>
           </div>
         )}
 
-        {/* Progress Timeline */}
+        {/* Progress Stepper Bar */}
         <AdminCard className="!p-5 overflow-x-auto">
-          <p className="font-bold text-[#111] text-sm mb-4">Booking Progress</p>
-          <div className="flex items-start gap-0 min-w-max pb-2">
+          <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-4">Booking Lifecycle Progress</p>
+          <div className="flex items-center justify-between min-w-max pb-2">
             {TIMELINE_STEPS.map((step, i) => (
               <div key={step} className="flex items-center flex-shrink-0">
                 <div className="flex flex-col items-center">
-                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold ${i <= completedIdx ? "border-[#D4AF37] bg-[#D4AF37] text-[#111]" : i === completedIdx + 1 ? "border-[#D4AF37] bg-white text-[#D4AF37]" : "border-gray-200 bg-white text-[#9CA3AF]"}`}>
-                    {i <= completedIdx ? <Check size={12} /> : i + 1}
+                  <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-colors ${
+                    i <= completedIdx ? "border-amber-500 bg-amber-500 text-slate-950" :
+                    i === completedIdx + 1 ? "border-amber-500 bg-white text-amber-600" :
+                    "border-slate-200 bg-white text-slate-400"
+                  }`}>
+                    {i <= completedIdx ? <Check size={12} strokeWidth={3} /> : i + 1}
                   </div>
-                  <p className={`text-[10px] font-medium mt-1.5 text-center max-w-16 leading-tight ${i <= completedIdx ? "text-[#111]" : "text-[#9CA3AF]"}`}>{step}</p>
+                  <p className={`text-[10px] font-semibold mt-1.5 text-center max-w-16 leading-tight ${
+                    i <= completedIdx ? "text-slate-900" : "text-slate-400"
+                  }`}>{step}</p>
                 </div>
-                {i < TIMELINE_STEPS.length - 1 && <div className={`h-0.5 w-10 mb-5 mx-1 ${i < completedIdx ? "bg-[#D4AF37]" : "bg-gray-200"}`} />}
+                {i < TIMELINE_STEPS.length - 1 && (
+                  <div className={`h-0.5 w-10 mb-5 mx-1.5 transition-colors ${i < completedIdx ? "bg-amber-500" : "bg-slate-200"}`} />
+                )}
               </div>
             ))}
           </div>
         </AdminCard>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Customer Info */}
-          <AdminCard className="!p-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">Customer Information</p>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-[#D4AF37]/15 flex items-center justify-center text-[#D4AF37] font-bold">
-                {customerName.split(" ").map(n => n[0]).join("").substring(0,2)}
+        {/* Main 3-Column Info Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Customer Info Card */}
+          <AdminCard className="!p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Customer Details</span>
+              <UserCheck className="w-4 h-4 text-slate-400" />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 font-bold text-base flex items-center justify-center shrink-0">
+                {customerName.substring(0, 2).toUpperCase()}
               </div>
               <div>
-                <p className="font-bold text-[#111]">{customerName}</p>
-                <p className="text-xs text-[#6B7280]">Client</p>
+                <h4 className="font-bold text-slate-900 text-sm">{customerName}</h4>
+                <span className="text-xs text-slate-500">Registered Client</span>
               </div>
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2"><Phone size={13} className="text-[#9CA3AF]" /><span className="text-[#374151]">{booking.contact_phone || booking.customer_id?.phone || "N/A"}</span></div>
-              <div className="flex items-center gap-2"><Mail size={13} className="text-[#9CA3AF]" /><span className="text-[#374151]">{booking.contact_email || booking.customer_id?.email || "N/A"}</span></div>
-              <div className="flex items-center gap-2"><MapPin size={13} className="text-[#9CA3AF]" /><span className="text-[#374151]">{[booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ") || "N/A"}</span></div>
+
+            <div className="space-y-3 text-xs pt-2">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>{booking.contact_phone || booking.customer_id?.phone || "N/A"}</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-700">
+                <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="truncate">{booking.contact_email || booking.customer_id?.email || "N/A"}</span>
+              </div>
+              <div className="flex items-start gap-2 text-slate-700">
+                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <span>
+                  {[booking.street, booking.barangay, booking.municipality, booking.province, booking.zip_code]
+                    .filter(Boolean)
+                    .join(", ") || "No address specified"}
+                  {booking.landmark && <span className="block text-slate-400 text-[11px]">Landmark: {booking.landmark}</span>}
+                </span>
+              </div>
             </div>
           </AdminCard>
 
-          {/* Event Info */}
-          <AdminCard className="!p-5 relative">
-            <div className="flex justify-between items-center mb-3">
-              <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">Event Information</p>
-              {!['cancelled', 'completed', 'refunded'].includes(booking.status) && (
-                <button onClick={() => setShowEditModal(true)} className="text-[#6B7280] hover:text-[#D4AF37] transition-colors"><Edit size={14} /></button>
-              )}
+          {/* Event Schedule Info Card */}
+          <AdminCard className="!p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Event & Location</span>
+              <Calendar className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="space-y-2.5 text-sm">
-              {[
-                ["Type", booking.event_type || "Event"], 
-                ["Date", booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBA"], 
-                ["Venue", booking.venue_type || "TBA"], 
-                ["Guests", `${booking.guest_count || 0} pax`], 
-                ["Theme", booking.event_theme || "None"], 
-                ["Special Requests", booking.special_requests || "None"]
-              ].map(([l, v]) => (
-                <div key={l} className="flex justify-between border-b border-gray-50 pb-1.5 last:border-0 last:pb-0">
-                  <span className="text-[#6B7280]">{l}</span>
-                  <span className="font-semibold text-[#111] text-right">{v}</span>
-                </div>
-              ))}
-            </div>
-          </AdminCard>
 
-          {/* Financials */}
-          <AdminCard className="!p-5">
-            <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">Financial Summary</p>
-            <div className="space-y-2.5 text-sm mb-4">
-              <div className="flex justify-between border-b border-gray-50 pb-1.5">
-                <span className="text-[#6B7280]">Total Amount</span>
-                <span className="font-semibold text-[#111]">{fmt(booking.total_price)}</span>
+            <div className="space-y-2.5 text-xs">
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Event Type</span>
+                <strong className="text-slate-900 font-bold">{booking.event_type || "Catering Event"}</strong>
               </div>
-              <div className="flex justify-between border-b border-gray-50 pb-1.5">
-                <span className="text-[#6B7280] flex items-center gap-1.5">Amount Paid</span>
-                <span className="font-semibold text-[#111]">{fmt(totalPaid)}</span>
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Target Date</span>
+                <strong className="text-slate-900">{booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBA"}</strong>
               </div>
-              <div className="flex justify-between border-b border-gray-50 pb-1.5">
-                <span className="text-[#6B7280] flex items-center gap-1.5">Payment Status <Badge status={booking.payment_status} /></span>
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Start Time</span>
+                <strong className="text-slate-900">{booking.start_time || "TBA"}</strong>
+              </div>
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Guest Count</span>
+                <strong className="text-slate-900">{booking.guest_count || 0} Guests</strong>
+              </div>
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Venue / Location</span>
+                <strong className="text-slate-900 text-right max-w-44 truncate">{booking.venue_type || booking.municipality || "TBA"}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#6B7280] flex items-center gap-1.5">Balance Due</span>
-                <span className="font-semibold text-[#111]">{fmt(Math.max(0, booking.total_price - totalPaid))}</span>
+                <span className="text-slate-500">Coordinator</span>
+                <strong className="text-slate-900">{booking.event_manager_id?.full_name || "Unassigned"}</strong>
               </div>
             </div>
-            
-            <div className="flex flex-col gap-2 mt-4">
-              {booking.payment_status !== "fully_paid" && booking.status !== "cancelled" && (
-                <Btn size="sm" variant="gold" className="w-full justify-center">Record Payment</Btn>
-              )}
-              {booking.status !== "cancelled" && (
-                <Btn 
-                  size="sm" 
-                  variant="secondary" 
-                  className="w-full justify-center text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => {
-                    const amount = window.prompt("Enter refund amount to process via PayMongo:");
-                    if (amount && !isNaN(Number(amount))) {
-                      AdminAPI.processRefund(booking._id, { amount: Number(amount) })
-                        .then(() => {
-                          notify("Refund processed successfully", "success");
-                          loadData();
-                        })
-                        .catch(err => notify(err.response?.data?.message || "Failed to process refund", "error"));
-                    }
-                  }}
-                >
-                  Cancel & Issue Refund
-                </Btn>
-              )}
+          </AdminCard>
+
+          {/* Financial Summary Card */}
+          <AdminCard className="!p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Financial Overview</span>
+              <CreditCard className="w-4 h-4 text-slate-400" />
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Grand Total</span>
+                <strong className="text-slate-900 text-sm font-bold">{fmt(booking.total_price)}</strong>
+              </div>
+              <div className="flex justify-between pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Total Paid</span>
+                <strong className="text-emerald-700 text-sm font-bold">{fmt(totalPaid)}</strong>
+              </div>
+              <div className="flex justify-between items-center pb-1.5 border-b border-slate-50">
+                <span className="text-slate-500">Payment Status</span>
+                <Badge status={booking.payment_status} />
+              </div>
+              <div className="flex justify-between pt-1">
+                <span className="text-slate-500 font-semibold">Remaining Balance</span>
+                <strong className={`text-sm font-bold ${remainingBalance > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {fmt(remainingBalance)}
+                </strong>
+              </div>
             </div>
           </AdminCard>
         </div>
 
-        {/* Ocular Section */}
-        {booking.ocular_visit && (booking.ocular_visit.status === "scheduled" || booking.ocular_visit.status === "requested") && (
-          <div className={`border rounded-xl p-4 flex items-start gap-3 mt-5 ${booking.ocular_visit.status === "requested" ? "bg-blue-50 border-blue-200" : "bg-emerald-50 border-emerald-200"}`}>
-            {booking.ocular_visit.status === "requested" ? <AlertCircle className="text-blue-500 mt-0.5" size={20} /> : <Calendar className="text-emerald-500 mt-0.5" size={20} />}
-            <div className="flex-1">
-              <h4 className={`font-bold ${booking.ocular_visit.status === "requested" ? "text-blue-800" : "text-emerald-800"}`}>
-                {booking.ocular_visit.status === "requested" ? "Ocular Visit Requested" : "Ocular Visit Scheduled"}
-              </h4>
-              <p className={`text-sm mt-1 ${booking.ocular_visit.status === "requested" ? "text-blue-700" : "text-emerald-700"}`}>
-                Date: {new Date(booking.ocular_visit.scheduled_date || booking.ocular_visit.date).toLocaleDateString()} at {booking.ocular_visit.scheduled_time || booking.ocular_visit.time || "any time"}.
-              </p>
+        {/* Itemized Menu & Service Details */}
+        <AdminCard className="!p-6 space-y-4">
+          <h3 className="font-serif font-bold text-slate-900 text-base flex items-center gap-2">
+            <Utensils className="w-5 h-5 text-amber-600" /> Itemized Menu & Service Breakdown
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            {/* Menu Items */}
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Selected Menu Dishes</span>
+              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+                {booking.menu_items && booking.menu_items.length > 0 ? (
+                  booking.menu_items.map((item, idx) => (
+                    <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
+                      <div>
+                        <strong className="text-slate-900">{item.name || item}</strong>
+                        {item.note && <span className="block text-slate-400 text-[11px]">{item.note}</span>}
+                      </div>
+                      <span className="font-semibold text-slate-700">{item.price ? fmt(item.price) : "Included"}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-4 text-center text-slate-400 text-xs">No specific menu items listed.</p>
+                )}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {booking.ocular_visit.status === "requested" && (
-                <Btn size="sm" variant="gold" onClick={handleScheduleOcular}>
-                  Confirm Schedule
-                </Btn>
-              )}
-              {booking.ocular_visit.status === "scheduled" && (
-                <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowRescheduleModal(true)}>
-                  Reschedule
-                </Btn>
-              )}
+
+            {/* Service & Add-ons */}
+            <div>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Add-ons & Equipment Services</span>
+              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+                {booking.service_items && booking.service_items.length > 0 ? (
+                  booking.service_items.map((item, idx) => (
+                    <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
+                      <strong className="text-slate-900">{item.name} {item.quantity ? `(x${item.quantity})` : ""}</strong>
+                      <span className="font-semibold text-slate-700">{fmt(item.price)}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-4 text-center text-slate-400 text-xs">No extra add-on items specified.</p>
+                )}
+              </div>
             </div>
           </div>
-        )}
+        </AdminCard>
+
+        {/* Modal: Edit Details */}
+        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+          <DialogContent className="sm:max-w-[450px]">
+            <form onSubmit={handleUpdateDetails}>
+              <DialogHeader>
+                <DialogTitle>Edit Booking Details</DialogTitle>
+                <DialogDescription>Update event schedule, guest count, or venue status.</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Target Event Date</label>
+                  <Input 
+                    type="date" 
+                    value={editForm.event_date} 
+                    onChange={(e) => setEditForm({ ...editForm, event_date: e.target.value })} 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Start Time</label>
+                  <Input 
+                    type="time" 
+                    value={editForm.start_time} 
+                    onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Guest Count</label>
+                  <Input 
+                    type="number" 
+                    value={editForm.guest_count} 
+                    onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Venue Type / Location</label>
+                  <Input 
+                    type="text" 
+                    value={editForm.venue_type} 
+                    onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Btn type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Btn>
+                <Btn type="submit" variant="gold">Save Changes</Btn>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Send Quote */}
+        <Dialog open={showQuoteModal} onOpenChange={setShowQuoteModal}>
+          <DialogContent className="sm:max-w-[450px]">
+            <form onSubmit={handleSendQuote}>
+              <DialogHeader>
+                <DialogTitle>Send Official Quotation</DialogTitle>
+                <DialogDescription>Set total price and pricing notes for this customer inquiry.</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Total Cost (₱)</label>
+                  <Input 
+                    type="number" 
+                    placeholder="e.g. 55000"
+                    value={quoteForm.total_price} 
+                    onChange={(e) => setQuoteForm({ ...quoteForm, total_price: e.target.value })} 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Notes / Terms</label>
+                  <textarea 
+                    rows={4}
+                    className="w-full text-xs rounded-xl border border-slate-200 p-3 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    placeholder="Include terms e.g. Requires 20% deposit to lock date..."
+                    value={quoteForm.notes} 
+                    onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Btn type="button" variant="secondary" onClick={() => setShowQuoteModal(false)}>Cancel</Btn>
+                <Btn type="submit" variant="gold">Send Quote</Btn>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
       </div>
-
-      {/* Edit Booking Modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <form onSubmit={handleUpdateDetails}>
-            <DialogHeader>
-              <DialogTitle>Edit Event Information</DialogTitle>
-              <DialogDescription>Modify core booking details below.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Guest Count</label>
-                <Input type="number" value={editForm.guest_count} onChange={(e) => setEditForm({...editForm, guest_count: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Event Date</label>
-                <Input type="date" value={editForm.event_date} onChange={(e) => setEditForm({...editForm, event_date: e.target.value})} required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Start Time</label>
-                <Input type="time" value={editForm.start_time} onChange={(e) => setEditForm({...editForm, start_time: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Venue Type</label>
-                <Input type="text" value={editForm.venue_type} onChange={(e) => setEditForm({...editForm, venue_type: e.target.value})} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Btn type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Btn>
-              <Btn type="submit" variant="gold">Save Changes</Btn>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Review Change Request Modal */}
-      <Dialog open={showChangeModal} onOpenChange={setShowChangeModal}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Review Customer Change Request</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-800 italic border border-gray-200">
-              "{booking?.change_request?.message}"
-            </div>
-            <p className="text-sm text-gray-600">
-              To resolve this request, you can explicitly update the booking details (which automatically resolves it) or simply mark it as resolved.
-            </p>
-          </div>
-          <DialogFooter>
-            <Btn variant="secondary" onClick={handleResolveChange}>Mark as Resolved</Btn>
-            <Btn variant="gold" onClick={() => { setShowChangeModal(false); setShowEditModal(true); }}>Edit Booking Details</Btn>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reschedule Ocular Modal */}
-      <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <form onSubmit={handleScheduleOcular}>
-            <DialogHeader>
-              <DialogTitle>Reschedule Ocular Visit</DialogTitle>
-              <DialogDescription>Select a new date and time for the ocular visit.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Date</label>
-                <Input type="date" value={ocularDate} onChange={(e) => setOcularDate(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Time</label>
-                <Input type="time" value={ocularTime} onChange={(e) => setOcularTime(e.target.value)} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Btn type="button" variant="secondary" onClick={() => setShowRescheduleModal(false)}>Cancel</Btn>
-              <Btn type="submit" variant="gold">Reschedule</Btn>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
     </AdminLayout>
   );
 }

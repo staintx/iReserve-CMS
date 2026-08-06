@@ -34,6 +34,7 @@ export const AdminAPI = {
   scheduleOcular: (id, data) => api.post(`/bookings/${id}/ocular/schedule`, data),
   completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
   resolveChangeRequest: (id, data) => api.post(`/bookings/${id}/change-request/resolve`, data),
+  sendQuote: (id, data) => api.put(`/bookings/${id}/send-quote`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),
@@ -94,10 +95,15 @@ export const AdminAPI = {
   // Logs
   getLogs: (params = {}) => api.get("/systemlogs", { params }),
 
-  // Quotes
+  // Quotes (Legacy)
   getQuotes: () => api.get("/quotes"),
   getQuote: (id) => api.get(`/quotes/${id}`),
   updateQuote: (id, data) => api.put(`/quotes/${id}`, data),
   deleteQuote: (id) => api.delete(`/quotes/${id}`),
-  convertToBooking: (id, data) => api.post(`/quotes/${id}/convert`, data)
+  convertToBooking: (id, data) => api.post(`/quotes/${id}/convert`, data),
+
+  // Quotations (New Inquiry Workflow)
+  getAllQuotations: () => api.get("/quotations"),
+  getQuotationsByInquiry: (inquiryId) => api.get(`/quotations/inquiry/${inquiryId}`),
+  createQuotation: (data) => api.post("/quotations", data),
 };

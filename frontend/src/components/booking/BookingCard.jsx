@@ -2,32 +2,39 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import { Button } from "../ui/button";
 import { 
   ChevronDown, 
   ChevronUp, 
   FileText, 
   Settings, 
-  ArrowUpCircle, 
   Plus, 
   Download, 
-  Activity, 
-  X,
-  Eye,
-  Calendar,
-  Send,
-  TrendingUp,
-  Minus
+  Eye, 
+  Calendar, 
+  Send, 
+  TrendingUp, 
+  Utensils, 
+  Sparkles, 
+  Layers, 
+  MessageSquare, 
+  CreditCard, 
+  Clock, 
+  MapPin, 
+  UserCheck,
+  CheckCircle2,
+  XCircle,
+  AlertCircle
 } from "lucide-react";
 
-
 const formatCurrency = (value) => {
-  if (value === undefined || value === null || value === "") return "-";
+  if (value === undefined || value === null || value === "") return "₱0.00";
   return `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export default function BookingCard({
   booking,
-  payments,
+  payments = [],
   canRequestChange,
   startPayment,
   setUpgradingBooking,
@@ -40,24 +47,21 @@ export default function BookingCard({
   const { notify } = useToast();
   const [expanded, setExpanded] = useState(false);
   
-  // Local state for guest count editing
-  const originalGuestCount = booking.guest_count || 0;
-  const [editedGuestCount, setEditedGuestCount] = useState(originalGuestCount);
-  const [isSubmittingGuestChange, setIsSubmittingGuestChange] = useState(false);
-
-  // Local state for ocular request
+  // Ocular schedule form state
+  const [showOcularForm, setShowOcularForm] = useState(false);
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
   const [isRequestingOcular, setIsRequestingOcular] = useState(false);
-  
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Service type determination
   const serviceType = booking.service_type || (
     booking.event_type?.toLowerCase().includes("food delivery") || booking.delivery_method !== "setup" ? "Food Only" :
     !booking.include_food ? "Event Setup Only" : "Food and Event Setup"
   );
   const isFoodOnly = serviceType === "Food Only";
 
+  // Financial calculations
   const paidAmount = useMemo(() => {
     return payments
       .filter((p) => String(p.booking_id?._id || p.booking_id) === String(booking._id) && p.status === "approved")
@@ -67,54 +71,48 @@ export default function BookingCard({
   const total = Number(booking.total_price || 0);
   const displayPaid = total > 0 ? Math.min(paidAmount, total) : paidAmount;
   const balance = Math.max(0, total - displayPaid);
+  const isFullyPaid = balance <= 0 && total > 0;
 
-  let statusVariant = "bg-gray-100 text-gray-600";
-  let statusText = booking.status;
-
-  if (booking.status === "confirmed") {
-    statusVariant = "bg-emerald-100 text-emerald-700";
-    statusText = "Confirmed";
-  } else if (booking.status === "pending deposit") {
-    statusVariant = "bg-orange-100 text-orange-700";
-    statusText = "Deposit Pending";
-  } else if (booking.status === "pending") {
-    statusVariant = "bg-gray-100 text-gray-700";
-    statusText = "Pending";
-  } else if (booking.status === "cancelled") {
-    statusVariant = "bg-red-100 text-red-700";
-    statusText = "Cancelled";
-  } else if (booking.status === "inquiry") {
-    statusVariant = "bg-blue-100 text-blue-700";
-    statusText = "Pending Review";
-  } else if (booking.status === "quote_sent") {
-    statusVariant = "bg-yellow-100 text-yellow-700";
-    statusText = "Quote Sent";
-  } else if (booking.status === "customer_accepted") {
-    statusVariant = "bg-emerald-100 text-emerald-700";
-    statusText = "Quote Accepted";
-  }
-
-  if (!isFoodOnly && (booking.ocular_visit?.status === "pending" || booking.ocular_visit?.status === "requested")) {
-    statusVariant = "bg-blue-100 text-blue-700";
-    statusText = "Ocular Pending";
-  }
-
-  const handleGuestChangeRequest = async () => {
-    if (editedGuestCount === originalGuestCount) return;
-    try {
-      setIsSubmittingGuestChange(true);
-      await CustomerAPI.requestBookingChange(booking._id, {
-        message: `Please update the guest count to ${editedGuestCount}.`
-      });
-      notify("Guest count change request sent to admin.", "success");
-      if (onBookingUpdate) onBookingUpdate();
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to submit change request", "error");
-    } finally {
-      setIsSubmittingGuestChange(false);
-    }
+  // Status Badge Logic
+  const rawStatus = (booking.status || "").toLowerCase();
+  let statusBadge = {
+    label: booking.status,
+    className: "bg-slate-100 text-slate-700 font-semibold"
   };
 
+  if (["confirmed", "converted to booking"].includes(rawStatus)) {
+    statusBadge = {
+      label: "Confirmed & Reserved",
+      className: "bg-emerald-600 text-white font-bold shadow-xs"
+    };
+  } else if (["deposit pending", "pending deposit"].includes(rawStatus)) {
+    statusBadge = {
+      label: "Deposit Needed",
+      className: "bg-amber-500 text-slate-950 font-bold shadow-xs"
+    };
+  } else if (rawStatus === "ocular scheduled") {
+    statusBadge = {
+      label: "Ocular Scheduled",
+      className: "bg-blue-600 text-white font-bold shadow-xs"
+    };
+  } else if (rawStatus === "completed") {
+    statusBadge = {
+      label: "Event Completed",
+      className: "bg-slate-100 text-slate-700 font-semibold"
+    };
+  } else if (rawStatus === "cancelled") {
+    statusBadge = {
+      label: "Cancelled",
+      className: "bg-rose-100 text-rose-700 font-semibold"
+    };
+  } else if (booking.ocular_visit?.status === "requested") {
+    statusBadge = {
+      label: "Ocular Visit Requested",
+      className: "bg-blue-100 text-blue-900 font-semibold border border-blue-200"
+    };
+  }
+
+  // Ocular Visit Request Handler
   const handleOcularRequest = async () => {
     if (!ocularDate) {
       notify("Please select a date for the ocular visit.", "error");
@@ -127,259 +125,294 @@ export default function BookingCard({
         scheduled_time: ocularTime
       });
       notify("Ocular visit schedule requested.", "success");
+      setShowOcularForm(false);
       if (onBookingUpdate) onBookingUpdate();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to request ocular visit", "error");
+      notify(err.response?.data?.message || "Failed to request ocular visit.", "error");
     } finally {
       setIsRequestingOcular(false);
     }
   };
 
+  // Cancellation Request Handler
   const handleCancellationRequest = async () => {
-    if (!window.confirm("Are you sure you want to request a cancellation and refund? An admin will review this request.")) return;
+    if (!window.confirm("Are you sure you want to request cancellation for this booking? An admin will review your request.")) return;
     try {
       setIsCancelling(true);
       await CustomerAPI.requestCancellation(booking._id);
-      notify("Cancellation request sent to admin.", "success");
+      notify("Cancellation request sent to admin team.", "success");
       if (onBookingUpdate) onBookingUpdate();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to submit cancellation request", "error");
+      notify(err.response?.data?.message || "Failed to submit cancellation request.", "error");
     } finally {
       setIsCancelling(false);
     }
   };
 
-  const eventDateStr = booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "TBA";
-  const refCode = booking.reference || booking._id.substring(0, 8).toUpperCase();
-  const title = booking.event_type === "Other" ? booking.event_type_other : booking.event_type;
+  const eventDateStr = booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA";
+  const refCode = booking.reference || `BK-${booking._id.substring(0, 6).toUpperCase()}`;
+  const eventTitle = booking.event_type === "Other" ? booking.event_type_other : booking.event_type;
 
   return (
-    <div className="bg-white rounded-[20px] border border-gray-200 mb-5 shadow-sm overflow-hidden" style={{ fontFamily: "Inter, sans-serif" }}>
-      {/* Header (Always Visible) */}
-      <div 
-        className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50/50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#fdfaf3] flex items-center justify-center text-[#D4AF37] border border-[#f0e6d2]">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 11V3"/><path d="M11 11a4 4 0 0 1-8 0V3"/><path d="M7 3v8"/><path d="M3 3v8"/><path d="M11 21v-5"/><path d="M19 3v18"/><path d="M19 11h-4a4 4 0 0 1 0-8h4"/></svg>
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-200 hover:border-slate-300 hover:shadow-md mb-4">
+      
+      {/* Primary Card Header */}
+      <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        
+        {/* Left Info Group */}
+        <div className="flex items-start gap-4">
+          
+          {/* Dynamic Service Icon Avatar */}
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
+            serviceType === "Food Only" ? "bg-amber-50 text-amber-600 border-amber-200/80" :
+            serviceType === "Event Setup Only" ? "bg-blue-50 text-blue-600 border-blue-200/80" :
+            "bg-indigo-50 text-indigo-600 border-indigo-200/80"
+          }`}>
+            {serviceType === "Food Only" ? <Utensils className="w-6 h-6" /> :
+             serviceType === "Event Setup Only" ? <Layers className="w-6 h-6" /> :
+             <Sparkles className="w-6 h-6" />}
           </div>
+
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h3 className="font-bold text-gray-900 text-base">
-                {booking.contact_first_name ? `${booking.contact_first_name}'s ` : ""}{title}
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h3 className="font-serif font-bold text-slate-900 text-base">
+                {booking.contact_first_name ? `${booking.contact_first_name}'s ` : ""}{eventTitle}
               </h3>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusVariant}`}>
-                {statusText}
+
+              <span className={`px-2.5 py-0.5 rounded-full text-xs ${statusBadge.className}`}>
+                {statusBadge.label}
               </span>
-              {!booking.package_id && (
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
-                  Custom Booking
-                </span>
-              )}
+
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                {serviceType}
+              </span>
             </div>
-            <div className="text-[13px] text-gray-400 flex items-center gap-1.5">
-              <span>{refCode}</span>
-              <span>·</span>
-              <span>{title}</span>
-              <span>·</span>
-              <span>{eventDateStr}</span>
+
+            <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+              <span className="font-mono font-semibold text-slate-600">{refCode}</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" /> {eventDateStr} {booking.start_time ? `@ ${booking.start_time}` : ""}
+              </span>
+              <span>•</span>
+              <span>{booking.package_id?.name || "Custom Catering"}</span>
             </div>
           </div>
         </div>
-        <div className="text-right flex items-center gap-6">
-          <div>
-            <div className="font-bold text-gray-900 text-[15px] mb-0.5">{formatCurrency(total)}</div>
-            <div className={`text-[13px] font-medium ${balance > 0 ? 'text-[#f97316]' : 'text-emerald-500'}`}>
-              Balance: {formatCurrency(balance)}
-            </div>
+
+        {/* Right Financial & Action Group */}
+        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <div className="text-left sm:text-right">
+            <div className="text-xs text-slate-400 font-medium">Grand Total</div>
+            <div className="font-bold text-slate-900 text-base">{formatCurrency(total)}</div>
+            
+            {isFullyPaid ? (
+              <div className="text-xs font-semibold text-emerald-600 flex items-center gap-1 sm:justify-end">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Fully Paid
+              </div>
+            ) : balance > 0 ? (
+              <div className="text-xs font-bold text-amber-600">
+                Balance: {formatCurrency(balance)}
+              </div>
+            ) : null}
           </div>
-          <button className="text-gray-400 hover:text-gray-600 transition-colors mt-1">
-            {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            title={expanded ? "Collapse details" : "Expand details"}
+          >
+            {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* Expanded Content */}
+      {/* Action Banners & Primary Payment Call-to-Actions */}
+      {["deposit pending", "pending deposit"].includes(rawStatus) && (
+        <div className="px-5 py-3 bg-amber-50 border-t border-amber-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-amber-900">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Deposit payment required to confirm and lock in your reservation date.</span>
+          </div>
+          
+          <Button
+            onClick={() => startPayment(booking, false)}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2 rounded-xl shadow-sm shrink-0"
+          >
+            <CreditCard className="w-4 h-4 mr-1.5" /> Pay Deposit Now
+          </Button>
+        </div>
+      )}
+
+      {["confirmed", "converted to booking"].includes(rawStatus) && balance > 0 && (
+        <div className="px-5 py-3 bg-blue-50/70 border-t border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-blue-900">
+            <CreditCard className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>Remaining balance of <strong>{formatCurrency(balance)}</strong> is due prior to event setup.</span>
+          </div>
+          
+          <Button
+            onClick={() => startPayment(booking, true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm shrink-0"
+          >
+            Pay Remaining Balance
+          </Button>
+        </div>
+      )}
+
+      {/* Expanded Content Section */}
       {expanded && (
-        <div className="border-t border-gray-100 bg-white">
-          <div className="px-6 py-5 grid grid-cols-4 gap-6 text-[13px]">
+        <div className="border-t border-slate-100 bg-slate-50/50 p-5 space-y-6">
+          
+          {/* Quick Metrics 4-Column Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white rounded-xl border border-slate-200/80 shadow-xs text-xs">
             <div>
-              <p className="text-gray-400 mb-1">Package</p>
-              <p className="font-bold text-gray-900 text-[14px]">{booking.package_id?.name || "Custom"}</p>
+              <span className="text-slate-400 font-medium block mb-1">Package & Service</span>
+              <strong className="text-slate-900 text-sm block truncate">{booking.package_id?.name || "Custom Booking"}</strong>
+              <span className="text-slate-500 text-[11px]">{serviceType}</span>
             </div>
+
             <div>
-              <p className="text-gray-400 mb-1">Guests</p>
-              <p className="font-bold text-gray-900 text-[14px]">{booking.guest_count} pax</p>
+              <span className="text-slate-400 font-medium block mb-1">Guest Count</span>
+              <strong className="text-slate-900 text-sm block">{booking.guest_count} Guests</strong>
+              <button 
+                onClick={() => setAddingGuestsBooking && setAddingGuestsBooking(booking)}
+                className="text-amber-700 font-semibold text-[11px] hover:underline flex items-center gap-0.5 mt-0.5"
+              >
+                + Add Guests
+              </button>
             </div>
+
             <div>
-              <p className="text-gray-400 mb-1">Deposit Paid</p>
-              <p className="font-bold text-gray-900 text-[14px]">{formatCurrency(displayPaid)}</p>
+              <span className="text-slate-400 font-medium block mb-1">Deposit Paid</span>
+              <strong className="text-slate-900 text-sm block">{formatCurrency(displayPaid)}</strong>
+              <span className="text-emerald-600 text-[11px] font-medium">Approved</span>
             </div>
+
             <div>
-              <p className="text-gray-400 mb-1">Balance</p>
-              <p className="font-bold text-gray-900 text-[14px]">{formatCurrency(balance)}</p>
+              <span className="text-slate-400 font-medium block mb-1">Remaining Balance</span>
+              <strong className={`text-sm block ${balance > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                {formatCurrency(balance)}
+              </strong>
+              <span className="text-slate-500 text-[11px]">{isFullyPaid ? "Fully Cleared" : "Payment Due"}</span>
             </div>
           </div>
 
-          <div className="px-6 pb-6 space-y-5">
-            {/* Guest Count Editor */}
-            <div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Edit Guest Count</p>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-3">
+          {/* Pending Change Request Alert */}
+          {booking.change_request?.status === "pending" && booking.change_request?.message && (
+            <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-start gap-3 text-xs">
+              <Send className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+              <div>
+                <strong className="font-bold text-indigo-950 block mb-0.5">Change Request Under Admin Review</strong>
+                <p className="text-indigo-800 leading-relaxed">{booking.change_request.message}</p>
+                <span className="text-[11px] text-indigo-600 mt-1 block">Sent on: {booking.change_request.requested_at ? new Date(booking.change_request.requested_at).toLocaleDateString() : "Recently"}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Ocular Scheduling Box (Setup events only) */}
+          {!isFoodOnly && ["confirmed", "converted to booking"].includes(rawStatus) && (
+            <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-amber-600" /> Site Ocular Visit Schedule
+                </span>
+                
+                {booking.ocular_visit?.scheduled_date ? (
+                  <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 font-semibold rounded-full text-xs">
+                    {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()} {booking.ocular_visit.scheduled_time || ""}
+                  </span>
+                ) : (
                   <button 
-                    onClick={() => setEditedGuestCount(Math.max(1, editedGuestCount - 1))}
-                    className="w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600"
+                    onClick={() => setShowOcularForm(!showOcularForm)}
+                    className="text-xs text-amber-700 font-semibold hover:underline"
                   >
-                    <Minus size={14} />
-                  </button>
-                  <div className="w-24 h-9 rounded-[14px] bg-[#FAF9F5] border border-[#F3F0E6] flex items-center justify-center font-semibold text-[14px] text-gray-900">
-                    {editedGuestCount}
-                  </div>
-                  <button 
-                    onClick={() => setEditedGuestCount(editedGuestCount + 1)}
-                    className="w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-                {editedGuestCount !== originalGuestCount && (
-                  <button 
-                    onClick={handleGuestChangeRequest}
-                    disabled={isSubmittingGuestChange}
-                    className="px-4 py-1.5 bg-[#D4AF37] text-white rounded-full text-[13px] font-semibold hover:bg-[#C5A028] disabled:opacity-50 transition-colors"
-                  >
-                    {isSubmittingGuestChange ? "Submitting..." : "Confirm Change"}
+                    {showOcularForm ? "Cancel" : "+ Request Ocular Date"}
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Change Request Banner */}
-            {booking.change_request?.status === "pending" && booking.change_request?.message && (
-              <div className="bg-[#F0F7FF] border border-[#E0EFFF] rounded-[16px] p-4 flex items-start gap-3">
-                <Send className="w-[18px] h-[18px] text-[#3B82F6] mt-0.5" />
-                <div>
-                  <p className="font-semibold text-[14px] text-[#1E3A8A] mb-0.5">Request sent to Admin for review.</p>
-                  <p className="text-[13px] text-[#1E3A8A] opacity-80">Admin will Approve, Reject, or Request Clarification within 24 hours. You'll be notified by email and SMS.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Upgrade Banner Example (If there was a system for tracking upgrade requests specifically) */}
-            {booking.upgrade_request?.status === "pending" && (
-              <div className="bg-[#FFFDF0] border border-[#FDF3C8] rounded-[16px] p-4 flex items-start gap-3">
-                <TrendingUp className="w-[18px] h-[18px] text-[#D4AF37] mt-0.5" />
-                <div>
-                  <p className="font-semibold text-[14px] text-[#9A7D18] mb-0.5">Package Upgrade Request Sent</p>
-                  <p className="text-[13px] text-[#9A7D18] opacity-80">Admin will review and send an updated invoice. The price difference will be charged via PayMongo.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Ocular Request UI if booking is confirmed but no ocular yet */}
-            {booking.status === "confirmed" && !isFoodOnly && (!booking.ocular_visit || booking.ocular_visit.status === "pending") && (
-              <div className="bg-[#FFFDF0] rounded-[16px] p-4 border border-[#FDF3C8]">
-                <p className="text-[11px] font-bold text-[#9A7D18] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Calendar size={13} /> Schedule Ocular Visit
-                </p>
-                <div className="flex items-center gap-3 flex-wrap">
+              {showOcularForm && (
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3">
                   <input 
                     type="date" 
                     value={ocularDate}
                     onChange={(e) => setOcularDate(e.target.value)}
-                    className="px-3 py-1.5 bg-white border border-[#E8DFB3] rounded-xl text-[13px] focus:outline-none focus:border-[#D4AF37]"
+                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-amber-500 focus:border-amber-500"
                   />
                   <input 
                     type="time" 
                     value={ocularTime}
                     onChange={(e) => setOcularTime(e.target.value)}
-                    className="px-3 py-1.5 bg-white border border-[#E8DFB3] rounded-xl text-[13px] focus:outline-none focus:border-[#D4AF37]"
+                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-amber-500 focus:border-amber-500"
                   />
-                  <button 
+                  <Button 
                     onClick={handleOcularRequest}
                     disabled={isRequestingOcular}
-                    className="px-4 py-1.5 bg-[#D4AF37] text-white rounded-full text-[13px] font-semibold hover:bg-[#C5A028] disabled:opacity-50 transition-colors shadow-sm"
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-1.5 rounded-xl shadow-xs"
                   >
-                    {isRequestingOcular ? "Requesting..." : "Send Request"}
-                  </button>
+                    {isRequestingOcular ? "Submitting..." : "Submit Ocular Schedule"}
+                  </Button>
                 </div>
-              </div>
-            )}
-
-            {/* Ocular Pending Banner */}
-            {!isFoodOnly && booking.ocular_visit?.status === "requested" && (
-              <div className="bg-[#F0F7FF] border border-[#E0EFFF] rounded-[16px] p-4 flex items-start gap-3">
-                <Calendar className="w-[18px] h-[18px] text-[#3B82F6] mt-0.5" />
-                <div>
-                  <p className="font-semibold text-[14px] text-[#1E3A8A] mb-0.5">Ocular Visit Request Sent</p>
-                  <p className="text-[13px] text-[#1E3A8A] opacity-80">Waiting for admin to confirm the schedule: {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} {booking.ocular_visit.scheduled_time}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            {["inquiry", "quote_sent", "customer_accepted"].includes(booking.status) ? (
-              <div className="flex items-center gap-3 flex-wrap pt-2">
-                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <Eye size={14} /> View Inquiry
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 flex-wrap pt-2">
-                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <Eye size={14} /> {isFoodOnly ? "View Order" : "View Reservation"}
-                </button>
-                <button onClick={openChangeRequest} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <Settings size={14} /> Edit Details
-                </button>
-                <button onClick={() => setUpgradingBooking(booking)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <TrendingUp size={14} /> Upgrade Package
-                </button>
-                <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <Plus size={14} /> Add Services
-                </button>
-                <button className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <Download size={14} /> Download Invoice
-                </button>
-                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-4 py-1.5 border border-gray-200 rounded-full text-[13px] font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-                  <Activity size={14} /> Track Payments
-                </button>
-              </div>
-            )}
-            
-            <div className="flex items-center gap-3 pt-2">
-              {booking.status === "pending deposit" && (
-                <button onClick={() => startPayment(booking, false)} className="px-6 py-2 bg-[#D4AF37] text-gray-900 rounded-full text-[13px] font-bold hover:bg-[#C5A028] transition-colors shadow-sm">
-                  Pay Deposit
-                </button>
-              )}
-              {booking.status === "quote_sent" && (
-                <button onClick={() => navigate(`/customer/bookings/${booking._id}`)} className="px-6 py-2 bg-emerald-500 text-white rounded-full text-[13px] font-bold hover:bg-emerald-600 transition-colors shadow-sm">
-                  Review & Accept Quote
-                </button>
-              )}
-              {booking.status === "customer_accepted" && (
-                <button onClick={() => startPayment(booking, false)} className="px-6 py-2 bg-[#D4AF37] text-gray-900 rounded-full text-[13px] font-bold hover:bg-[#C5A028] transition-colors shadow-sm">
-                  Pay Deposit
-                </button>
-              )}
-              
-              {!["cancelled", "completed", "inquiry", "quote_sent", "customer_accepted"].includes(booking.status) && (
-                <button 
-                  onClick={handleCancellationRequest}
-                  disabled={isCancelling || booking.change_request?.status === "pending"}
-                  className="px-4 py-1.5 border border-red-200 text-red-500 rounded-full text-[13px] font-medium hover:bg-red-50 flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white"
-                >
-                  <X size={14} /> {isCancelling ? "Processing..." : "Cancel Booking"}
-                </button>
               )}
             </div>
+          )}
 
-            <p className="text-[12px] text-gray-400 mt-2">
-              Note: Minor changes (guest count ±10, dietary updates) apply instantly. Package upgrades and major changes require admin approval.
-            </p>
+          {/* Structured Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/80">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/customer/bookings/${booking._id}`)}
+              className="text-xs rounded-xl border-slate-200 hover:bg-slate-100 font-medium"
+            >
+              <Eye className="w-3.5 h-3.5 mr-1 text-slate-500" /> View Full Reservation
+            </Button>
+
+            {openCatererChat && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openCatererChat}
+                className="text-xs rounded-xl border-slate-200 hover:bg-purple-50 hover:border-purple-200 text-purple-700 font-medium"
+              >
+                <MessageSquare className="w-3.5 h-3.5 mr-1" /> Chat with Caterer
+              </Button>
+            )}
+
+            {openChangeRequest && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openChangeRequest}
+                className="text-xs rounded-xl border-slate-200 hover:bg-slate-100 font-medium"
+              >
+                <Settings className="w-3.5 h-3.5 mr-1 text-slate-500" /> Request Details Change
+              </Button>
+            )}
+
+            {setUpgradingBooking && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setUpgradingBooking(booking)}
+                className="text-xs rounded-xl border-slate-200 hover:bg-amber-50 hover:border-amber-200 text-amber-800 font-medium"
+              >
+                <TrendingUp className="w-3.5 h-3.5 mr-1" /> Upgrade Package
+              </Button>
+            )}
+
+            {!["cancelled", "completed"].includes(rawStatus) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancellationRequest}
+                disabled={isCancelling || booking.change_request?.status === "pending"}
+                className="text-xs rounded-xl text-rose-600 hover:bg-rose-50 font-medium ml-auto"
+              >
+                <XCircle className="w-3.5 h-3.5 mr-1" /> {isCancelling ? "Processing..." : "Cancel Reservation"}
+              </Button>
+            )}
           </div>
         </div>
       )}

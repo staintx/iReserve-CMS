@@ -5,8 +5,23 @@ import { CustomerAPI } from "../../api/customer";
 import useAuth from "../../hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { CalendarClock, CheckCircle, Mail, PlusCircle, ArrowRight, History } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { 
+  CalendarClock, 
+  CheckCircle2, 
+  MessageSquare, 
+  PlusCircle, 
+  ArrowRight, 
+  History, 
+  Sparkles, 
+  Clock, 
+  CreditCard, 
+  FileText, 
+  Calendar, 
+  MapPin, 
+  Utensils, 
+  ChevronRight,
+  AlertCircle
+} from "lucide-react";
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
@@ -14,232 +29,369 @@ export default function CustomerDashboard() {
   const [inquiries, setInquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
-    CustomerAPI.getConversations().then((res) => {
-      const convos = res.data || [];
+    setLoading(true);
+    Promise.all([
+      CustomerAPI.getInquiries().catch(() => ({ data: [] })),
+      CustomerAPI.getBookings().catch(() => ({ data: [] })),
+      CustomerAPI.getConversations().catch(() => ({ data: [] }))
+    ]).then(([inqRes, bookRes, convoRes]) => {
+      setInquiries(inqRes.data || []);
+      setBookings(bookRes.data || []);
+      
+      const convos = convoRes.data || [];
       const unread = convos.filter(c => {
-        const p = c.participants.find(p => String(p.user._id || p.user) === String(user?._id));
+        const p = c.participants?.find(part => String(part.user._id || part.user) === String(user?._id));
         return p && p.unread_count > 0;
       }).length;
       setUnreadCount(unread);
-    }).catch(() => setUnreadCount(0));
+    }).finally(() => setLoading(false));
   }, [user]);
 
   const now = useMemo(() => new Date(), []);
-  const pendingBookings = bookings.filter((b) => ["pending deposit", "pending"].includes(b.status) && new Date(b.event_date) >= now);
-  const upcomingBookings = bookings.filter((b) => ["confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
-  const completedBookings = bookings.filter((b) => b.status === "completed");
 
-  const nextEvent = upcomingBookings[0] || pendingBookings[0];
+  // Filter Active Inquiries (not converted/cancelled)
+  const activeInquiries = useMemo(() => {
+    return inquiries.filter(i => !["Converted to Booking", "Cancelled", "Quote Rejected"].includes(i.status));
+  }, [inquiries]);
+
+  // Action required items: Quotations sent to customer OR bookings pending deposit
+  const actionRequiredItems = useMemo(() => {
+    const quoteSentInquiries = inquiries.filter(i => i.status === "Quotation Sent").map(i => ({
+      type: "inquiry",
+      id: i._id,
+      title: `${i.contact_first_name ? i.contact_first_name + "'s " : ""}${i.event_type}`,
+      reference: i.reference || `INQ-${i._id.substring(0, 6).toUpperCase()}`,
+      date: i.event_date,
+      statusLabel: "Quote Ready for Review",
+      statusVariant: "bg-indigo-600 text-white font-bold",
+      actionText: "Review & Accept Quote",
+      onAction: () => navigate("/customer/inquiries")
+    }));
+
+    const depositNeededBookings = bookings.filter(b => b.status === "pending deposit" || b.status === "customer_accepted").map(b => ({
+      type: "booking",
+      id: b._id,
+      title: `${b.contact_first_name ? b.contact_first_name + "'s " : ""}${b.event_type}`,
+      reference: b.reference || `BK-${b._id.substring(0, 6).toUpperCase()}`,
+      date: b.event_date,
+      statusLabel: "Deposit Payment Needed",
+      statusVariant: "bg-amber-500 text-slate-950 font-bold",
+      actionText: "Pay Deposit Now",
+      onAction: () => navigate(`/customer/bookings/${b._id}`)
+    }));
+
+    return [...quoteSentInquiries, ...depositNeededBookings];
+  }, [inquiries, bookings, navigate]);
+
+  // Confirmed / Upcoming Events
+  const upcomingEvents = useMemo(() => {
+    return bookings.filter(b => ["confirmed", "preparing", "ongoing"].includes(b.status) && new Date(b.event_date) >= now);
+  }, [bookings, now]);
+
+  const completedEvents = useMemo(() => {
+    return bookings.filter(b => b.status === "completed");
+  }, [bookings]);
+
+  const nextEvent = upcomingEvents[0] || bookings.find(b => b.status === "confirmed");
   const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
 
   return (
     <CustomerDashboardLayout
       title={`Welcome back${firstName ? ", " + firstName : ""}!`}
-      subtitle="Here's an overview of your events and bookings"
+      subtitle="Overview of your event bookings, quote requests, and communications"
     >
-      {/* Stats Row */}
+      {/* Hero Welcome Banner */}
+      <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 rounded-2xl text-white shadow-xl relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div>
+          <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs uppercase tracking-wider mb-2">
+            <Sparkles className="w-4 h-4" /> Caezelle's Catering Customer Portal
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight mb-2">
+            Plan Your Next Event Effortlessly
+          </h2>
+          <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
+            Track your quote requests, review official catering quotations, and manage your upcoming event reservations all in one place.
+          </p>
+        </div>
+
+        <Button
+          onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+          className="rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3 shadow-lg flex items-center gap-2 shrink-0 transition-transform active:scale-95 text-sm"
+        >
+          <PlusCircle className="w-5 h-5 stroke-[2.5]" /> Request a Quote
+        </Button>
+      </div>
+
+      {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Card className="border-border">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
-              <CalendarClock className="w-6 h-6" />
+        {/* Active Quote Requests */}
+        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shrink-0">
+              <FileText className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Pending Bookings</p>
-              <h3 className="text-2xl font-bold text-foreground">{pendingBookings.length}</h3>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quote Requests</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{activeInquiries.length}</h3>
+              <p className="text-[11px] text-slate-400">Active inquiries</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-              <CalendarClock className="w-6 h-6" />
+        {/* Confirmed Upcoming Events */}
+        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200/80 flex items-center justify-center shrink-0">
+              <Calendar className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Upcoming Events</p>
-              <h3 className="text-2xl font-bold text-foreground">{upcomingBookings.length}</h3>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Confirmed Events</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{upcomingEvents.length}</h3>
+              <p className="text-[11px] text-slate-400">Upcoming celebrations</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
-              <Mail className="w-6 h-6" />
+        {/* Unread Messages */}
+        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200/80 flex items-center justify-center shrink-0">
+              <MessageSquare className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Unread Messages</p>
-              <h3 className="text-2xl font-bold text-foreground">{unreadCount}</h3>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unread Messages</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{unreadCount}</h3>
+              <p className="text-[11px] text-slate-400">Caterer communications</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
-              <CheckCircle className="w-6 h-6" />
+        {/* Completed Events */}
+        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Completed Events</p>
-              <h3 className="text-2xl font-bold text-foreground">{completedBookings.length}</h3>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed Events</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{completedEvents.length}</h3>
+              <p className="text-[11px] text-slate-400">Past celebrations</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Upcoming Event */}
-          <Card className="border-border">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xl font-serif">Next Upcoming Event</CardTitle>
-              <Button variant="ghost" size="sm" className="text-accent hover:text-accent hover:bg-accent/10" onClick={() => navigate("/customer/bookings")}>
-                View All <ArrowRight className="w-4 h-4 ml-1" />
+          
+          {/* Action Required Banner Section if any */}
+          {actionRequiredItems.length > 0 && (
+            <Card className="border-2 border-indigo-200 bg-indigo-50/40 shadow-sm">
+              <CardHeader className="pb-3 border-b border-indigo-100">
+                <CardTitle className="text-base font-bold text-indigo-950 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-600 animate-pulse" /> Action Required ({actionRequiredItems.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-3">
+                {actionRequiredItems.map((item) => (
+                  <div key={item.id} className="p-4 bg-white rounded-xl border border-indigo-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-xs font-semibold text-slate-600">{item.reference}</span>
+                        <span className={`px-2.5 py-0.5 text-[11px] rounded-full ${item.statusVariant}`}>
+                          {item.statusLabel}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">{item.title}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Target Date: {item.date ? new Date(item.date).toLocaleDateString() : "TBA"}
+                      </p>
+                    </div>
+
+                    <Button 
+                      onClick={item.onAction}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shrink-0 shadow-sm"
+                    >
+                      {item.actionText}
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Next Upcoming Event Card */}
+          <Card className="border border-slate-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+              <CardTitle className="text-lg font-serif font-bold text-slate-900">Next Upcoming Event</CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-amber-700 hover:text-amber-800 hover:bg-amber-50 text-xs font-semibold" 
+                onClick={() => navigate("/customer/bookings")}
+              >
+                View All Bookings <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </CardHeader>
-            <CardContent>
+
+            <CardContent className="p-6">
               {nextEvent ? (
-                <div className="bg-accent/5 border border-accent/20 rounded-xl p-6 mt-4">
-                  <div className="flex justify-between items-start mb-6">
+                <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
+                  <div className="absolute right-0 bottom-0 translate-x-6 translate-y-6 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-700/80">
                     <div>
-                      <h4 className="text-2xl font-bold text-foreground">{nextEvent.event_type || "Event"}</h4>
-                      <p className="text-muted-foreground text-sm font-mono mt-1">{nextEvent.reference || nextEvent._id}</p>
+                      <span className="text-[10px] uppercase font-mono tracking-widest text-amber-400 font-semibold block mb-1">
+                        Ref: {nextEvent.reference || nextEvent._id}
+                      </span>
+                      <h4 className="text-2xl font-serif font-bold text-white">
+                        {nextEvent.contact_first_name ? `${nextEvent.contact_first_name}'s ` : ""}{nextEvent.event_type}
+                      </h4>
                     </div>
-                    <span className="px-3 py-1 bg-accent text-accent-foreground rounded-full text-xs font-semibold tracking-wide uppercase">
-                      {nextEvent.status}
+
+                    <span className="px-3.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
+                      {nextEvent.status === "confirmed" ? "Confirmed & Reserved" : nextEvent.status}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Date & Time</p>
-                      <p className="font-medium text-foreground">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Date & Time</span>
+                      <strong className="text-white text-sm block">
                         {nextEvent.event_date ? new Date(nextEvent.event_date).toLocaleDateString() : "TBD"}
-                      </p>
+                      </strong>
+                      <span className="text-slate-400">{nextEvent.start_time || "TBD"}</span>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Venue</p>
-                      <p className="font-medium text-foreground">{nextEvent.venue_type || "TBD"}</p>
+
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Venue / Location</span>
+                      <strong className="text-white text-sm block truncate">
+                        {nextEvent.venue_type || nextEvent.municipality || "TBD"}
+                      </strong>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Package</p>
-                      <p className="font-medium text-foreground line-clamp-1">{nextEvent.package_name || nextEvent.service_type || "N/A"}</p>
+
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Package & Service</span>
+                      <strong className="text-white text-sm block truncate">
+                        {nextEvent.package_name || nextEvent.service_type || "Custom Catering"}
+                      </strong>
                     </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-700/80 flex justify-end">
+                    <Button 
+                      onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
+                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl px-5 py-2"
+                    >
+                      View Event Details & Payments <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12 px-4 rounded-xl border border-dashed border-border bg-muted/30 mt-4">
-                  <CalendarClock className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                  <p className="text-lg font-medium text-foreground">No upcoming events</p>
-                  <p className="text-sm text-muted-foreground mt-1">Ready to plan your next big celebration?</p>
-                  <Button className="mt-4" onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Book an Event</Button>
+                <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
+                  <CalendarClock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <h4 className="text-base font-bold text-slate-800">No upcoming confirmed events</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Submit a quote request or check your active inquiries to book your next catering service.
+                  </p>
+                  <Button 
+                    className="mt-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 text-xs shadow-sm" 
+                    onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                  >
+                    + Request a Quote
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {/* Pending Bookings */}
-          <Card className="border-border">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xl font-serif">Action Required</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4 mt-4">
-                {pendingBookings.slice(0, 3).map((booking) => (
-                  <div key={booking._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card hover:bg-muted/30 transition-colors">
-                    <div>
-                      <h4 className="font-bold text-foreground">{booking.event_type || "Event Booking"}</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Date: {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="px-2.5 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded-full">
-                        {booking.status}
-                      </span>
-                      {booking.status === "pending deposit" && (
-                        <Button size="sm" onClick={() => navigate(`/customer/bookings/${booking._id}`)}>
-                          Pay Deposit
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {pendingBookings.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p>All caught up! No pending actions.</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Sidebar Actions */}
-        <div className="space-y-8">
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-xl font-serif">Quick Actions</CardTitle>
+        {/* Right Sidebar Quick Actions */}
+        <div className="space-y-6">
+          <Card className="border border-slate-200 shadow-sm">
+            <CardHeader className="pb-3 border-b border-slate-100">
+              <CardTitle className="text-lg font-serif font-bold text-slate-900">Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="p-4 space-y-3">
+
+              {/* 1. Request a Quote */}
               <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-accent/50 hover:bg-accent/5 transition-all text-left group"
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 transition-all text-left group"
                 onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
                     <PlusCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="font-bold text-foreground">Book an Event</div>
-                    <div className="text-xs text-muted-foreground">Start a new booking</div>
+                    <div className="font-bold text-slate-900 text-sm">Request a Quote</div>
+                    <div className="text-xs text-slate-500">Get a custom catering estimate</div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 transition-colors" />
               </button>
 
+              {/* 2. My Inquiries */}
               <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-purple-500/30 hover:bg-purple-500/5 transition-all text-left group"
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 transition-all text-left group"
+                onClick={() => navigate("/customer/inquiries")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">My Inquiries</div>
+                    <div className="text-xs text-slate-500">Review quotes & status</div>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+
+              {/* 3. My Bookings */}
+              <button
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition-all text-left group"
+                onClick={() => navigate("/customer/bookings")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <History className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">My Bookings</div>
+                    <div className="text-xs text-slate-500">Track confirmed reservations</div>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              </button>
+
+              {/* 4. Messages */}
+              <button
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50/40 transition-all text-left group"
                 onClick={() => navigate("/customer/messages")}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Mail className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <MessageSquare className="w-5 h-5" />
                     </div>
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white" />
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white" />
                     )}
                   </div>
                   <div>
-                    <div className="font-bold text-foreground">Messages</div>
-                    <div className="text-xs text-muted-foreground">
-                      {unreadCount > 0 ? `${unreadCount} unread` : "Chat with us"}
+                    <div className="font-bold text-slate-900 text-sm">Messages</div>
+                    <div className="text-xs text-slate-500">
+                      {unreadCount > 0 ? `${unreadCount} unread message(s)` : "Chat with our team"}
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-purple-600 transition-colors" />
-              </button>
-
-              <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-blue-500/30 hover:bg-blue-500/5 transition-all text-left group"
-                onClick={() => navigate("/customer/bookings")}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <History className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-foreground">Event History</div>
-                    <div className="text-xs text-muted-foreground">View past events</div>
-                  </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-600 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-600 transition-colors" />
               </button>
             </CardContent>
           </Card>

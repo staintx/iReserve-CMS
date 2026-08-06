@@ -2,22 +2,22 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { 
-  FileText, 
-  CheckCircle, 
-  RefreshCw, 
-  XCircle, 
-  Calendar, 
-  Users, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Clock, 
-  AlertCircle, 
-  Utensils, 
-  Package as PackageIcon, 
-  Truck, 
-  Sparkles, 
+import {
+  FileText,
+  CheckCircle,
+  RefreshCw,
+  XCircle,
+  Calendar,
+  Users,
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  AlertCircle,
+  Utensils,
+  Package as PackageIcon,
+  Truck,
+  Sparkles,
   ChevronRight,
   Info,
   DollarSign
@@ -44,8 +44,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
       await CustomerAPI.acceptQuotation(quotation._id);
       notify("Quotation accepted! Generating deposit payment checkout...", "success");
 
-      const depositVal = Number(quotation.deposit_amount) > 0 
-        ? Number(quotation.deposit_amount) 
+      const depositVal = Number(quotation.deposit_amount) > 0
+        ? Number(quotation.deposit_amount)
         : Number(quotation.total_cost || 0);
 
       const targetInquiryId = inquiry?._id || quotation.inquiry_id?._id || quotation.inquiry_id;
@@ -130,11 +130,11 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
         to ensure full vertical flow without horizontal scrollbars or squeezed panels.
       */}
       <DialogContent className="block w-full max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border-none shadow-2xl bg-white text-slate-900 focus:outline-none">
-        
+
         {/* Top Header Banner */}
         <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-t-2xl relative overflow-hidden">
           <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -148,19 +148,18 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 {inquiry?.reference && <span> · Inquiry: <span className="font-mono text-slate-300">{inquiry.reference}</span></span>}
               </p>
             </div>
-            
+
             <div className="flex items-center gap-3">
-              <Badge 
-                variant="outline" 
-                className={`px-3.5 py-1 text-xs font-bold rounded-full border shadow-sm ${
-                  quotation.status === "Accepted" 
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" 
-                    : quotation.status === "Revision Requested"
+              <Badge
+                variant="outline"
+                className={`px-3.5 py-1 text-xs font-bold rounded-full border shadow-sm ${quotation.status === "Accepted"
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                  : quotation.status === "Revision Requested"
                     ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
                     : quotation.status === "Rejected"
-                    ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
-                    : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
-                }`}
+                      ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                      : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                  }`}
               >
                 Status: {quotation.status}
               </Badge>
@@ -372,7 +371,7 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
               {(quotation.transportation_fee > 0 || quotation.equipment_fee > 0 || quotation.decoration_fee > 0) && (
                 <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Service & Logistics Fees</span>
-                  
+
                   {quotation.transportation_fee > 0 && (
                     <div className="flex justify-between text-slate-700">
                       <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-slate-400" /> Transportation & Logistics Fee</span>
@@ -468,29 +467,29 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
 
           {canRespond && !showRevisionForm && (
             <div className="flex items-center gap-2 flex-wrap">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleReject} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReject}
                 disabled={isSubmitting}
                 className="text-rose-600 border-rose-200 hover:bg-rose-50 font-semibold"
               >
                 <XCircle className="w-4 h-4 mr-1.5" /> Decline Quote
               </Button>
 
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setShowRevisionForm(true)} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRevisionForm(true)}
                 disabled={isSubmitting}
                 className="text-amber-800 border-amber-300 hover:bg-amber-50 font-semibold"
               >
                 <RefreshCw className="w-4 h-4 mr-1.5" /> Request Revision
               </Button>
 
-              <Button 
-                size="sm" 
-                onClick={handleAccept} 
+              <Button
+                size="sm"
+                onClick={handleAccept}
                 disabled={isSubmitting}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 shadow-md transition-transform active:scale-95"
               >

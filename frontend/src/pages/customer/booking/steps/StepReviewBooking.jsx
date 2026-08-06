@@ -1,5 +1,4 @@
 import {
-  ShieldCheck,
   Calendar,
   MapPin,
   Info,
@@ -7,12 +6,45 @@ import {
   Store,
   User,
   Phone,
+  Mail,
   Clock,
   Users,
   Package,
   Tag,
+  ShieldCheck,
 } from "lucide-react";
-import { SH } from "../components/BookingSharedUI";
+import {
+  Card,
+  SH,
+  SectionTitle,
+  InfoNote,
+  StepShell,
+  focusRing,
+  formatPeso,
+} from "../components/BookingSharedUI";
+import { cn } from "@/lib/utils";
+
+function Detail({ icon, label, value, className = "", iconClass = "" }) {
+  const Icon = icon;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2.5 rounded-xl bg-[#F8FAFC] px-3 py-2",
+        className,
+      )}
+    >
+      <Icon size={15} className={cn("shrink-0 text-[#4C81E0]", iconClass)} />
+      <div className="min-w-0">
+        <p className="text-[11px] uppercase tracking-wider text-[#94A3B8]">
+          {label}
+        </p>
+        <p className="truncate text-[13px] font-semibold text-[#1E293B]">
+          {value || "—"}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function StepReviewBooking({
   form,
@@ -32,7 +64,7 @@ export default function StepReviewBooking({
     if (!dateString) return "-";
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
-      weekday: "long",
+      weekday: "short",
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -54,373 +86,259 @@ export default function StepReviewBooking({
     return `${displayHours}:${displayMinutes} ${period}`;
   };
 
+  const depositPercent =
+    totalPrice > 0 ? Math.round((depositAmount / totalPrice) * 100) : 0;
+
+  const fullAddress = [
+    form.street,
+    form.barangay,
+    form.municipality,
+    form.province,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  const checkboxClass = cn(
+    "mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-[#CBD5E1] accent-[#4C81E0]",
+    focusRing,
+  );
+
   return (
-    <div className="max-w-4xl mx-auto py-6 space-y-6">
+    <StepShell>
       <SH
         title="Review & Confirm"
-        sub="Please review all details before submitting your inquiry."
+        sub="Check your details, then submit your inquiry — we'll reply with a quotation."
       />
 
-      {/* Main Content Card */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 sm:p-8 shadow-sm space-y-8">
-        {/* ============ EVENT DETAILS SECTION ============ */}
-        <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1E293B] mb-5">
-            <Calendar size={16} className="text-[#4C81E0]" />
-            Event Information
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Package Name */}
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <Package size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Package</p>
-                <p className="text-sm font-semibold text-[#1E293B] truncate">
-                  {initialPackageName || "Custom Package"}
-                </p>
-              </div>
-            </div>
-
-            {/* Event Type */}
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <Tag size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Event Type</p>
-                <p className="text-sm font-semibold text-[#1E293B]">
-                  {form.event_type === "Other"
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+        {/* Summary */}
+        <div className="flex flex-col gap-4">
+          <Card className="p-4 sm:p-5">
+            <SectionTitle icon={Calendar}>Event information</SectionTitle>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Detail
+                icon={Package}
+                label="Package"
+                value={initialPackageName || "Custom Package"}
+              />
+              <Detail
+                icon={Tag}
+                label="Event Type"
+                value={
+                  form.event_type === "Other"
                     ? form.event_type_other
-                    : form.event_type || "-"}
-                </p>
-              </div>
+                    : form.event_type
+                }
+              />
+              <Detail
+                icon={Calendar}
+                label="Date"
+                value={formatDate(form.event_date)}
+              />
+              <Detail
+                icon={Clock}
+                label="Time"
+                value={formatTime(form.start_time)}
+              />
+              <Detail icon={Users} label="Guests" value={`${guestCount} pax`} />
+              <Detail
+                icon={isDelivery ? Truck : Store}
+                label="Fulfilment"
+                value={isDelivery ? "Delivery" : "Pickup"}
+              />
             </div>
+          </Card>
 
-            {/* Date */}
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <Calendar size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Date</p>
-                <p className="text-sm font-semibold text-[#1E293B]">
-                  {formatDate(form.event_date)}
-                </p>
-              </div>
-            </div>
-
-            {/* Time */}
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <Clock size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Time</p>
-                <p className="text-sm font-semibold text-[#1E293B]">
-                  {formatTime(form.start_time)}
-                </p>
-              </div>
-            </div>
-
-            {/* Guests */}
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <Users size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Guests</p>
-                <p className="text-sm font-semibold text-[#1E293B]">
-                  {guestCount} pax
-                </p>
-              </div>
-            </div>
-
-            {/* Delivery Method */}
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              {isDelivery ? (
-                <Truck size={16} className="text-blue-600 flex-shrink-0" />
-              ) : (
-                <Store size={16} className="text-purple-600 flex-shrink-0" />
-              )}
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Delivery Method</p>
-                <p className="text-sm font-semibold text-[#1E293B]">
-                  {isDelivery ? "Delivery" : "Pickup"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ============ LOCATION SECTION ============ */}
-        <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1E293B] mb-5">
-            <MapPin size={16} className="text-[#4C81E0]" />
-            {isDelivery ? "Delivery Address" : "Pickup Location"}
-          </h3>
-
-          <div className="bg-[#F8FAFC]/50 rounded-lg p-5 space-y-3">
+          <Card className="p-4 sm:p-5">
+            <SectionTitle icon={MapPin}>
+              {isDelivery ? "Delivery address" : "Pickup location"}
+            </SectionTitle>
             {isDelivery ? (
-              <>
-                <div className="flex items-start gap-3">
-                  <MapPin
-                    size={16}
-                    className="text-[#4C81E0] flex-shrink-0 mt-0.5"
-                  />
-                  <div>
-                    <p className="text-xs text-[#64748B] mb-0.5">
-                      Complete Address
-                    </p>
-                    <p className="text-sm font-semibold text-[#1E293B]">
-                      {form.street && `${form.street}, `}
-                      {form.barangay}, {form.municipality}, {form.province}
-                    </p>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Detail
+                  icon={MapPin}
+                  label="Complete Address"
+                  value={fullAddress}
+                  className="sm:col-span-2"
+                />
                 {form.landmark && (
-                  <div className="flex items-start gap-3">
-                    <MapPin
-                      size={16}
-                      className="text-[#4C81E0] flex-shrink-0 mt-0.5 opacity-0"
-                    />
-                    <div>
-                      <p className="text-xs text-[#64748B] mb-0.5">Landmark</p>
-                      <p className="text-sm font-semibold text-[#1E293B]">
-                        {form.landmark}
-                      </p>
-                    </div>
-                  </div>
+                  <Detail icon={MapPin} label="Landmark" value={form.landmark} />
                 )}
                 {form.venue_type && (
-                  <div className="flex items-start gap-3">
-                    <MapPin
-                      size={16}
-                      className="text-[#4C81E0] flex-shrink-0 mt-0.5 opacity-0"
-                    />
-                    <div>
-                      <p className="text-xs text-[#64748B] mb-0.5">
-                        Venue Type
-                      </p>
-                      <p className="text-sm font-semibold text-[#1E293B]">
-                        {form.venue_type}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-start gap-3">
-                <Store
-                  size={16}
-                  className="text-purple-600 flex-shrink-0 mt-0.5"
-                />
-                <div>
-                  <p className="text-xs text-[#64748B] mb-0.5">
-                    Pickup Location
-                  </p>
-                  <p className="text-sm font-semibold text-[#1E293B]">
-                    {pickupAddress || "Caterer's address"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ============ CONTACT PERSON SECTION ============ */}
-        <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-[#1E293B] mb-5">
-            <User size={16} className="text-[#4C81E0]" />
-            Contact Person
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <User size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Name</p>
-                <p className="text-sm font-semibold text-[#1E293B] truncate">
-                  {form.contact_first_name} {form.contact_last_name}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3">
-              <Phone size={16} className="text-[#4C81E0] flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-[#64748B]">Phone</p>
-                <p className="text-sm font-semibold text-[#1E293B]">
-                  {form.contact_phone}
-                </p>
-              </div>
-            </div>
-
-            {form.contact_email && (
-              <div className="flex items-center gap-3 bg-[#F8FAFC]/50 rounded-lg px-4 py-3 sm:col-span-2">
-                <svg
-                  className="w-4 h-4 text-[#4C81E0] flex-shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  <Detail
+                    icon={Store}
+                    label="Venue Type"
+                    value={form.venue_type}
                   />
-                </svg>
-                <div className="min-w-0">
-                  <p className="text-xs text-[#64748B]">Email</p>
-                  <p className="text-sm font-semibold text-[#1E293B] truncate">
-                    {form.contact_email}
-                  </p>
-                </div>
+                )}
               </div>
+            ) : (
+              <Detail
+                icon={Store}
+                label="Pickup Location"
+                value={pickupAddress || "Caterer's address"}
+              />
             )}
-          </div>
-        </section>
+          </Card>
 
-        {/* ============ PRICING SECTION ============ */}
-        <section>
+          <Card className="p-4 sm:p-5">
+            <SectionTitle icon={User}>Contact person</SectionTitle>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Detail
+                icon={User}
+                label="Name"
+                value={`${form.contact_first_name || ""} ${form.contact_last_name || ""}`.trim()}
+              />
+              <Detail icon={Phone} label="Phone" value={form.contact_phone} />
+              {form.contact_email && (
+                <Detail
+                  icon={Mail}
+                  label="Email"
+                  value={form.contact_email}
+                  className="sm:col-span-2"
+                />
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Pricing + agreements */}
+        <div className="flex flex-col gap-4 lg:sticky lg:top-[150px]">
           {/* Modification-aware summary: if original_total is provided, show additional/remaining amounts */}
-          {form.original_total && Number(form.original_total) > 0 && (
+          {form.original_total &&
+            Number(form.original_total) > 0 &&
             (() => {
               const originalTotal = Number(form.original_total || 0);
               const diff = totalPrice - originalTotal;
               if (diff > 0) {
                 return (
-                  <div className="rounded-2xl p-4 mb-4 border border-emerald-100 bg-emerald-50">
-                    <p className="text-sm text-foreground font-semibold">Additional Payment Required</p>
-                    <p className="text-lg font-bold text-foreground">₱{diff.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">This reflects the increase from your previous booking total.</p>
-                  </div>
+                  <InfoNote tone="success" title="Additional payment required">
+                    <span className="block text-base font-bold text-emerald-900">
+                      {formatPeso(diff)}
+                    </span>
+                    This reflects the increase from your previous booking total.
+                  </InfoNote>
                 );
               }
               if (diff < 0) {
                 return (
-                  <div className="rounded-2xl p-4 mb-4 border border-blue-100 bg-blue-50">
-                    <p className="text-sm text-foreground font-semibold">Updated Remaining Balance</p>
-                    <p className="text-lg font-bold text-foreground">₱{Math.abs(diff).toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">This reflects the decrease in total; your remaining balance has been adjusted.</p>
-                  </div>
+                  <InfoNote tone="info" title="Updated remaining balance">
+                    <span className="block text-base font-bold text-[#1E293B]">
+                      {formatPeso(Math.abs(diff))}
+                    </span>
+                    This reflects the decrease in total; your remaining balance
+                    has been adjusted.
+                  </InfoNote>
                 );
               }
               return null;
-            })()
-          )}
-          {isDelivery ? (
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 rounded-2xl bg-[#1E293B] p-6 md:p-8 text-white shadow-md">
-              <div className="text-center md:text-left">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#F8FAFC]/60">
-                  Total Package Price
+            })()}
+
+          <div className="rounded-2xl bg-[#1E293B] p-5 text-white shadow-md">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+              Total package price
+            </p>
+            <p
+              className="mt-0.5 text-3xl text-white"
+              style={{ fontFamily: "Playfair Display, serif" }}
+            >
+              {formatPeso(totalPrice)}
+            </p>
+
+            {isDelivery ? (
+              <div className="mt-4 border-t border-white/10 pt-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#8FB3F0]">
+                  Required deposit ({depositPercent}%)
                 </p>
                 <p
-                  className="text-3xl md:text-4xl text-[#F8FAFC]"
+                  className="mt-0.5 text-2xl font-bold text-white"
                   style={{ fontFamily: "Playfair Display, serif" }}
                 >
-                  ₱{totalPrice.toLocaleString()}
+                  {formatPeso(depositAmount)}
+                </p>
+                <p className="mt-1.5 text-[11px] uppercase tracking-wider text-white/50">
+                  Payable after your quote is approved
                 </p>
               </div>
-
-              <div className="hidden md:block h-16 w-px bg-white/10"></div>
-
-              <div className="text-center md:text-right">
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#4C81E0]">
-                  Required Deposit (
-                  {Math.round((depositAmount / totalPrice) * 100)}%)
-                </p>
-                <p
-                  className="text-2xl md:text-3xl font-bold text-[#F8FAFC]"
-                  style={{ fontFamily: "Playfair Display, serif" }}
-                >
-                  ₱{depositAmount.toLocaleString()}
-                </p>
-                <p className="mt-2 text-[10px] font-medium text-[#F8FAFC]/60 uppercase tracking-wider">
-                  Payment is required after quote is approved
-                </p>
+            ) : (
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+                <span className="text-[13px] text-white/80">
+                  Pay in full when you pick up your order
+                </span>
               </div>
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-[#1E293B] p-6 md:p-8 text-white shadow-md text-center">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#F8FAFC]/60">
-                Total Package Price
-              </p>
-              <p
-                className="text-3xl md:text-4xl text-[#F8FAFC]"
-                style={{ fontFamily: "Playfair Display, serif" }}
-              >
-                ₱{totalPrice.toLocaleString()}
-              </p>
-              <div className="mt-4 inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <p className="text-sm text-[#F8FAFC]/80">
-                  Pay the full amount when you pick up your order
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ============ AGREEMENTS SECTION ============ */}
-        <section>
-          <div className="rounded-xl border border-[#4C81E0]/20 bg-[#4C81E0]/5 p-4 mb-4">
-            <div className="flex gap-3">
-              <Info className="h-5 w-5 flex-shrink-0 text-[#4C81E0] mt-0.5" />
-              <p className="text-sm text-[#64748B] leading-relaxed">
-                {isDelivery
-                  ? "Please review our terms and privacy policy before continuing. By proceeding, you acknowledge that deposits are non-refundable."
-                  : "Please review our terms and privacy policy before continuing. By proceeding, you agree to pay the full amount upon pickup."}
-              </p>
-            </div>
+            )}
           </div>
 
-          <div className="space-y-4">
-            <label className="flex items-start gap-3 cursor-pointer group p-3 rounded-lg hover:bg-[#F8FAFC]/30 transition-colors">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-5 w-5 rounded border-[#CBD5E1] text-[#4C81E0] focus:ring-[#4C81E0] transition-colors cursor-pointer"
-                checked={agreements.terms}
-                onChange={(e) =>
-                  setAgreements({ ...agreements, terms: e.target.checked })
-                }
-              />
-              <span className="text-sm leading-relaxed text-[#64748B] group-hover:text-[#1E293B] transition-colors">
-                I have read and agree to the{" "}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setShowTerms(true);
-                  }}
-                  className="font-semibold text-[#4C81E0] hover:underline"
-                >
-                  Terms & Conditions
-                </button>
-                {isDelivery && " including the non-refundable deposit policy."}
-              </span>
-            </label>
+          <Card className="p-4">
+            <SectionTitle icon={ShieldCheck}>Agreements</SectionTitle>
 
-            <label className="flex items-start gap-3 cursor-pointer group p-3 rounded-lg hover:bg-[#F8FAFC]/30 transition-colors">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-5 w-5 rounded border-[#CBD5E1] text-[#4C81E0] focus:ring-[#4C81E0] transition-colors cursor-pointer"
-                checked={agreements.privacy}
-                onChange={(e) =>
-                  setAgreements({ ...agreements, privacy: e.target.checked })
-                }
-              />
-              <span className="text-sm leading-relaxed text-[#64748B] group-hover:text-[#1E293B] transition-colors">
-                I agree to the{" "}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setShowPrivacy(true);
-                  }}
-                  className="font-semibold text-[#4C81E0] hover:underline"
-                >
-                  Privacy Policy
-                </button>{" "}
-                and consent to the processing of my personal data.
-              </span>
-            </label>
-          </div>
-        </section>
+            <InfoNote icon={Info} className="mb-3">
+              {isDelivery
+                ? "By proceeding, you acknowledge that deposits are non-refundable."
+                : "By proceeding, you agree to pay the full amount upon pickup."}
+            </InfoNote>
+
+            <div className="space-y-2">
+              <label className="group flex cursor-pointer items-start gap-2.5 rounded-xl p-2 transition-colors hover:bg-[#F8FAFC]">
+                <input
+                  type="checkbox"
+                  className={checkboxClass}
+                  checked={agreements.terms}
+                  onChange={(e) =>
+                    setAgreements({ ...agreements, terms: e.target.checked })
+                  }
+                />
+                <span className="text-[13px] leading-relaxed text-[#64748B]">
+                  I have read and agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowTerms(true);
+                    }}
+                    className={cn(
+                      "rounded font-semibold text-[#4C81E0] hover:underline",
+                      focusRing,
+                    )}
+                  >
+                    Terms &amp; Conditions
+                  </button>
+                  {isDelivery && " including the non-refundable deposit policy."}
+                </span>
+              </label>
+
+              <label className="group flex cursor-pointer items-start gap-2.5 rounded-xl p-2 transition-colors hover:bg-[#F8FAFC]">
+                <input
+                  type="checkbox"
+                  className={checkboxClass}
+                  checked={agreements.privacy}
+                  onChange={(e) =>
+                    setAgreements({ ...agreements, privacy: e.target.checked })
+                  }
+                />
+                <span className="text-[13px] leading-relaxed text-[#64748B]">
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowPrivacy(true);
+                    }}
+                    className={cn(
+                      "rounded font-semibold text-[#4C81E0] hover:underline",
+                      focusRing,
+                    )}
+                  >
+                    Privacy Policy
+                  </button>{" "}
+                  and consent to the processing of my personal data.
+                </span>
+              </label>
+            </div>
+          </Card>
+        </div>
       </div>
-    </div>
+    </StepShell>
   );
 }

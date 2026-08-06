@@ -17,10 +17,10 @@ export default function AdminDashboard() {
   const [inventoryAlerts, setInventoryAlerts] = useState([]);
 
   const KPIS = [
-    { title: "Total Reservations", value: summary.totalReservations || "—", sub: "All bookings", trend: summary.reservationTrend || "", up: summary.reservationTrendUp, color: "#3B82F6" },
-    { title: "Upcoming Events", value: summary.upcomingEvents || "—", sub: "Next 30 days", trend: "", up: true, color: "#8B5CF6" },
-    { title: "Pending Reservations", value: summary.pendingReservations || "—", sub: "Awaiting approval", trend: "", up: false, color: "#F59E0B" },
-    { title: "Completed Events", value: summary.completedEvents || "—", sub: "All time", trend: "", up: true, color: "#22C55E" },
+    { title: "Pending Inquiries", value: summary.pendingInquiries || "0", sub: "Awaiting review", trend: "", up: false, color: "#F59E0B" },
+    { title: "Accepted Quotes", value: summary.acceptedQuotes || "0", sub: "Awaiting deposit", trend: "", up: true, color: "#3B82F6" },
+    { title: "Upcoming Events", value: summary.upcomingEvents || "0", sub: "Next 30 days", trend: "", up: true, color: "#8B5CF6" },
+    { title: "Completed Events", value: summary.completedEvents || "0", sub: "All time", trend: "", up: true, color: "#22C55E" },
   ];
 
   const [upcomingEvents, setUpcomingEvents] = useState([]);
@@ -62,8 +62,9 @@ export default function AdminDashboard() {
         setSummary({
           totalReservations: data.length,
           upcomingEvents: allFuture.length,
-          pendingReservations: data.filter((booking) => booking.status === "pending").length,
-          completedEvents: data.filter((booking) => booking.status === "completed").length,
+          pendingInquiries: inquiries.filter((inq) => inq.status === "Pending Review").length,
+          acceptedQuotes: inquiries.filter((inq) => inq.status === "Quote Accepted").length,
+          completedEvents: data.filter((booking) => booking.status === "completed" || booking.status === "Completed").length,
           reservationTrend: "+8.2%",
           reservationTrendUp: true,
         });

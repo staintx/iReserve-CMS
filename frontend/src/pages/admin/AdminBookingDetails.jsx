@@ -23,6 +23,13 @@ export default function AdminBookingDetails() {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+
+  // Quote form state
+  const [quoteForm, setQuoteForm] = useState({
+    total_price: "",
+    notes: ""
+  });
   
   // Edit Form State
   const [editForm, setEditForm] = useState({
@@ -113,6 +120,24 @@ export default function AdminBookingDetails() {
       .catch((err) => notify(err.response?.data?.message || "Failed to approve booking.", "error"));
   };
 
+  const handleSendQuote = (e) => {
+    e.preventDefault();
+    if (!quoteForm.total_price) {
+      notify("Please enter the total price for the quote.", "error");
+      return;
+    }
+    AdminAPI.sendQuote(booking._id, { 
+      total_price: Number(quoteForm.total_price), 
+      notes: quoteForm.notes 
+    })
+    .then(() => {
+      notify("Quote sent to customer successfully.", "success");
+      setShowQuoteModal(false);
+      loadData();
+    })
+    .catch((err) => notify(err.response?.data?.message || "Failed to send quote.", "error"));
+  };
+
   const handleResolveChange = () => {
     AdminAPI.resolveChangeRequest(booking._id, { status: "approved" })
       .then(() => {
@@ -149,6 +174,20 @@ export default function AdminBookingDetails() {
     .catch(err => notify(err.response?.data?.message || "Failed to confirm ocular schedule", "error"));
   };
 
+  const handleCompleteOcular = (outcome) => {
+    const notes = outcome === "cancel" ? "Cancelled via Admin Booking Details." : "Proceeding based on successful ocular visit.";
+    if (outcome === "cancel" && !window.confirm("Are you sure you want to cancel the ocular visit? This will prepare the booking for cancellation and refund.")) {
+      return;
+    }
+    AdminAPI.completeOcular(booking._id, { outcome, notes })
+      .then(() => {
+        notify(outcome === "cancel" ? "Ocular cancelled." : "Ocular visit marked as completed.", outcome === "cancel" ? "warning" : "success");
+        loadData();
+      })
+      .catch((err) => notify(err.response?.data?.message || "Failed to complete ocular", "error"));
+  };
+
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
@@ -161,6 +200,7 @@ export default function AdminBookingDetails() {
           <Badge status={booking.status} />
           <div className="ml-auto flex gap-2">
             <Btn size="sm" variant="secondary"><Printer size={13} /> Print Invoice</Btn>
+            {booking.status === "inquiry" && <Btn size="sm" variant="gold" onClick={() => setShowQuoteModal(true)}><Check size={13} /> Send Quote</Btn>}
             {booking.status === "pending deposit" && <Btn size="sm" variant="gold" onClick={handleApprove}><Check size={13} /> Approve Booking</Btn>}
           </div>
         </div>
@@ -224,6 +264,7 @@ export default function AdminBookingDetails() {
             </div>
             <div className="space-y-2.5 text-sm">
               {[
+                ["Coordinator", booking.event_manager_id?.full_name || "Unassigned"],
                 ["Type", booking.event_type || "Event"], 
                 ["Date", booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBA"], 
                 ["Venue", booking.venue_type || "TBA"], 
@@ -289,6 +330,18 @@ export default function AdminBookingDetails() {
         </div>
 
         {/* Ocular Section */}
+        {(!booking.ocular_visit || !["scheduled", "requested", "completed"].includes(booking.ocular_visit.status)) && ['confirmed', 'preparing', 'ongoing'].includes(booking.status) && (
+          <div className="border rounded-xl p-4 flex items-center justify-between gap-3 mt-5 bg-gray-50 border-gray-200">
+            <div>
+              <h4 className="font-bold text-gray-800">Ocular Visit Not Scheduled</h4>
+              <p className="text-sm text-gray-600 mt-1">You can schedule an ocular visit for this booking if required.</p>
+            </div>
+            <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowRescheduleModal(true)}>
+              Schedule Ocular Visit
+            </Btn>
+          </div>
+        )}
+        
         {booking.ocular_visit && (booking.ocular_visit.status === "scheduled" || booking.ocular_visit.status === "requested") && (
           <div className={`border rounded-xl p-4 flex items-start gap-3 mt-5 ${booking.ocular_visit.status === "requested" ? "bg-blue-50 border-blue-200" : "bg-emerald-50 border-emerald-200"}`}>
             {booking.ocular_visit.status === "requested" ? <AlertCircle className="text-blue-500 mt-0.5" size={20} /> : <Calendar className="text-emerald-500 mt-0.5" size={20} />}
@@ -307,9 +360,17 @@ export default function AdminBookingDetails() {
                 </Btn>
               )}
               {booking.ocular_visit.status === "scheduled" && (
-                <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowRescheduleModal(true)}>
-                  Reschedule
-                </Btn>
+                <>
+                  <Btn size="sm" variant="danger" className="text-red-600 border-red-200 bg-white hover:bg-red-50" onClick={() => handleCompleteOcular("cancel")}>
+                    Cancel Ocular
+                  </Btn>
+                  <Btn size="sm" variant="secondary" className="bg-white" onClick={() => setShowRescheduleModal(true)}>
+                    Reschedule
+                  </Btn>
+                  <Btn size="sm" variant="gold" onClick={() => handleCompleteOcular("proceed")}>
+                    <Check size={14} className="mr-1" /> Proceed
+                  </Btn>
+                </>
               )}
             </div>
           </div>
@@ -392,6 +453,37 @@ export default function AdminBookingDetails() {
             <DialogFooter>
               <Btn type="button" variant="secondary" onClick={() => setShowRescheduleModal(false)}>Cancel</Btn>
               <Btn type="submit" variant="gold">Reschedule</Btn>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Quote Modal */}
+      <Dialog open={showQuoteModal} onOpenChange={setShowQuoteModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <form onSubmit={handleSendQuote}>
+            <DialogHeader>
+              <DialogTitle>Send Quote to Customer</DialogTitle>
+              <DialogDescription>Review the inquiry and send a formal quote. This will notify the customer via email and SMS to review and accept the quote.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Total Quoted Price (₱)</label>
+                <Input type="number" placeholder="e.g. 50000" value={quoteForm.total_price} onChange={(e) => setQuoteForm({...quoteForm, total_price: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Message / Notes (Optional)</label>
+                <textarea
+                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  placeholder="e.g. Attached is the customized package quote..."
+                  value={quoteForm.notes}
+                  onChange={(e) => setQuoteForm({...quoteForm, notes: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Btn type="button" variant="secondary" onClick={() => setShowQuoteModal(false)}>Cancel</Btn>
+              <Btn type="submit" variant="gold">Send Quote</Btn>
             </DialogFooter>
           </form>
         </DialogContent>

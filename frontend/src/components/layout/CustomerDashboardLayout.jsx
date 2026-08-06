@@ -4,13 +4,15 @@ import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
 import NotificationBell from "../common/NotificationBell";
-import { LayoutDashboard, Calendar, CreditCard, MessageSquare, LogOut, ChevronLeft } from "lucide-react";
+import { LayoutDashboard, Calendar, CreditCard, MessageSquare, LogOut, ChevronLeft, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
 const navItems = [
   { to: "/customer/dashboard", label: "Dashboard", desc: "Overview of your events", icon: LayoutDashboard },
+  { to: "/customer/inquiries", label: "My Inquiries", desc: "View quote requests", icon: FileText },
   { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status", icon: Calendar },
+  { to: "/customer/payments", label: "Payment History", desc: "View transactions", icon: CreditCard },
   { to: "/customer/messages", label: "Messages", desc: "Chat with our team", icon: MessageSquare }
 ];
 

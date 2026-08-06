@@ -19,7 +19,7 @@ const formatCurrency = (value) => {
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
-export default function CustomerBookings() {
+export default function CustomerInquiries() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -41,13 +41,13 @@ export default function CustomerBookings() {
 
   const { notify } = useToast();
   useEffect(() => {
-    CustomerAPI.getBookings().then((res) => setBookings(res.data)).catch(() => setBookings([]));
+    CustomerAPI.getInquiries().then((res) => setBookings(res.data)).catch(() => setBookings([]));
     CustomerAPI.getPayments().then((res) => setPayments(res.data)).catch(() => setPayments([]));
     CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
   }, []);
 
   const upcomingRaw = useMemo(
-    () => bookings.filter((b) => ["Deposit Pending", "Confirmed", "Ocular Scheduled", "Final Payment Pending", "Ready for Event", "preparing", "ongoing"].includes(b.status) || b.status.toLowerCase() === "confirmed"),
+    () => bookings.filter((b) => b.status !== "Converted to Booking" && b.status !== "Cancelled"),
     [bookings]
   );
 
@@ -189,13 +189,13 @@ export default function CustomerBookings() {
 
   return (
     <CustomerDashboardLayout
-      title="My Bookings"
-      subtitle="Manage your confirmed events"
+      title="My Inquiries"
+      subtitle="View your quote requests"
     >
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-base font-medium text-gray-600 mb-3" style={{ fontFamily: "Inter, sans-serif" }}>
-            {upcoming.length} Active Booking{upcoming.length !== 1 ? 's' : ''}
+            {upcoming.length} Active Inquir{upcoming.length !== 1 ? 'ies' : 'y'}
           </h2>
           <div className="flex space-x-2 bg-muted/30 p-1 rounded-xl">
             <button 
@@ -247,7 +247,7 @@ export default function CustomerBookings() {
           )}
         </div>
         <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })} className="rounded-full bg-[#D4AF37] hover:bg-[#C5A028] text-gray-900 font-semibold px-5 shadow-sm">
-          + New Booking
+          + New Inquiry
         </Button>
       </div>
 
@@ -256,9 +256,9 @@ export default function CustomerBookings() {
           <Card className="border-dashed border-border bg-muted/30">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <CalendarClock className="w-12 h-12 text-muted-foreground mb-4 opacity-50" />
-              <p className="text-lg font-medium text-foreground">No active bookings yet.</p>
-              <p className="text-sm text-muted-foreground mt-1 mb-6">Ready to plan your next event?</p>
-              <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Book Now</Button>
+              <p className="text-lg font-medium text-foreground">No active inquiries yet.</p>
+              <p className="text-sm text-muted-foreground mt-1 mb-6">Ready to request a quote for your next event?</p>
+              <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Request Quote</Button>
             </CardContent>
           </Card>
         ) : (
@@ -304,32 +304,7 @@ export default function CustomerBookings() {
         )}
       </div>
 
-      <Card className="mt-12 border-border">
-        <CardHeader>
-          <CardTitle className="text-xl font-serif">Past Events</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {completed.map((item) => (
-              <div key={item._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/10 hover:bg-muted/30 transition-colors">
-                <div>
-                  <strong className="text-foreground">{item.event_type}</strong>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {item.event_date ? new Date(item.event_date).toLocaleDateString() : ""}
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-sm font-medium">{formatCurrency(item.total_price)}</div>
-                  <Button variant="outline" size="sm">Write review</Button>
-                </div>
-              </div>
-            ))}
-            {completed.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">No past events yet.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* Add Guests Dialog */}
       <Dialog open={!!addingGuestsBooking} onOpenChange={(open) => !open && setAddingGuestsBooking(null)}>

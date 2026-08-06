@@ -34,6 +34,7 @@ export const AdminAPI = {
   scheduleOcular: (id, data) => api.post(`/bookings/${id}/ocular/schedule`, data),
   completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
   resolveChangeRequest: (id, data) => api.post(`/bookings/${id}/change-request/resolve`, data),
+  sendQuote: (id, data) => api.put(`/bookings/${id}/send-quote`, data),
 
   // Payments
   getPayments: () => api.get("/payments"),

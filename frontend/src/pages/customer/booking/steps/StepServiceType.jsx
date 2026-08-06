@@ -1,7 +1,31 @@
 import React from "react";
-import { Utensils, CalendarDays, PartyPopper } from "lucide-react";
-import { Card, SH } from "../components/BookingSharedUI";
+import { Utensils, CalendarDays, PartyPopper, Info } from "lucide-react";
+import { SH, SelectableCard, InfoNote, StepShell } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
+
+const SERVICE_OPTIONS = [
+  {
+    value: "Food Only",
+    icon: Utensils,
+    title: "Food Only",
+    description: "Menu and catering services",
+    includesFood: true,
+  },
+  {
+    value: "Event Setup Only",
+    icon: CalendarDays,
+    title: "Event Setup Only",
+    description: "Planning, setup and decor",
+    includesFood: false,
+  },
+  {
+    value: "Food and Event Setup",
+    icon: PartyPopper,
+    title: "Food and Event Setup",
+    description: "Complete catering and event services",
+    includesFood: true,
+  },
+];
 
 export default function StepServiceType({ form, setForm }) {
   const nextStepText = () => {
@@ -12,81 +36,48 @@ export default function StepServiceType({ form, setForm }) {
   };
 
   return (
-    <div className="space-y-6">
-      <SH title="Choose Your Service Type" sub="What would you like us to provide for your custom booking?" />
-      
-      <div className="grid gap-4 md:grid-cols-3">
-        <button
-          type="button"
-          className={cn(
-            "flex flex-col items-center gap-3 rounded-2xl border-2 p-6 text-center transition-all",
-            form.service_type === "Food Only"
-              ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/20"
-              : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40"
-          )}
-          onClick={() => setForm({ ...form, service_type: "Food Only", include_food: true })}
-        >
-          <div className={cn("rounded-full p-4 flex items-center justify-center w-16 h-16", form.service_type === "Food Only" ? "bg-[#4C81E0] text-white" : "bg-[#F8FAFC] text-[#94A3B8]")}>
-            <Utensils size={24} />
-          </div>
-          <div>
-            <strong className="mb-1 block font-semibold text-[#1E293B]">Food Only</strong>
-            <span className="text-sm text-[#64748B]">Menu and catering services</span>
-          </div>
-        </button>
+    <StepShell width="medium">
+      <SH
+        title="Choose Your Service Type"
+        sub="What would you like us to provide for your custom booking?"
+      />
 
-        <button
-          type="button"
-          className={cn(
-            "flex flex-col items-center gap-3 rounded-2xl border-2 p-6 text-center transition-all",
-            form.service_type === "Event Setup Only"
-              ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/20"
-              : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40"
-          )}
-          onClick={() => setForm({ ...form, service_type: "Event Setup Only", include_food: false })}
-        >
-          <div className={cn("rounded-full p-4 flex items-center justify-center w-16 h-16", form.service_type === "Event Setup Only" ? "bg-[#4C81E0] text-white" : "bg-[#F8FAFC] text-[#94A3B8]")}>
-            <CalendarDays size={24} />
-          </div>
-          <div>
-            <strong className="mb-1 block font-semibold text-[#1E293B]">Event Setup Only</strong>
-            <span className="text-sm text-[#64748B]">Planning, setup and decor</span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          className={cn(
-            "flex flex-col items-center gap-3 rounded-2xl border-2 p-6 text-center transition-all",
-            form.service_type === "Food and Event Setup"
-              ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/20"
-              : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40"
-          )}
-          onClick={() => setForm({ ...form, service_type: "Food and Event Setup", include_food: true })}
-        >
-          <div className={cn("rounded-full p-4 flex items-center justify-center w-16 h-16", form.service_type === "Food and Event Setup" ? "bg-[#4C81E0] text-white" : "bg-[#F8FAFC] text-[#94A3B8]")}>
-            <PartyPopper size={24} />
-          </div>
-          <div>
-            <strong className="mb-1 block font-semibold text-[#1E293B]">Food and Event Setup</strong>
-            <span className="text-sm text-[#64748B]">Complete catering and event services</span>
-          </div>
-        </button>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {SERVICE_OPTIONS.map((option) => {
+          const { value, title, description, includesFood } = option;
+          const Icon = option.icon;
+          const selected = form.service_type === value;
+          return (
+            <SelectableCard
+              key={value}
+              selected={selected}
+              onClick={() =>
+                setForm({ ...form, service_type: value, include_food: includesFood })
+              }
+              className="flex flex-col items-center gap-2.5 p-5 text-center"
+            >
+              <span
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
+                  selected
+                    ? "bg-[#4C81E0] text-white"
+                    : "bg-[#F1F5F9] text-[#94A3B8]",
+                )}
+              >
+                <Icon size={20} />
+              </span>
+              <span className="block font-semibold text-[#1E293B]">{title}</span>
+              <span className="block text-[13px] leading-snug text-[#64748B]">
+                {description}
+              </span>
+            </SelectableCard>
+          );
+        })}
       </div>
 
-      <div className="flex gap-4 rounded-2xl border border-[#4C81E0]/20 bg-[#4C81E0]/10 p-5 mt-6">
-        <div className="mt-0.5 text-[#4C81E0]">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
-        </div>
-        <div>
-          <strong className="mb-1 block font-semibold text-[#1E293B]">Next Steps</strong>
-          <p className="text-sm text-[#64748B]">{nextStepText()}</p>
-        </div>
-      </div>
-    </div>
+      <InfoNote icon={Info} title="Next Steps" className="mt-4">
+        {nextStepText()}
+      </InfoNote>
+    </StepShell>
   );
 }

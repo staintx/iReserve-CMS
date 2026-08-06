@@ -156,6 +156,17 @@
     color: var(--color-brown-dark);
   }
 
+  /* ── Floating chat button ───────────────────────────────── */
+  /* Sits in the bottom-right safe area; lifts above sticky page
+     action bars (booking wizard) so it never covers navigation. */
+  .chat-fab {
+    bottom: var(--chat-fab-bottom, 1.5rem);
+  }
+
+  body.booking-flow {
+    --chat-fab-bottom: 5.75rem;
+  }
+
   /* ── Surface ────────────────────────────────────────────── */
   .surface {
     border-radius: var(--radius-2xl);

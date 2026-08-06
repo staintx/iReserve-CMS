@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { Card, SH, FL, TInput } from "../components/BookingSharedUI";
+import { User, Phone, Info } from "lucide-react";
+import {
+  Card,
+  SH,
+  Field,
+  TInput,
+  SectionTitle,
+  InfoNote,
+  StepShell,
+} from "../components/BookingSharedUI";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_DIGITS_REGEX = /^(?:63|0)?9\d{9}$/;
@@ -21,10 +30,14 @@ const getFieldError = (field, value) => {
       return isValidEmail(trimmed) ? "" : "Enter a valid email address.";
     case "contact_phone":
       if (!trimmed) return "Primary phone is required.";
-      return isValidPhone(trimmed) ? "" : "Enter a valid Philippine mobile number.";
+      return isValidPhone(trimmed)
+        ? ""
+        : "Enter a valid Philippine mobile number.";
     case "contact_alt_phone":
       if (!trimmed) return "";
-      return isValidPhone(trimmed) ? "" : "Enter a valid Philippine mobile number.";
+      return isValidPhone(trimmed)
+        ? ""
+        : "Enter a valid Philippine mobile number.";
     default:
       return "";
   }
@@ -54,96 +67,130 @@ export default function StepContactInfo({ form, setForm }) {
   };
 
   const handleFieldBlur = (field) => {
-    setErrors((prev) => ({ ...prev, [field]: getFieldError(field, form[field]) }));
+    setErrors((prev) => ({
+      ...prev,
+      [field]: getFieldError(field, form[field]),
+    }));
   };
 
   const primaryPhoneFilled = !!form.contact_phone?.trim();
 
   return (
-    <div className="max-w-3xl mx-auto py-6 space-y-6">
-      <SH title="Contact Information" sub="How can we reach you regarding your booking?" />
+    <StepShell width="medium">
+      <SH
+        title="Contact Information"
+        sub="How can we reach you about this booking?"
+      />
 
-      <Card className="p-6 sm:p-8">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <FL>First Name *</FL>
-              <TInput
-                placeholder="Juan"
-                value={form.contact_first_name || ""}
-                onChange={(val) => handleFieldChange("contact_first_name", val)}
-                onBlur={() => handleFieldBlur("contact_first_name")}
-                required
-                hasError={!!errors.contact_first_name}
-              />
-              {errors.contact_first_name && (
-                <p className="text-xs text-destructive mt-1">{errors.contact_first_name}</p>
-              )}
-            </div>
-            <div>
-              <FL>Last Name *</FL>
-              <TInput
-                placeholder="Dela Cruz"
-                value={form.contact_last_name || ""}
-                onChange={(val) => handleFieldChange("contact_last_name", val)}
-                onBlur={() => handleFieldBlur("contact_last_name")}
-                required
-                hasError={!!errors.contact_last_name}
-              />
-              {errors.contact_last_name && (
-                <p className="text-xs text-destructive mt-1">{errors.contact_last_name}</p>
-              )}
-            </div>
-          </div>
-
+      <Card className="p-4 sm:p-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* Who to contact */}
           <div>
-            <FL>Email Address *</FL>
-            <TInput
-              type="email"
-              placeholder="juan@example.com"
-              value={form.contact_email || ""}
-              onChange={(val) => handleFieldChange("contact_email", val)}
-              onBlur={() => handleFieldBlur("contact_email")}
-              required
-              hasError={!!errors.contact_email}
-            />
-            {errors.contact_email && (
-              <p className="text-xs text-destructive mt-1">{errors.contact_email}</p>
-            )}
+            <SectionTitle icon={User}>Contact person</SectionTitle>
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                <Field
+                  label="First Name"
+                  required
+                  error={errors.contact_first_name}
+                >
+                  <TInput
+                    placeholder="Juan"
+                    value={form.contact_first_name || ""}
+                    onChange={(val) =>
+                      handleFieldChange("contact_first_name", val)
+                    }
+                    onBlur={() => handleFieldBlur("contact_first_name")}
+                    required
+                    hasError={!!errors.contact_first_name}
+                  />
+                </Field>
+                <Field
+                  label="Last Name"
+                  required
+                  error={errors.contact_last_name}
+                >
+                  <TInput
+                    placeholder="Dela Cruz"
+                    value={form.contact_last_name || ""}
+                    onChange={(val) =>
+                      handleFieldChange("contact_last_name", val)
+                    }
+                    onBlur={() => handleFieldBlur("contact_last_name")}
+                    required
+                    hasError={!!errors.contact_last_name}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                label="Email Address"
+                required
+                error={errors.contact_email}
+                hint="Your quotation and updates are sent here."
+              >
+                <TInput
+                  type="email"
+                  placeholder="juan@example.com"
+                  value={form.contact_email || ""}
+                  onChange={(val) => handleFieldChange("contact_email", val)}
+                  onBlur={() => handleFieldBlur("contact_email")}
+                  required
+                  hasError={!!errors.contact_email}
+                />
+              </Field>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <FL>Primary Phone *</FL>
-              <TInput
-                placeholder="(+63) 900 000 0000"
-                value={form.contact_phone || ""}
-                onChange={(val) => handleFieldChange("contact_phone", val)}
-                onBlur={() => handleFieldBlur("contact_phone")}
+          {/* Phone numbers */}
+          <div>
+            <SectionTitle icon={Phone}>Phone numbers</SectionTitle>
+            <div className="space-y-3.5">
+              <Field
+                label="Primary Phone"
                 required
-                hasError={!!errors.contact_phone}
-              />
-              {errors.contact_phone && (
-                <p className="text-xs text-destructive mt-1">{errors.contact_phone}</p>
-              )}
-            </div>
-            <div>
-              <FL>Alternative Phone</FL>
-              <TInput
-                placeholder={primaryPhoneFilled ? "Optional" : "Enter primary phone first"}
-                value={form.contact_alt_phone || ""}
-                onChange={(val) => handleFieldChange("contact_alt_phone", val)}
-                onBlur={() => handleFieldBlur("contact_alt_phone")}
-                disabled={!primaryPhoneFilled}
-                hasError={!!errors.contact_alt_phone}
-              />
-              {errors.contact_alt_phone && (
-                <p className="text-xs text-destructive mt-1">{errors.contact_alt_phone}</p>
-              )}
+                error={errors.contact_phone}
+                hint="Philippine mobile number, e.g. 0917 123 4567."
+              >
+                <TInput
+                  placeholder="(+63) 900 000 0000"
+                  value={form.contact_phone || ""}
+                  onChange={(val) => handleFieldChange("contact_phone", val)}
+                  onBlur={() => handleFieldBlur("contact_phone")}
+                  required
+                  hasError={!!errors.contact_phone}
+                />
+              </Field>
+
+              <Field
+                label="Alternative Phone"
+                error={errors.contact_alt_phone}
+                hint={
+                  primaryPhoneFilled
+                    ? "Optional backup contact number."
+                    : undefined
+                }
+              >
+                <TInput
+                  placeholder={
+                    primaryPhoneFilled ? "Optional" : "Enter primary phone first"
+                  }
+                  value={form.contact_alt_phone || ""}
+                  onChange={(val) => handleFieldChange("contact_alt_phone", val)}
+                  onBlur={() => handleFieldBlur("contact_alt_phone")}
+                  disabled={!primaryPhoneFilled}
+                  hasError={!!errors.contact_alt_phone}
+                />
+              </Field>
+
+              <InfoNote icon={Info}>
+                Fields marked <span className="font-semibold text-red-500">*</span>{" "}
+                are required. We only use these details to coordinate your event.
+              </InfoNote>
             </div>
           </div>
         </div>
       </Card>
-    </div>
+    </StepShell>
   );
 }

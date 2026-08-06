@@ -11,7 +11,8 @@ import {
 } from "../../../utils/batangas";
 import Modal from "../../../components/common/Modal";
 import { Button } from "../../../components/ui/button";
-import { PrimaryBtn } from "./components/BookingSharedUI";
+import { PrimaryBtn, InfoNote } from "./components/BookingSharedUI";
+import { AlertCircle, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 // Step Components
 import BookingStepper from "./components/BookingStepper";
 import StepServiceType from "./steps/StepServiceType";
@@ -155,6 +156,7 @@ export default function BookingWizard() {
   });
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showScheduleConfirm, setShowScheduleConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suggestedDates, setSuggestedDates] = useState([]);
   const [businessInfo, setBusinessInfo] = useState({});
@@ -319,6 +321,12 @@ export default function BookingWizard() {
   useEffect(() => {
     sessionStorage.setItem(SESSION_STORAGE_KEY_STEP, step.toString());
   }, [step]);
+
+  // --- Keep the floating chat button clear of the sticky wizard footer ---
+  useEffect(() => {
+    document.body.classList.add("booking-flow");
+    return () => document.body.classList.remove("booking-flow");
+  }, []);
 
   // --- Auto-fill user data ---
   useEffect(() => {
@@ -599,6 +607,51 @@ export default function BookingWizard() {
     }
   };
 
+  // --- Human-readable schedule (used by the confirm-schedule dialog) ---
+  const scheduleDisplay = useMemo(() => {
+    if (!form.event_date || !form.start_time) return { date: "", time: "" };
+
+    let date = form.event_date;
+    const [year, month, day] = String(form.event_date).split("-").map(Number);
+    if (year && month && day) {
+      date = new Date(year, month - 1, day).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
+    const [rawHours, minutes] = String(form.start_time).split(":");
+    const hours24 = parseInt(rawHours, 10);
+    const ampm = hours24 >= 12 ? "PM" : "AM";
+    const hours12 = hours24 % 12 || 12;
+
+    return {
+      date,
+      time: `${String(hours12).padStart(2, "0")}:${minutes} ${ampm}`,
+    };
+  }, [form.event_date, form.start_time]);
+
+  // Selecting a date and time is enough to enable Continue — gating that button
+  // on the async availability result made it possible to get stuck disabled.
+  // The confirm dialog below is where the *real* availability result (the same
+  // `availability` state STEP_VALIDATIONS.DateTime.extraCheck reads) is enforced.
+  const hasSchedule = Boolean(form.event_date && form.start_time);
+
+  // Derived from the single `availability` state — no separate "passed" flag.
+  // Food Only bookings never require the venue-conflict check. By the time the
+  // confirm dialog can be open, hasSchedule is true, so a lingering "idle"
+  // status here only happens if the check's own fetch failed (see the catch()
+  // branch below) — treat that the same as a blocked slot: something a user
+  // has to resolve before proceeding, not a state to silently pass through.
+  const isAvailabilityPending =
+    requireAvailabilityCheck && availability.status === "checking";
+  const isAvailabilityBlocked =
+    requireAvailabilityCheck &&
+    ["blocked", "unavailable", "idle"].includes(availability.status);
+  const isAvailabilityConfirmed =
+    !requireAvailabilityCheck || availability.status === "available";
+
   // --- Submit booking ---
   const submitBooking = async (paymentMethod, paymentOption = "deposit") => {
     if (isSubmitting) return;
@@ -677,7 +730,6 @@ export default function BookingWizard() {
             setAvailability={setAvailability}
             suggestedDates={suggestedDates}
             requireAvailabilityCheck={requireAvailabilityCheck}
-            onNext={handleNext}
           />
         );
       case "PackageSelection":
@@ -749,7 +801,6 @@ export default function BookingWizard() {
             pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
             totalPrice={totalPrice}
             depositAmount={depositAmount}
-            onNext={handleNext}
           />
         );
       case "MenuSelection":
@@ -760,7 +811,6 @@ export default function BookingWizard() {
             menuItems={menuItems}
             totalPrice={totalPrice}
             depositAmount={depositAmount}
-            onNext={handleNext}
             depositPercentage={depositPercentage}
             selectedPaymentOption={selectedPaymentOption}
             setSelectedPaymentOption={setSelectedPaymentOption}
@@ -773,7 +823,6 @@ export default function BookingWizard() {
             setForm={setForm}
             totalPrice={totalPrice}
             depositAmount={depositAmount}
-            onNext={handleNext}
             depositPercentage={depositPercentage}
             selectedPaymentOption={selectedPaymentOption}
             setSelectedPaymentOption={setSelectedPaymentOption}
@@ -819,46 +868,123 @@ export default function BookingWizard() {
   // ---------------------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------------------
+  const nextStepLabel = wizardSteps[step + 1]?.label;
+
   return (
-    <CustomerLayout>
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <BookingStepper currentStepIndex={step + 1} steps={wizardSteps} />
-        </div>
+    <CustomerLayout contentClassName="mx-auto flex min-h-[calc(100vh-73px)] w-full max-w-6xl flex-col px-4 pb-0 pt-4 sm:px-6">
+      {/* Progress header — sticks under the site header so users never lose place */}
+      <div className="sticky top-[73px] z-20 -mx-4 mb-4 border-b border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <BookingStepper currentStepIndex={step + 1} steps={wizardSteps} />
+      </div>
 
-        <div className="mb-6">{renderStep()}</div>
+      <div className="flex-1 pb-4">{renderStep()}</div>
 
-        <div className="mt-8 flex flex-col-reverse sm:flex-row items-center justify-between gap-4 border-t border-[#E2E8F0] pt-6">
-          <PrimaryBtn variant="ghost" onClick={handleBack}>
-            Back
-          </PrimaryBtn>
-          {currentStepId === "ReviewBooking" ? (
-            <PrimaryBtn
-              variant="primary"
-              onClick={() => submitBooking()}
-              className="w-full sm:w-auto"
-              disabled={!agreements.terms || !agreements.privacy || isSubmitting}
+      {/* Sticky action bar — the single primary action for every step */}
+      <div className="sticky bottom-0 z-30 -mx-4 border-t border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2">
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700"
             >
-              {isSubmitting ? "Submitting..." : "Submit Inquiry"}
+              <AlertCircle size={15} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-3">
+            <PrimaryBtn variant="ghost" onClick={handleBack} className="px-3 sm:px-4">
+              <ArrowLeft size={16} />
+              Back
             </PrimaryBtn>
-          ) : (
-            !["DeliveryDetails", "MenuSelection", "DietaryNeeds"].includes(
-              currentStepId,
-            ) &&
-            !(currentStepId === "DateTime" && requireAvailabilityCheck) && (
+
+            <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#94A3B8] sm:block">
+              {currentStepId === "ReviewBooking"
+                ? "Final step — review your details before submitting"
+                : nextStepLabel
+                  ? `Next: ${nextStepLabel}`
+                  : ""}
+            </p>
+
+            {currentStepId === "ReviewBooking" ? (
               <PrimaryBtn
                 variant="primary"
-                onClick={handleNext}
-                className="w-full sm:w-auto"
+                onClick={() => submitBooking()}
+                disabled={!agreements.terms || !agreements.privacy || isSubmitting}
+              >
+                {isSubmitting ? "Submitting..." : "Submit Inquiry"}
+              </PrimaryBtn>
+            ) : currentStepId === "DateTime" ? (
+              <PrimaryBtn
+                variant="primary"
+                onClick={() => setShowScheduleConfirm(true)}
+                disabled={!hasSchedule}
               >
                 Continue
+                <ArrowRight size={16} />
               </PrimaryBtn>
-            )
-          )}
+            ) : (
+              <PrimaryBtn variant="primary" onClick={handleNext}>
+                Continue
+                <ArrowRight size={16} />
+              </PrimaryBtn>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Modals */}
+      {showScheduleConfirm && (
+        <Modal
+          title="Confirm Schedule"
+          onClose={() => setShowScheduleConfirm(false)}
+        >
+          <div className="space-y-4 text-sm text-slate-700">
+            <p>
+              Are you sure you want to proceed with
+              <span className="font-semibold"> {scheduleDisplay.date}</span> at
+              <span className="font-semibold"> {scheduleDisplay.time}</span>?
+            </p>
+
+            {isAvailabilityPending && (
+              <InfoNote tone="info">
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin text-[#4C81E0]" />
+                  Confirming this schedule is available…
+                </span>
+              </InfoNote>
+            )}
+
+            {isAvailabilityBlocked && (
+              <InfoNote tone="danger" title="This schedule isn't available">
+                {availability.message ||
+                  "This date and time can no longer be booked. Please choose a different schedule."}
+              </InfoNote>
+            )}
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <PrimaryBtn
+              variant="outline"
+              onClick={() => setShowScheduleConfirm(false)}
+              className="w-full sm:w-auto"
+            >
+              {isAvailabilityBlocked ? "Choose another time" : "Cancel"}
+            </PrimaryBtn>
+            <PrimaryBtn
+              variant="primary"
+              onClick={() => {
+                setShowScheduleConfirm(false);
+                handleNext();
+              }}
+              disabled={!isAvailabilityConfirmed}
+              className="w-full sm:w-auto"
+            >
+              {isAvailabilityPending ? "Checking..." : "Confirm & Proceed"}
+            </PrimaryBtn>
+          </div>
+        </Modal>
+      )}
+
       {showTerms && (
         <Modal title="Terms and Conditions" onClose={() => setShowTerms(false)}>
           <div className="text-slate-600 space-y-4 p-4 text-sm">

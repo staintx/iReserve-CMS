@@ -1,25 +1,28 @@
 import React from "react";
-import { Card, SH, FL, TTextarea } from "../components/BookingSharedUI";
+import { ShieldAlert, Info } from "lucide-react";
+import {
+  Card,
+  SH,
+  Field,
+  TTextarea,
+  SectionTitle,
+  InfoNote,
+  StepShell,
+} from "../components/BookingSharedUI";
 import LiveEstimate from "../components/LiveEstimate";
 
-export default function StepDietaryNeeds({ form, setForm, totalPrice, depositAmount, onNext, depositPercentage, selectedPaymentOption, setSelectedPaymentOption }) {
+export default function StepDietaryNeeds({
+  form,
+  setForm,
+  totalPrice,
+  depositAmount,
+  depositPercentage,
+  selectedPaymentOption,
+  setSelectedPaymentOption,
+}) {
   return (
-    <div className="flex flex-col gap-6 lg:flex-row max-w-6xl mx-auto py-6">
-      <div className="flex-1 space-y-6">
-        <SH title="Dietary Needs" sub="Please let us know of any allergies or dietary restrictions." />
-
-        <Card className="p-6">
-          <FL>Allergies and Intolerances (Optional)</FL>
-          <TTextarea
-            placeholder="Nut allergies, seafood allergies, lactose intolerance, etc."
-            value={form.allergies || ""}
-            onChange={(val) => setForm({ ...form, allergies: val })}
-            rows={5}
-          />
-        </Card>
-      </div>
-
-      <div className="w-full lg:w-80 flex-shrink-0">
+    <StepShell
+      aside={
         <LiveEstimate
           form={form}
           totalPrice={totalPrice}
@@ -27,9 +30,50 @@ export default function StepDietaryNeeds({ form, setForm, totalPrice, depositAmo
           depositPercentage={depositPercentage}
           selectedPaymentOption={selectedPaymentOption}
           setSelectedPaymentOption={setSelectedPaymentOption}
-          onNext={onNext}
         />
-      </div>
-    </div>
+      }
+    >
+      <SH
+        title="Dietary Needs"
+        sub="Let us know about allergies or restrictions so our kitchen can plan safely."
+      />
+
+      <Card className="p-4 sm:p-5">
+        <SectionTitle icon={ShieldAlert}>Allergies &amp; restrictions</SectionTitle>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field
+            label="Allergies and Intolerances (Optional)"
+            hint="Nut, seafood, dairy, gluten — anything we should avoid."
+          >
+            <TTextarea
+              placeholder="Nut allergies, seafood allergies, lactose intolerance, etc."
+              value={form.allergies || ""}
+              onChange={(val) => setForm({ ...form, allergies: val })}
+              rows={5}
+            />
+          </Field>
+
+          <Field
+            label="Dietary Restrictions (Optional)"
+            hint="Vegetarian, halal, low-sodium, or religious requirements."
+          >
+            <TTextarea
+              placeholder="Vegetarian guests, halal preparation, no pork, etc."
+              value={form.dietary_restrictions || ""}
+              onChange={(val) =>
+                setForm({ ...form, dietary_restrictions: val })
+              }
+              rows={5}
+            />
+          </Field>
+        </div>
+
+        <InfoNote icon={Info} className="mt-4">
+          We cannot guarantee an allergen-free kitchen, but our team will take
+          every reasonable precaution for the needs you list here.
+        </InfoNote>
+      </Card>
+    </StepShell>
   );
 }

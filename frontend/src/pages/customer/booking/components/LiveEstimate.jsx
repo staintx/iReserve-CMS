@@ -1,94 +1,144 @@
 import React from "react";
-import { ChevronRight } from "lucide-react";
-import { Button } from "../../../../components/ui/button";
+import { Receipt } from "lucide-react";
+import { Card, formatPeso, focusRing } from "./BookingSharedUI";
+import { cn } from "@/lib/utils";
 
-const formatCurrency = (value) => {
-  return `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+const formatCurrency = (value) => formatPeso(value, { decimals: 2 });
 
-export default function LiveEstimate({ form, totalPrice, depositAmount, depositPercentage, selectedPaymentOption, setSelectedPaymentOption, onNext }) {
+export default function LiveEstimate({
+  form,
+  totalPrice,
+  depositAmount,
+  depositPercentage,
+  selectedPaymentOption,
+  setSelectedPaymentOption,
+}) {
   const guestCount = parseInt(form.guest_count || "0", 10);
-  
+
   // Calculate base price dynamically based on selection
   let basePricePerPax = 0;
-  if (form.service_type === "Food Only" && form.selected_menu && form.selected_menu.length > 0) {
-    basePricePerPax = form.selected_menu.reduce((acc, item) => acc + (Number(item.price) || 0), 0);
+  if (
+    form.service_type === "Food Only" &&
+    form.selected_menu &&
+    form.selected_menu.length > 0
+  ) {
+    basePricePerPax = form.selected_menu.reduce(
+      (acc, item) => acc + (Number(item.price) || 0),
+      0,
+    );
   } else if (form.service_type === "Food and Event Setup") {
     // Assuming default custom food & event price per pax is 800 based on previous logic
-    basePricePerPax = 800; 
+    basePricePerPax = 800;
   }
-  
-  const baseTotal = basePricePerPax * guestCount;
 
-  const displayAmount = selectedPaymentOption === "full" ? totalPrice : depositAmount;
+  const baseTotal = basePricePerPax * guestCount;
+  const displayAmount =
+    selectedPaymentOption === "full" ? totalPrice : depositAmount;
+
+  const addonsTotal =
+    form.additional_services?.reduce(
+      (sum, svc) => sum + Number(svc.price) * Number(svc.quantity || 1),
+      0,
+    ) || 0;
+
+  const payOption = (value, label) => {
+    const checked =
+      value === "full"
+        ? selectedPaymentOption === "full"
+        : selectedPaymentOption !== "full";
+    return (
+      <label
+        className={cn(
+          "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-[13px] font-medium transition-colors",
+          checked
+            ? "border-[#4C81E0] bg-[#4C81E0]/5 text-[#1E293B]"
+            : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#4C81E0]/40",
+        )}
+      >
+        <input
+          type="radio"
+          name="pay_option"
+          value={value}
+          checked={checked}
+          onChange={() => setSelectedPaymentOption(value)}
+          className={cn("h-4 w-4 accent-[#4C81E0]", focusRing)}
+        />
+        {label}
+      </label>
+    );
+  };
 
   return (
-    <div className="w-full flex-shrink-0 lg:w-80">
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 lg:p-8" style={{ fontFamily: "Inter, sans-serif" }}>
-        <div className="hidden lg:block sticky top-24" style={{ maxHeight: 'calc(100vh - 96px)', overflowY: 'auto' }}>
-        <h3 className="text-[19px] font-bold text-gray-900 mb-6" style={{ fontFamily: "Inter, sans-serif" }}>Live Estimate</h3>
+    <Card className="p-4 lg:sticky lg:top-[150px]">
+      <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-[#1E293B]">
+        <Receipt size={14} className="text-[#4C81E0]" />
+        Live Estimate
+      </h3>
 
-        <div className="mb-4">
-          <label className="flex items-center gap-3">
-            <input type="radio" name="pay_option" value="deposit" checked={selectedPaymentOption !== "full"} onChange={() => setSelectedPaymentOption("deposit")} className="h-4 w-4" />
-            <span className="text-sm">Pay Deposit</span>
-          </label>
-          <label className="flex items-center gap-3 mt-2">
-            <input type="radio" name="pay_option" value="full" checked={selectedPaymentOption === "full"} onChange={() => setSelectedPaymentOption("full")} className="h-4 w-4" />
-            <span className="text-sm">Pay Full Amount</span>
-          </label>
-        </div>
-
-        <div className="space-y-4 mb-6 text-[14px]">
-          {/* Base Package/Pax */}
-          {basePricePerPax > 0 && (
-            <div className="flex justify-between items-center text-gray-500">
-              <span>{guestCount} pax × ₱{basePricePerPax}</span>
-              <span className="text-gray-900 font-medium">{formatCurrency(baseTotal)}</span>
-            </div>
-          )}
-
-          {/* Event Setup Fixed Price (if applicable) */}
-          {form.service_type === "Event Setup Only" && (
-            <div className="flex justify-between items-center text-gray-500">
-              <span>Event Setup</span>
-              <span className="text-gray-900 font-medium">{formatCurrency(totalPrice - (form.additional_services?.reduce((sum, svc) => sum + (Number(svc.price) * Number(svc.quantity || 1)), 0) || 0))}</span>
-            </div>
-          )}
-
-          {/* Add-ons / Additional Services */}
-          {form.additional_services?.map((svc, idx) => (
-            <div key={idx} className="flex justify-between items-center text-gray-500">
-              <span>{svc.name}</span>
-              <span className="text-gray-900 font-medium">+{formatCurrency((Number(svc.price) || 0) * (Number(svc.quantity) || 1))}</span>
-            </div>
-          ))}
-        </div>
-
-        <hr className="border-gray-100 mb-6" />
-
-        <div className="mb-2 flex justify-between items-center font-bold text-[17px]">
-          <span className="text-gray-900">Subtotal</span>
-          <span className="text-[#4C81E0]">{formatCurrency(totalPrice)}</span>
-        </div>
-
-        <div className="space-y-1 mb-8 text-[13px] text-gray-400 leading-relaxed">
-          <p>+ service fee, transport & taxes on summary</p>
-          <p>{depositPercentage}% deposit ≈ {formatCurrency(depositAmount)}</p>
-        </div>
-
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <div className="text-sm text-gray-500">{selectedPaymentOption === "full" ? "Total" : "Amount Due Now"}</div>
-            <div className="text-2xl font-bold text-[#4C81E0]">{formatCurrency(displayAmount)}</div>
-          </div>
-          <Button onClick={onNext} className="ml-4 bg-[#4C81E0] hover:bg-[#3D6BC4] text-white font-semibold py-3 px-4 rounded-2xl shadow-sm transition-all duration-200">
-            Continue <ChevronRight size={18} />
-          </Button>
-        </div>
-
-        </div>
+      <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-1">
+        {payOption("deposit", "Pay deposit")}
+        {payOption("full", "Pay full amount")}
       </div>
-    </div>
+
+      <div className="space-y-2 text-[13px]">
+        {basePricePerPax > 0 && (
+          <div className="flex items-center justify-between gap-3 text-[#64748B]">
+            <span className="truncate">
+              {guestCount} pax × {formatPeso(basePricePerPax)}
+            </span>
+            <span className="shrink-0 font-medium text-[#1E293B]">
+              {formatCurrency(baseTotal)}
+            </span>
+          </div>
+        )}
+
+        {form.service_type === "Event Setup Only" && (
+          <div className="flex items-center justify-between gap-3 text-[#64748B]">
+            <span>Event setup</span>
+            <span className="shrink-0 font-medium text-[#1E293B]">
+              {formatCurrency(totalPrice - addonsTotal)}
+            </span>
+          </div>
+        )}
+
+        {form.additional_services?.map((svc, idx) => (
+          <div
+            key={idx}
+            className="flex items-center justify-between gap-3 text-[#64748B]"
+          >
+            <span className="truncate">
+              {svc.name}
+              {Number(svc.quantity) > 1 ? ` × ${svc.quantity}` : ""}
+            </span>
+            <span className="shrink-0 font-medium text-[#1E293B]">
+              +
+              {formatCurrency(
+                (Number(svc.price) || 0) * (Number(svc.quantity) || 1),
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-[#E2E8F0] pt-3 text-[15px] font-semibold">
+        <span className="text-[#1E293B]">Subtotal</span>
+        <span className="text-[#4C81E0]">{formatCurrency(totalPrice)}</span>
+      </div>
+
+      <p className="mt-1 text-[11px] leading-relaxed text-[#94A3B8]">
+        Service fee, transport &amp; taxes are itemized on your quotation.
+        <br />
+        {depositPercentage}% deposit ≈ {formatCurrency(depositAmount)}
+      </p>
+
+      <div className="mt-3 rounded-xl bg-[#1E293B] px-3.5 py-3 text-white">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
+          {selectedPaymentOption === "full" ? "Total" : "Amount due now"}
+        </p>
+        <p className="text-xl font-bold tabular-nums">
+          {formatCurrency(displayAmount)}
+        </p>
+      </div>
+    </Card>
   );
 }

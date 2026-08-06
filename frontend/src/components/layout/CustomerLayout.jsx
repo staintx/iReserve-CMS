@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 
-export default function CustomerLayout({ children }) {
+export default function CustomerLayout({ children, contentClassName }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -203,13 +203,19 @@ export default function CustomerLayout({ children }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10">
+      <main
+        className={
+          contentClassName ?? "mx-auto max-w-6xl px-6 pb-16 pt-10 sm:px-10"
+        }
+      >
         {children}
       </main>
 
       <Button
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
+        className="chat-fab fixed right-6 z-50 h-14 w-14 rounded-full shadow-lg"
         size="icon"
+        type="button"
+        aria-label="Open chat assistant"
       >
         💬
       </Button>

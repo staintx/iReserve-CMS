@@ -253,10 +253,17 @@ export default function AdminQuoteDetails() {
               </div>
             </DetailCard>
 
+            {/* Food & Service Details Card */}
+            {(quote.selected_menu?.length > 0 || quote.service_items?.length > 0) && (
+              <DetailCard title="Food & Service Order" icon={Utensils}>
+                {quote.selected_menu?.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Menu</h4>
+                    <div className="space-y-2">
                       {quote.selected_menu.map((menu, i) => (
                         <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
-                          <span className="font-medium text-slate-700">{menu.name || "Menu Item"}</span>
-                          <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>
+                          <span className="font-medium text-slate-700">{menu.name || (typeof menu === 'string' ? menu : "Menu Item")}</span>
+                          {menu.price > 0 && <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>}
                         </div>
                       ))}
                     </div>

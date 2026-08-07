@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
@@ -16,7 +16,10 @@ import {
   Eye,
   Calendar,
   Users,
-  Utensils
+  Utensils,
+  ChevronDown,
+  ChevronRight,
+  History
 } from "lucide-react";
 
 export default function AdminQuotesList() {
@@ -27,6 +30,7 @@ export default function AdminQuotesList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all_quotes");
+  const [expandedRows, setExpandedRows] = useState({});
 
   const loadData = async () => {
     setLoading(true);
@@ -48,15 +52,42 @@ export default function AdminQuotesList() {
     loadData();
   }, []);
 
-  // Compute Metrics
+  const toggleExpand = (id) => {
+    setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Group quotations by inquiry ID to present only the latest active version per inquiry thread
+  const groupedQuotations = useMemo(() => {
+    const groups = {};
+    quotations.forEach(q => {
+      const inqId = (q.inquiry_id && q.inquiry_id._id) ? String(q.inquiry_id._id) : String(q.inquiry_id || q._id);
+      if (!groups[inqId]) {
+        groups[inqId] = [];
+      }
+      groups[inqId].push(q);
+    });
+
+    return Object.values(groups).map(versionList => {
+      versionList.sort((a, b) => (b.version_number || 1) - (a.version_number || 1));
+      const latest = versionList[0];
+      return {
+        ...latest,
+        history: versionList
+      };
+    });
+  }, [quotations]);
+
+  // Compute Metrics using latest version per inquiry
   const metrics = useMemo(() => {
-    const totalQuotations = quotations.length;
+    const totalQuotations = groupedQuotations.length;
     const pendingInquiries = inquiries.filter(q => q.status === "Pending Review").length;
-    const sentQuotations = quotations.filter(q => q.status === "Sent").length;
-    const revisionRequests = quotations.filter(q => q.status === "Revision Requested").length;
-    const acceptedQuotations = quotations.filter(q => q.status === "Accepted").length;
+    const sentQuotations = groupedQuotations.filter(q => q.status === "Sent" || q.status === "Quotation Sent").length;
+    const revisionRequests = groupedQuotations.filter(q => q.status === "Revision Requested").length;
+    const acceptedQuotations = groupedQuotations.filter(q => 
+      q.status === "Accepted" || q.status === "Quote Accepted" || q.status === "Awaiting Final Confirmation" || q.status === "Converted to Booking"
+    ).length;
     return { totalQuotations, pendingInquiries, sentQuotations, revisionRequests, acceptedQuotations };
-  }, [inquiries, quotations]);
+  }, [inquiries, groupedQuotations]);
 
   // Combine items depending on activeTab
   const displayItems = useMemo(() => {
@@ -72,17 +103,18 @@ export default function AdminQuotesList() {
           inquiryId: i._id,
           reference: i.reference || i._id.slice(-8).toUpperCase(),
           eventType: i.event_type || "Event Inquiry",
-          customerName: `${i.contact_first_name} ${i.contact_last_name}`,
+          customerName: `${i.contact_first_name || ''} ${i.contact_last_name || ''}`.trim() || "Customer",
           customerContact: i.contact_phone || i.contact_email,
           eventDate: i.event_date,
           guestCount: i.guest_count,
           status: i.status,
           version: null,
-          totalCost: null
+          totalCost: null,
+          history: []
         }));
     } else {
-      // Real Quotations created by Admin
-      items = quotations.map(q => {
+      // Latest Quotations per Inquiry thread
+      items = groupedQuotations.map(q => {
         const inq = q.inquiry_id || {};
         return {
           type: "QUOTATION",
@@ -91,22 +123,25 @@ export default function AdminQuotesList() {
           quotationNumber: q.quotation_number || `QTN-${q._id.slice(-6).toUpperCase()}`,
           reference: inq.reference || "INQ",
           eventType: inq.event_type || "Event",
-          customerName: inq.contact_first_name ? `${inq.contact_first_name} ${inq.contact_last_name}` : "Customer",
-          customerContact: inq.contact_phone || inq.contact_email,
+          customerName: inq.contact_first_name ? `${inq.contact_first_name} ${inq.contact_last_name}` : (inq.customer_id?.full_name || "Customer"),
+          customerContact: inq.contact_phone || inq.contact_email || inq.customer_id?.email,
           eventDate: inq.event_date,
           guestCount: q.guest_count || inq.guest_count,
           status: q.status,
           version: q.version_number || 1,
-          totalCost: q.total_cost || 0
+          totalCost: q.total_cost || 0,
+          history: q.history || [q]
         };
       });
 
       if (activeTab === "sent") {
-        items = items.filter(i => i.status === "Sent");
+        items = items.filter(i => i.status === "Sent" || i.status === "Quotation Sent");
       } else if (activeTab === "revision") {
         items = items.filter(i => i.status === "Revision Requested");
       } else if (activeTab === "accepted") {
-        items = items.filter(i => i.status === "Accepted");
+        items = items.filter(i => 
+          i.status === "Accepted" || i.status === "Quote Accepted" || i.status === "Awaiting Final Confirmation" || i.status === "Converted to Booking"
+        );
       }
     }
 
@@ -123,7 +158,7 @@ export default function AdminQuotesList() {
     }
 
     return items;
-  }, [inquiries, quotations, activeTab, search]);
+  }, [inquiries, groupedQuotations, activeTab, search]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -134,6 +169,8 @@ export default function AdminQuotesList() {
       case "Sent":
       case "Quotation Sent":
         return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200/60 flex items-center gap-1.5 w-fit"><Send size={12} /> Quotation Sent</span>;
+      case "Awaiting Final Confirmation":
+        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-200/60 flex items-center gap-1.5 w-fit"><Clock size={12} /> Awaiting Final Confirmation</span>;
       case "Accepted":
       case "Quote Accepted":
       case "Converted to Booking":
@@ -270,65 +307,125 @@ export default function AdminQuotesList() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {displayItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-amber-50 text-[#D4AF37] rounded-lg border border-amber-100/60">
-                            <Utensils size={18} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">{item.quotationNumber || item.reference}</span>
-                              {item.version && (
-                                <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-600 rounded">v{item.version}</span>
-                              )}
+                  {displayItems.map((item) => {
+                    const isExpanded = !!expandedRows[item.id];
+                    const hasHistory = item.history && item.history.length > 1;
+
+                    return (
+                      <React.Fragment key={item.id}>
+                        <tr className={`transition-colors ${isExpanded ? "bg-amber-50/30" : "hover:bg-slate-50/80"}`}>
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-amber-50 text-[#D4AF37] rounded-lg border border-amber-100/60">
+                                <Utensils size={18} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900">{item.quotationNumber || item.reference}</span>
+                                  {item.version && (
+                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded border border-slate-200">
+                                      v{item.version}
+                                    </span>
+                                  )}
+                                  {hasHistory && (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpand(item.id)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded transition-colors shadow-2xs"
+                                    >
+                                      <History size={10} />
+                                      <span>{item.history.length} Revisions</span>
+                                      {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                    </button>
+                                  )}
+                                </div>
+                                <span className="text-xs text-slate-500 block mt-0.5">{item.eventType} ({item.reference})</span>
+                              </div>
                             </div>
-                            <span className="text-xs text-slate-500">{item.eventType} ({item.reference})</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="font-semibold text-slate-800 block">{item.customerName}</span>
-                        <span className="text-xs text-slate-500">{item.customerContact || "No contact"}</span>
-                      </td>
-                      <td className="py-4 px-6 text-slate-600">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-medium">
-                          <Calendar size={14} className="text-slate-400" />
-                          {item.eventDate ? new Date(item.eventDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        {item.totalCost !== null ? (
-                          <span className="font-bold text-emerald-600">₱{Number(item.totalCost).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Not Quoted Yet</span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className="font-semibold text-slate-800 block">{item.customerName}</span>
+                            <span className="text-xs text-slate-500">{item.customerContact || "No contact"}</span>
+                          </td>
+                          <td className="py-4 px-6 text-slate-600">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                              <Calendar size={14} className="text-slate-400" />
+                              {item.eventDate ? new Date(item.eventDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6">
+                            {item.totalCost !== null ? (
+                              <span className="font-bold text-emerald-600">₱{Number(item.totalCost).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">Not Quoted Yet</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6">
+                            {getStatusBadge(item.status)}
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/admin/quotes/${item.inquiryId}/details`)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-900 bg-[#D4AF37] hover:bg-[#c5a030] rounded-lg transition-colors shadow-sm"
+                            >
+                              {item.type === "INQUIRY" ? (
+                                <>
+                                  <span>Create Quote</span>
+                                  <ArrowRight size={14} />
+                                </>
+                              ) : (
+                                <>
+                                  <Eye size={14} />
+                                  <span>View & Edit</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {/* Expanded Version History Sub-row */}
+                        {isExpanded && hasHistory && (
+                          <tr className="bg-slate-50/90 border-t border-b border-amber-200/60">
+                            <td colSpan={6} className="p-4 pl-14">
+                              <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                                    <History size={14} className="text-[#D4AF37]" /> Revision History for Inquiry {item.reference}
+                                  </h4>
+                                  <span className="text-[11px] text-slate-500 font-medium">Total Versions: {item.history.length}</span>
+                                </div>
+                                <div className="divide-y divide-slate-100 border border-slate-100 rounded-md overflow-hidden text-xs">
+                                  {item.history.map((ver, idx) => (
+                                    <div key={ver._id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                      <div className="flex items-center gap-3">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${idx === 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
+                                          v{ver.version_number || 1} {idx === 0 ? "(Latest)" : ""}
+                                        </span>
+                                        <span className="font-mono font-semibold text-slate-800">
+                                          {ver.quotation_number || `QTN-${ver._id.slice(-6).toUpperCase()}`}
+                                        </span>
+                                        <span className="text-slate-400">|</span>
+                                        <span className="text-slate-500">
+                                          Issued: {ver.createdAt ? new Date(ver.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                        <span className="font-bold text-emerald-600">
+                                          ₱{Number(ver.total_cost || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                        </span>
+                                        {getStatusBadge(ver.status)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="py-4 px-6">
-                        {getStatusBadge(item.status)}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/admin/quotes/${item.inquiryId}/details`)}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-900 bg-[#D4AF37] hover:bg-[#c5a030] rounded-lg transition-colors shadow-sm"
-                        >
-                          {item.type === "INQUIRY" ? (
-                            <>
-                              <span>Create Quote</span>
-                              <ArrowRight size={14} />
-                            </>
-                          ) : (
-                            <>
-                              <Eye size={14} />
-                              <span>View & Edit</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

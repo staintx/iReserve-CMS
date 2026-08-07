@@ -1934,49 +1934,107 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
 
 exports.convertInquiry = asyncHandler(async (req, res) => {
   const inquiryId = req.params.id;
-  const inquiry = await Inquiry.findById(inquiryId);
+  const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
-  if (inquiry.converted_booking_id) return res.status(400).json({ message: "Inquiry already converted to booking" });
 
-  const quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
-  if (!quotation) return res.status(400).json({ message: "No accepted quotation found for this inquiry" });
+  // If already converted, return existing booking
+  if (inquiry.converted_booking_id) {
+    const existingBooking = await Booking.findById(inquiry.converted_booking_id);
+    if (existingBooking) {
+      return res.status(200).json({
+        message: "Inquiry already converted to booking",
+        booking: existingBooking,
+      });
+    }
+  }
+
+  // Find latest quotation if available (prefer Accepted, fallback to latest)
+  let quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
+  if (!quotation) {
+    quotation = await Quotation.findOne({ inquiry_id: inquiryId }).sort({ version_number: -1, createdAt: -1 });
+  }
+
+  // Derive service_type
+  const serviceType = inquiry.service_type || (
+    inquiry.delivery_method === "setup" ? "Food and Event Setup" :
+    inquiry.event_type?.toLowerCase().includes("food delivery") ? "Food Only" : "Food and Event Setup"
+  );
+
+  // Build menu items array
+  let menuItems = [];
+  if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
+    menuItems = quotation.menu_items;
+  } else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
+    menuItems = inquiry.selected_menu.map(m => (typeof m === 'object' ? { name: m.name || String(m), price: m.price || 0 } : { name: String(m), price: 0 }));
+  }
+
+  // Build service items / add-ons array
+  let serviceItems = [];
+  if (quotation && quotation.add_ons && quotation.add_ons.length > 0) {
+    serviceItems = quotation.add_ons;
+  } else if (inquiry.service_items && inquiry.service_items.length > 0) {
+    serviceItems = inquiry.service_items;
+  }
+
+  // Additional charges from quotation fees
+  const additionalCharges = [];
+  if (quotation?.transportation_fee > 0) additionalCharges.push({ name: "Transportation Fee", amount: quotation.transportation_fee });
+  if (quotation?.equipment_fee > 0) additionalCharges.push({ name: "Equipment Rental Fee", amount: quotation.equipment_fee });
+  if (quotation?.decoration_fee > 0) additionalCharges.push({ name: "Styling & Decoration Fee", amount: quotation.decoration_fee });
+
+  // Build inventory items for reservation from Package setup_equipment
+  let inventoryItems = [];
+  const pkgId = quotation?.package_id || inquiry.package_id?._id || inquiry.package_id;
+  if (pkgId) {
+    const Package = require("../models/Package");
+    const pkg = await Package.findById(pkgId);
+    if (pkg && pkg.setup_equipment && pkg.setup_equipment.length > 0) {
+      inventoryItems = pkg.setup_equipment.map(eq => ({
+        inventory_id: eq.inventory_id,
+        quantity: eq.quantity || 1
+      }));
+    }
+  }
+
+  const totalPrice = quotation?.total_cost || inquiry.total_price || 0;
 
   const payload = {
-    customer_id: inquiry.customer_id,
-    package_id: quotation.package_id || inquiry.package_id,
-    event_type: inquiry.event_type,
+    customer_id: inquiry.customer_id?._id || inquiry.customer_id,
+    package_id: pkgId,
+    event_type: inquiry.event_type || "Event",
     event_date: inquiry.event_date,
-    start_time: inquiry.start_time,
-    guest_count: quotation.guest_count || inquiry.guest_count,
-    venue_type: inquiry.venue_type,
-    province: inquiry.province,
-    municipality: inquiry.municipality,
-    barangay: inquiry.barangay,
-    street: inquiry.street,
-    landmark: inquiry.landmark,
-    zip_code: inquiry.zip_code,
+    start_time: inquiry.start_time || "12:00",
+    guest_count: quotation?.guest_count || inquiry.guest_count || 1,
+    include_food: true,
+    venue_type: inquiry.venue_type || "Venue",
+    service_type: serviceType,
+    delivery_method: inquiry.delivery_method || "setup",
+    province: inquiry.province || "N/A",
+    municipality: inquiry.municipality || "N/A",
+    barangay: inquiry.barangay || "N/A",
+    street: inquiry.street || "",
+    landmark: inquiry.landmark || "",
+    zip_code: inquiry.zip_code || "",
     
-    menu_items: quotation.menu_items || [],
-    additional_charges: [],
+    menu_items: menuItems,
+    service_items: serviceItems,
+    additional_charges: additionalCharges,
+    inventory_items: inventoryItems,
     
-    dietary_restrictions: inquiry.dietary_requirements,
-    special_requests: inquiry.special_requests,
+    dietary_restrictions: inquiry.dietary_requirements || "",
+    special_requests: inquiry.special_requests || "",
     
-    contact_first_name: inquiry.contact_first_name,
-    contact_last_name: inquiry.contact_last_name,
-    contact_email: inquiry.contact_email,
-    contact_phone: inquiry.contact_phone,
-    contact_alt_phone: inquiry.contact_alt_phone,
-    contact_method: inquiry.contact_method,
+    contact_first_name: inquiry.contact_first_name || inquiry.customer_id?.first_name || "N/A",
+    contact_last_name: inquiry.contact_last_name || inquiry.customer_id?.last_name || "N/A",
+    contact_email: inquiry.contact_email || inquiry.customer_id?.email || "N/A",
+    contact_phone: inquiry.contact_phone || inquiry.customer_id?.phone || "N/A",
+    contact_alt_phone: inquiry.contact_alt_phone || "",
+    contact_method: inquiry.contact_method || "Email",
     
-    total_price: quotation.total_cost,
-    payment_status: "deposit_paid", // Since conversion happens after deposit
+    total_price: totalPrice,
+    payment_status: "deposit_paid",
     status: "Confirmed",
   };
-
-  if (quotation.transportation_fee) payload.additional_charges.push({ name: "Transportation", amount: quotation.transportation_fee });
-  if (quotation.equipment_fee) payload.additional_charges.push({ name: "Equipment", amount: quotation.equipment_fee });
-  if (quotation.decoration_fee) payload.additional_charges.push({ name: "Decoration", amount: quotation.decoration_fee });
 
   const newBooking = await Booking.create(payload);
 
@@ -1984,9 +2042,29 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   inquiry.converted_booking_id = newBooking._id;
   await inquiry.save();
 
-  // Assuming Payment is synced separately or maybe we link existing payments
+  if (quotation) {
+    quotation.status = "Converted to Booking";
+    await quotation.save();
+  }
+
   const Payment = require("../models/Payment");
   await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
+
+  if (inventoryItems.length > 0) {
+    const InventoryReservation = require("../models/InventoryReservation");
+    const reservations = inventoryItems
+      .filter(item => item.inventory_id)
+      .map(item => ({
+        booking_id: newBooking._id,
+        inventory_id: item.inventory_id,
+        quantity_reserved: item.quantity,
+        event_date: newBooking.event_date,
+        status: "reserved"
+      }));
+    if (reservations.length > 0) {
+      await InventoryReservation.insertMany(reservations);
+    }
+  }
 
   res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });
 });

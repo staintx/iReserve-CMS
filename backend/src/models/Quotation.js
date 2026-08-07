@@ -50,6 +50,8 @@ const QuotationSchema = new mongoose.Schema(
         "Sent",
         "Revision Requested",
         "Accepted",
+        "Awaiting Final Confirmation",
+        "Converted to Booking",
         "Rejected",
         "Expired",
       ],

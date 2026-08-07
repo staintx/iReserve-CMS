@@ -28,7 +28,6 @@ export default function AdminInquiries() {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [showConflict, setShowConflict] = useState(false);
-  const [approvedId, setApprovedId] = useState(null);
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +40,7 @@ export default function AdminInquiries() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "Recent", "Pending Review", "Quotation Sent", "Revision Requested", "Quote Accepted"];
+  const statuses = ["all", "Recent", "Pending Review", "Quotation Sent", "Revision Requested", "Quote Accepted", "Awaiting Final Confirmation"];
 
   const loadData = () => {
     setLoading(true);
@@ -107,22 +106,7 @@ export default function AdminInquiries() {
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
-  const handleApprove = (id) => {
-    AdminAPI.createBookingFromInquiry(id, {})
-      .then(() => {
-        setApprovedId(id);
-        notify("Inquiry converted to booking successfully.", "success");
-        setTimeout(() => setApprovedId(null), 2000);
-        loadData();
-      })
-      .catch((err) => {
-        if (err.response?.status === 409) {
-          setShowConflict(true);
-        } else {
-          notify(err.response?.data?.message || "Failed to approve booking.", "error");
-        }
-      });
-  };
+
 
   const handleCancel = (id) => {
     AdminAPI.updateInquiry(id, { status: "Cancelled" })
@@ -207,11 +191,7 @@ export default function AdminInquiries() {
               </>
             )}
 
-            {r.rawStatus === "Quote Accepted" && (
-              <button onClick={() => handleApprove(r._id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 transition-colors shadow-sm">
-                <Check size={13} /> Convert to Booking
-              </button>
-            )}
+
 
             <button onClick={() => setDrawerRow(r)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors ml-auto">
               <Eye size={13} /> View
@@ -347,7 +327,7 @@ export default function AdminInquiries() {
             emptyTitle="No bookings found."
             emptyHint={search || filter !== "all" || dateRange.from || dateRange.to ? "Try adjusting your search or filters." : undefined}
             onRowClick={(r) => setDrawerRow(r)}
-            rowHighlight={(r) => approvedId === r._id}
+            rowHighlight={() => false}
             selectable
             selectedIds={selectedIds}
             onSelectedIdsChange={setSelectedIds}
@@ -364,11 +344,6 @@ export default function AdminInquiries() {
           footer={
             drawerRow && (
               <>
-                {(drawerRow.rawStatus === "pending deposit" || drawerRow.status === "change requests") && (
-                  <Btn variant="secondary" size="sm" onClick={() => handleApprove(drawerRow._id)}>
-                    <Check size={13} /> Approve
-                  </Btn>
-                )}
                 {drawerRow.rawStatus !== "cancelled" && drawerRow.rawStatus !== "completed" && (
                   <Btn
                     variant="danger"

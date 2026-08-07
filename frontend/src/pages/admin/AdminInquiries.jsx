@@ -40,7 +40,7 @@ export default function AdminInquiries() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "Recent", "Pending Review", "Quotation Sent", "Revision Requested", "Quote Accepted", "Awaiting Final Confirmation"];
+  const statuses = ["all", "Active Leads", "Pending Review", "Quotation Sent", "Awaiting Final Confirmation", "Archived / Concluded", "Converted to Booking", "Cancelled"];
 
   const loadData = () => {
     setLoading(true);
@@ -60,17 +60,15 @@ export default function AdminInquiries() {
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
-  // Map API fields to table columns
-  const formattedBookings = bookings
-    .filter((b) => b.status !== "Converted to Booking" && b.status !== "Cancelled")
-    .map((b) => {
-      const mappedStatus = b.status;
+  // Map API fields to table columns (includes all active & archived inquiries)
+  const formattedBookings = bookings.map((b) => {
+    const mappedStatus = b.status;
 
     return {
       _id: b._id,
       id: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
       createdAt: b.createdAt,
-      customer: b.customer_id?.full_name || `${b.contact_first_name} ${b.contact_last_name}`.trim() || "Unknown",
+      customer: b.customer_id?.full_name || `${b.contact_first_name || ''} ${b.contact_last_name || ''}`.trim() || "Unknown",
       email: b.customer_id?.email || b.contact_email || "",
       eventType: b.event_type || "Event",
       pkg: b.package_id?.name || "Custom",
@@ -91,6 +89,10 @@ export default function AdminInquiries() {
     let matchStatus = false;
     if (filter === "all") {
       matchStatus = true;
+    } else if (filter === "Active Leads") {
+      matchStatus = ["Pending Review", "Under Review", "Waiting for Customer"].includes(r.status);
+    } else if (filter === "Archived / Concluded") {
+      matchStatus = ["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(r.status);
     } else if (filter === "Recent") {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

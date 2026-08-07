@@ -158,7 +158,7 @@ exports.create = asyncHandler(async (req, res) => {
 	}
 	res.status(201).json(payment);
 });
-exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().populate("booking_id customer_id")));
+exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id")));
 exports.getMine = asyncHandler(async (req, res) => {
 	const pendingGatewayPayments = await Payment.find({
 		customer_id: req.user._id,

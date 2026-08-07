@@ -4,7 +4,6 @@ import {
   Search,
   Edit3,
   Trash2,
-  MoreHorizontal,
   Filter,
   X,
   ChevronDown,
@@ -33,7 +32,6 @@ const PACKAGE_TYPES = ["Food Only", "Event Setup Only", "Food + Event Setup"];
 export default function AdminPackages() {
   const { notify } = useToast();
   const navigate = useNavigate();
-  const [tab, setTab] = useState("standard");
   const [search, setSearch] = useState("");
 
   // Filter states
@@ -47,9 +45,6 @@ export default function AdminPackages() {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [quotes, setQuotes] = useState([]);
-  const [quotesLoading, setQuotesLoading] = useState(true);
-
   const [showModal, setShowModal] = useState(false);
   const [activePkg, setActivePkg] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -62,21 +57,9 @@ export default function AdminPackages() {
       .finally(() => setLoading(false));
   };
 
-  const loadQuotes = () => {
-    setQuotesLoading(true);
-    AdminAPI.getQuotes()
-      .then((res) => setQuotes(Array.isArray(res.data) ? res.data : []))
-      .catch(() => notify("Failed to load custom quotes", "error"))
-      .finally(() => setQuotesLoading(false));
-  };
-
   useEffect(() => {
     loadData();
-    loadQuotes();
   }, []);
-
-  const pendingQuotes = quotes.filter((q) => q.status !== "converted");
-  const convertedQuotes = quotes.filter((q) => q.status === "converted");
 
   const handleOpenModal = (pkg = null) => {
     setActivePkg(pkg);
@@ -152,7 +135,7 @@ export default function AdminPackages() {
               Service Management
             </h2>
             <p className="text-sm text-[#6B7280] mt-1">
-              Manage your packages and custom quote requests
+              Manage your standard packages and tier options
             </p>
           </div>
           <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}>
@@ -160,36 +143,8 @@ export default function AdminPackages() {
           </Btn>
         </div>
 
-        {/* ============ TABS ============ */}
-        <div className="flex gap-1 border-b border-gray-200">
-          <button
-            onClick={() => setTab("standard")}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors rounded-t-lg ${
-              tab === "standard"
-                ? "border-[#D4AF37] text-[#D4AF37] bg-[#D4AF37]/5"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Standard Packages
-            <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-              {packages.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setTab("custom")}
-            className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors rounded-t-lg ${
-              tab === "custom"
-                ? "border-[#D4AF37] text-[#D4AF37] bg-[#D4AF37]/5"
-                : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Custom Quote Reviews
-          </button>
-        </div>
-
-        {/* ============ STANDARD PACKAGES TAB ============ */}
-        {tab === "standard" ? (
-          <div className="space-y-4">
+        {/* ============ STANDARD PACKAGES ============ */}
+        <div className="space-y-4">
             {/* Search & Filters Bar */}
             <div className="flex flex-col sm:flex-row gap-3">
               {/* Search */}
@@ -495,77 +450,7 @@ export default function AdminPackages() {
               </div>
             )}
           </div>
-        ) : (
-          /* ============ CUSTOM QUOTES TAB ============ */
-          <div className="flex gap-4 overflow-x-auto pb-4 items-start min-h-[500px]">
-            {quotesLoading ? (
-              <div className="w-full text-center py-16 text-gray-500">Loading custom quotes...</div>
-            ) : (
-              [
-                { column: "Pending Review", items: pendingQuotes },
-                { column: "Converted", items: convertedQuotes },
-              ].map(({ column, items }) => (
-                <div
-                  key={column}
-                  className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-4 border border-gray-200"
-                >
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-[#111] text-sm">{column}</h3>
-                    <span className="text-xs font-bold bg-white text-[#6B7280] px-2 py-0.5 rounded-full border border-gray-200">
-                      {items.length}
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    {items.map((item) => (
-                      <AdminCard
-                        key={item._id}
-                        className="!p-4 cursor-pointer hover:border-[#D4AF37] transition-colors shadow-sm"
-                        onClick={() => navigate(`/admin/quotes/${item._id}/details`)}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-xs font-mono font-bold text-[#D4AF37]">
-                            {item._id.slice(-6).toUpperCase()}
-                          </span>
-                          <MoreHorizontal size={14} className="text-[#9CA3AF]" />
-                        </div>
-                        <p className="font-bold text-[#111] text-sm">
-                          {item.full_name || item.customer_id?.full_name || "Unknown"}
-                        </p>
-                        <p className="text-xs text-[#6B7280] mb-3">
-                          {item.event_date ? new Date(item.event_date).toLocaleDateString() : "No date"} · {item.guest_count || "—"} pax
-                        </p>
-
-                        <div className="bg-gray-50 rounded-lg p-2 mb-3 border border-gray-100">
-                          <p className="text-xs text-[#374151]">
-                            <strong>Event:</strong> {item.event_type || "—"}
-                          </p>
-                          {item.notes && (
-                            <p className="text-[11px] text-[#6B7280] mt-1 italic">
-                              "{item.notes}"
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                          <span className="font-bold text-[#111] text-sm">
-                            {item.budget_range || "—"}
-                          </span>
-                          <span className="text-xs text-[#D4AF37] font-semibold">View Details →</span>
-                        </div>
-                      </AdminCard>
-                    ))}
-                    {items.length === 0 && (
-                      <div className="p-4 text-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-medium">
-                        No custom quotes
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+        </div>
 
       {/* ============ MODALS ============ */}
       {showModal && (

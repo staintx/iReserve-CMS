@@ -53,7 +53,8 @@ import AdminOcular from "../pages/admin/AdminOcular";
 import AdminGallery from "../pages/admin/AdminGallery";
 import AdminQuotesList from "../pages/admin/AdminQuotesList";
 import AdminQuoteDetails from "../pages/admin/AdminQuoteDetails";
-import AdminNotifications from "../pages/admin/AdminNotifications";
+import AdminMessagesList from "../pages/admin/AdminMessagesList";
+import AdminMessagesChat from "../pages/admin/AdminMessagesChat";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
@@ -145,7 +146,8 @@ export default function AppRoutes() {
         <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
         <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuotesList /></ProtectedRoute>} />
         <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuoteDetails /></ProtectedRoute>} />
-        <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminOnly}><AdminNotifications /></ProtectedRoute>} />
+        <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMessagesList /></ProtectedRoute>} />
+        <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMessagesChat /></ProtectedRoute>} />
         <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />
 
         {/* Manager (protected by role) */}

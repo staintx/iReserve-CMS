@@ -315,6 +315,18 @@ exports.create = asyncHandler(async (req, res) => {
   if (req.body.package_id === "") {
     delete req.body.package_id;
   }
+
+  if (req.body.package_id && (!Array.isArray(req.body.inventory_items) || req.body.inventory_items.length === 0)) {
+    const pkg = await Package.findById(req.body.package_id);
+    if (pkg && Array.isArray(pkg.setup_equipment) && pkg.setup_equipment.length > 0) {
+      req.body.inventory_items = pkg.setup_equipment.map(eq => ({
+        inventory_id: eq.inventory_id,
+        name: eq.name || eq.item_name || "Equipment Item",
+        quantity: Number(eq.quantity || 1)
+      }));
+    }
+  }
+
   const dateStatus = getDateStatus(req.body.event_date);
   if (!dateStatus.valid) {
     return res.status(400).json({ message: "Event date is invalid" });
@@ -1991,6 +2003,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     if (pkg && pkg.setup_equipment && pkg.setup_equipment.length > 0) {
       inventoryItems = pkg.setup_equipment.map(eq => ({
         inventory_id: eq.inventory_id,
+        name: eq.name || eq.item_name || "Equipment Item",
         quantity: eq.quantity || 1
       }));
     }
@@ -2067,4 +2080,111 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   }
 
   res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });
+});
+
+exports.assignInventory = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const { inventory_items } = req.body;
+  if (!Array.isArray(inventory_items)) {
+    return res.status(400).json({ message: "inventory_items must be an array" });
+  }
+
+  // Check inventory availability for the booking event date, excluding current booking
+  const invCheck = await checkInventoryAvailability(
+    booking.event_date,
+    inventory_items,
+    booking._id
+  );
+
+  if (!invCheck.available) {
+    return res.status(409).json({
+      message: `Inventory conflict: Not enough '${invCheck.itemName}' available on ${new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`
+    });
+  }
+
+  // Clean & sanitize items array
+  const sanitizedItems = inventory_items
+    .filter(item => item.inventory_id && Number(item.quantity) > 0)
+    .map(item => ({
+      inventory_id: item.inventory_id,
+      name: item.name || item.item_name || "Equipment Item",
+      quantity: Number(item.quantity)
+    }));
+
+  booking.inventory_items = sanitizedItems;
+
+  // Sync equipment_returns array
+  const existingReturnsMap = new Map();
+  (booking.equipment_returns || []).forEach(ret => {
+    if (ret.inventory_id) {
+      existingReturnsMap.set(ret.inventory_id.toString(), ret);
+    }
+  });
+
+  booking.equipment_returns = sanitizedItems.map(item => {
+    const existing = existingReturnsMap.get(item.inventory_id.toString());
+    return {
+      inventory_id: item.inventory_id,
+      name: item.name,
+      quantity_booked: item.quantity,
+      quantity_returned: existing ? existing.quantity_returned : 0,
+      verified_at: existing ? existing.verified_at : null,
+      verified_by: existing ? existing.verified_by : null
+    };
+  });
+
+  await booking.save();
+
+  // If active booking, update InventoryReservation & write logs
+  const inactiveStatuses = ["cancelled", "Cancelled", "refunded", "inquiry", "quote_sent"];
+  if (!inactiveStatuses.includes(booking.status)) {
+    const oldReservations = await InventoryReservation.find({ booking_id: booking._id });
+    await InventoryReservation.deleteMany({ booking_id: booking._id });
+
+    oldReservations.forEach(r => {
+      writeInventoryLog({
+        inventory_id: r.inventory_id,
+        event_type: "reservation_released",
+        delta: r.quantity,
+        actor_id: req.user?._id,
+        booking_id: booking._id,
+        reason: `Equipment reassigned for booking ${booking.reference || booking._id}`
+      });
+    });
+
+    const newReservations = sanitizedItems.map(item => ({
+      inventory_id: item.inventory_id,
+      booking_id: booking._id,
+      event_date: booking.event_date,
+      quantity: item.quantity
+    }));
+
+    if (newReservations.length > 0) {
+      await InventoryReservation.insertMany(newReservations);
+      newReservations.forEach(r => {
+        writeInventoryLog({
+          inventory_id: r.inventory_id,
+          event_type: "reservation_allocated",
+          delta: -r.quantity,
+          actor_id: req.user?._id,
+          booking_id: booking._id,
+          reason: `Equipment assigned to booking ${booking.reference || booking._id}`
+        });
+      });
+    }
+  }
+
+  await logAction({
+    user_id: req.user?._id,
+    action: "booking_inventory_assigned",
+    entity_type: "booking",
+    entity_id: booking._id,
+    details: `Updated equipment inventory items for booking ${booking.reference || booking._id}`,
+    ip_address: req.ip,
+  });
+
+  const updatedBooking = await Booking.findById(booking._id).populate("inventory_items.inventory_id");
+  res.json({ message: "Equipment inventory assigned successfully", booking: updatedBooking });
 });

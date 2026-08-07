@@ -21,12 +21,16 @@ import {
   CheckCircle2, 
   RefreshCw,
   MessageSquare,
-  UserCheck
+  UserCheck,
+  Boxes,
+  PackageCheck,
+  PackagePlus
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+import AssignEquipmentModal from "../../components/admin/ui/AssignEquipmentModal";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -47,6 +51,7 @@ export default function AdminBookingDetails() {
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
 
   // Form states
   const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
@@ -477,6 +482,83 @@ export default function AdminBookingDetails() {
             </div>
           </div>
         </AdminCard>
+
+        {/* Assigned Equipment & Inventory Management */}
+        <AdminCard className="!p-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-serif font-bold text-slate-900 text-base flex items-center gap-2">
+                <Boxes className="w-5 h-5 text-amber-600" /> Assigned Equipment & Inventory
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Equipment and rental items reserved for this event on {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBA"}.
+              </p>
+            </div>
+            
+            <Btn size="sm" variant="gold" onClick={() => setShowEquipmentModal(true)}>
+              <PackagePlus size={14} /> {booking.inventory_items && booking.inventory_items.length > 0 ? "Manage / Edit Equipment" : "Assign Equipment"}
+            </Btn>
+          </div>
+
+          {booking.inventory_items && booking.inventory_items.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+              {booking.inventory_items.map((item, idx) => {
+                const invName = item.name || item.inventory_id?.item_name || "Equipment Item";
+                const qty = item.quantity || 0;
+                
+                // Check if equipment return verification exists
+                const returnRecord = (booking.equipment_returns || []).find(r => 
+                  String(r.inventory_id?._id || r.inventory_id) === String(item.inventory_id?._id || item.inventory_id)
+                );
+
+                return (
+                  <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:border-slate-300 transition-colors flex flex-col justify-between space-y-2">
+                    <div>
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="font-bold text-xs text-slate-900 leading-snug">{invName}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold shrink-0">
+                          x{qty}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Status:</span>
+                      {returnRecord?.verified_at ? (
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                          <PackageCheck size={12} /> Returned ({returnRecord.quantity_returned}/{qty})
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-medium">Reserved for Event</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 px-4 border border-dashed border-slate-200 rounded-xl text-center space-y-3 bg-slate-50/30">
+              <Boxes className="w-10 h-10 text-slate-300 mx-auto" />
+              <div>
+                <h4 className="text-xs font-bold text-slate-800">No Equipment Assigned Yet</h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto mt-0.5">
+                  Assign required tables, chairs, chafing dishes, audio/visual systems, or decor items for this booking date.
+                </p>
+              </div>
+              <Btn size="sm" variant="gold" onClick={() => setShowEquipmentModal(true)}>
+                <PackagePlus size={14} /> Assign Equipment Now
+              </Btn>
+            </div>
+          )}
+        </AdminCard>
+
+        {/* Modal: Equipment Assignment */}
+        <AssignEquipmentModal
+          booking={booking}
+          open={showEquipmentModal}
+          onClose={() => setShowEquipmentModal(false)}
+          onSave={loadData}
+        />
 
         {/* Modal: Edit Details */}
         <Dialog open={showEditModal} onOpenChange={setShowEditModal}>

@@ -31,6 +31,7 @@ export const AdminAPI = {
   processRefund: (id, data) => api.post(`/bookings/${id}/refund`, data),
   assignStaff: (id, data) => api.put(`/manager/bookings/${id}/assign-staff`, data),
   verifyEquipmentReturns: (id, data) => api.post(`/bookings/${id}/verify-returns`, data),
+  assignEquipment: (id, data) => api.put(`/bookings/${id}/inventory`, data),
   scheduleOcular: (id, data) => api.post(`/bookings/${id}/ocular/schedule`, data),
   completeOcular: (id, data) => api.post(`/bookings/${id}/ocular/complete`, data),
   resolveChangeRequest: (id, data) => api.post(`/bookings/${id}/change-request/resolve`, data),
@@ -56,7 +57,7 @@ export const AdminAPI = {
 
   // Inventory
   getInventory: () => api.get("/inventory"),
-  getInventoryAvailability: (date) => api.get(`/inventory/availability${date ? `?date=${date}` : ''}`),
+  getInventoryAvailability: (date, excludeBookingId) => api.get("/inventory/availability", { params: { date, excludeBookingId } }),
   createInventory: (data) => api.post("/inventory", data),
   updateInventory: (id, data) => api.put(`/inventory/${id}`, data),
   deleteInventory: (id) => api.delete(`/inventory/${id}`),

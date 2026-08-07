@@ -16,6 +16,7 @@ router.put("/:id/accept-quote", protect, authorize("customer"), ctrl.acceptQuote
 router.post("/:id/add-guests", protect, authorize("customer"), ctrl.addGuests);
 router.post("/:id/upgrade-booking", protect, authorize("customer"), ctrl.upgradeBooking);
 router.post("/:id/verify-returns", protect, authorize("admin", "staff"), ctrl.verifyReturns);
+router.put("/:id/inventory", protect, authorize("admin", "staff"), ctrl.assignInventory);
 router.post("/:id/ocular/schedule", protect, authorize("admin", "staff"), ctrl.scheduleOcular);
 router.post("/:id/ocular/complete", protect, authorize("admin", "staff"), ctrl.completeOcular);
 router.post("/:id/ocular/request", protect, authorize("customer"), ctrl.requestOcular);

@@ -229,7 +229,18 @@ export default function AdminBookingWizard() {
                     key={pkg._id}
                     type="button"
                     className={`package-card ${form.package_id === pkg._id ? "active" : ""}`}
-                    onClick={() => setForm((prev) => ({ ...prev, package_id: pkg._id }))}
+                    onClick={() => {
+                      const pkgEquip = Array.isArray(pkg.setup_equipment) ? pkg.setup_equipment.map(eq => ({
+                        inventory_id: eq.inventory_id?._id || eq.inventory_id,
+                        name: eq.name || eq.item_name || "Equipment Item",
+                        quantity: Number(eq.quantity || 1)
+                      })) : [];
+                      setForm((prev) => ({ 
+                        ...prev, 
+                        package_id: pkg._id,
+                        inventory_items: pkgEquip.length > 0 ? pkgEquip : prev.inventory_items
+                      }));
+                    }}
                   >
                     <div className="package-card-media">
                       {pkg.image_url ? <img src={pkg.image_url} alt={pkg.name} /> : <div className="package-thumb" />}

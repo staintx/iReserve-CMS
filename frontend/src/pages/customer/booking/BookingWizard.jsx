@@ -397,15 +397,16 @@ export default function BookingWizard() {
       .catch(() => setPackageDetails(null));
   }, [form.package_id, initialPackageId]);
 
-  // If an event-setup-only package is selected, populate inventory_items from package setup_equipment
+  // Populate inventory_items from package setup_equipment for packages with setup items
   useEffect(() => {
     if (!packageDetails) return;
-    if (form.service_type !== "Event Setup Only") return;
-    if (!Array.isArray(packageDetails.setup_equipment)) return;
+    if (form.service_type === "Food Only") return;
+    if (!Array.isArray(packageDetails.setup_equipment) || packageDetails.setup_equipment.length === 0) return;
 
     const inventoryItemsFromPackage = packageDetails.setup_equipment.map(
       (it) => ({
         inventory_id: it.inventory_id,
+        name: it.name || it.item_name || "Equipment Item",
         quantity: Number(it.quantity || 1),
       }),
     );

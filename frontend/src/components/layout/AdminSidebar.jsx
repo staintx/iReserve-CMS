@@ -14,6 +14,7 @@ import {
   LineChart, 
   Building2, 
   TerminalSquare,
+  MessageSquare,
   LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -168,6 +169,11 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
         <NavLink to="/admin/customers" className={linkClass}>
           <Users className="w-5 h-5 shrink-0" />
           {!isCollapsed && <span>Customers</span>}
+        </NavLink>
+
+        <NavLink to="/admin/messages" className={linkClass}>
+          <MessageSquare className="w-5 h-5 shrink-0" />
+          {!isCollapsed && <span>Messages</span>}
         </NavLink>
 
         <div className={sectionLabelClass}>Bookings</div>

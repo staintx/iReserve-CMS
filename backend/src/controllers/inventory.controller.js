@@ -61,8 +61,8 @@ exports.getLogs = async (req, res) => {
 
 exports.getAvailability = async (req, res) => {
   try {
-    const { date } = req.query;
-    const allInventory = await Inventory.find();
+    const { date, excludeBookingId } = req.query;
+    const allInventory = await Inventory.find().sort({ category: 1, item_name: 1 });
 
     if (!date) {
       const result = allInventory.map(item => ({
@@ -83,10 +83,18 @@ exports.getAvailability = async (req, res) => {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const activeBookings = await Booking.find({
-      status: { $in: ["confirmed", "preparing", "ongoing"] },
+    const bookingQuery = {
+      status: {
+        $nin: ["cancelled", "Cancelled", "refunded", "inquiry", "quote_sent"]
+      },
       event_date: { $gte: startOfDay, $lte: endOfDay }
-    });
+    };
+
+    if (excludeBookingId) {
+      bookingQuery._id = { $ne: excludeBookingId };
+    }
+
+    const activeBookings = await Booking.find(bookingQuery);
 
     const reservedQuantities = {};
     activeBookings.forEach(booking => {

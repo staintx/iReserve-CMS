@@ -15,8 +15,14 @@ export const getMessages = async (id) => {
   return data;
 };
 
-export const sendMessage = async (id, body) => {
-  const { data } = await api.post(`/messages/conversations/${id}/messages`, { body });
+export const sendMessage = async (id, bodyOrPayload) => {
+  const payload = typeof bodyOrPayload === "string" ? { body: bodyOrPayload } : bodyOrPayload;
+  const { data } = await api.post(`/messages/conversations/${id}/messages`, payload);
+  return data;
+};
+
+export const markConversationAsRead = async (id) => {
+  const { data } = await api.patch(`/messages/conversations/${id}/read`);
   return data;
 };
 

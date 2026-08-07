@@ -4,6 +4,8 @@ import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
 import { Button } from "../ui/button";
+import { MessageSquare } from "lucide-react";
+import FloatingChatWidget from "../chat/FloatingChatWidget";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,14 +213,7 @@ export default function CustomerLayout({ children, contentClassName }) {
         {children}
       </main>
 
-      <Button
-        className="chat-fab fixed right-6 z-50 h-14 w-14 rounded-full shadow-lg"
-        size="icon"
-        type="button"
-        aria-label="Open chat assistant"
-      >
-        💬
-      </Button>
+      <FloatingChatWidget />
 
       {showLogoutConfirm && (
         <ConfirmDialog

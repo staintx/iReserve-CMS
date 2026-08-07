@@ -50,6 +50,7 @@ const InquirySchema = new mongoose.Schema(
         "Revision Requested",
         "Quotation Sent",
         "Quote Accepted",
+        "Awaiting Final Confirmation",
         "Quote Rejected",
         "Expired",
         "Converted to Booking",

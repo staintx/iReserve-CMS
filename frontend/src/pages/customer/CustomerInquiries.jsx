@@ -85,7 +85,7 @@ export default function CustomerInquiries() {
       ["Pending Review", "Under Review", "Waiting for Customer", "Revision Requested"].includes(i.status)
     ).length;
     const accepted = inquiries.filter((i) => 
-      ["Quote Accepted", "Converted to Booking"].includes(i.status)
+      ["Quote Accepted", "Awaiting Final Confirmation", "Converted to Booking"].includes(i.status)
     ).length;
 
     return { total, actionRequired, underReview, accepted };
@@ -97,7 +97,7 @@ export default function CustomerInquiries() {
       // 1. Status Filter
       if (statusTab === "action_needed" && inq.status !== "Quotation Sent") return false;
       if (statusTab === "under_review" && !["Pending Review", "Under Review", "Waiting for Customer", "Revision Requested"].includes(inq.status)) return false;
-      if (statusTab === "accepted" && !["Quote Accepted", "Converted to Booking"].includes(inq.status)) return false;
+      if (statusTab === "accepted" && !["Quote Accepted", "Awaiting Final Confirmation", "Converted to Booking"].includes(inq.status)) return false;
       if (statusTab === "cancelled" && !["Cancelled", "Quote Rejected", "Expired"].includes(inq.status)) return false;
 
       // 2. Service Type Filter
@@ -220,6 +220,12 @@ export default function CustomerInquiries() {
         return (
           <span className="px-3 py-1 bg-orange-100 text-orange-800 font-semibold text-xs rounded-full border border-orange-200 flex items-center gap-1.5">
             <RefreshCw className="w-3.5 h-3.5 text-orange-600" /> Revision Requested
+          </span>
+        );
+      case "Awaiting Final Confirmation":
+        return (
+          <span className="px-3 py-1 bg-purple-600 text-white font-bold text-xs rounded-full shadow-sm flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" /> Pending Final Confirmation
           </span>
         );
       case "Quote Accepted":

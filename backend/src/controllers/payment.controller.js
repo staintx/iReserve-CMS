@@ -28,7 +28,7 @@ async function convertInquiryToBooking(inquiryId, payment) {
 	const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
 	if (!inquiry) return null;
 
-	// Check if already converted to avoid duplicate booking documents
+	// If already converted, link payment to booking
 	if (inquiry.converted_booking_id) {
 		const existingBooking = await Booking.findById(inquiry.converted_booking_id);
 		if (existingBooking) {
@@ -41,121 +41,16 @@ async function convertInquiryToBooking(inquiryId, payment) {
 		}
 	}
 
-	// Find latest approved/sent quotation for this inquiry
-	const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
-
-	// Derive service_type
-	const serviceType = inquiry.service_type || (
-		inquiry.delivery_method === "setup" ? "Food and Event Setup" :
-		inquiry.event_type?.toLowerCase().includes("food delivery") ? "Food Only" : "Food and Event Setup"
-	);
-
-	// Build menu items array
-	let menuItems = [];
-	if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
-		menuItems = quotation.menu_items;
-	} else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
-		menuItems = inquiry.selected_menu.map(m => ({ name: m.name || String(m), price: m.price || 0 }));
-	}
-
-	// Build service items / add-ons array
-	let serviceItems = [];
-	if (quotation && quotation.add_ons && quotation.add_ons.length > 0) {
-		serviceItems = quotation.add_ons;
-	} else if (inquiry.service_items && inquiry.service_items.length > 0) {
-		serviceItems = inquiry.service_items;
-	}
-
-	// Additional charges from quotation fees
-	const additionalCharges = [];
-	if (quotation?.transportation_fee > 0) additionalCharges.push({ name: "Transportation Fee", amount: quotation.transportation_fee });
-	if (quotation?.equipment_fee > 0) additionalCharges.push({ name: "Equipment Rental Fee", amount: quotation.equipment_fee });
-	if (quotation?.decoration_fee > 0) additionalCharges.push({ name: "Styling & Decoration Fee", amount: quotation.decoration_fee });
-
-	// Build inventory items for reservation from Package setup_equipment
-	let inventoryItems = [];
-	if (inquiry.package_id) {
-		const pkg = await Package.findById(inquiry.package_id._id || inquiry.package_id);
-		if (pkg && pkg.setup_equipment && pkg.setup_equipment.length > 0) {
-			inventoryItems = pkg.setup_equipment.map(eq => ({
-				inventory_id: eq.inventory_id,
-				quantity: eq.quantity || 1
-			}));
-		}
-	}
-
-	const totalPrice = quotation?.total_cost || inquiry.total_price || payment?.amount || 0;
-
-	// Create the new Booking document
-	const bookingData = {
-		customer_id: inquiry.customer_id?._id || inquiry.customer_id,
-		package_id: quotation?.package_id || inquiry.package_id?._id || inquiry.package_id,
-		event_type: inquiry.event_type,
-		event_date: inquiry.event_date,
-		start_time: inquiry.start_time,
-		guest_count: quotation?.guest_count || inquiry.guest_count,
-		include_food: true,
-		venue_type: inquiry.venue_type || "Venue",
-		service_type: serviceType,
-		delivery_method: inquiry.delivery_method || "setup",
-		province: inquiry.province || "N/A",
-		municipality: inquiry.municipality || "N/A",
-		barangay: inquiry.barangay || "N/A",
-		street: inquiry.street || "",
-		landmark: inquiry.landmark || "",
-		zip_code: inquiry.zip_code || "",
-		menu_items: menuItems,
-		service_items: serviceItems,
-		additional_charges: additionalCharges,
-		special_requests: inquiry.special_requests || "",
-		dietary_restrictions: inquiry.dietary_requirements || "",
-		contact_first_name: inquiry.contact_first_name,
-		contact_last_name: inquiry.contact_last_name,
-		contact_email: inquiry.contact_email,
-		contact_phone: inquiry.contact_phone,
-		contact_alt_phone: inquiry.contact_alt_phone || "",
-		total_price: totalPrice,
-		payment_status: "deposit_paid",
-		status: "Confirmed",
-		inventory_items: inventoryItems
-	};
-
-	const newBooking = await Booking.create(bookingData);
-
-	// Update Inquiry status and converted_booking_id
-	inquiry.status = "Converted to Booking";
-	inquiry.converted_booking_id = newBooking._id;
+	// Update status to Awaiting Final Confirmation for admin manual confirmation
+	inquiry.status = "Awaiting Final Confirmation";
 	await inquiry.save();
 
-	// Update Payment object
-	if (payment) {
-		payment.booking_id = newBooking._id;
-		await payment.save();
+	const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
+	if (quotation && quotation.status !== "Converted to Booking") {
+		quotation.status = "Awaiting Final Confirmation";
+		await quotation.save();
 	}
-
-	// Generate InventoryReservation records for event date!
-	if (inventoryItems.length > 0) {
-		const reservations = inventoryItems
-			.filter(item => item.inventory_id)
-			.map(item => ({
-				inventory_id: item.inventory_id,
-				booking_id: newBooking._id,
-				event_date: newBooking.event_date,
-				quantity: item.quantity || 1
-			}));
-		if (reservations.length > 0) {
-			await InventoryReservation.insertMany(reservations);
-		}
-	}
-
-	// Send booking confirmation email
-	const fullBooking = await Booking.findById(newBooking._id).populate("customer_id");
-	const customerEmail = fullBooking?.contact_email || fullBooking?.customer_id?.email;
-	if (customerEmail) {
-		sendBookingConfirmationEmail({ booking: fullBooking, customerEmail }).catch(() => {});
-	}
-
-	return newBooking;
+	return null;
 }
 
 const syncPaymentFromGateway = async (payment) => {

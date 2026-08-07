@@ -11,6 +11,7 @@ import {
   FileText, Activity, Utensils, Send, RefreshCw
 } from "lucide-react";
 import Badge from "../../components/admin/ui/Badge";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 const DetailCard = ({ title, icon: Icon, children }) => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow duration-300">
@@ -47,6 +48,7 @@ export default function AdminQuoteDetails() {
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [showConfirmConvert, setShowConfirmConvert] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
   useEffect(() => {
@@ -200,6 +202,26 @@ export default function AdminQuoteDetails() {
           </div>
         )}
 
+        {(quote.status === "Awaiting Final Confirmation" || quote.status === "Quote Accepted") && (
+          <div className="mb-6 p-4 bg-purple-50/90 border border-purple-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-purple-600 text-white rounded-lg shadow-sm">
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-purple-950 text-sm">Customer Accepted & Awaiting Admin Final Confirmation</h4>
+                <p className="text-xs text-purple-700 mt-0.5">The customer accepted this quotation. Review final negotiations or agreements, then click below to manually convert into a confirmed reservation.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowConfirmConvert(true)}
+              className="px-5 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+            >
+              <CheckCircle2 size={15} /> Confirm & Convert to Booking
+            </button>
+          </div>
+        )}
+
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
@@ -240,8 +262,8 @@ export default function AdminQuoteDetails() {
                     <div className="space-y-2">
                       {quote.selected_menu.map((menu, i) => (
                         <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
-                          <span className="font-medium text-slate-700">{menu.name || "Menu Item"}</span>
-                          <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>
+                          <span className="font-medium text-slate-700">{menu.name || (typeof menu === 'string' ? menu : "Menu Item")}</span>
+                          {menu.price > 0 && <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>}
                         </div>
                       ))}
                     </div>
@@ -364,6 +386,28 @@ export default function AdminQuoteDetails() {
             setShowConvertModal(false);
             window.location.reload();
           }}
+        />
+      )}
+
+      {showConfirmConvert && (
+        <ConfirmDialog
+          title="Convert Quotation to Confirmed Booking"
+          message={`Are you sure you want to finalize and convert this accepted quotation into an active Reservation for ${quote.contact_first_name || 'the customer'} (${quote.event_type || 'Event'} on ${quote.event_date ? new Date(quote.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"})? This will lock the reservation date and reserve package inventory.`}
+          confirmText={submitting ? "Converting..." : "Yes, Convert to Booking"}
+          onConfirm={() => {
+            setSubmitting(true);
+            AdminAPI.createBookingFromInquiry(quote._id, {})
+              .then(() => {
+                notify("Quotation converted to booking successfully!", "success");
+                setShowConfirmConvert(false);
+                navigate("/admin/bookings/reservations");
+              })
+              .catch((err) => {
+                notify(err.response?.data?.message || "Failed to convert booking.", "error");
+              })
+              .finally(() => setSubmitting(false));
+          }}
+          onCancel={() => setShowConfirmConvert(false)}
         />
       )}
 

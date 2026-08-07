@@ -58,14 +58,16 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
   const quotation = await Quotation.findById(req.params.id).populate("inquiry_id");
   if (!quotation) return res.status(404).json({ message: "Quotation not found" });
 
-  quotation.status = "Accepted";
+  quotation.status = "Awaiting Final Confirmation";
   await quotation.save();
 
-  const inquiry = await Inquiry.findById(quotation.inquiry_id._id);
-  inquiry.status = "Quote Accepted";
-  await inquiry.save();
+  const inquiry = await Inquiry.findById(quotation.inquiry_id._id || quotation.inquiry_id);
+  if (inquiry) {
+    inquiry.status = "Awaiting Final Confirmation";
+    await inquiry.save();
+  }
 
-  res.json({ message: "Quotation accepted", quotation });
+  res.json({ message: "Quotation accepted, awaiting final admin confirmation", quotation });
 });
 
 // Customer requests revision

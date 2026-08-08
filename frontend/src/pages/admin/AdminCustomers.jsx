@@ -180,11 +180,11 @@ export default function AdminCustomers() {
           .toUpperCase();
         return (
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#D4AF37]/25 to-[#B38F24]/30 border border-[#D4AF37]/40 flex items-center justify-center text-xs font-bold text-[#8A701E] shrink-0 shadow-sm">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent/25 to-accent/40 border border-accent/40 flex items-center justify-center text-xs font-bold text-accent-foreground shrink-0 shadow-sm">
               {initials}
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-semibold text-gray-900 hover:text-[#D4AF37] transition-colors truncate">
+              <span className="text-sm font-semibold text-gray-900 hover:text-primary transition-colors truncate">
                 {c.full_name || "Unnamed Customer"}
               </span>
               <span className="text-xs text-gray-500 truncate">
@@ -204,7 +204,7 @@ export default function AdminCustomers() {
             <a
               href={`mailto:${c.email}`}
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1.5 text-gray-700 hover:text-[#D4AF37] hover:underline transition-colors"
+              className="flex items-center gap-1.5 text-gray-700 hover:text-primary hover:underline transition-colors"
             >
               <Mail size={12} className="text-gray-400 shrink-0" />
               <span className="truncate max-w-[190px]">{c.email}</span>
@@ -236,11 +236,11 @@ export default function AdminCustomers() {
         return (
           <div className="flex flex-col items-center justify-center">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              count > 0 
-                ? "bg-amber-50 text-[#8A701E] border border-[#D4AF37]/30" 
-                : "bg-gray-100 text-gray-500 border border-gray-200"
+              count > 0
+                ? "bg-accent/10 text-accent-foreground border border-accent/30"
+                : "bg-muted text-muted-foreground border border-border"
             }`}>
-              <Calendar size={12} className={count > 0 ? "text-[#D4AF37]" : "text-gray-400"} />
+              <Calendar size={12} className={count > 0 ? "text-accent" : "text-muted-foreground"} />
               {count} {count === 1 ? "booking" : "bookings"}
             </span>
           </div>
@@ -254,7 +254,7 @@ export default function AdminCustomers() {
         const amount = Number(c.spending || 0);
         return (
           <div className="flex flex-col">
-            <span className={`text-sm font-bold ${amount > 50000 ? "text-[#8A701E]" : "text-gray-900"}`}>
+            <span className={`text-sm font-bold ${amount > 50000 ? "text-accent-foreground" : "text-foreground"}`}>
               {fmt(amount)}
             </span>
             {amount > 0 && (
@@ -340,7 +340,7 @@ export default function AdminCustomers() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         {/* Header Title & Top Actions */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -359,11 +359,11 @@ export default function AdminCustomers() {
               disabled={refreshing || loading}
               className="flex items-center gap-1.5"
             >
-              <RefreshCw size={14} className={refreshing ? "animate-spin text-[#D4AF37]" : ""} />
+              <RefreshCw size={14} className={refreshing ? "animate-spin text-primary" : ""} />
               Refresh
             </Btn>
             <Btn
-              variant="gold"
+              variant="primary"
               size="sm"
               onClick={() => navigate("/admin/bookings/wizard")}
               className="flex items-center gap-1.5"
@@ -375,13 +375,13 @@ export default function AdminCustomers() {
 
         {/* Metrics Summary Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <AdminCard className="!p-4 border-l-4 border-l-[#D4AF37]">
+          <AdminCard className="!p-4 border-l-4 border-l-accent">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Customers</p>
                 <h3 className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-[#8A701E] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent-foreground flex items-center justify-center">
                 <Users size={20} />
               </div>
             </div>
@@ -466,7 +466,7 @@ export default function AdminCustomers() {
                     <select
                       value={draftStatusFilter}
                       onChange={(e) => setDraftStatusFilter(e.target.value)}
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       <option value="all">All Statuses</option>
                       <option value="active">Active Only</option>
@@ -481,7 +481,7 @@ export default function AdminCustomers() {
                       value={draftMinSpend}
                       onChange={(e) => setDraftMinSpend(e.target.value)}
                       placeholder="e.g. 50000"
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -492,7 +492,7 @@ export default function AdminCustomers() {
                       value={draftMaxSpend}
                       onChange={(e) => setDraftMaxSpend(e.target.value)}
                       placeholder="e.g. 200000"
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -503,7 +503,7 @@ export default function AdminCustomers() {
                       value={draftMinReservations}
                       onChange={(e) => setDraftMinReservations(e.target.value)}
                       placeholder="e.g. 2"
-                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -589,7 +589,7 @@ export default function AdminCustomers() {
                   </Btn>
                 )}
                 <Btn
-                  variant="gold"
+                  variant="primary"
                   size="sm"
                   onClick={() => navigate(`/admin/bookings/reservations?search=${encodeURIComponent(drawerRow.full_name || "")}`)}
                   className="flex items-center gap-1.5"
@@ -612,7 +612,7 @@ export default function AdminCustomers() {
             <div className="space-y-5">
               {/* Profile Card Header */}
               <div className="bg-gradient-to-r from-amber-50/60 to-orange-50/30 border border-amber-100 rounded-xl p-4 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#D4AF37]/30 to-[#B38F24]/40 border-2 border-[#D4AF37]/50 flex items-center justify-center text-lg font-bold text-[#8A701E] shrink-0 shadow-sm">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-accent/30 to-accent/50 border-2 border-accent/50 flex items-center justify-center text-lg font-bold text-accent-foreground shrink-0 shadow-sm">
                   {(drawerRow.full_name || "?")
                     .split(" ")
                     .map((n) => n[0])
@@ -643,7 +643,7 @@ export default function AdminCustomers() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-50 border border-gray-100 rounded-lg p-3">
                   <span className="text-[11px] font-medium text-gray-400 block">Lifetime Spend</span>
-                  <span className="text-base font-bold text-[#8A701E] mt-0.5 block">{fmt(drawerRow.spending)}</span>
+                  <span className="text-base font-bold text-accent-foreground mt-0.5 block">{fmt(drawerRow.spending)}</span>
                 </div>
                 <div className="bg-gray-50 border border-gray-100 rounded-lg p-3">
                   <span className="text-[11px] font-medium text-gray-400 block">Total Reservations</span>
@@ -659,7 +659,7 @@ export default function AdminCustomers() {
                     {drawerRow.rating ? (
                       <div className="flex items-center gap-0.5 text-xs font-bold text-gray-700">
                         {Array(5).fill(null).map((_, i) => (
-                          <Star key={i} size={12} className={i < drawerRow.rating ? "text-[#D4AF37] fill-[#D4AF37]" : "text-gray-200 fill-gray-200"} />
+                          <Star key={i} size={12} className={i < drawerRow.rating ? "text-accent fill-accent" : "text-gray-200 fill-gray-200"} />
                         ))}
                         <span className="ml-1 text-gray-600">({drawerRow.rating})</span>
                       </div>
@@ -689,7 +689,7 @@ export default function AdminCustomers() {
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(drawerRow)}
-                          className="text-xs font-semibold text-[#D4AF37] hover:underline"
+                          className="text-xs font-semibold text-primary hover:underline"
                         >
                           ({drawerRow.is_active !== false ? "Deactivate" : "Activate"})
                         </button>

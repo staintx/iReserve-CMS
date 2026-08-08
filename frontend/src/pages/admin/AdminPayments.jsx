@@ -394,8 +394,8 @@ export default function AdminPayments() {
       header: "Payment Ref",
       render: (p) => (
         <div>
-          <div className="text-xs font-mono font-bold text-[#111111] flex items-center gap-1">
-            <FileText size={12} className="text-[#D4AF37]" />
+          <div className="text-xs font-mono font-bold text-foreground flex items-center gap-1">
+            <FileText size={12} className="text-primary" />
             PAY-{p._id.slice(-6).toUpperCase()}
           </div>
           <div className="text-[11px] text-gray-400 mt-0.5">{formatDate(p.paid_at || p.createdAt)}</div>
@@ -412,7 +412,7 @@ export default function AdminPayments() {
           <div>
             {ref !== "—" ? (
               <span
-                className="inline-flex items-center gap-1 text-xs font-mono font-bold text-[#D4AF37] hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs font-mono font-bold text-primary hover:underline cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (p.booking_id?.reference) navigate(`/admin/bookings/${p.booking_id.reference}/details`);
@@ -439,11 +439,11 @@ export default function AdminPayments() {
         const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
         return (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-[#FAF7F2] border border-[#EADBAC] text-[#D4AF37] flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-[#111111] truncate">{name}</div>
+              <div className="text-xs font-semibold text-foreground truncate">{name}</div>
               <div className="text-[11px] text-gray-400 truncate">{email}</div>
             </div>
           </div>
@@ -505,7 +505,7 @@ export default function AdminPayments() {
             </button>
             <button
               onClick={() => setReceiptModalRow(p)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-[#D4AF37] hover:bg-amber-50 transition-colors"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors"
               title="Print Receipt"
             >
               <Printer size={15} />
@@ -529,11 +529,11 @@ export default function AdminPayments() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         {/* Page Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               Finance & Payments
             </h1>
             <p className="text-xs text-gray-500 mt-1">
@@ -543,14 +543,14 @@ export default function AdminPayments() {
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <Btn variant="secondary" size="sm" onClick={() => loadData(true)} className="gap-1.5">
-              <RefreshCw size={13} className={refreshing ? "animate-spin text-[#D4AF37]" : ""} />
+              <RefreshCw size={13} className={refreshing ? "animate-spin text-primary" : ""} />
               Refresh
             </Btn>
             <Btn variant="secondary" size="sm" onClick={handleExportCSV} className="gap-1.5">
               <Download size={13} />
               Export CSV
             </Btn>
-            <Btn variant="gold" size="sm" onClick={() => setRecordModalOpen(true)} className="gap-1.5">
+            <Btn variant="primary" size="sm" onClick={() => setRecordModalOpen(true)} className="gap-1.5">
               <Plus size={14} />
               Record Payment
             </Btn>
@@ -567,7 +567,7 @@ export default function AdminPayments() {
                 <DollarSign size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {fmt(stats.totalCollected)}
             </div>
             <div className="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
@@ -584,7 +584,7 @@ export default function AdminPayments() {
                 <Clock size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {fmt(stats.pendingTotal)}
             </div>
             <div className="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
@@ -604,11 +604,11 @@ export default function AdminPayments() {
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs">
                 <span className="text-gray-600 flex items-center gap-1"><CreditCard size={10} /> Online:</span>
-                <span className="font-semibold text-[#111111]">{fmt(stats.onlineTotal)}</span>
+                <span className="font-semibold text-foreground">{fmt(stats.onlineTotal)}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-gray-600 flex items-center gap-1"><Banknote size={10} /> Manual:</span>
-                <span className="font-semibold text-[#111111]">{fmt(stats.manualTotal)}</span>
+                <span className="font-semibold text-foreground">{fmt(stats.manualTotal)}</span>
               </div>
             </div>
           </AdminCard>
@@ -621,7 +621,7 @@ export default function AdminPayments() {
                 <FileText size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {fmt(stats.totalReceivables)}
             </div>
             <div className="text-[11px] text-gray-500 mt-1">
@@ -668,7 +668,7 @@ export default function AdminPayments() {
                     <select
                       value={draftMethodFilter}
                       onChange={(e) => setDraftMethodFilter(e.target.value)}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37] capitalize"
+                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary capitalize"
                     >
                       <option value="all">All Methods</option>
                       <option value="paymongo">Online (PayMongo)</option>
@@ -683,7 +683,7 @@ export default function AdminPayments() {
                     <select
                       value={draftTypeFilter}
                       onChange={(e) => setDraftTypeFilter(e.target.value)}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37] capitalize"
+                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary capitalize"
                     >
                       <option value="all">All Types</option>
                       <option value="deposit">Deposit (Downpayment)</option>
@@ -700,7 +700,7 @@ export default function AdminPayments() {
                         type="date"
                         value={draftDateRange.from}
                         onChange={(e) => setDraftDateRange((d) => ({ ...d, from: e.target.value }))}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                     <div>
@@ -709,7 +709,7 @@ export default function AdminPayments() {
                         type="date"
                         value={draftDateRange.to}
                         onChange={(e) => setDraftDateRange((d) => ({ ...d, to: e.target.value }))}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
                   </div>
@@ -800,7 +800,7 @@ export default function AdminPayments() {
                     <Btn variant="danger" size="sm" onClick={() => handleUpdateStatus(drawerRow, "rejected")} disabled={actionLoading}>
                       <XCircle size={13} /> Reject
                     </Btn>
-                    <Btn variant="gold" size="sm" onClick={() => handleUpdateStatus(drawerRow, "approved")} disabled={actionLoading}>
+                    <Btn variant="primary" size="sm" onClick={() => handleUpdateStatus(drawerRow, "approved")} disabled={actionLoading}>
                       <CheckCircle2 size={13} /> Approve Payment
                     </Btn>
                   </div>
@@ -812,12 +812,12 @@ export default function AdminPayments() {
           {drawerRow && (
             <div className="space-y-6">
               {/* Payment Summary Box */}
-              <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#EADBAC] space-y-3">
+              <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#D4AF37] uppercase tracking-wide">Transaction Amount</span>
+                  <span className="text-xs font-bold text-accent-foreground uppercase tracking-wide">Transaction Amount</span>
                   <Badge status={getStatusBadgeLabel(drawerRow.status)} />
                 </div>
-                <div style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-[#111111]">
+                <div style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-foreground">
                   {fmt(drawerRow.amount)}
                 </div>
                 <div className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
@@ -871,7 +871,7 @@ export default function AdminPayments() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-xl font-bold text-[#111111]">
+                <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-xl font-bold text-foreground">
                   Record Manual Payment
                 </h2>
                 <button onClick={() => setRecordModalOpen(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
@@ -889,7 +889,7 @@ export default function AdminPayments() {
                     value={recordForm.booking_id}
                     onChange={(e) => handleBookingSelect(e.target.value)}
                     required
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                   >
                     <option value="">-- Select Booking --</option>
                     {bookings.map((b) => (
@@ -914,7 +914,7 @@ export default function AdminPayments() {
                       placeholder="e.g. 5000"
                       value={recordForm.amount}
                       onChange={(e) => setRecordForm((prev) => ({ ...prev, amount: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                   </div>
 
@@ -923,7 +923,7 @@ export default function AdminPayments() {
                     <select
                       value={recordForm.payment_type}
                       onChange={(e) => setRecordForm((prev) => ({ ...prev, payment_type: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
                       <option value="deposit">Deposit (Downpayment)</option>
                       <option value="balance">Final Balance</option>
@@ -940,7 +940,7 @@ export default function AdminPayments() {
                     <select
                       value={recordForm.method}
                       onChange={(e) => setRecordForm((prev) => ({ ...prev, method: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
                       <option value="cash">Cash Onsite</option>
                       <option value="bank">Bank Transfer</option>
@@ -954,7 +954,7 @@ export default function AdminPayments() {
                     <select
                       value={recordForm.status}
                       onChange={(e) => setRecordForm((prev) => ({ ...prev, status: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                      className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
                       <option value="approved">Approved (Paid)</option>
                       <option value="pending">Pending Verification</option>
@@ -970,7 +970,7 @@ export default function AdminPayments() {
                     placeholder="https://..."
                     value={recordForm.proof_url}
                     onChange={(e) => setRecordForm((prev) => ({ ...prev, proof_url: e.target.value }))}
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
 
@@ -978,7 +978,7 @@ export default function AdminPayments() {
                   <Btn variant="secondary" size="sm" onClick={() => setRecordModalOpen(false)}>
                     Cancel
                   </Btn>
-                  <Btn variant="gold" size="sm" type="submit" disabled={actionLoading}>
+                  <Btn variant="primary" size="sm" type="submit" disabled={actionLoading}>
                     {actionLoading ? "Recording..." : "Save Payment"}
                   </Btn>
                 </div>
@@ -995,7 +995,7 @@ export default function AdminPayments() {
               <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Official Receipt Preview</span>
                 <div className="flex items-center gap-2">
-                  <Btn variant="gold" size="sm" onClick={() => window.print()}>
+                  <Btn variant="primary" size="sm" onClick={() => window.print()}>
                     <Printer size={13} /> Print Receipt
                   </Btn>
                   <button onClick={() => setReceiptModalRow(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
@@ -1005,10 +1005,10 @@ export default function AdminPayments() {
               </div>
 
               {/* Receipt Layout Printable Canvas */}
-              <div className="space-y-6 text-[#111111]" id="receipt-print-area">
+              <div className="space-y-6 text-foreground" id="receipt-print-area">
                 {/* Header Branding */}
                 <div className="text-center border-b border-gray-200 pb-4">
-                  <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#D4AF37]">
+                  <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-accent">
                     iReserve Events & Catering
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">Cavite, Philippines • Official Payment Voucher</p>
@@ -1018,7 +1018,7 @@ export default function AdminPayments() {
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-gray-400 block">RECEIPT NUMBER</span>
-                    <span className="font-mono font-bold text-sm text-[#111111]">
+                    <span className="font-mono font-bold text-sm text-foreground">
                       REC-{receiptModalRow._id.slice(-8).toUpperCase()}
                     </span>
                   </div>
@@ -1031,7 +1031,7 @@ export default function AdminPayments() {
                 {/* Billed To */}
                 <div className="bg-gray-50 p-4 rounded-xl space-y-1 text-xs border border-gray-100">
                   <div className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Payer Details</div>
-                  <div className="font-bold text-sm text-[#111111]">{getCustomerName(receiptModalRow)}</div>
+                  <div className="font-bold text-sm text-foreground">{getCustomerName(receiptModalRow)}</div>
                   <div className="text-gray-500">{getCustomerEmail(receiptModalRow)}</div>
                   <div className="text-gray-500 font-mono">Booking Ref: {getBookingRef(receiptModalRow)}</div>
                 </div>
@@ -1047,7 +1047,7 @@ export default function AdminPayments() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     <tr>
-                      <td className="py-3 font-semibold text-[#111111]">
+                      <td className="py-3 font-semibold text-foreground">
                         {getMilestoneLabel(receiptModalRow.payment_type)}
                       </td>
                       <td className="py-3 text-gray-600">

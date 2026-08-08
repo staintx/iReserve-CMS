@@ -16,8 +16,8 @@ export default function TableToolbar({
 }) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
-        <Search size={14} className="text-[#9CA3AF]" />
+      <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2 flex-1 min-w-48">
+        <Search size={14} className="text-muted-foreground/70" />
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -35,8 +35,8 @@ export default function TableToolbar({
               onClick={() => onQuickFilterChange(qf.value)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${
                 activeQuickFilter === qf.value
-                  ? "bg-[#111827] text-white"
-                  : "bg-gray-100 text-[#6B7280] hover:bg-gray-200"
+                  ? "bg-primary text-white"
+                  : "bg-muted text-muted-foreground hover:bg-border"
               }`}
             >
               {qf.label}

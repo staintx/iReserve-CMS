@@ -127,7 +127,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   if (loading) {
     return (
       <Modal title="Quotation Builder" onClose={onClose} className="max-w-4xl h-[80vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-[#D4AF37] rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin"></div>
       </Modal>
     );
   }
@@ -152,7 +152,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">Package Price (₱)</label>
-                  <input type="number" value={packagePrice} onChange={(e) => setPackagePrice(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-[#D4AF37] sm:text-sm transition-shadow" />
+                  <input type="number" value={packagePrice} onChange={(e) => setPackagePrice(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm transition-shadow" />
                 </div>
               </div>
             </div>
@@ -162,7 +162,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
                 <h3 className="font-bold text-slate-800 text-lg">Menu Items</h3>
-                <span className="text-xs font-semibold bg-amber-50 text-[#D4AF37] px-3 py-1 rounded-full border border-amber-200/60">
+                <span className="text-xs font-semibold bg-powder text-primary px-3 py-1 rounded-full border border-primary/20">
                   {guestCount} Pax Guest Count
                 </span>
               </div>
@@ -175,7 +175,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       type="text" 
                       value={item.name} 
                       onChange={(e) => handleMenuChange(idx, "name", e.target.value)} 
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" 
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" 
                       placeholder="Item Name" 
                     />
                     <div className="flex items-center gap-3">
@@ -185,7 +185,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                           type="number" 
                           value={item.price} 
                           onChange={(e) => handleMenuChange(idx, "price", e.target.value)} 
-                          className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" 
+                          className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" 
                           placeholder="Price / pax" 
                         />
                       </div>
@@ -205,14 +205,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               {addOns.length === 0 && <p className="text-sm text-slate-400 italic">No add-ons selected.</p>}
               {addOns.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm">
-                  <input type="text" value={item.name} onChange={(e) => handleAddOnChange(idx, "name", e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" placeholder="Add-on Name" />
+                  <input type="text" value={item.name} onChange={(e) => handleAddOnChange(idx, "name", e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Add-on Name" />
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 text-sm">x</span>
-                    <input type="number" value={item.quantity} onChange={(e) => handleAddOnChange(idx, "quantity", e.target.value)} className="w-24 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" placeholder="Qty" />
+                    <input type="number" value={item.quantity} onChange={(e) => handleAddOnChange(idx, "quantity", e.target.value)} className="w-24 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Qty" />
                   </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 text-sm">₱</span>
-                    <input type="number" value={item.price} onChange={(e) => handleAddOnChange(idx, "price", e.target.value)} className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" placeholder="Price" />
+                    <input type="number" value={item.price} onChange={(e) => handleAddOnChange(idx, "price", e.target.value)} className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Price" />
                   </div>
                 </div>
               ))}
@@ -224,17 +224,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Transportation (₱)</label>
-                <input type="number" value={transportationFee} onChange={(e) => setTransportationFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" />
+                <input type="number" value={transportationFee} onChange={(e) => setTransportationFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
               {!isFoodOnly && (
                 <>
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">Equipment (₱)</label>
-                    <input type="number" value={equipmentFee} onChange={(e) => setEquipmentFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" />
+                    <input type="number" value={equipmentFee} onChange={(e) => setEquipmentFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">Decoration (₱)</label>
-                    <input type="number" value={decorationFee} onChange={(e) => setDecorationFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" />
+                    <input type="number" value={decorationFee} onChange={(e) => setDecorationFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
                   </div>
                 </>
               )}
@@ -246,11 +246,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Taxes (₱)</label>
-                <input type="number" value={taxes} onChange={(e) => setTaxes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" />
+                <input type="number" value={taxes} onChange={(e) => setTaxes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Discounts (₱)</label>
-                <input type="number" value={discounts} onChange={(e) => setDiscounts(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" />
+                <input type="number" value={discounts} onChange={(e) => setDiscounts(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
             </div>
           </div>
@@ -260,7 +260,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Required Deposit (₱)</label>
-                <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow" />
+                <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
             </div>
           </div>
@@ -268,13 +268,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           <div className="space-y-4">
             <h3 className="font-bold text-slate-800 text-lg border-b pb-2">Notes</h3>
             <label className="block text-sm font-semibold text-slate-600 mb-1.5">Notes for Customer</label>
-            <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows="3" className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] sm:text-sm transition-shadow"></textarea>
+            <textarea value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} rows="3" className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow"></textarea>
           </div>
         </div>
 
         {/* Right Side: Summary Panel (Sticky) */}
         <div className="w-full md:w-96 bg-slate-900 text-white p-6 rounded-xl shadow-2xl flex flex-col h-full max-h-full overflow-y-auto shrink-0 border border-slate-800">
-          <div className="flex items-center gap-2 text-[#D4AF37] font-bold text-lg mb-4 pb-3 border-b border-white/10">
+          <div className="flex items-center gap-2 text-accent font-bold text-lg mb-4 pb-3 border-b border-white/10">
             <Calculator size={20} /> Quote Summary
           </div>
           
@@ -334,7 +334,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <button 
               type="submit" 
               disabled={submitting}
-              className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-slate-900 bg-[#D4AF37] rounded-lg hover:bg-[#c5a030] transition-colors shadow-lg shadow-[#D4AF37]/20 disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
             >
               {submitting ? (
                 <div className="w-4 h-4 border-2 border-slate-900/20 border-t-slate-900 rounded-full animate-spin"></div>

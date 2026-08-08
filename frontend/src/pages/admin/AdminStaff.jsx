@@ -93,16 +93,16 @@ export default function AdminStaff() {
       header: "Staff Member",
       render: (s) => (
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-[#F3F4F6] flex items-center justify-center text-xs font-bold text-[#374151] shrink-0">
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground shrink-0">
             {initials(s.full_name)}
           </div>
-          <span className="text-sm font-semibold text-[#111]">{s.full_name}</span>
+          <span className="text-sm font-semibold text-foreground">{s.full_name}</span>
         </div>
       ),
     },
-    { key: "position", header: "Position", render: (s) => <span className="text-xs text-[#374151]">{s.position || "—"}</span> },
+    { key: "position", header: "Position", render: (s) => <span className="text-xs text-foreground">{s.position || "—"}</span> },
     { key: "status", header: "Status", render: (s) => <Badge status={s.is_active ? "available" : "off"} /> },
-    { key: "events", header: "Events Handled", className: "text-center", render: (s) => <span className="text-sm font-semibold text-[#111]">{s.events_handled || 0}</span> },
+    { key: "events", header: "Events Handled", className: "text-center", render: (s) => <span className="text-sm font-semibold text-foreground">{s.events_handled || 0}</span> },
     {
       key: "actions",
       header: "Actions",
@@ -121,12 +121,12 @@ export default function AdminStaff() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Staff Management</h2>
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Staff Management</h2>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}><Calendar size={13} /> View Schedule</Btn>
-            <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Staff</Btn>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Staff</Btn>
           </div>
         </div>
 
@@ -150,7 +150,7 @@ export default function AdminStaff() {
               >
                 <div className="space-y-1.5">
                   {["all", "available", "off"].map((v) => (
-                    <label key={v} className="flex items-center gap-2 text-sm text-[#374151] capitalize cursor-pointer">
+                    <label key={v} className="flex items-center gap-2 text-sm text-foreground capitalize cursor-pointer">
                       <input
                         type="radio"
                         name="staff-status"
@@ -228,7 +228,7 @@ export default function AdminStaff() {
                 <Trash2 size={13} /> Delete
               </Btn>
               <Btn
-                variant="gold"
+                variant="primary"
                 size="sm"
                 onClick={() => {
                   const row = drawerRow;

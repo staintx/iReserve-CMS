@@ -1,3 +1,77 @@
+/* ═══════════════════════════════════════════════════════════════
+   Admin-scoped design tokens (design_updated.md)
+   Overrides the shared brand tokens from globals.css ONLY inside
+   .admin-shell (the AdminLayout root). Customer-facing pages and
+   the Manager/Staff portals use different wrapper components and
+   never see these values — CSS custom properties inherit down the
+   DOM, so this is the same technique as a `.dark` theme class.
+   ═══════════════════════════════════════════════════════════════ */
+.admin-shell {
+  --color-primary: #4C81E0;
+  --color-primary-foreground: #FFFFFF;
+  --color-accent: #C5A059;
+  --color-accent-foreground: #4A3B1F;
+  --color-border: #E2E8F0;
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: #64748B;
+  --color-foreground: #1E293B;
+  --color-background: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-ring: #4C81E0;
+}
+
+/* Page titles use Playfair Display; dense admin content stays Work Sans. */
+.admin-layout h1 {
+  font-family: var(--font-serif);
+}
+
+/* ── FullCalendar (dashboard Event Calendar) ─────────────────────
+   Replaces FullCalendar's default pale-yellow "today" highlight
+   with Powder Blue, and aligns toolbar controls to the Btn system. */
+.admin-shell .fc {
+  font-family: var(--font-sans);
+}
+
+.admin-shell .fc .fc-daygrid-day.fc-day-today,
+.admin-shell .fc .fc-timegrid-col.fc-day-today {
+  background-color: var(--color-powder);
+}
+
+.admin-shell .fc .fc-toolbar-title {
+  font-family: var(--font-serif);
+  color: var(--color-foreground);
+  font-size: 1.1rem;
+}
+
+.admin-shell .fc .fc-button-primary {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  text-transform: capitalize;
+  box-shadow: none;
+}
+
+.admin-shell .fc .fc-button-primary:hover {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.admin-shell .fc .fc-button-primary:disabled {
+  background-color: var(--color-muted-foreground);
+  border-color: var(--color-muted-foreground);
+}
+
+.admin-shell .fc .fc-button-primary:not(:disabled).fc-button-active,
+.admin-shell .fc .fc-button-primary:not(:disabled):active {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.admin-shell .fc-theme-standard td,
+.admin-shell .fc-theme-standard th,
+.admin-shell .fc-theme-standard .fc-scrollgrid {
+  border-color: var(--color-border);
+}
+
 .admin-layout {
   display: flex;
   min-height: 100vh;
@@ -38,7 +112,7 @@
 }
 
 .sidebar-links a.active {
-  background: #2C4B8A;
+  background: var(--color-primary);
   color: #fff;
 }
 
@@ -170,7 +244,7 @@
 
 .chart-bar-fill {
   height: 100%;
-  background: #b08c4d;
+  background: var(--color-primary);
   border-radius: inherit;
 }
 
@@ -229,7 +303,7 @@
 
 /* Buttons */
 .btn {
-  background: #2C4B8A;
+  background: var(--color-primary);
   color: #fff;
   padding: 6px 10px;
   border: none;
@@ -244,9 +318,9 @@
 }
 
 .btn-outline {
-  border: 1px solid #2C4B8A;
+  border: 1px solid var(--color-primary);
   background: transparent;
-  color: #2C4B8A;
+  color: var(--color-primary);
   padding: 6px 10px;
   border-radius: 6px;
 }
@@ -375,6 +449,14 @@ input.search {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   min-height: 80px;
+}
+
+.modal-body input:focus,
+.modal-body select:focus,
+.modal-body textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(76, 129, 224, 0.15);
 }
 
 .modal-body {
@@ -542,7 +624,7 @@ input.search {
 }
 
 .inv-action.edit {
-  color: #2C4B8A;
+  color: var(--color-primary);
 }
 
 .inv-action.delete {
@@ -736,9 +818,9 @@ input.search {
 }
 
 .pager button.active {
-  background: #2C4B8A;
+  background: var(--color-primary);
   color: #fff;
-  border-color: #2C4B8A;
+  border-color: var(--color-primary);
 }
 
 .pill {
@@ -915,7 +997,7 @@ input.search {
 }
 
 .package-card.active {
-  border: 2px solid #b08c4d;
+  border: 2px solid var(--color-primary);
   box-shadow: 0 10px 24px rgba(176, 140, 77, 0.22);
 }
 
@@ -1015,7 +1097,7 @@ input.search {
 }
 
 .package-card-k {
-  color: #2C4B8A;
+  color: var(--color-primary);
   font-weight: 700;
 }
 
@@ -1088,7 +1170,7 @@ input.search {
 }
 
 .pkg-action.edit {
-  color: #2C4B8A;
+  color: var(--color-primary);
 }
 
 .pkg-action.delete {
@@ -1153,7 +1235,7 @@ input.search {
 }
 
 .tile-actions .edit {
-  background: #2C4B8A;
+  background: var(--color-primary);
   color: #fff;
 }
 
@@ -1185,7 +1267,7 @@ input.search {
 }
 
 .select-card.active {
-  border-color: #b08c4d;
+  border-color: var(--color-primary);
   box-shadow: 0 8px 20px rgba(176, 140, 77, 0.18);
 }
 
@@ -1913,7 +1995,7 @@ input.search {
   gap: 8px;
   align-items: center;
   background: #eef2ff;
-  color: #2C4B8A;
+  color: var(--color-primary);
   border-radius: 10px;
   padding: 8px 10px;
   font-size: 12px;
@@ -1999,7 +2081,7 @@ input.search {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #2C4B8A;
+  color: var(--color-primary);
 }
 
 .business-info-intro {
@@ -2018,7 +2100,7 @@ input.search {
   padding: 7px 10px;
   border-radius: 999px;
   background: #eff6ff;
-  color: #2C4B8A;
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -2063,7 +2145,7 @@ input.search {
 
 .business-info-input:focus {
   outline: none;
-  border-color: #2C4B8A;
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
 }
 
@@ -2232,7 +2314,7 @@ input.search {
 
 /* Mark as Reviewed button */
 .review-btn {
-  background: linear-gradient(135deg, #2C4B8A 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #2563eb 100%);
   color: #fff;
   padding: 10px 24px;
   border: none;
@@ -2270,7 +2352,7 @@ input.search {
   font-size: 12px;
   font-weight: 600;
   background: #f0f4ff;
-  color: #2C4B8A;
+  color: var(--color-primary);
   border: 1px solid #c7d2fe;
 }
 
@@ -2303,7 +2385,7 @@ input.search {
   width: 36px;
   height: 36px;
   border: 3px solid #e5e7eb;
-  border-top-color: #2C4B8A;
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: ir-spin 0.8s linear infinite;
 }
@@ -2380,7 +2462,7 @@ input.search {
   height: 48px;
   min-width: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #2C4B8A 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #3b82f6 100%);
   color: #fff;
   font-size: 20px;
   font-weight: 800;
@@ -2414,7 +2496,7 @@ input.search {
 .ir-review-code {
   font-size: 12px;
   font-weight: 700;
-  color: #2C4B8A;
+  color: var(--color-primary);
   background: #eff6ff;
   padding: 2px 10px;
   border-radius: 6px;
@@ -2471,7 +2553,7 @@ input.search {
 }
 
 .ir-action-review {
-  background: linear-gradient(135deg, #2C4B8A 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #2563eb 100%);
   color: #fff;
   box-shadow: 0 2px 10px rgba(37, 99, 235, 0.25);
 }
@@ -2482,7 +2564,7 @@ input.search {
 }
 
 .ir-action-primary {
-  background: #2C4B8A;
+  background: var(--color-primary);
   color: #fff;
 }
 
@@ -2733,7 +2815,7 @@ input.search {
   font-size: 12px;
   font-weight: 600;
   background: #f0f4ff;
-  color: #2C4B8A;
+  color: var(--color-primary);
   border: 1px solid #c7d2fe;
 }
 
@@ -2876,8 +2958,8 @@ input.search {
 }
 
 .bd-status-step.past .bd-status-dot {
-  background: #2C4B8A;
-  border-color: #2C4B8A;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fff;
 }
 
@@ -2898,7 +2980,7 @@ input.search {
 }
 
 .bd-status-step.past .bd-status-label {
-  color: #2C4B8A;
+  color: var(--color-primary);
 }
 
 .bd-status-step.current .bd-status-label {
@@ -2915,7 +2997,7 @@ input.search {
 }
 
 .bd-status-line.past {
-  background: #2C4B8A;
+  background: var(--color-primary);
 }
 
 /* Payment records */
@@ -3189,7 +3271,7 @@ input.search {
   padding: 2px 6px;
   border: none;
   background: none;
-  color: #2C4B8A;
+  color: var(--color-primary);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -3260,7 +3342,7 @@ input.search {
   background: #e2e8f0;
 }
 .inv-pill.active {
-  background: #2C4B8A;
+  background: var(--color-primary);
   color: #fff;
   box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25);
 }
@@ -3391,7 +3473,7 @@ input.search {
   background: #e2e8f0;
   color: #0f172a;
 }
-.inv-btn-icon.edit:hover { background: #eff6ff; color: #2C4B8A; }
+.inv-btn-icon.edit:hover { background: #eff6ff; color: var(--color-primary); }
 .inv-btn-icon.delete:hover { background: #fee2e2; color: #b91c1c; }
 
 /* Modal Form Revamp */
@@ -3407,13 +3489,13 @@ input.search {
 }
 .inv-form-input:focus {
   outline: none;
-  border-color: #2C4B8A;
+  border-color: var(--color-primary);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
 }
 
 .inv-btn-primary {
-  background: linear-gradient(135deg, #2C4B8A 0%, #5C402B 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #5C402B 100%);
   color: white;
   padding: 10px 24px;
   border-radius: 12px;

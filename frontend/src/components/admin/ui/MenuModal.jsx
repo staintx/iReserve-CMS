@@ -64,7 +64,7 @@ export default function MenuModal({ item, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-in slide-in-from-right">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-[#111] text-lg">{item ? "Edit Food Menu Item" : "Add Food Menu Item"}</h2>
+          <h2 className="font-bold text-foreground text-lg">{item ? "Edit Food Menu Item" : "Add Food Menu Item"}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={20} /></button>
         </div>
 
@@ -82,7 +82,7 @@ export default function MenuModal({ item, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Item Name</label>
             <input 
               type="text" 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               placeholder="e.g. Beef Salpicao" 
               value={formData.name} 
               onChange={e => setFormData({...formData, name: e.target.value})} 
@@ -92,7 +92,7 @@ export default function MenuModal({ item, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Category</label>
             <select 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               value={formData.category} 
               onChange={e => setFormData({...formData, category: e.target.value})}
             >
@@ -110,7 +110,7 @@ export default function MenuModal({ item, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Price per pax (₱)</label>
             <input 
               type="number" 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               placeholder="0" 
               value={formData.price} 
               onChange={e => setFormData({...formData, price: e.target.value})} 
@@ -120,7 +120,7 @@ export default function MenuModal({ item, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Description</label>
             <textarea 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-20" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-20" 
               placeholder="Brief description of the dish..." 
               value={formData.description} 
               onChange={e => setFormData({...formData, description: e.target.value})} 
@@ -130,7 +130,7 @@ export default function MenuModal({ item, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Status</label>
             <select 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               value={formData.status} 
               onChange={e => setFormData({...formData, status: e.target.value})}
             >
@@ -142,7 +142,7 @@ export default function MenuModal({ item, onClose, onSave }) {
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
           <Btn variant="secondary" onClick={onClose} disabled={loading}>Cancel</Btn>
-          <Btn variant="primary" className="bg-[#1D4ED8]" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
+          <Btn variant="primary" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
         </div>
       </div>
     </div>

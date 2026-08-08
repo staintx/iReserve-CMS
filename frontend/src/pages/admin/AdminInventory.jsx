@@ -103,8 +103,8 @@ export default function AdminInventory() {
   // for — not Reservations' 6. Total stock / reserved / min stock move to
   // the drawer, which also hosts the per-item Inventory Log.
   const columns = [
-    { key: "item", header: "Item Name", render: (i) => <span className="text-sm font-semibold text-[#111]">{i.item_name}</span> },
-    { key: "category", header: "Category", className: "text-xs text-[#374151]" },
+    { key: "item", header: "Item Name", render: (i) => <span className="text-sm font-semibold text-foreground">{i.item_name}</span> },
+    { key: "category", header: "Category", className: "text-xs text-foreground" },
     { key: "available", header: "Available", className: "text-center", render: (i) => <span className="text-sm font-semibold text-emerald-600">{i.available_quantity || 0}</span> },
     { key: "status", header: "Status", render: (i) => <Badge status={i.available ? "available" : "unavailable"} /> },
     {
@@ -125,10 +125,10 @@ export default function AdminInventory() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Inventory Management</h2>
-          <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Item</Btn>
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Inventory Management</h2>
+          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Item</Btn>
         </div>
 
         <AdminCard className="!p-4">
@@ -151,7 +151,7 @@ export default function AdminInventory() {
               >
                 <div className="space-y-1.5">
                   {["all", "available", "unavailable"].map((v) => (
-                    <label key={v} className="flex items-center gap-2 text-sm text-[#374151] capitalize cursor-pointer">
+                    <label key={v} className="flex items-center gap-2 text-sm text-foreground capitalize cursor-pointer">
                       <input
                         type="radio"
                         name="inventory-availability"
@@ -232,7 +232,7 @@ export default function AdminInventory() {
                 <Trash2 size={13} /> Delete
               </Btn>
               <Btn
-                variant="gold"
+                variant="primary"
                 size="sm"
                 onClick={() => {
                   const row = drawerRow;
@@ -257,7 +257,7 @@ export default function AdminInventory() {
             </div>
 
             <div className="border-t border-gray-100 pt-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] mb-3">Inventory Log</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-3">Inventory Log</p>
               {logsLoading ? (
                 <p className="text-xs text-gray-400">Loading log…</p>
               ) : logs.length === 0 ? (
@@ -274,8 +274,8 @@ export default function AdminInventory() {
                           </span>
                         )}
                       </div>
-                      {entry.reason && <p className="text-xs text-[#374151]">{entry.reason}</p>}
-                      <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+                      {entry.reason && <p className="text-xs text-foreground">{entry.reason}</p>}
+                      <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                         {entry.actor_id?.full_name || "System"} · {new Date(entry.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                         {entry.booking_id?.reference && ` · Booking ${entry.booking_id.reference}`}
                       </p>

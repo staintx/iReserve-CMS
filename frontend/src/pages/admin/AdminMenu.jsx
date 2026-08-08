@@ -65,16 +65,16 @@ export default function AdminMenu() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Food Menu Management</h2>
-          <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Menu Item</Btn>
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Food Menu Management</h2>
+          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Menu Item</Btn>
         </div>
 
         <AdminCard className="!p-4">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
-              <Search size={14} className="text-[#9CA3AF]" />
+              <Search size={14} className="text-muted-foreground/70" />
               <input 
                 value={search} 
                 onChange={e => setSearch(e.target.value)} 
@@ -88,7 +88,7 @@ export default function AdminMenu() {
                 <button 
                   key={c} 
                   onClick={() => setFilter(c)} 
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${filter === c ? "bg-[#111827] text-white" : "bg-gray-100 text-[#6B7280] hover:bg-gray-200"}`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${filter === c ? "bg-primary text-white" : "bg-gray-100 text-muted-foreground hover:bg-gray-200"}`}
                 >
                   {c}
                 </button>
@@ -115,8 +115,8 @@ export default function AdminMenu() {
                 <div className="p-5 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h3 className="font-bold text-[#111] leading-tight mb-1">{item.name}</h3>
-                      <p className="text-xs text-[#6B7280] font-medium uppercase tracking-wider">{item.category}</p>
+                      <h3 className="font-bold text-foreground leading-tight mb-1">{item.name}</h3>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{item.category}</p>
                     </div>
                     <Badge status={item.available ? "available" : "unavailable"} />
                   </div>
@@ -126,7 +126,7 @@ export default function AdminMenu() {
                   </p>
                   
                   <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <p className="text-lg font-bold text-[#D4AF37]">{fmt(item.price)}</p>
+                    <p className="text-lg font-bold text-foreground">{fmt(item.price)}</p>
                     <div className="flex gap-2">
                       <Btn variant="secondary" size="sm" className="px-3" onClick={() => handleOpenModal(item)}>
                         <Edit3 size={13} className="mr-1.5" /> Edit

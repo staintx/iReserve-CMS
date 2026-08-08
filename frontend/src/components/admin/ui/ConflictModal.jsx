@@ -9,8 +9,8 @@ export default function ConflictModal({ onClose, onApprove }) {
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
           <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center"><AlertTriangle size={20} className="text-amber-600" /></div>
           <div>
-            <p className="font-bold text-[#111]">Conflict Detected</p>
-            <p className="text-xs text-[#6B7280]">System found issues when checking availability</p>
+            <p className="font-bold text-foreground">Conflict Detected</p>
+            <p className="text-xs text-muted-foreground">System found issues when checking availability</p>
           </div>
         </div>
         <div className="px-6 py-5 space-y-3">
@@ -25,9 +25,9 @@ export default function ConflictModal({ onClose, onApprove }) {
                 {item.status === "ok" ? <Check size={10} className="text-white" /> : <X size={10} className="text-white" />}
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#111]">{item.label}</p>
-                <p className="text-xs text-[#6B7280]">{item.detail}</p>
-                {item.alt && <p className="text-xs text-[#D4AF37] font-medium mt-0.5">💡 {item.alt}</p>}
+                <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                <p className="text-xs text-muted-foreground">{item.detail}</p>
+                {item.alt && <p className="text-xs text-primary font-medium mt-0.5">💡 {item.alt}</p>}
               </div>
             </div>
           ))}

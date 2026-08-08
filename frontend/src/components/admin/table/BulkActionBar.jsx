@@ -5,7 +5,7 @@
 export default function BulkActionBar({ count, actions = [], onClear }) {
   if (!count) return null;
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-[#111827] text-white">
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-primary text-white">
       <div className="flex items-center gap-3">
         <span className="text-xs font-semibold">{count} selected</span>
         <button type="button" onClick={onClear} className="text-xs text-gray-300 hover:text-white underline underline-offset-2">

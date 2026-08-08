@@ -89,13 +89,13 @@ export default function AdminAddons() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-[#111]" style={{ fontFamily: "Playfair Display, serif" }}>Global Addons</h2>
-            <p className="text-sm text-[#6B7280] mt-1">Manage addons available for custom bookings</p>
+            <h2 className="text-2xl font-bold text-foreground" style={{ fontFamily: "Playfair Display, serif" }}>Global Addons</h2>
+            <p className="text-sm text-muted-foreground mt-1">Manage addons available for custom bookings</p>
           </div>
-          <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}>
+          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
             <Plus size={13} /> New Addon
           </Btn>
         </div>
@@ -108,7 +108,7 @@ export default function AdminAddons() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-[#F9FAFB] border-b border-gray-100 text-[#6B7280]">
+                <thead className="bg-background border-b border-gray-100 text-muted-foreground">
                   <tr>
                     <th className="px-6 py-4 font-medium">Addon Name</th>
                     <th className="px-6 py-4 font-medium">Description</th>
@@ -121,12 +121,12 @@ export default function AdminAddons() {
                   {addons.map((addon) => (
                     <tr key={addon._id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-[#111]">{addon.name}</div>
+                        <div className="font-medium text-foreground">{addon.name}</div>
                       </td>
                       <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">
                         {addon.description || "—"}
                       </td>
-                      <td className="px-6 py-4 font-medium text-[#111]">
+                      <td className="px-6 py-4 font-medium text-foreground">
                         {fmt(addon.price)}
                       </td>
                       <td className="px-6 py-4">
@@ -140,7 +140,7 @@ export default function AdminAddons() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleOpenModal(addon)}
-                            className="p-1.5 text-gray-400 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                             title="Edit"
                           >
                             <Edit3 size={16} />
@@ -171,7 +171,7 @@ export default function AdminAddons() {
               <input
                 required
                 type="text"
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none transition-all"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Standee, Candy Corner"
@@ -184,7 +184,7 @@ export default function AdminAddons() {
                 required
                 type="number"
                 min="0"
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none transition-all"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
               />
@@ -193,7 +193,7 @@ export default function AdminAddons() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
               <textarea
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] outline-none transition-all"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 rows="3"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -204,7 +204,7 @@ export default function AdminAddons() {
             <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 cursor-pointer">
               <input
                 type="checkbox"
-                className="rounded border-gray-300 text-[#D4AF37] focus:ring-[#D4AF37]"
+                className="rounded border-gray-300 text-primary focus:ring-primary"
                 checked={formData.available}
                 onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
               />
@@ -213,7 +213,7 @@ export default function AdminAddons() {
 
             <div className="flex gap-3 pt-4 border-t border-gray-100 mt-6">
               <Btn type="button" variant="ghost" className="flex-1" onClick={handleCloseModal}>Cancel</Btn>
-              <Btn type="submit" variant="gold" className="flex-1">{activeAddon ? "Save Changes" : "Create Addon"}</Btn>
+              <Btn type="submit" variant="primary" className="flex-1">{activeAddon ? "Save Changes" : "Create Addon"}</Btn>
             </div>
           </form>
         </Modal>

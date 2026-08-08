@@ -74,7 +74,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-in slide-in-from-right">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-[#111] text-lg">{staff ? "Edit Staff Member" : "Add Staff Member"}</h2>
+          <h2 className="font-bold text-foreground text-lg">{staff ? "Edit Staff Member" : "Add Staff Member"}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={20} /></button>
         </div>
 
@@ -83,7 +83,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Full Name</label>
             <input
               type="text"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
               placeholder="e.g. Marco Dela Cruz"
               value={formData.full_name}
               onChange={e => setFormData({ ...formData, full_name: e.target.value })}
@@ -94,7 +94,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Position / Job Title</label>
             <input
               type="text"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
               placeholder="e.g. Head Chef"
               value={formData.position}
               onChange={e => setFormData({ ...formData, position: e.target.value })}
@@ -106,7 +106,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">Email</label>
               <input
                 type="email"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                 placeholder="name@email.com"
                 value={formData.email}
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
@@ -116,7 +116,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">Phone</label>
               <input
                 type="text"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                 placeholder="+63 900 000 0000"
                 value={formData.phone}
                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
@@ -129,7 +129,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">Username</label>
               <input
                 type="text"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                 placeholder="optional"
                 value={formData.username}
                 onChange={e => setFormData({ ...formData, username: e.target.value })}
@@ -139,7 +139,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">{staff ? "New Password" : "Password"}</label>
               <input
                 type="password"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                 placeholder={staff ? "Leave blank to keep current" : "Set a password"}
                 value={formData.password}
                 onChange={e => setFormData({ ...formData, password: e.target.value })}
@@ -150,7 +150,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Status</label>
             <select
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
               value={formData.is_active ? "active" : "inactive"}
               onChange={e => setFormData({ ...formData, is_active: e.target.value === "active" })}
             >
@@ -162,7 +162,7 @@ export default function StaffModal({ staff, onClose, onSave }) {
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
           <Btn variant="secondary" onClick={onClose} disabled={loading}>Cancel</Btn>
-          <Btn variant="gold" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Staff Member"}</Btn>
+          <Btn variant="primary" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Staff Member"}</Btn>
         </div>
       </div>
     </div>

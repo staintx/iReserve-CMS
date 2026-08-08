@@ -22,16 +22,16 @@ export default function AdminAnalytics() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Analytics & Reports</h2>
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Analytics & Reports</h2>
           <div className="flex gap-2">
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
-              <Calendar size={13} className="text-[#6B7280]" />
+              <Calendar size={13} className="text-muted-foreground" />
               <select
                 value={range}
                 onChange={(e) => setRange(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-[#111] focus:outline-none"
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none"
               >
                 <option>This Year</option>
                 <option>Last 6 Months</option>
@@ -47,8 +47,8 @@ export default function AdminAnalytics() {
           <AdminCard className="!p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="font-bold text-[#111]">Revenue Overview</p>
-                <p className="text-xs text-[#6B7280]">Monthly revenue from approved payments</p>
+                <p className="font-bold text-foreground">Revenue Overview</p>
+                <p className="text-xs text-muted-foreground">Monthly revenue from approved payments</p>
               </div>
             </div>
             {loading ? (
@@ -62,7 +62,7 @@ export default function AdminAnalytics() {
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} tickFormatter={v => `₱${(v/1000).toFixed(0)}k`} />
                   <Tooltip formatter={(v) => fmt(v)} contentStyle={{ borderRadius: 12, border: "1px solid #E5E7EB", fontSize: 12 }} />
-                  <Area type="monotone" dataKey="total" name="Revenue" stroke="#D4AF37" strokeWidth={2} fill="#D4AF37" fillOpacity={0.12} />
+                  <Area type="monotone" dataKey="total" name="Revenue" stroke="#4C81E0" strokeWidth={2} fill="#4C81E0" fillOpacity={0.12} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -72,8 +72,8 @@ export default function AdminAnalytics() {
           <AdminCard className="!p-5">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="font-bold text-[#111]">Bookings by Status</p>
-                <p className="text-xs text-[#6B7280]">Current distribution across all bookings</p>
+                <p className="font-bold text-foreground">Bookings by Status</p>
+                <p className="text-xs text-muted-foreground">Current distribution across all bookings</p>
               </div>
             </div>
             {loading ? (
@@ -87,7 +87,7 @@ export default function AdminAnalytics() {
                   <XAxis dataKey="status" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-                  <Bar dataKey="count" name="Bookings" fill="#111827" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="count" name="Bookings" fill="#4C81E0" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -97,8 +97,8 @@ export default function AdminAnalytics() {
         <AdminCard className="!p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="font-bold text-[#111]">Top Packages</p>
-              <p className="text-xs text-[#6B7280]">Most booked packages by volume</p>
+              <p className="font-bold text-foreground">Top Packages</p>
+              <p className="text-xs text-muted-foreground">Most booked packages by volume</p>
             </div>
           </div>
           {loading ? (
@@ -112,7 +112,7 @@ export default function AdminAnalytics() {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-                <Bar dataKey="bookings" name="Bookings" fill="#D4AF37" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="bookings" name="Bookings" fill="#64748B" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}

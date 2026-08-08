@@ -96,27 +96,33 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         {isSidebarItem ? (
+          /* Mirrors AdminSidebar's NAV_ROW so this row matches every other
+             sidebar item in height, radius, gap, type scale and states. */
           <button className={cn(
-            "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer overflow-hidden whitespace-nowrap w-full",
-            open ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            isCollapsed && "justify-center px-0 w-11 h-11 mx-auto"
+            "group relative flex items-center gap-3 rounded-md text-[13.5px] whitespace-nowrap",
+            "transition-colors duration-150 cursor-pointer outline-none",
+            "focus-visible:ring-2 focus-visible:ring-primary/40",
+            isCollapsed ? "h-10 w-10 mx-auto justify-center" : "h-10 w-full px-3",
+            open
+              ? "bg-muted text-foreground font-semibold"
+              : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
           )}>
             <div className="relative flex items-center justify-center">
-              <Bell className="w-5 h-5 shrink-0" />
+              <Bell className={cn("w-[18px] h-[18px] shrink-0", (open || unreadCount > 0) && "text-primary")} />
               {unreadCount > 0 && isCollapsed && (
-                <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-destructive text-[0px] font-bold text-destructive-foreground"></span>
+                <span className="absolute -top-1 -right-1 flex h-2 w-2 items-center justify-center rounded-full bg-destructive" />
               )}
             </div>
             {!isCollapsed && <span className="flex-1 text-left">Notifications</span>}
             {!isCollapsed && unreadCount > 0 && (
-              <span className="ml-auto bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </button>
         ) : (
-          <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:bg-accent/10 hover:text-accent">
-            <Bell className="w-5 h-5" />
+          <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:bg-powder hover:text-primary">
+            <Bell className={cn("w-5 h-5", unreadCount > 0 && "text-primary")} />
             {unreadCount > 0 && (
               <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
                 {unreadCount > 9 ? "9+" : unreadCount}
@@ -131,7 +137,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           <div className="flex items-center gap-2">
             <span className="font-semibold text-foreground">Notifications</span>
             {unreadCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
+              <span className="px-2 py-0.5 rounded-full bg-powder text-primary text-xs font-medium">
                 {unreadCount} new
               </span>
             )}
@@ -161,14 +167,14 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
                   <DropdownMenuItem
                     className={cn(
                       "flex flex-col items-start px-4 py-3.5 cursor-pointer relative transition-colors duration-150 focus:bg-muted/50 focus:text-foreground hover:bg-muted/50",
-                      item.is_read ? "opacity-75" : "bg-accent/[0.02] border-l-2 border-accent pl-[14px]"
+                      item.is_read ? "opacity-75" : "bg-powder/40 border-l-2 border-primary pl-[14px]"
                     )}
                     onClick={() => handleItemClick(item)}
                   >
                     <div className="flex w-full gap-3 pr-16">
                       <div className="mt-1 flex-shrink-0">
                         {!item.is_read ? (
-                          <Circle className="w-2 h-2 fill-accent text-accent animate-pulse" />
+                          <Circle className="w-2 h-2 fill-primary text-primary animate-pulse" />
                         ) : (
                           <div className="w-2 h-2 rounded-full border border-muted-foreground/30" />
                         )}
@@ -196,7 +202,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
         <div className="p-2 border-t border-border bg-muted/50">
           <Button 
             variant="ghost" 
-            className="w-full text-sm font-medium text-accent hover:text-accent/80 hover:bg-accent/10" 
+            className="w-full text-sm font-medium text-primary hover:text-primary-hover hover:bg-powder"
             onClick={() => { 
               setOpen(false); 
               if (onCloseSidebar) onCloseSidebar();

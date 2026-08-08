@@ -309,7 +309,7 @@ export default function AssignEquipmentModal({ booking, open, onClose, onSave })
             <Btn variant="secondary" size="sm" onClick={onClose} disabled={saving}>
               Cancel
             </Btn>
-            <Btn variant="gold" size="sm" onClick={handleSave} disabled={saving || loading}>
+            <Btn variant="primary" size="sm" onClick={handleSave} disabled={saving || loading}>
               {saving ? <><Loader2 size={13} className="animate-spin" /> Saving...</> : "Save Equipment Assignment"}
             </Btn>
           </div>

@@ -16,12 +16,12 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white text-[#374151] border border-gray-200 hover:bg-gray-50 transition-colors"
+          className="relative inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white text-foreground border border-border hover:bg-muted transition-colors"
         >
           <Filter size={13} />
           {label}
           {activeCount > 0 && (
-            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-[#111827] text-white text-[10px] font-bold">
+            <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold">
               {activeCount}
             </span>
           )}
@@ -30,14 +30,14 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
       <PopoverContent align="end" className="w-80">
         <div className="space-y-4">
           {children}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between pt-3 border-t border-border">
             <button
               type="button"
               onClick={() => {
                 onClear?.();
                 setOpen(false);
               }}
-              className="text-xs font-semibold text-[#6B7280] hover:text-[#111827]"
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground"
             >
               Clear
             </button>
@@ -47,7 +47,7 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
                 onApply?.();
                 setOpen(false);
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#111827] text-white hover:bg-[#1F2937] transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary-hover transition-colors"
             >
               Apply
             </button>

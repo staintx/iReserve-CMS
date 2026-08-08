@@ -15,16 +15,17 @@
  */
 
 /**
- * Solid amber, refined rather than a bright/harsh orange: a deeper amber-700
- * fill reads as a muted terracotta instead of a neon warning colour, and
- * white text (~5:1 contrast) is calmer here than bold near-black-on-bright.
+ * Paying is a positive financial action, so it gets semantic green rather than
+ * the brand blue (reserved for primary/navigation) or amber (reserved for
+ * "needs attention"). Emerald-700 keeps white label text at ~5.5:1 and reads
+ * as a deep, trustworthy green instead of a saturated neon one.
  */
 export const ACTION_PAY =
-  "bg-amber-700 text-white hover:bg-amber-800 focus-visible:ring-amber-700/40";
+  "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:ring-emerald-700/40";
 
-/** Outline amber for a payment action that must not outrank the primary step. */
+/** Outline green for a payment action that must not outrank the primary step. */
 export const ACTION_PAY_SECONDARY =
-  "border-amber-300 bg-card text-amber-800 hover:bg-amber-50 hover:text-amber-900";
+  "border-emerald-300 bg-card text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900";
 
 export const ACTION_MESSAGE =
   "border-purple-200 bg-card text-purple-700 hover:bg-purple-50 hover:text-purple-800";

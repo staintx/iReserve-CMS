@@ -15,7 +15,7 @@ const navItems = [
   { to: "/customer/messages", label: "Messages", desc: "Chat with our team", icon: MessageSquare }
 ];
 
-export default function CustomerDashboardLayout({ title, subtitle, children }) {
+export default function CustomerDashboardLayout({ title, subtitle, actions, children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -145,14 +145,20 @@ export default function CustomerDashboardLayout({ title, subtitle, children }) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
-          {(title || subtitle) && (
-            <div className="mb-8">
-              {title && <h1 className="text-3xl font-serif font-bold text-foreground mb-2">{title}</h1>}
-              {subtitle && <p className="text-muted-foreground text-lg">{subtitle}</p>}
-            </div>
-          )}
-          <div className="max-w-6xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-6xl">
+            {/* One page header for the whole portal: where am I, and what can I do here. */}
+            {(title || subtitle || actions) && (
+              <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                  {title && (
+                    <h1 className="font-serif text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
+                  )}
+                  {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground sm:text-base">{subtitle}</p>}
+                </div>
+                {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+              </div>
+            )}
             {children}
           </div>
         </main>

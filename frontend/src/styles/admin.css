@@ -342,7 +342,12 @@
 }
 
 /* Cards / Grid */
-:where(.grid) {
+/* Legacy default for bare `class="grid"` markup in the admin/manager/staff
+   portals. Scoped to .admin-layout: this file is loaded globally and, being
+   unlayered, it outranks Tailwind's utilities layer — unscoped it silently
+   overrode every `grid-cols-*` utility in the app, including the customer
+   portal. */
+.admin-layout :where(.grid) {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

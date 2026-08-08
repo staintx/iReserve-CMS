@@ -142,10 +142,16 @@
   margin: 40px 0;
 }
 
-:where(.grid) {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+/* Legacy default for bare `class="grid"` markup. Must stay inside
+   @layer components: unlayered CSS outranks Tailwind's utilities layer, so
+   without this the auto-fit columns silently override every `grid-cols-*`
+   utility in the app. */
+@layer components {
+  :where(.grid) {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
 }
 
 /* Customer: Packages page */

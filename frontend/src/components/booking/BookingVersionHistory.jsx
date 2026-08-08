@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Clock, RefreshCw, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatShortDate } from "../../utils/format";
+import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationDiff";
 
 /**
  * Version-oriented view of what changed between booking versions.
@@ -39,7 +40,7 @@ const actorLabel = (who) => {
   return who;
 };
 
-export default function BookingVersionHistory({ booking }) {
+export default function BookingVersionHistory({ booking, sourceQuotation = null }) {
   const pending = booking?.pending_revision;
   const hasPending =
     pending && ["pending_customer_approval", "pending_admin_approval"].includes(pending.status);
@@ -80,16 +81,62 @@ export default function BookingVersionHistory({ booking }) {
     return mapped;
   }, [booking]);
 
+  /**
+   * The quotation evolution that produced this booking.
+   *
+   * Real saved Quotation documents reached via Booking → Inquiry
+   * (converted_booking_id) → quotation versions. Each entry's diff is computed
+   * against its immediate predecessor with the same helper Quote Details uses,
+   * so nothing is reconstructed or invented. Versions with no detectable change
+   * are still listed (they exist) but simply report that.
+   */
+  const quotationVersions = useMemo(() => {
+    const all = Array.isArray(sourceQuotation?.versions) ? [...sourceQuotation.versions] : [];
+    if (all.length === 0) return [];
+
+    const ordered = all.sort(
+      (a, b) => (Number(b.version_number) || 1) - (Number(a.version_number) || 1)
+    );
+    const sourceId = String(sourceQuotation?.quotation?._id || "");
+
+    return ordered.map((q) => {
+      const previous = previousVersionOf(ordered, q);
+      const number = Number(q.version_number) || 1;
+      return {
+        key: `quote-${q._id || number}`,
+        label: `v${number}.0`,
+        at: q.updatedAt || q.createdAt,
+        isSource: String(q._id || "") === sourceId,
+        isOriginal: !previous,
+        changes: previous ? diffQuotationVersions(previous, q) : [],
+        previousLabel: previous ? `v${Number(previous.version_number) || 1}.0` : null,
+        quotationNumber: q.quotation_number,
+      };
+    });
+  }, [sourceQuotation]);
+
+  const [selectedQuoteKey, setSelectedQuoteKey] = useState(null);
+  const selectedQuote =
+    quotationVersions.find((v) => v.key === selectedQuoteKey) || quotationVersions[0] || null;
+
   const [selectedKey, setSelectedKey] = useState(versions[0]?.key || null);
   const selected = versions.find((v) => v.key === selectedKey) || versions[0] || null;
 
-  if (versions.length === 0 && !hasPending) {
+  // One empty state, chosen from what actually exists: nothing at all, or a
+  // booking that came from a quotation which was never revised.
+  const hasQuotationHistory = quotationVersions.some((v) => v.changes.length > 0);
+  if (versions.length === 0 && !hasPending && !hasQuotationHistory) {
+    const cameFromQuotation = Boolean(sourceQuotation?.quotation);
     return (
       <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-10 text-center">
         <RefreshCw className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
-        <p className="font-sans text-sm font-semibold text-foreground">No revisions yet</p>
+        <p className="font-sans text-sm font-semibold text-foreground">No changes recorded</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          This booking still matches the version you originally confirmed.
+          {cameFromQuotation
+            ? `This booking was created from ${
+                sourceQuotation.quotation.quotation_number || "the original quotation"
+              } (Version ${Number(sourceQuotation.quotation.version_number) || 1}.0) and hasn't changed since.`
+            : "This booking still matches the details you originally confirmed."}
         </p>
       </div>
     );
@@ -123,7 +170,127 @@ export default function BookingVersionHistory({ booking }) {
         </div>
       )}
 
+      {/* Quotation lineage — how this booking came to be. Labelled as
+          pre-booking so it is never mistaken for a post-conversion change. */}
+      {hasQuotationHistory && (
+        <section className="space-y-3">
+          <div>
+            <h4 className="font-sans text-sm font-semibold text-foreground">
+              Quotation history that led to this booking
+            </h4>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Changes agreed before your booking was created.
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[13rem_1fr]">
+            <div className="-mx-1 overflow-x-auto px-1 lg:mx-0 lg:overflow-visible lg:px-0">
+              <ul className="flex gap-2 lg:flex-col">
+                {quotationVersions.map((v) => {
+                  const isActive = v.key === selectedQuote?.key;
+                  return (
+                    <li key={v.key} className="shrink-0 lg:shrink">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedQuoteKey(v.key)}
+                        aria-pressed={isActive}
+                        className={cn(
+                          "w-full rounded-lg border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          isActive ? "border-primary/40 bg-powder" : "border-border bg-card hover:bg-muted"
+                        )}
+                      >
+                        <span className="flex flex-wrap items-baseline gap-x-2">
+                          <span className="font-sans text-sm font-semibold tabular-nums text-foreground">
+                            {v.label}
+                          </span>
+                          {v.isSource && (
+                            <span className="text-xs font-medium text-emerald-700">Accepted</span>
+                          )}
+                          {v.isOriginal && !v.isSource && (
+                            <span className="text-xs text-muted-foreground">Original</span>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block font-sans text-xs tabular-nums text-muted-foreground">
+                          {formatShortDate(v.at)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h5 className="font-sans text-sm font-semibold text-foreground">
+                  {selectedQuote?.isOriginal
+                    ? `Version ${selectedQuote.label.slice(1)} — first quotation`
+                    : `Changes since Version ${selectedQuote?.previousLabel?.slice(1)}`}
+                </h5>
+                {selectedQuote?.isSource && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    Booking created from this version
+                  </span>
+                )}
+              </div>
+
+              {selectedQuote?.isOriginal ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  The first quotation we sent you
+                  {selectedQuote.quotationNumber ? ` (${selectedQuote.quotationNumber})` : ""}.
+                </p>
+              ) : selectedQuote?.changes.length > 0 ? (
+                <ul className="mt-4 divide-y divide-border border-t border-border">
+                  {selectedQuote.changes.map((change, idx) => (
+                    <li
+                      key={idx}
+                      className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                    >
+                      <span className="text-sm font-medium text-foreground">
+                        {change.name ? `${change.label}: ${change.name}` : change.label}
+                      </span>
+                      {change.detail ? (
+                        <span
+                          className={cn(
+                            "shrink-0 font-sans text-sm font-medium tabular-nums",
+                            change.kind === "removed" ? "text-rose-700" : "text-emerald-700"
+                          )}
+                        >
+                          {change.detail}
+                        </span>
+                      ) : (
+                        <span className="flex shrink-0 items-baseline gap-2 font-sans text-sm tabular-nums">
+                          <span className="text-muted-foreground line-through">{change.from}</span>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+                          <span className="font-semibold text-foreground">{change.to}</span>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  No changes were recorded between this version and the previous one.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {versions.length > 0 && (
+        <div className="space-y-3">
+          {hasQuotationHistory && (
+            <div className="border-t border-border pt-5">
+              <h4 className="font-sans text-sm font-semibold text-foreground">
+                Changes after your booking was created
+              </h4>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Booking changes agreed since conversion.
+              </p>
+            </div>
+          )}
         <div className="grid gap-5 lg:grid-cols-[13rem_1fr]">
           {/* Version selector */}
           <div className="-mx-1 overflow-x-auto px-1 lg:mx-0 lg:overflow-visible lg:px-0">
@@ -240,6 +407,7 @@ export default function BookingVersionHistory({ booking }) {
               )
             )}
           </div>
+        </div>
         </div>
       )}
     </div>

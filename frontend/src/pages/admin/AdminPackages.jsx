@@ -124,21 +124,21 @@ export default function AdminPackages() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         {/* ============ HEADER ============ */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h2
               style={{ fontFamily: "Playfair Display, serif" }}
-              className="text-2xl font-bold text-[#111]"
+              className="text-2xl font-bold text-foreground"
             >
               Service Management
             </h2>
-            <p className="text-sm text-[#6B7280] mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Manage your standard packages and tier options
             </p>
           </div>
-          <Btn variant="gold" size="sm" onClick={() => handleOpenModal()}>
+          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
             <Plus size={13} /> New Package
           </Btn>
         </div>
@@ -149,7 +149,7 @@ export default function AdminPackages() {
             <div className="flex flex-col sm:flex-row gap-3">
               {/* Search */}
               <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 flex-1 max-w-md">
-                <Search size={14} className="text-[#9CA3AF] flex-shrink-0" />
+                <Search size={14} className="text-muted-foreground/70 flex-shrink-0" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -172,14 +172,14 @@ export default function AdminPackages() {
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border ${
                   hasActiveFilters || showFilters
-                    ? "bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37]"
+                    ? "bg-primary/10 border-primary text-primary"
                     : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                 }`}
               >
                 <Filter size={14} />
                 Filters
                 {hasActiveFilters && (
-                  <span className="w-2 h-2 bg-[#D4AF37] rounded-full" />
+                  <span className="w-2 h-2 bg-primary rounded-full" />
                 )}
                 <ChevronDown
                   size={14}
@@ -212,7 +212,7 @@ export default function AdminPackages() {
                     onChange={(e) =>
                       setFilters({ ...filters, event_type: e.target.value })
                     }
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
                   >
                     <option value="">All Event Types</option>
                     {EVENT_TYPES.map((type) => (
@@ -233,7 +233,7 @@ export default function AdminPackages() {
                     onChange={(e) =>
                       setFilters({ ...filters, package_type: e.target.value })
                     }
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
                   >
                     <option value="">All Package Types</option>
                     {PACKAGE_TYPES.map((type) => (
@@ -254,7 +254,7 @@ export default function AdminPackages() {
                     onChange={(e) =>
                       setFilters({ ...filters, available: e.target.value })
                     }
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] bg-white"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
                   >
                     <option value="">All Status</option>
                     <option value="true">Available</option>
@@ -269,14 +269,14 @@ export default function AdminPackages() {
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span>
                   Showing{" "}
-                  <strong className="text-[#111]">
+                  <strong className="text-foreground">
                     {filteredPackages.length}
                   </strong>{" "}
-                  of <strong className="text-[#111]">{packages.length}</strong>{" "}
+                  of <strong className="text-foreground">{packages.length}</strong>{" "}
                   packages
                 </span>
                 {hasActiveFilters && (
-                  <span className="text-xs bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                     Filtered
                   </span>
                 )}
@@ -286,7 +286,7 @@ export default function AdminPackages() {
             {/* Packages Grid */}
             {loading ? (
               <div className="text-center py-16">
-                <div className="inline-block w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin mb-3"></div>
+                <div className="inline-block w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
                 <p className="text-gray-500">Loading packages...</p>
               </div>
             ) : filteredPackages.length > 0 ? (
@@ -294,16 +294,16 @@ export default function AdminPackages() {
                 {filteredPackages.map((pkg) => (
                   <AdminCard
                     key={pkg._id}
-                    className="!p-5 hover:shadow-md transition-all duration-200 hover:border-[#D4AF37]/30 group"
+                    className="!p-5 hover:shadow-md transition-all duration-200 hover:border-primary/30 group"
                   >
                     {/* Card Header */}
                     <div className="flex justify-between items-start mb-3">
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-[#111] truncate">
+                        <h3 className="font-bold text-foreground truncate">
                           {pkg.name}
                         </h3>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-xs text-[#6B7280] font-mono">
+                          <p className="text-xs text-muted-foreground font-mono">
                             #
                             {pkg._id
                               .substring(pkg._id.length - 6)
@@ -350,12 +350,12 @@ export default function AdminPackages() {
                     {/* Pricing */}
                     <div className="mb-3">
                       {pkg.package_type === "Food Only" ? (
-                        <p className="text-lg font-bold text-[#D4AF37]">
+                        <p className="text-lg font-bold text-foreground">
                           Menu-based pricing
                         </p>
                       ) : pkg.package_type === "Event Setup Only" ? (
                         <div>
-                          <p className="text-lg font-bold text-[#D4AF37]">
+                          <p className="text-lg font-bold text-foreground">
                             {pkg.scaffold_size_options?.length > 0
                               ? `${pkg.scaffold_size_options.length} scaffold options`
                               : "No pricing set"}
@@ -374,7 +374,7 @@ export default function AdminPackages() {
                           )}
                         </div>
                       ) : (
-                        <p className="text-lg font-bold text-[#D4AF37]">
+                        <p className="text-lg font-bold text-foreground">
                           {fmt(pkg.price_per_guest)}
                           <span className="text-xs text-gray-500 font-normal">
                             /pax
@@ -385,17 +385,17 @@ export default function AdminPackages() {
 
                     {/* Inclusions */}
                     <div>
-                      <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
+                      <p className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
                         Inclusions
                       </p>
                       <ul className="space-y-1 mb-4 h-24 overflow-y-auto">
                         {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
                           <li
                             key={i}
-                            className="text-sm text-[#374151] flex items-center gap-2 truncate"
+                            className="text-sm text-foreground flex items-center gap-2 truncate"
                             title={inc}
                           >
-                            <div className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full flex-shrink-0" />
+                            <div className="w-1.5 h-1.5 bg-primary rounded-full flex-shrink-0" />
                             <span className="truncate">{inc}</span>
                           </li>
                         ))}
@@ -439,7 +439,7 @@ export default function AdminPackages() {
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search size={24} className="text-gray-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-[#111] mb-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
                   No packages found
                 </h3>
                 <p className="text-sm text-gray-500">

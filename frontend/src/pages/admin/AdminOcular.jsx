@@ -225,7 +225,7 @@ export default function AdminOcular() {
     {
       key: "id",
       header: "Booking ID",
-      render: (o) => <span className="text-xs font-mono font-bold text-[#D4AF37]">{o.id}</span>,
+      render: (o) => <span className="text-xs font-mono font-bold text-primary">{o.id}</span>,
     },
     { 
       key: "customer", 
@@ -275,12 +275,12 @@ export default function AdminOcular() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#FAFAFA] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         
         {/* Page Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               Ocular Visit Management
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -289,7 +289,7 @@ export default function AdminOcular() {
           </div>
 
           <Btn 
-            variant="gold" 
+            variant="primary" 
             size="sm"
             onClick={() => {
               setSelectedBookingId("");
@@ -423,7 +423,7 @@ export default function AdminOcular() {
             <>
               {drawerRow.status === "Requested" && (
                 <Btn 
-                  variant="gold" 
+                  variant="primary" 
                   size="sm" 
                   onClick={() => {
                     setSelectedBookingId(drawerRow._id);
@@ -437,7 +437,7 @@ export default function AdminOcular() {
               )}
 
               {drawerRow.status === "Scheduled" && (
-                <Btn variant="gold" size="sm" onClick={() => handleProceed(drawerRow._id)}>
+                <Btn variant="primary" size="sm" onClick={() => handleProceed(drawerRow._id)}>
                   <Check size={13} /> Mark Inspection Passed
                 </Btn>
               )}
@@ -522,7 +522,7 @@ export default function AdminOcular() {
 
             <DialogFooter>
               <Btn type="button" variant="secondary" onClick={() => setShowScheduleModal(false)}>Cancel</Btn>
-              <Btn type="submit" variant="gold" disabled={isSubmittingSchedule}>
+              <Btn type="submit" variant="primary" disabled={isSubmittingSchedule}>
                 {isSubmittingSchedule ? "Saving..." : "Confirm Schedule"}
               </Btn>
             </DialogFooter>

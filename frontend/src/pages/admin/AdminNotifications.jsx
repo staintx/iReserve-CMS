@@ -72,11 +72,11 @@ export default function AdminNotifications() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Notifications</h2>
-            <p className="text-sm text-[#6B7280] mt-1">{unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}</p>
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Notifications</h2>
+            <p className="text-sm text-muted-foreground mt-1">{unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}</p>
           </div>
           <Btn variant="secondary" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
             <Check size={13} /> Mark all read
@@ -85,30 +85,30 @@ export default function AdminNotifications() {
 
         <AdminCard className="!p-0 overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-gray-500 text-sm">Loading notifications...</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Loading notifications...</div>
           ) : items.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 text-sm">No notifications yet.</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">No notifications yet.</div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-border">
               {items.map((item) => (
                 <button
                   key={item._id}
                   onClick={() => handleItemClick(item)}
-                  className={`w-full text-left px-5 py-4 flex gap-3 hover:bg-gray-50 transition-colors ${!item.is_read ? "bg-[#D4AF37]/5" : ""}`}
+                  className={`w-full text-left px-5 py-4 flex gap-3 hover:bg-muted transition-colors ${!item.is_read ? "bg-powder/40" : ""}`}
                 >
                   <div className="mt-1 flex-shrink-0">
                     {!item.is_read ? (
-                      <Circle size={8} className="fill-[#D4AF37] text-[#D4AF37]" />
+                      <Circle size={8} className="fill-primary text-primary" />
                     ) : (
-                      <div className="w-2 h-2 rounded-full border border-gray-300" />
+                      <div className="w-2 h-2 rounded-full border border-border" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className={`text-sm ${!item.is_read ? "font-bold text-[#111]" : "font-semibold text-[#374151]"}`}>{item.title}</p>
-                      <span className="text-xs text-[#9CA3AF] whitespace-nowrap">{formatDate(item.createdAt)}</span>
+                      <p className={`text-sm ${!item.is_read ? "font-bold text-foreground" : "font-semibold text-foreground/80"}`}>{item.title}</p>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(item.createdAt)}</span>
                     </div>
-                    <p className="text-xs text-[#6B7280] mt-1">{item.body}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{item.body}</p>
                   </div>
                 </button>
               ))}
@@ -116,21 +116,21 @@ export default function AdminNotifications() {
           )}
 
           {!loading && total > 0 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-[#6B7280]">
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border text-xs text-muted-foreground">
               <span>Showing {startEntry}–{endEntry} of {total}</span>
               <div className="flex items-center gap-1">
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
                 >
                   <ChevronLeft size={14} />
                 </button>
-                <span className="px-2 font-semibold text-[#111]">{page} / {pages}</span>
+                <span className="px-2 font-semibold text-foreground">{page} / {pages}</span>
                 <button
                   disabled={page >= pages}
                   onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
                 >
                   <ChevronRight size={14} />
                 </button>

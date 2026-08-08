@@ -18,8 +18,8 @@ export default function AdminDashboard() {
 
   const KPIS = [
     { title: "Pending Inquiries", value: summary.pendingInquiries || "0", sub: "Awaiting review", trend: "", up: false, color: "#F59E0B" },
-    { title: "Accepted Quotes", value: summary.acceptedQuotes || "0", sub: "Awaiting deposit", trend: "", up: true, color: "#3B82F6" },
-    { title: "Upcoming Events", value: summary.upcomingEvents || "0", sub: "Next 30 days", trend: "", up: true, color: "#8B5CF6" },
+    { title: "Accepted Quotes", value: summary.acceptedQuotes || "0", sub: "Awaiting deposit", trend: "", up: true, color: "#4C81E0" },
+    { title: "Upcoming Events", value: summary.upcomingEvents || "0", sub: "Next 30 days", trend: "", up: true, color: "#4C81E0" },
     { title: "Completed Events", value: summary.completedEvents || "0", sub: "All time", trend: "", up: true, color: "#22C55E" },
   ];
 
@@ -89,16 +89,16 @@ export default function AdminDashboard() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         {/* Greeting */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-[#111]">Good Morning, System Administrator</h1>
-            <p className="text-sm text-[#6B7280] mt-1">Monday, July 22, 2025 · Here's what's happening today</p>
+            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-foreground">Good Morning, System Administrator</h1>
+            <p className="text-sm text-muted-foreground mt-1">Monday, July 22, 2025 · Here's what's happening today</p>
           </div>
           <div className="flex gap-2">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export Report</Btn>
-            <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
+            <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
           </div>
         </div>
 
@@ -113,8 +113,8 @@ export default function AdminDashboard() {
           <AdminCard className="xl:col-span-2 !p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="font-bold text-[#111]">Event Calendar</p>
-                <p className="text-xs text-[#6B7280]">View scheduled bookings and quotes</p>
+                <p className="font-bold text-foreground">Event Calendar</p>
+                <p className="text-xs text-muted-foreground">View scheduled bookings and quotes</p>
               </div>
               <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/bookings/reservations")}>Manage Bookings</Btn>
             </div>
@@ -124,40 +124,40 @@ export default function AdminDashboard() {
           <div className="space-y-5">
             <AdminCard className="!p-5">
               <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-[#111]">Upcoming Events</p>
+                <p className="font-bold text-foreground">Upcoming Events</p>
                 <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/bookings/reservations")}>All Events</Btn>
               </div>
               <div className="space-y-3">
                 {upcomingEvents.length > 0 ? (
                   upcomingEvents.map((event) => (
-                    <div key={event._id} className="rounded-2xl border border-gray-100 bg-white p-4">
-                      <p className="text-sm font-semibold text-[#111] truncate">{event.event_type || "Untitled Event"}</p>
-                      <p className="text-xs text-[#6B7280] mt-1">{formatEventDate(event.event_date)} · {event.venue || "Venue not set"}</p>
-                      <p className="text-xs text-[#9CA3AF] mt-2">{event.customer_id?.full_name || event.customer_name || "Unknown client"}</p>
+                    <div key={event._id} className="rounded-2xl border border-border bg-card p-4">
+                      <p className="text-sm font-semibold text-foreground truncate">{event.event_type || "Untitled Event"}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{formatEventDate(event.event_date)} · {event.venue || "Venue not set"}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-2">{event.customer_id?.full_name || event.customer_name || "Unknown client"}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-gray-500">No upcoming events found.</p>
+                  <p className="text-xs text-muted-foreground">No upcoming events found.</p>
                 )}
               </div>
             </AdminCard>
 
             <AdminCard className="!p-5">
               <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-[#111]">Next Ocular Visits</p>
+                <p className="font-bold text-foreground">Next Ocular Visits</p>
                 <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/bookings/ocular")}>View Oculars</Btn>
               </div>
               <div className="space-y-3">
                 {upcomingOculars.length > 0 ? (
                   upcomingOculars.map((booking) => (
-                    <div key={booking._id} className="rounded-2xl border border-gray-100 bg-white p-4">
-                      <p className="text-sm font-semibold text-[#111] truncate">{booking.customer_id?.full_name || booking.customer_name || "Unknown client"}</p>
-                      <p className="text-xs text-[#6B7280] mt-1">{formatEventDate(booking.ocular_visit?.scheduled_date || booking.ocular_visit?.date || booking.event_date)}</p>
-                      <p className="text-xs text-[#9CA3AF] mt-2">{booking.ocular_visit?.status === "scheduled" ? "Scheduled" : "Requested"} · {booking.event_type || "Event"}</p>
+                    <div key={booking._id} className="rounded-2xl border border-border bg-card p-4">
+                      <p className="text-sm font-semibold text-foreground truncate">{booking.customer_id?.full_name || booking.customer_name || "Unknown client"}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{formatEventDate(booking.ocular_visit?.scheduled_date || booking.ocular_visit?.date || booking.event_date)}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-2">{booking.ocular_visit?.status === "scheduled" ? "Scheduled" : "Requested"} · {booking.event_type || "Event"}</p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-gray-500">No upcoming ocular visits.</p>
+                  <p className="text-xs text-muted-foreground">No upcoming ocular visits.</p>
                 )}
               </div>
             </AdminCard>
@@ -166,11 +166,11 @@ export default function AdminDashboard() {
 
         <AdminCard className="!p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="font-bold text-[#111] text-sm flex items-center gap-2"><AlertTriangle size={15} className="text-amber-500" /> Inventory Alerts</p>
+            <p className="font-bold text-foreground text-sm flex items-center gap-2"><AlertTriangle size={15} className="text-amber-500" /> Inventory Alerts</p>
             <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/inventory")}>View All</Btn>
           </div>
           {inventoryAlerts.length === 0 ? (
-            <p className="text-xs text-gray-500">No inventory alerts. All stock levels are healthy.</p>
+            <p className="text-xs text-muted-foreground">No inventory alerts. All stock levels are healthy.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {inventoryAlerts.map((item) => {
@@ -179,9 +179,9 @@ export default function AdminDashboard() {
                   <div key={item._id} className={`p-3 rounded-xl border ${status === "critical" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <Badge status={status} />
-                      <span className="text-xs font-bold text-[#111]">{item.item_name}</span>
+                      <span className="text-xs font-bold text-foreground">{item.item_name}</span>
                     </div>
-                    <p className="text-xs text-[#6B7280]">Available: <strong>{item.available_quantity || 0}</strong> / Min: {item.minStock || 0}</p>
+                    <p className="text-xs text-muted-foreground">Available: <strong>{item.available_quantity || 0}</strong> / Min: {item.minStock || 0}</p>
                   </div>
                 );
               })}

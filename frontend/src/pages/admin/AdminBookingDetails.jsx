@@ -135,7 +135,7 @@ export default function AdminBookingDetails() {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="p-12 min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center space-y-3">
+        <div className="p-12 min-h-screen bg-background flex flex-col items-center justify-center space-y-3">
           <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
           <p className="text-sm font-medium text-slate-500">Loading reservation details...</p>
         </div>
@@ -146,13 +146,13 @@ export default function AdminBookingDetails() {
   if (!booking) {
     return (
       <AdminLayout>
-        <div className="p-12 min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center text-center space-y-4">
+        <div className="p-12 min-h-screen bg-background flex flex-col items-center justify-center text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-amber-500" />
           <h3 className="text-lg font-serif font-bold text-slate-900">Booking Record Not Found</h3>
           <p className="text-xs text-slate-500 max-w-sm">
             We could not locate a booking or inquiry matching ID: <code className="font-mono">{id}</code>. It may have been deleted or converted.
           </p>
-          <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/reservations")}>
+          <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/reservations")}>
             <ChevronLeft size={14} /> Return to Reservations
           </Btn>
         </div>
@@ -327,7 +327,7 @@ export default function AdminBookingDetails() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         
         {/* Top Breadcrumb & Action Navigation */}
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -355,13 +355,13 @@ export default function AdminBookingDetails() {
             </Btn>
 
             {booking.status === "inquiry" && (
-              <Btn size="sm" variant="gold" onClick={() => setShowQuoteModal(true)}>
+              <Btn size="sm" variant="primary" onClick={() => setShowQuoteModal(true)}>
                 <Send size={13} /> Send Official Quote
               </Btn>
             )}
 
             {["pending deposit", "Deposit Pending"].includes(booking.status) && (
-              <Btn size="sm" variant="gold" onClick={handleApprove}>
+              <Btn size="sm" variant="primary" onClick={handleApprove}>
                 <Check size={13} /> Confirm & Approve Booking
               </Btn>
             )}
@@ -388,7 +388,7 @@ export default function AdminBookingDetails() {
                 </p>
               </div>
             </div>
-            <Btn size="sm" variant="gold" className="shrink-0 font-bold" onClick={() => setShowProposalModal(true)}>
+            <Btn size="sm" variant="primary" className="shrink-0 font-bold" onClick={() => setShowProposalModal(true)}>
               Review Revision Deal
             </Btn>
           </div>
@@ -404,7 +404,7 @@ export default function AdminBookingDetails() {
                 <p className="text-indigo-800 mt-0.5 leading-relaxed">{booking.change_request.message}</p>
               </div>
             </div>
-            <Btn size="sm" variant="gold" className="shrink-0" onClick={() => setShowChangeModal(true)}>
+            <Btn size="sm" variant="primary" className="shrink-0" onClick={() => setShowChangeModal(true)}>
               Review Request
             </Btn>
           </div>
@@ -654,7 +654,7 @@ export default function AdminBookingDetails() {
               </p>
             </div>
             
-            <Btn size="sm" variant="gold" onClick={() => setShowEquipmentModal(true)}>
+            <Btn size="sm" variant="primary" onClick={() => setShowEquipmentModal(true)}>
               <PackagePlus size={14} /> {booking.inventory_items && booking.inventory_items.length > 0 ? "Manage / Edit Equipment" : "Assign Equipment"}
             </Btn>
           </div>
@@ -704,7 +704,7 @@ export default function AdminBookingDetails() {
                   Assign required tables, chairs, chafing dishes, audio/visual systems, or decor items for this booking date.
                 </p>
               </div>
-              <Btn size="sm" variant="gold" onClick={() => setShowEquipmentModal(true)}>
+              <Btn size="sm" variant="primary" onClick={() => setShowEquipmentModal(true)}>
                 <PackagePlus size={14} /> Assign Equipment Now
               </Btn>
             </div>
@@ -815,7 +815,7 @@ export default function AdminBookingDetails() {
 
               <DialogFooter>
                 <Btn type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Btn>
-                <Btn type="submit" variant="gold">{proposeToCustomer ? "Send Proposal" : "Apply Instantly"}</Btn>
+                <Btn type="submit" variant="primary">{proposeToCustomer ? "Send Proposal" : "Apply Instantly"}</Btn>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -855,7 +855,7 @@ export default function AdminBookingDetails() {
 
               <DialogFooter>
                 <Btn type="button" variant="secondary" onClick={() => setShowQuoteModal(false)}>Cancel</Btn>
-                <Btn type="submit" variant="gold">Send Quote</Btn>
+                <Btn type="submit" variant="primary">Send Quote</Btn>
               </DialogFooter>
             </form>
           </DialogContent>

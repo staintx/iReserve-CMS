@@ -148,22 +148,22 @@ export default function AdminInquiries() {
     {
       key: "id",
       header: "Inquiry ID",
-      render: (r) => <span className="text-xs font-mono font-bold text-[#D4AF37]">{r.id}</span>,
+      render: (r) => <span className="text-xs font-mono font-bold text-primary">{r.id}</span>,
     },
     {
       key: "customer",
       header: "Customer",
       render: (r) => (
         <div>
-          <p className="text-sm font-semibold text-[#111]">{r.customer}</p>
-          <p className="text-xs text-[#9CA3AF]">{r.email}</p>
+          <p className="text-sm font-semibold text-foreground">{r.customer}</p>
+          <p className="text-xs text-muted-foreground/70">{r.email}</p>
         </div>
       ),
     },
-    { key: "date", header: "Date", className: "text-xs text-[#374151] whitespace-nowrap" },
+    { key: "date", header: "Date", className: "text-xs text-foreground whitespace-nowrap" },
     { key: "status", header: "Status", render: (r) => <Badge status={r.status} /> },
-    { key: "eventType", header: "Event Type", className: "text-xs text-[#374151]" },
-    { key: "guests", header: "Guests", render: (r) => <span className="text-xs text-[#374151]">{r.guests} pax</span> },
+    { key: "eventType", header: "Event Type", className: "text-xs text-foreground" },
+    { key: "guests", header: "Guests", render: (r) => <span className="text-xs text-foreground">{r.guests} pax</span> },
     {
       key: "actions",
       header: "Actions",
@@ -206,7 +206,7 @@ export default function AdminInquiries() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-5 bg-background min-h-screen">
         {showConflict && (
           <ConflictModal
             onClose={() => setShowConflict(false)}
@@ -240,7 +240,7 @@ export default function AdminInquiries() {
         )}
 
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">Inquiries</h2>
+          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Inquiries</h2>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
           </div>
@@ -283,7 +283,7 @@ export default function AdminInquiries() {
                   >
                     <div className="space-y-3">
                       <div>
-                        <label className="text-xs font-semibold text-[#374151] block mb-1">From</label>
+                        <label className="text-xs font-semibold text-foreground block mb-1">From</label>
                         <input
                           type="date"
                           value={draftDateRange.from}
@@ -292,7 +292,7 @@ export default function AdminInquiries() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-[#374151] block mb-1">To</label>
+                        <label className="text-xs font-semibold text-foreground block mb-1">To</label>
                         <input
                           type="date"
                           value={draftDateRange.to}
@@ -359,7 +359,7 @@ export default function AdminInquiries() {
                     <XCircle size={13} /> Cancel inquiry
                   </Btn>
                 )}
-                <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/quotes/${drawerRow._id}/details`)}>
+                <Btn variant="primary" size="sm" onClick={() => navigate(`/admin/quotes/${drawerRow._id}/details`)}>
                   Open full details
                 </Btn>
               </>

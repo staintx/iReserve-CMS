@@ -62,7 +62,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-in slide-in-from-right">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-[#111] text-lg">{item ? "Edit Inventory Item" : "Add Inventory Item"}</h2>
+          <h2 className="font-bold text-foreground text-lg">{item ? "Edit Inventory Item" : "Add Inventory Item"}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={20} /></button>
         </div>
 
@@ -71,7 +71,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Item Name</label>
             <input 
               type="text" 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               placeholder="e.g. Round Table" 
               value={formData.item_name} 
               onChange={e => setFormData({...formData, item_name: e.target.value})} 
@@ -81,7 +81,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Category</label>
             <select 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               value={formData.category} 
               onChange={e => setFormData({...formData, category: e.target.value})}
             >
@@ -98,7 +98,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <input 
                 type="number" 
                 min="0"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
                 placeholder="0" 
                 value={formData.quantity} 
                 onChange={e => setFormData({...formData, quantity: e.target.value})} 
@@ -109,7 +109,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <input 
                 type="number" 
                 min="0"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
                 placeholder="0" 
                 value={formData.minStock} 
                 onChange={e => setFormData({...formData, minStock: e.target.value})} 
@@ -122,7 +122,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <label className="block text-sm text-gray-600 mb-1">Reason for change <span className="text-gray-400">(optional, shown in the item's log)</span></label>
               <textarea
                 rows={2}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] resize-none"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none"
                 placeholder="e.g. Restocked from supplier, damaged units written off..."
                 value={formData.reason}
                 onChange={e => setFormData({...formData, reason: e.target.value})}
@@ -133,7 +133,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Status</label>
             <select 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               value={formData.status} 
               onChange={e => setFormData({...formData, status: e.target.value})}
             >
@@ -146,7 +146,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
           <Btn variant="secondary" onClick={onClose} disabled={loading}>Cancel</Btn>
-          <Btn variant="primary" className="bg-[#1D4ED8]" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
+          <Btn variant="primary" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
         </div>
       </div>
     </div>

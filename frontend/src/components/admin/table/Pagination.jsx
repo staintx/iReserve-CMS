@@ -23,8 +23,8 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
   const endEntry = startEntry + shownCount - 1;
 
   return (
-    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2">
-      <p className="text-xs text-[#6B7280]">
+    <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted flex-wrap gap-2">
+      <p className="text-xs text-muted-foreground">
         Showing {startEntry}–{endEntry} of {total}
       </p>
       {totalPages > 1 && (
@@ -33,7 +33,7 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
             type="button"
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
-            className="p-1.5 rounded-lg text-[#6B7280] hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-border disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             aria-label="Previous page"
           >
             <ChevronLeft size={14} />
@@ -44,7 +44,7 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
               type="button"
               onClick={() => onPageChange(n)}
               className={`min-w-[26px] h-[26px] px-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                n === page ? "bg-[#111827] text-white" : "text-[#6B7280] hover:bg-gray-200"
+                n === page ? "bg-primary text-white" : "text-muted-foreground hover:bg-border"
               }`}
             >
               {n}
@@ -54,7 +54,7 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
             type="button"
             onClick={() => onPageChange(page + 1)}
             disabled={page === totalPages}
-            className="p-1.5 rounded-lg text-[#6B7280] hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-border disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
             aria-label="Next page"
           >
             <ChevronRight size={14} />

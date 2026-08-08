@@ -238,15 +238,15 @@ export default function AdminReservations() {
     {
       key: "id",
       header: "Booking ID",
-      render: (r) => <span className="text-xs font-mono font-bold text-[#D4AF37]">{r.id}</span>,
+      render: (r) => <span className="text-xs font-mono font-bold text-primary">{r.id}</span>,
     },
     {
       key: "customer",
       header: "Customer",
       render: (r) => (
         <div>
-          <p className="text-sm font-semibold text-[#111]">{r.customer}</p>
-          <p className="text-xs text-[#9CA3AF]">{r.email}</p>
+          <p className="text-sm font-semibold text-foreground">{r.customer}</p>
+          <p className="text-xs text-muted-foreground/70">{r.email}</p>
         </div>
       ),
     },
@@ -300,7 +300,7 @@ export default function AdminReservations() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         {showConflict && (
           <ConflictModal
             onClose={() => setShowConflict(false)}
@@ -336,7 +336,7 @@ export default function AdminReservations() {
         {/* Page Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               Reservations Management
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -346,7 +346,7 @@ export default function AdminReservations() {
 
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
-            <Btn variant="gold" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
+            <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
           </div>
         </div>
 
@@ -598,7 +598,7 @@ export default function AdminReservations() {
                     <XCircle size={13} /> Cancel Booking
                   </Btn>
                 )}
-                <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
+                <Btn variant="primary" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
                   Open Full Page
                 </Btn>
               </>

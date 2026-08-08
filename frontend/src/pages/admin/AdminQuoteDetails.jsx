@@ -16,7 +16,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 const DetailCard = ({ title, icon: Icon, children }) => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow duration-300">
     <div className="bg-slate-50/50 px-5 py-4 border-b border-slate-100 flex items-center gap-3">
-      <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100 text-[#D4AF37]">
+      <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-100 text-primary">
         <Icon size={18} />
       </div>
       <h3 className="font-bold text-slate-800 text-lg tracking-tight">{title}</h3>
@@ -29,7 +29,7 @@ const DetailCard = ({ title, icon: Icon, children }) => (
 
 const DetailRow = ({ icon: Icon, label, value, children }) => (
   <div className="flex gap-4 items-start group">
-    <div className="mt-0.5 text-slate-400 group-hover:text-[#D4AF37] transition-colors">
+    <div className="mt-0.5 text-slate-400 group-hover:text-primary transition-colors">
       <Icon size={16} />
     </div>
     <div className="flex-1">
@@ -71,7 +71,7 @@ export default function AdminQuoteDetails() {
     return (
       <AdminLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#D4AF37] rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-primary rounded-full animate-spin"></div>
           <p className="text-slate-500 font-medium animate-pulse">Loading inquiry details...</p>
         </div>
       </AdminLayout>
@@ -131,7 +131,7 @@ export default function AdminQuoteDetails() {
             )}
             {quote.converted_booking_id && (
               <button 
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#D4AF37] text-white text-sm font-semibold rounded-lg hover:bg-[#C5A030] shadow-md shadow-[#D4AF37]/20 transition-all hover:-translate-y-0.5"
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-hover shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5"
                 onClick={() => navigate(`/admin/bookings/${quote.converted_booking_id}/details`)}
               >
                 <CheckCircle2 size={16} />
@@ -175,7 +175,7 @@ export default function AdminQuoteDetails() {
             </div>
             <button
               onClick={() => setShowConvertModal(true)}
-              className="px-4 py-2 bg-[#D4AF37] hover:bg-[#c5a030] text-slate-900 text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
+              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
             >
               Build Quotation
             </button>
@@ -352,7 +352,7 @@ export default function AdminQuoteDetails() {
               <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
               
               <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-                <Activity size={18} className="text-[#D4AF37]" /> Next Steps
+                <Activity size={18} className="text-primary" /> Next Steps
               </h3>
               <p className="text-sm text-slate-300 mb-5 leading-relaxed">
                 Review the customer's requirements thoroughly before generating their formal quotation.

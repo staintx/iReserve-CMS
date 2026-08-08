@@ -53,7 +53,7 @@ export default function DataTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full" style={{ minWidth, fontFamily: "Inter, sans-serif" }}>
-        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+        <thead className="bg-muted border-b border-border sticky top-0 z-10">
           <tr>
             {selectable && (
               <th className="w-10 px-4 py-3">
@@ -68,17 +68,17 @@ export default function DataTable({
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`px-4 py-3 text-left text-xs font-bold text-[#6B7280] uppercase tracking-wider whitespace-nowrap ${col.headerClassName || ""}`}
+                className={`px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap ${col.headerClassName || ""}`}
               >
                 {col.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-border">
           {loading ? (
             <tr>
-              <td colSpan={colCount} className="text-center py-10 text-sm text-gray-500">
+              <td colSpan={colCount} className="text-center py-10 text-sm text-muted-foreground">
                 Loading…
               </td>
             </tr>
@@ -91,8 +91,8 @@ export default function DataTable({
           ) : rows.length === 0 ? (
             <tr>
               <td colSpan={colCount} className="text-center py-10">
-                <p className="text-sm text-gray-500">{emptyTitle}</p>
-                {emptyHint && <p className="text-xs text-gray-400 mt-1">{emptyHint}</p>}
+                <p className="text-sm text-muted-foreground">{emptyTitle}</p>
+                {emptyHint && <p className="text-xs text-muted-foreground/70 mt-1">{emptyHint}</p>}
               </td>
             </tr>
           ) : (
@@ -104,7 +104,7 @@ export default function DataTable({
                   key={id}
                   onClick={handleRowClick(row)}
                   className={`transition-colors ${onRowClick ? "cursor-pointer" : ""} ${
-                    selected ? "bg-blue-50/60" : rowHighlight?.(row) ? "bg-emerald-50" : "hover:bg-gray-50"
+                    selected ? "bg-powder/50" : rowHighlight?.(row) ? "bg-emerald-50" : "hover:bg-muted"
                   }`}
                 >
                   {selectable && (

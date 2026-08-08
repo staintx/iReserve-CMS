@@ -31,6 +31,11 @@
   --color-input: #F7F4EE;
   --color-ring: #2C4B8A;
 
+  /* ── Admin-only tokens (scoped via .admin-shell in admin.css;
+       declared here only so Tailwind generates the utility classes) ── */
+  --color-primary-hover: #3F70C7;
+  --color-powder: #D6E4F7;
+
   /* ── Named brand colors ─────────────────────────────────── */
   --color-brown-dark: #5C402B;
   --color-brown-medium: #7B583C;

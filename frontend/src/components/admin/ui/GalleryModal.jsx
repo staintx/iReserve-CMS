@@ -59,7 +59,7 @@ export default function GalleryModal({ item, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-in slide-in-from-right">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-[#111] text-lg">{item ? "Edit Gallery Item" : "Add Gallery Item"}</h2>
+          <h2 className="font-bold text-foreground text-lg">{item ? "Edit Gallery Item" : "Add Gallery Item"}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={20} /></button>
         </div>
 
@@ -77,7 +77,7 @@ export default function GalleryModal({ item, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Title / Caption</label>
             <input 
               type="text" 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               placeholder="e.g. Elegant Wedding Setup" 
               value={formData.title} 
               onChange={e => setFormData({...formData, title: e.target.value})} 
@@ -87,7 +87,7 @@ export default function GalleryModal({ item, onClose, onSave }) {
           <div>
             <label className="block text-sm text-gray-600 mb-1">Category</label>
             <select 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
               value={formData.category} 
               onChange={e => setFormData({...formData, category: e.target.value})}
             >
@@ -101,7 +101,7 @@ export default function GalleryModal({ item, onClose, onSave }) {
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
           <Btn variant="secondary" onClick={onClose} disabled={loading}>Cancel</Btn>
-          <Btn variant="primary" className="bg-[#1D4ED8]" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
+          <Btn variant="primary" onClick={handleSubmit} disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
         </div>
       </div>
     </div>

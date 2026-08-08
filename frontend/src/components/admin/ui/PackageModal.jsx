@@ -298,7 +298,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       <div className="bg-white w-full max-w-2xl h-full flex flex-col shadow-2xl animate-in slide-in-from-right overflow-hidden">
         {/* ============ HEADER ============ */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-[#111] text-lg">
+          <h2 className="font-bold text-foreground text-lg">
             {pkg ? "Edit Package" : "Add New Package"}
           </h2>
           <button
@@ -313,7 +313,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           {/* SECTION 1: Package Identity */}
           <section>
-            <h3 className="font-bold text-[#111] mb-4">Package Identity</h3>
+            <h3 className="font-bold text-foreground mb-4">Package Identity</h3>
             <div className="grid grid-cols-2 gap-4">
               {/* Package Name */}
               <div className="col-span-2">
@@ -322,7 +322,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 </label>
                 <input
                   type="text"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   placeholder="Birthday Package 1"
                   value={formData.name}
                   onChange={(e) =>
@@ -337,7 +337,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   Package Type <span className="text-red-400">*</span>
                 </label>
                 <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   value={formData.package_type}
                   onChange={(e) =>
                     setFormData({ ...formData, package_type: e.target.value })
@@ -355,7 +355,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   Event Type <span className="text-red-400">*</span>
                 </label>
                 <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   value={formData.event_type}
                   onChange={(e) =>
                     setFormData({ ...formData, event_type: e.target.value })
@@ -374,7 +374,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
               {/* Availability Toggle */}
               <div className="col-span-2 flex items-center justify-between bg-gray-50 border border-gray-100 p-4 rounded-xl">
                 <div>
-                  <p className="font-semibold text-[#111]">
+                  <p className="font-semibold text-foreground">
                     Availability Status
                   </p>
                   <p className="text-xs text-gray-500">
@@ -401,7 +401,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
           {/* SECTION 2: Guest & Pricing */}
           <section>
-            <h3 className="font-bold text-[#111] mb-4">
+            <h3 className="font-bold text-foreground mb-4">
               Guest Capacity & Pricing
             </h3>
             <div className="grid grid-cols-2 gap-4">
@@ -414,7 +414,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   <input
                     type="number"
                     min="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                     placeholder="e.g. 50"
                     value={formData.guest_min}
                     onChange={(e) =>
@@ -433,7 +433,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   <input
                     type="number"
                     min="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                     placeholder="150"
                     value={formData.guest_max}
                     onChange={(e) => {
@@ -480,7 +480,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     <input
                       type="number"
                       min="0"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37]"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                       placeholder="e.g. 1500"
                       value={formData.price_per_guest}
                       onChange={(e) => {
@@ -502,14 +502,14 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
           {/* SECTION 3: Descriptions */}
           <section>
-            <h3 className="font-bold text-[#111] mb-4">Descriptions</h3>
+            <h3 className="font-bold text-foreground mb-4">Descriptions</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">
                   Short Description <span className="text-red-400">*</span>
                 </label>
                 <textarea
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-20"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-20"
                   placeholder="Brief summary for package cards (1-2 sentences)"
                   value={formData.description}
                   onChange={(e) =>
@@ -522,7 +522,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   Full Description
                 </label>
                 <textarea
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] h-32"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-32"
                   placeholder="Detailed description of what this package includes"
                   value={formData.fullDescription}
                   onChange={(e) =>
@@ -540,7 +540,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
           {(formData.package_type === "Food Only" ||
             formData.package_type === "Food + Event Setup") && (
             <section>
-              <h3 className="font-bold text-[#111] mb-4">Food Menu</h3>
+              <h3 className="font-bold text-foreground mb-4">Food Menu</h3>
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
                 <label className="block text-sm font-semibold text-gray-800 mb-1">
                   Selected Menu Items
@@ -578,7 +578,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                         className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
                       >
                         <span className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 bg-[#D4AF37] rounded-full" />
+                          <span className="w-1.5 h-1.5 bg-primary rounded-full" />
                           {getMenuItemName(mId)}
                         </span>
                         <button
@@ -601,7 +601,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
           {/* SECTION 5: Services, Inclusions & Add-ons */}
           <section>
-            <h3 className="font-bold text-[#111] mb-4">
+            <h3 className="font-bold text-foreground mb-4">
               Services, Inclusions & Add-ons
             </h3>
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-6">
@@ -756,7 +756,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
           {/* SECTION 6: Event Setup (Setup packages only) */}
           {formData.package_type === "Event Setup Only" && (
             <section>
-              <h3 className="font-bold text-[#111] mb-4">
+              <h3 className="font-bold text-foreground mb-4">
                 Event Setup Configuration
               </h3>
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-6">
@@ -968,7 +968,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                                     opt._id || opt.id || idx,
                                   )
                                 }
-                                className="accent-[#D4AF37]"
+                                className="accent-primary"
                               />
                               <div>
                                 <div className="font-medium text-sm">
@@ -976,7 +976,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                                     `${opt.width_ft}ft × ${opt.length_ft}ft`}
                                   {!formData.default_scaffold_option_id &&
                                     idx === 0 && (
-                                      <span className="ml-2 text-xs bg-[#D4AF37] text-white px-2 py-0.5 rounded-full">
+                                      <span className="ml-2 text-xs bg-primary text-white px-2 py-0.5 rounded-full">
                                         Default
                                       </span>
                                     )}
@@ -994,7 +994,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                                   {(opt.guest_min || opt.guest_max) && (
                                     <>
                                       <span>·</span>
-                                      <span className="text-[#D4AF37] font-medium">
+                                      <span className="text-primary font-medium">
                                         👥 {opt.guest_min || 0} -{" "}
                                         {opt.guest_max || "∞"} guests
                                       </span>
@@ -1030,11 +1030,11 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
           {/* SECTION 7: Media Upload */}
           <section>
-            <h3 className="font-bold text-[#111] mb-4">Media</h3>
+            <h3 className="font-bold text-foreground mb-4">Media</h3>
             <div className="space-y-4">
               {/* Cover Image */}
               <div>
-                <label className="block text-sm font-semibold text-[#111] mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Cover Image
                 </label>
                 <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
@@ -1065,7 +1065,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
               {/* Gallery Images */}
               <div>
-                <label className="block text-sm font-semibold text-[#111] mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Gallery Images
                 </label>
                 <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
@@ -1107,7 +1107,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
           </Btn>
           <Btn
             variant="primary"
-            className="bg-[#1D4ED8]"
             onClick={handleSubmit}
             disabled={loading}
           >

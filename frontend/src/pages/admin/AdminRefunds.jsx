@@ -330,7 +330,7 @@ export default function AdminRefunds() {
       render: (r) => (
         <div>
           <span
-            className="text-xs font-mono font-bold text-[#D4AF37] hover:underline cursor-pointer flex items-center gap-1"
+            className="text-xs font-mono font-bold text-primary hover:underline cursor-pointer flex items-center gap-1"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/admin/bookings/${r._id}/details`);
@@ -350,11 +350,11 @@ export default function AdminRefunds() {
         const initials = r.customerName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
         return (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-[#FAF7F2] border border-[#EADBAC] text-[#D4AF37] flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-[#111111] truncate">{r.customerName}</div>
+              <div className="text-xs font-semibold text-foreground truncate">{r.customerName}</div>
               <div className="text-[11px] text-gray-400 truncate">{r.customerEmail}</div>
             </div>
           </div>
@@ -406,7 +406,7 @@ export default function AdminRefunds() {
           {r.status === "approved" && (
             <button
               onClick={() => setVoucherModalRow(r)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-[#D4AF37] hover:bg-amber-50 transition-colors"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors"
               title="Print Refund Voucher"
             >
               <Printer size={15} />
@@ -430,7 +430,7 @@ export default function AdminRefunds() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         {/* Top Breadcrumb & Page Title */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -439,16 +439,16 @@ export default function AdminRefunds() {
                 Finance
               </span>
               <ChevronRight size={12} className="mx-1.5 text-gray-400" />
-              <span className="text-[#111111] font-semibold">Refund Queue</span>
+              <span className="text-foreground font-semibold">Refund Queue</span>
             </div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               Refund Requests & Cancellation Settlements
             </h1>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <Btn variant="secondary" size="sm" onClick={() => loadData(true)} className="gap-1.5">
-              <RefreshCw size={13} className={refreshing ? "animate-spin text-[#D4AF37]" : ""} />
+              <RefreshCw size={13} className={refreshing ? "animate-spin text-primary" : ""} />
               Refresh
             </Btn>
             <Btn variant="secondary" size="sm" onClick={handleExportCSV} className="gap-1.5">
@@ -468,7 +468,7 @@ export default function AdminRefunds() {
                 <RotateCcw size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {fmt(stats.totalDisbursed)}
             </div>
             <div className="text-[11px] text-gray-500 mt-1">
@@ -484,7 +484,7 @@ export default function AdminRefunds() {
                 <Clock size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {fmt(stats.pendingAmount)}
             </div>
             <div className="text-[11px] text-amber-700 font-semibold mt-1 flex items-center gap-1">
@@ -501,7 +501,7 @@ export default function AdminRefunds() {
                 <XCircle size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {stats.totalRequests}
             </div>
             <div className="text-[11px] text-gray-500 mt-1">
@@ -517,7 +517,7 @@ export default function AdminRefunds() {
                 <CheckCircle2 size={16} />
               </div>
             </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111111]">
+            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               {stats.noRefundCount}
             </div>
             <div className="text-[11px] text-gray-500 mt-1">
@@ -557,7 +557,7 @@ export default function AdminRefunds() {
                       type="date"
                       value={draftDateRange.from}
                       onChange={(e) => setDraftDateRange((d) => ({ ...d, from: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -566,7 +566,7 @@ export default function AdminRefunds() {
                       type="date"
                       value={draftDateRange.to}
                       onChange={(e) => setDraftDateRange((d) => ({ ...d, to: e.target.value }))}
-                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                      className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -623,13 +623,13 @@ export default function AdminRefunds() {
                     <Btn variant="danger" size="sm" onClick={() => handleDenyRefund(drawerRow)} disabled={actionLoading}>
                       <XCircle size={13} /> Deny Refund (₱0)
                     </Btn>
-                    <Btn variant="gold" size="sm" onClick={() => handleOpenCalc(drawerRow)}>
+                    <Btn variant="primary" size="sm" onClick={() => handleOpenCalc(drawerRow)}>
                       <Calculator size={13} /> Calculate & Approve
                     </Btn>
                   </div>
                 )}
                 {drawerRow.status === "approved" && (
-                  <Btn variant="gold" size="sm" onClick={() => setVoucherModalRow(drawerRow)}>
+                  <Btn variant="primary" size="sm" onClick={() => setVoucherModalRow(drawerRow)}>
                     <Printer size={13} /> Print Voucher
                   </Btn>
                 )}
@@ -640,15 +640,15 @@ export default function AdminRefunds() {
           {drawerRow && (
             <div className="space-y-6">
               {/* Financial Highlight Box */}
-              <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#EADBAC] space-y-3">
+              <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#D4AF37] uppercase tracking-wide">Deposit Received</span>
+                  <span className="text-xs font-bold text-accent-foreground uppercase tracking-wide">Deposit Received</span>
                   <Badge status={getStatusBadgeType(drawerRow.status)} />
                 </div>
-                <div style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-[#111111]">
+                <div style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-foreground">
                   {fmt(drawerRow.totalPaid)}
                 </div>
-                <div className="text-xs text-gray-600 flex items-center justify-between border-t border-[#EADBAC]/60 pt-2">
+                <div className="text-xs text-gray-600 flex items-center justify-between border-t border-accent/30 pt-2">
                   <span>Refund Disbursed:</span>
                   <span className="font-bold text-red-600">{fmt(drawerRow.totalRefunded)}</span>
                 </div>
@@ -695,13 +695,13 @@ export default function AdminRefunds() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden space-y-5 animate-in fade-in zoom-in duration-150">
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-[#FAF7F2]">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-accent/10">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#D4AF37]/15 rounded-xl flex items-center justify-center text-[#D4AF37]">
+                  <div className="w-10 h-10 bg-accent/15 rounded-xl flex items-center justify-center text-accent-foreground">
                     <Calculator size={20} />
                   </div>
                   <div>
-                    <h3 style={{ fontFamily: "Playfair Display, serif" }} className="font-bold text-[#111111] text-lg">
+                    <h3 style={{ fontFamily: "Playfair Display, serif" }} className="font-bold text-foreground text-lg">
                       Calculate & Approve Refund
                     </h3>
                     <p className="text-xs text-gray-500">Booking {activeRefund.bookingRef} • {activeRefund.customerName}</p>
@@ -748,7 +748,7 @@ export default function AdminRefunds() {
                         onClick={() => setCalcPct(preset.pct)}
                         className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
                           calcPct === preset.pct
-                            ? "bg-[#D4AF37] text-white border-[#D4AF37] shadow-sm"
+                            ? "bg-primary text-white border-primary shadow-sm"
                             : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
                         }`}
                       >
@@ -766,23 +766,23 @@ export default function AdminRefunds() {
                       step="5"
                       value={calcPct}
                       onChange={(e) => setCalcPct(parseInt(e.target.value))}
-                      className="flex-1 accent-[#D4AF37] cursor-pointer"
+                      className="flex-1 accent-primary cursor-pointer"
                     />
-                    <span className="font-bold text-[#111111] w-14 text-right text-sm bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                    <span className="font-bold text-foreground w-14 text-right text-sm bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
                       {calcPct}%
                     </span>
                   </div>
                 </div>
 
                 {/* Dynamic Calculation Outcome Box */}
-                <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#EADBAC] space-y-2">
+                <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-xs text-gray-700 uppercase tracking-wider">Refund Disbursed to Customer</span>
                     <span className="text-2xl font-bold text-red-600">
                       {fmt((activeRefund.totalPaid * calcPct) / 100)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-gray-600 pt-1 border-t border-[#EADBAC]/60">
+                  <div className="flex justify-between items-center text-xs text-gray-600 pt-1 border-t border-accent/30">
                     <span>Retained Cancellation Fee:</span>
                     <span className="font-semibold text-gray-800">
                       {fmt((activeRefund.totalPaid * (100 - calcPct)) / 100)}
@@ -807,7 +807,7 @@ export default function AdminRefunds() {
                     value={refundReason}
                     onChange={(e) => setRefundReason(e.target.value)}
                     placeholder="Enter reason for deduction or refund note..."
-                    className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50"
+                    className="w-full text-xs border border-gray-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
               </div>
@@ -821,7 +821,7 @@ export default function AdminRefunds() {
                   <Btn variant="secondary" size="sm" onClick={() => setShowCalcModal(false)}>
                     Cancel
                   </Btn>
-                  <Btn variant="gold" size="sm" onClick={handleApproveRefund} disabled={actionLoading}>
+                  <Btn variant="primary" size="sm" onClick={handleApproveRefund} disabled={actionLoading}>
                     {actionLoading ? "Processing..." : "Approve Refund"}
                   </Btn>
                 </div>
@@ -838,7 +838,7 @@ export default function AdminRefunds() {
               <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Refund Voucher Preview</span>
                 <div className="flex items-center gap-2">
-                  <Btn variant="gold" size="sm" onClick={() => window.print()}>
+                  <Btn variant="primary" size="sm" onClick={() => window.print()}>
                     <Printer size={13} /> Print Voucher
                   </Btn>
                   <button onClick={() => setVoucherModalRow(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
@@ -848,10 +848,10 @@ export default function AdminRefunds() {
               </div>
 
               {/* Printable Canvas */}
-              <div className="space-y-6 text-[#111111]">
+              <div className="space-y-6 text-foreground">
                 {/* Branding Header */}
                 <div className="text-center border-b border-gray-200 pb-4">
-                  <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#D4AF37]">
+                  <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-accent">
                     iReserve Events & Catering
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">Cavite, Philippines • Official Refund Voucher</p>
@@ -861,7 +861,7 @@ export default function AdminRefunds() {
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-gray-400 block">VOUCHER REF</span>
-                    <span className="font-mono font-bold text-sm text-[#111111]">
+                    <span className="font-mono font-bold text-sm text-foreground">
                       RFD-{voucherModalRow._id.slice(-8).toUpperCase()}
                     </span>
                   </div>
@@ -874,7 +874,7 @@ export default function AdminRefunds() {
                 {/* Payee Details */}
                 <div className="bg-gray-50 p-4 rounded-xl space-y-1 text-xs border border-gray-100">
                   <div className="font-bold text-gray-400 uppercase tracking-wider text-[10px]">Recipient (Customer)</div>
-                  <div className="font-bold text-sm text-[#111111]">{voucherModalRow.customerName}</div>
+                  <div className="font-bold text-sm text-foreground">{voucherModalRow.customerName}</div>
                   <div className="text-gray-500">{voucherModalRow.customerEmail} • {voucherModalRow.customerPhone}</div>
                   <div className="text-gray-500 font-mono">Booking Ref: {voucherModalRow.bookingRef}</div>
                 </div>
@@ -893,7 +893,7 @@ export default function AdminRefunds() {
                       <td className="py-2.5 text-right font-semibold text-gray-800">{fmt(voucherModalRow.totalPaid)}</td>
                     </tr>
                     <tr>
-                      <td className="py-2.5 font-semibold text-[#111111]">Net Refund Disbursed</td>
+                      <td className="py-2.5 font-semibold text-foreground">Net Refund Disbursed</td>
                       <td className="py-2.5 text-right font-bold text-red-600 text-sm">{fmt(voucherModalRow.totalRefunded)}</td>
                     </tr>
                   </tbody>

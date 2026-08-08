@@ -37,7 +37,6 @@ export default function AdminEventCalendar() {
 
   return (
     <div className="admin-calendar-panel">
-      <h3>Event Scheduling Management</h3>
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"

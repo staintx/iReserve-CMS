@@ -160,7 +160,7 @@ export default function AdminBookingsHistory() {
     {
       key: "id",
       header: "Event Ref",
-      render: (r) => <span className="text-xs font-mono font-bold text-[#D4AF37]">{r.id}</span>,
+      render: (r) => <span className="text-xs font-mono font-bold text-primary">{r.id}</span>,
     },
     {
       key: "customer",
@@ -222,12 +222,12 @@ export default function AdminBookingsHistory() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#F9FAFB] min-h-screen">
+      <div className="p-6 space-y-6 bg-background min-h-screen">
         
         {/* Page Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-[#111]">
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
               Event History Archive
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -355,7 +355,7 @@ export default function AdminBookingsHistory() {
                 <Btn variant="secondary" size="sm" onClick={() => window.print()}>
                   <Printer size={13} /> Print Summary
                 </Btn>
-                <Btn variant="gold" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
+                <Btn variant="primary" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
                   Open Full Page
                 </Btn>
               </>

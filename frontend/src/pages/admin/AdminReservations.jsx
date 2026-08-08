@@ -35,6 +35,7 @@ import DrawerField from "../../components/admin/table/DrawerField";
 import BulkActionBar from "../../components/admin/table/BulkActionBar";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
+import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 
 export default function AdminReservations() {
   const navigate = useNavigate();
@@ -57,7 +58,11 @@ export default function AdminReservations() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "confirmed", "pending deposit", "change requests", "completed", "cancelled"];
+  // Independent Price Filters (Package vs Add-ons)
+  const [priceFilter, setPriceFilter] = useState({ pkgMin: "", pkgMax: "", addonMin: "", addonMax: "" });
+  const [draftPriceFilter, setDraftPriceFilter] = useState({ pkgMin: "", pkgMax: "", addonMin: "", addonMax: "" });
+
+  const statuses = ["all", "confirmed", "pending deposit", "revised", "change requests", "completed", "cancelled"];
 
   const loadData = () => {
     setLoading(true);
@@ -77,14 +82,32 @@ export default function AdminReservations() {
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Map API fields to table columns
+  // Map API fields to table columns with independent Package & Add-ons price calculations
   const formattedBookings = useMemo(() => {
     return bookings
       .filter((b) => !["inquiry", "quote_sent", "customer_accepted"].includes(b.status))
       .map((b) => {
-        // Fix: Only treat as active change request if status is pending AND message is non-empty!
         const hasChangeRequest = b.change_request?.status === "pending" && Boolean(b.change_request?.message?.trim());
         const mappedStatus = hasChangeRequest ? "change requests" : b.status;
+
+        // Independent Add-ons Price Calculation
+        const serviceItemsTotal = (b.service_items || []).reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
+        const additionalChargesTotal = (b.additional_charges || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+        const menuItemsAddonTotal = (b.menu_items || []).reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+        const addOnsPrice = serviceItemsTotal + additionalChargesTotal + menuItemsAddonTotal;
+
+        // Independent Base Package Price Calculation
+        let basePackagePrice = 0;
+        if (b.package_id) {
+          if (b.package_id.package_type === "Event Setup Only") {
+            basePackagePrice = Number(b.package_id.setup_price || 0);
+          } else {
+            basePackagePrice = Number(b.package_id.price_per_guest || 0) * Number(b.guest_count || 0);
+          }
+        }
+        if (basePackagePrice === 0 && (b.total_price || 0) > 0) {
+          basePackagePrice = Math.max(0, Number(b.total_price || 0) + Number(b.discount_amount || 0) - addOnsPrice);
+        }
 
         return {
           _id: b._id,
@@ -105,8 +128,13 @@ export default function AdminReservations() {
           rawStatus: b.status,
           hasChangeRequest,
           changeNote: b.change_request?.message || "",
+          isRevised: Boolean(b.is_revised),
+          revisionCount: b.revision_count || 0,
           coordinator: b.event_manager_id?.full_name || "Unassigned",
-          total: b.total_price || 0,
+          basePackagePrice,
+          addOnsPrice,
+          discountAmount: Number(b.discount_amount || 0),
+          total: Number(b.total_price || 0),
           rawBooking: b
         };
       });
@@ -124,7 +152,10 @@ export default function AdminReservations() {
 
   const filtered = useMemo(() => {
     return formattedBookings.filter((r) => {
-      const matchStatus = filter === "all" || r.status.toLowerCase() === filter.toLowerCase() || (filter === "confirmed" && ["confirmed", "converted to booking"].includes(r.rawStatus.toLowerCase()));
+      const matchStatus = filter === "all" || 
+        (filter === "revised" && r.isRevised) ||
+        r.status.toLowerCase() === filter.toLowerCase() || 
+        (filter === "confirmed" && ["confirmed", "converted to booking"].includes(r.rawStatus.toLowerCase()));
       const matchSearch = !search || 
         r.customer.toLowerCase().includes(search.toLowerCase()) || 
         r.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -133,9 +164,16 @@ export default function AdminReservations() {
       const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
       const matchDateTo = !dateRange.to || (r.rawDate && r.rawDate <= new Date(`${dateRange.to}T23:59:59`));
 
-      return matchStatus && matchSearch && matchDateFrom && matchDateTo;
+      // Independent Price Filters (Base Package vs Add-ons)
+      const matchPkgMin = !priceFilter.pkgMin || r.basePackagePrice >= Number(priceFilter.pkgMin);
+      const matchPkgMax = !priceFilter.pkgMax || r.basePackagePrice <= Number(priceFilter.pkgMax);
+
+      const matchAddonMin = !priceFilter.addonMin || r.addOnsPrice >= Number(priceFilter.addonMin);
+      const matchAddonMax = !priceFilter.addonMax || r.addOnsPrice <= Number(priceFilter.addonMax);
+
+      return matchStatus && matchSearch && matchDateFrom && matchDateTo && matchPkgMin && matchPkgMax && matchAddonMin && matchAddonMax;
     });
-  }, [formattedBookings, filter, search, dateRange]);
+  }, [formattedBookings, filter, search, dateRange, priceFilter]);
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
@@ -382,46 +420,132 @@ export default function AdminReservations() {
                 onQuickFilterChange={setFilter}
                 right={
                   <FilterPopover
-                    label="Date Range"
-                    activeCount={dateRange.from || dateRange.to ? 1 : 0}
-                    onApply={() => setDateRange(draftDateRange)}
+                    label="Filters"
+                    activeCount={
+                      (dateRange.from || dateRange.to ? 1 : 0) +
+                      (priceFilter.pkgMin || priceFilter.pkgMax ? 1 : 0) +
+                      (priceFilter.addonMin || priceFilter.addonMax ? 1 : 0)
+                    }
+                    onApply={() => {
+                      setDateRange(draftDateRange);
+                      setPriceFilter(draftPriceFilter);
+                    }}
                     onClear={() => {
                       setDraftDateRange({ from: "", to: "" });
                       setDateRange({ from: "", to: "" });
+                      setDraftPriceFilter({ pkgMin: "", pkgMax: "", addonMin: "", addonMax: "" });
+                      setPriceFilter({ pkgMin: "", pkgMax: "", addonMin: "", addonMax: "" });
                     }}
                   >
-                    <div className="space-y-3">
+                    <div className="space-y-4 w-64 text-xs">
                       <div>
-                        <label className="text-xs font-semibold text-[#374151] block mb-1">From Date</label>
-                        <input
-                          type="date"
-                          value={draftDateRange.from}
-                          onChange={(e) => setDraftDateRange((d) => ({ ...d, from: e.target.value }))}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                        />
+                        <span className="font-bold text-slate-800 uppercase tracking-wider block mb-1.5 text-[10px]">Date Filter</span>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-slate-500 block mb-0.5">From Date</label>
+                            <input
+                              type="date"
+                              value={draftDateRange.from}
+                              onChange={(e) => setDraftDateRange((d) => ({ ...d, from: e.target.value }))}
+                              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-500 block mb-0.5">To Date</label>
+                            <input
+                              type="date"
+                              value={draftDateRange.to}
+                              onChange={(e) => setDraftDateRange((d) => ({ ...d, to: e.target.value }))}
+                              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-xs font-semibold text-[#374151] block mb-1">To Date</label>
-                        <input
-                          type="date"
-                          value={draftDateRange.to}
-                          onChange={(e) => setDraftDateRange((d) => ({ ...d, to: e.target.value }))}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                        />
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <span className="font-bold text-amber-900 uppercase tracking-wider block mb-1.5 text-[10px]">Base Package Price Filter</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-slate-500 block mb-0.5">Min Pkg ₱</label>
+                            <input
+                              type="number"
+                              placeholder="0"
+                              value={draftPriceFilter.pkgMin}
+                              onChange={(e) => setDraftPriceFilter((d) => ({ ...d, pkgMin: e.target.value }))}
+                              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-500 block mb-0.5">Max Pkg ₱</label>
+                            <input
+                              type="number"
+                              placeholder="50000"
+                              value={draftPriceFilter.pkgMax}
+                              onChange={(e) => setDraftPriceFilter((d) => ({ ...d, pkgMax: e.target.value }))}
+                              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <span className="font-bold text-indigo-900 uppercase tracking-wider block mb-1.5 text-[10px]">Add-ons Price Filter</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-slate-500 block mb-0.5">Min Addon ₱</label>
+                            <input
+                              type="number"
+                              placeholder="0"
+                              value={draftPriceFilter.addonMin}
+                              onChange={(e) => setDraftPriceFilter((d) => ({ ...d, addonMin: e.target.value }))}
+                              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-500 block mb-0.5">Max Addon ₱</label>
+                            <input
+                              type="number"
+                              placeholder="20000"
+                              value={draftPriceFilter.addonMax}
+                              onChange={(e) => setDraftPriceFilter((d) => ({ ...d, addonMax: e.target.value }))}
+                              className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </FilterPopover>
                 }
               />
-              {(dateRange.from || dateRange.to) && (
-                <div className="flex items-center gap-2 mt-3">
-                  <FilterChip
-                    label={`Date: ${dateRange.from || "…"} – ${dateRange.to || "…"}`}
-                    onRemove={() => {
-                      setDateRange({ from: "", to: "" });
-                      setDraftDateRange({ from: "", to: "" });
-                    }}
-                  />
+              {(dateRange.from || dateRange.to || priceFilter.pkgMin || priceFilter.pkgMax || priceFilter.addonMin || priceFilter.addonMax) && (
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  {(dateRange.from || dateRange.to) && (
+                    <FilterChip
+                      label={`Date: ${dateRange.from || "…"} – ${dateRange.to || "…"}`}
+                      onRemove={() => {
+                        setDateRange({ from: "", to: "" });
+                        setDraftDateRange({ from: "", to: "" });
+                      }}
+                    />
+                  )}
+                  {(priceFilter.pkgMin || priceFilter.pkgMax) && (
+                    <FilterChip
+                      label={`Pkg Price: ₱${priceFilter.pkgMin || "0"} – ₱${priceFilter.pkgMax || "∞"}`}
+                      onRemove={() => {
+                        setPriceFilter((p) => ({ ...p, pkgMin: "", pkgMax: "" }));
+                        setDraftPriceFilter((p) => ({ ...p, pkgMin: "", pkgMax: "" }));
+                      }}
+                    />
+                  )}
+                  {(priceFilter.addonMin || priceFilter.addonMax) && (
+                    <FilterChip
+                      label={`Add-ons: ₱${priceFilter.addonMin || "0"} – ₱${priceFilter.addonMax || "∞"}`}
+                      onRemove={() => {
+                        setPriceFilter((p) => ({ ...p, addonMin: "", addonMax: "" }));
+                        setDraftPriceFilter((p) => ({ ...p, addonMin: "", addonMax: "" }));
+                      }}
+                    />
+                  )}
                 </div>
               )}
             </>
@@ -503,9 +627,15 @@ export default function AdminReservations() {
                 <DrawerField label="Final Payment" value={<Badge status={drawerRow.finalPayment} />} />
                 <DrawerField label="Current Status" value={<Badge status={drawerRow.status} />} />
                 <DrawerField label="Coordinator" value={drawerRow.coordinator} />
-                <DrawerField label="Total Price" value={fmt(drawerRow.total)} full />
+                <DrawerField label="Base Package Subtotal" value={fmt(drawerRow.basePackagePrice)} />
+                <DrawerField label="Add-ons Subtotal" value={fmt(drawerRow.addOnsPrice)} />
+                <DrawerField label="Grand Total Price" value={fmt(drawerRow.total)} full />
                 <DrawerField label="Contact Email" value={drawerRow.email || "—"} full />
                 <DrawerField label="Contact Phone" value={drawerRow.phone || "—"} full />
+              </div>
+
+              <div className="pt-4 border-t border-slate-200">
+                <BookingRevisionHistory booking={drawerRow.rawBooking} />
               </div>
             </div>
           )}

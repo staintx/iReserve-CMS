@@ -775,12 +775,39 @@ exports.update = asyncHandler(async (req, res) => {
       }
     }
 
-    if (otherChanged && updated.change_request?.status === "pending") {
-      updated.change_request = {
-        ...updated.change_request.toObject?.(),
-        status: "approved",
-        resolved_at: new Date(),
-      };
+    if (otherChanged) {
+      updated.revision_count = (updated.revision_count || 0) + 1;
+      updated.is_revised = true;
+      if (!Array.isArray(updated.revisions)) updated.revisions = [];
+      updated.revisions.push({
+        revision_number: updated.revision_count,
+        proposed_by: req.user?.role === "customer" ? "customer" : "admin",
+        confirmed_by: "admin",
+        admin_confirmed_at: new Date(),
+        customer_confirmed_at: req.user?.role === "customer" ? new Date() : undefined,
+        status: "confirmed",
+        changes,
+        message: req.body.revision_note || "Booking details updated by administrator",
+        price_difference: (updated.total_price || 0) - (current.total_price || 0),
+        snapshot: {
+          event_date: updated.event_date,
+          start_time: updated.start_time,
+          guest_count: updated.guest_count,
+          total_price: updated.total_price,
+          venue_type: updated.venue_type,
+          service_type: updated.service_type,
+          status: updated.status,
+        },
+        created_at: new Date(),
+      });
+      
+      if (updated.change_request?.status === "pending") {
+        updated.change_request = {
+          ...updated.change_request.toObject?.(),
+          status: "approved",
+          resolved_at: new Date(),
+        };
+      }
       await updated.save();
     }
   }
@@ -1780,6 +1807,276 @@ exports.resolveChangeRequest = asyncHandler(async (req, res) => {
       details: `Admin ${req.body.status} change request.`,
       ip_address: req.ip,
     });
+  }
+
+  res.json(booking);
+});
+
+exports.proposeRevision = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  const proposedBy = req.user.role === "customer" ? "customer" : "admin";
+  const targetStatus = proposedBy === "admin" ? "pending_customer_approval" : "pending_admin_approval";
+
+  const { proposed_changes, message, total_price, event_date, start_time, guest_count, venue_type, service_type, menu_items, service_items, additional_charges, special_requests } = req.body;
+
+  const currentPrice = Number(booking.total_price) || 0;
+  const newPrice = total_price !== undefined ? Number(total_price) : currentPrice;
+  const priceDifference = newPrice - currentPrice;
+
+  // Build changes dictionary
+  const changes = proposed_changes || {};
+  if (!proposed_changes) {
+    if (event_date && new Date(event_date).toISOString() !== new Date(booking.event_date).toISOString()) {
+      changes.event_date = { from: booking.event_date, to: event_date };
+    }
+    if (guest_count !== undefined && Number(guest_count) !== Number(booking.guest_count)) {
+      changes.guest_count = { from: booking.guest_count, to: guest_count };
+    }
+    if (start_time && start_time !== booking.start_time) {
+      changes.start_time = { from: booking.start_time, to: start_time };
+    }
+    if (total_price !== undefined && Number(total_price) !== Number(booking.total_price)) {
+      changes.total_price = { from: booking.total_price, to: total_price };
+    }
+    if (venue_type && venue_type !== booking.venue_type) {
+      changes.venue_type = { from: booking.venue_type, to: venue_type };
+    }
+  }
+
+  booking.pending_revision = {
+    status: targetStatus,
+    proposed_by: proposedBy,
+    proposed_by_user_id: req.user._id,
+    proposed_changes: changes,
+    proposed_snapshot: {
+      event_date: event_date || booking.event_date,
+      start_time: start_time || booking.start_time,
+      guest_count: guest_count !== undefined ? Number(guest_count) : booking.guest_count,
+      total_price: newPrice,
+      venue_type: venue_type || booking.venue_type,
+      service_type: service_type || booking.service_type,
+      menu_items: menu_items || booking.menu_items,
+      service_items: service_items || booking.service_items,
+      additional_charges: additional_charges || booking.additional_charges,
+      special_requests: special_requests !== undefined ? special_requests : booking.special_requests,
+    },
+    message: message || (proposedBy === "admin" ? "Admin proposed booking revisions" : "Customer requested booking revisions"),
+    price_difference: priceDifference,
+    requested_at: new Date(),
+  };
+
+  await booking.save();
+
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "booking_revision_proposed",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Proposed revision for booking ${booking.reference || booking._id} by ${proposedBy}`,
+      changes,
+      ip_address: req.ip,
+    });
+  }
+
+  const io = req.app.get("io");
+  if (proposedBy === "admin" && booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Revised Booking Proposal",
+        body: `Catering management sent a revised proposal for your booking (${booking.reference || booking._id}). Please review and confirm.`,
+        type: "warning",
+        link: `/customer/events/${booking._id}`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  } else if (proposedBy === "customer") {
+    await notifyAdmins(
+      {
+        title: "Customer Proposed Booking Revision",
+        body: `Customer submitted a revised proposal for booking ${booking.reference || booking._id}.`,
+        type: "warning",
+        link: `/admin/bookings/${booking._id}/details`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  }
+
+  res.json(booking);
+});
+
+exports.acceptRevision = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) {
+    return res.status(400).json({ message: "No pending revision proposal to confirm." });
+  }
+
+  const snapshot = booking.pending_revision.proposed_snapshot || {};
+  
+  // Apply snapshot to live booking
+  if (snapshot.event_date) booking.event_date = snapshot.event_date;
+  if (snapshot.start_time) booking.start_time = snapshot.start_time;
+  if (snapshot.guest_count !== undefined) booking.guest_count = snapshot.guest_count;
+  if (snapshot.total_price !== undefined) booking.total_price = snapshot.total_price;
+  if (snapshot.venue_type) booking.venue_type = snapshot.venue_type;
+  if (snapshot.service_type) booking.service_type = snapshot.service_type;
+  if (snapshot.menu_items) booking.menu_items = snapshot.menu_items;
+  if (snapshot.service_items) booking.service_items = snapshot.service_items;
+  if (snapshot.additional_charges) booking.additional_charges = snapshot.additional_charges;
+  if (snapshot.special_requests !== undefined) booking.special_requests = snapshot.special_requests;
+
+  booking.revision_count = (booking.revision_count || 0) + 1;
+  booking.is_revised = true;
+
+  const actorRole = req.user.role === "customer" ? "customer" : "admin";
+
+  const confirmedRevision = {
+    revision_number: booking.revision_count,
+    proposed_by: booking.pending_revision.proposed_by,
+    confirmed_by: actorRole,
+    admin_confirmed_at: actorRole === "admin" ? new Date() : booking.pending_revision.requested_at,
+    customer_confirmed_at: actorRole === "customer" ? new Date() : booking.pending_revision.requested_at,
+    status: "confirmed",
+    changes: booking.pending_revision.proposed_changes,
+    message: booking.pending_revision.message,
+    price_difference: booking.pending_revision.price_difference,
+    snapshot: snapshot,
+    created_at: new Date(),
+  };
+
+  if (!Array.isArray(booking.revisions)) booking.revisions = [];
+  booking.revisions.push(confirmedRevision);
+
+  booking.pending_revision.status = "approved";
+  booking.pending_revision.resolved_at = new Date();
+
+  if (booking.change_request?.status === "pending") {
+    booking.change_request.status = "approved";
+    booking.change_request.resolved_at = new Date();
+  }
+
+  await booking.save();
+
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "booking_revision_accepted",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Revision v${booking.revision_count} confirmed by ${actorRole}`,
+      changes: booking.pending_revision.proposed_changes,
+      ip_address: req.ip,
+    });
+  }
+
+  const io = req.app.get("io");
+  if (actorRole === "customer") {
+    await notifyAdmins(
+      {
+        title: "Revised Booking Confirmed by Customer",
+        body: `Customer confirmed revision v${booking.revision_count} for booking ${booking.reference || booking._id}.`,
+        type: "info",
+        link: `/admin/bookings/${booking._id}/details`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  } else if (booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Revised Booking Confirmed",
+        body: `Your booking revision v${booking.revision_count} has been confirmed and updated!`,
+        type: "info",
+        link: `/customer/events/${booking._id}`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  }
+
+  res.json(booking);
+});
+
+exports.rejectRevision = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id);
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) {
+    return res.status(400).json({ message: "No pending revision proposal to decline." });
+  }
+
+  const actorRole = req.user.role === "customer" ? "customer" : "admin";
+  const reason = req.body.reason || "Proposal declined by recipient";
+
+  booking.pending_revision.status = "rejected";
+  booking.pending_revision.resolved_at = new Date();
+  booking.pending_revision.rejection_reason = reason;
+
+  const rejectedRevision = {
+    revision_number: (booking.revision_count || 0) + 1,
+    proposed_by: booking.pending_revision.proposed_by,
+    confirmed_by: actorRole,
+    status: "rejected",
+    changes: booking.pending_revision.proposed_changes,
+    message: `Rejected: ${reason}`,
+    price_difference: booking.pending_revision.price_difference,
+    snapshot: booking.pending_revision.proposed_snapshot,
+    created_at: new Date(),
+  };
+
+  if (!Array.isArray(booking.revisions)) booking.revisions = [];
+  booking.revisions.push(rejectedRevision);
+
+  if (booking.change_request?.status === "pending" && actorRole === "admin") {
+    booking.change_request.status = "rejected";
+    booking.change_request.resolved_at = new Date();
+  }
+
+  await booking.save();
+
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "booking_revision_rejected",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Revision proposal declined by ${actorRole}: ${reason}`,
+      ip_address: req.ip,
+    });
+  }
+
+  const io = req.app.get("io");
+  if (actorRole === "customer") {
+    await notifyAdmins(
+      {
+        title: "Revision Proposal Declined by Customer",
+        body: `Customer declined revision proposal for booking ${booking.reference || booking._id}: ${reason}`,
+        type: "info",
+        link: `/admin/bookings/${booking._id}/details`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
+  } else if (booking.customer_id) {
+    await createNotification(
+      {
+        userId: booking.customer_id,
+        title: "Revision Proposal Update",
+        body: `Your booking revision proposal was declined: ${reason}`,
+        type: "info",
+        link: `/customer/events/${booking._id}`,
+        meta: { booking_id: booking._id },
+      },
+      io,
+    );
   }
 
   res.json(booking);

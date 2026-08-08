@@ -38,6 +38,8 @@ import useToast from "../../hooks/useToast";
 import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
+import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
+import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -72,7 +74,42 @@ export default function CustomerEventDashboard() {
 
   const [requestingChange, setRequestingChange] = useState(false);
   const [requestNote, setRequestNote] = useState("");
+  const [changeFields, setChangeFields] = useState({ event_date: "", start_time: "", guest_count: "", venue_type: "" });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  const submitChangeRequest = async (event) => {
+    event.preventDefault();
+    const nextMessage = requestNote.trim();
+    if (!nextMessage && !changeFields.event_date && !changeFields.guest_count && !changeFields.start_time) {
+      notify("Please describe or select the changes you want to propose.", "error");
+      return;
+    }
+
+    try {
+      setIsSubmittingRequest(true);
+      
+      const payload = {
+        message: nextMessage || "Customer proposed booking revisions",
+      };
+      if (changeFields.event_date) payload.event_date = changeFields.event_date;
+      if (changeFields.start_time) payload.start_time = changeFields.start_time;
+      if (changeFields.guest_count) payload.guest_count = Number(changeFields.guest_count);
+      if (changeFields.venue_type) payload.venue_type = changeFields.venue_type;
+
+      await CustomerAPI.proposeRevision(booking._id, payload);
+      await CustomerAPI.requestBookingChange(booking._id, { message: nextMessage || "Proposed booking revision" });
+
+      notify("Your revision proposal was submitted to the admin for review!", "success");
+      setRequestingChange(false);
+      setRequestNote("");
+      setChangeFields({ event_date: "", start_time: "", guest_count: "", venue_type: "" });
+      fetchBooking();
+    } catch (error) {
+      notify(error.response?.data?.message || "We could not send your revision proposal.", "error");
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
 
   const [requestingOcular, setRequestingOcular] = useState(false);
   const [ocularDate, setOcularDate] = useState("");
@@ -80,6 +117,27 @@ export default function CustomerEventDashboard() {
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
 
   const [isAcceptingQuote, setIsAcceptingQuote] = useState(false);
+  const [showProposalModal, setShowProposalModal] = useState(false);
+
+  const handleAcceptRevision = async () => {
+    try {
+      await CustomerAPI.acceptRevision(booking._id);
+      notify("Revised booking deal confirmed successfully! Your booking terms have been updated.", "success");
+      fetchBooking();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to confirm revision proposal", "error");
+    }
+  };
+
+  const handleRejectRevision = async (reason) => {
+    try {
+      await CustomerAPI.rejectRevision(booking._id, { reason });
+      notify("Revision proposal declined.", "info");
+      fetchBooking();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to decline revision proposal", "error");
+    }
+  };
 
   useEffect(() => {
     fetchBooking();
@@ -107,7 +165,45 @@ export default function CustomerEventDashboard() {
     [bookingPayments]
   );
 
+  // Independent Price Breakdown Calculations for Customer View
+  const serviceItemsSubtotal = (booking?.service_items || []).reduce(
+    (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+    0
+  );
+  const additionalChargesSubtotal = (booking?.additional_charges || []).reduce(
+    (sum, charge) => sum + (Number(charge.amount) || 0),
+    0
+  );
+  const menuItemsAddonSubtotal = (booking?.menu_items || []).reduce(
+    (sum, item) => sum + (Number(item.price) || 0),
+    0
+  );
+  const addOnsSubtotal = serviceItemsSubtotal + additionalChargesSubtotal + menuItemsAddonSubtotal;
+
+  const pkg = booking?.package_id;
+  const guestCount = Number(booking?.guest_count) || 0;
+  
+  let basePackageSubtotal = 0;
+  let pkgLabelText = "Base Package Subtotal";
+  if (pkg) {
+    if (pkg.package_type === "Event Setup Only") {
+      basePackageSubtotal = Number(pkg.setup_price || 0);
+      pkgLabelText = `${pkg.name || "Event Setup"} (Setup Fee)`;
+    } else {
+      const perHead = Number(pkg.price_per_guest || 0);
+      basePackageSubtotal = perHead * guestCount;
+      pkgLabelText = `${pkg.name || "Base Package"} (${formatCurrency(perHead)}/head × ${guestCount} guests)`;
+    }
+  }
+
   const grandTotal = Number(booking?.total_price || 0);
+  const discountAmount = Number(booking?.discount_amount || 0);
+
+  if (basePackageSubtotal === 0 && grandTotal > 0) {
+    basePackageSubtotal = Math.max(0, grandTotal + discountAmount - addOnsSubtotal);
+    pkgLabelText = `Base Package Subtotal (${guestCount} guests)`;
+  }
+
   const displayPaid = grandTotal > 0 ? Math.min(totalPaid, grandTotal) : totalPaid;
   const outstandingAmount = Math.max(0, grandTotal - displayPaid);
   const isFullyPaid = outstandingAmount <= 0 && grandTotal > 0;
@@ -228,27 +324,6 @@ export default function CustomerEventDashboard() {
     }
   };
 
-  const submitChangeRequest = async (event) => {
-    event.preventDefault();
-    const nextMessage = requestNote.trim();
-    if (!nextMessage) {
-      notify("Please describe the changes you want to request.", "error");
-      return;
-    }
-
-    try {
-      setIsSubmittingRequest(true);
-      await CustomerAPI.requestBookingChange(booking._id, { message: nextMessage });
-      notify("Your change request was sent to the admin.", "success");
-      setRequestingChange(false);
-      setRequestNote("");
-      fetchBooking();
-    } catch (error) {
-      notify(error.response?.data?.message || "We could not send your change request.", "error");
-    } finally {
-      setIsSubmittingRequest(false);
-    }
-  };
 
   const submitOcularRequest = async (event) => {
     event.preventDefault();
@@ -435,6 +510,12 @@ export default function CustomerEventDashboard() {
                   <span>{refCode}</span>
                   <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
+
+                {booking.is_revised && (
+                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-bold text-xs">
+                    Revised (v{booking.revision_count || 1})
+                  </Badge>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-muted-foreground">
@@ -553,14 +634,39 @@ export default function CustomerEventDashboard() {
           </div>
         </div>
 
+        {/* Pending Revision Proposal Banner */}
+        {booking.pending_revision && ["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status) && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-amber-950 text-base">
+                  {booking.pending_revision.status === "pending_customer_approval" ? "Revised Booking Proposal Awaiting Your Confirmation!" : "Your Proposed Revision is Pending Admin Review"}
+                </h4>
+                <p className="text-amber-800 text-xs mt-1 leading-relaxed font-medium">
+                  {booking.pending_revision.message || "Please review the updated booking terms and pricing adjustment."}
+                </p>
+              </div>
+            </div>
+            {booking.pending_revision.status === "pending_customer_approval" && (
+              <Button 
+                onClick={() => setShowProposalModal(true)}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl shrink-0 shadow-xs"
+              >
+                Review & Confirm Deal
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* Change Request Alert Notification Banner */}
         {booking.change_request && booking.change_request.status === 'pending' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-semibold text-amber-900 text-sm">Change Request Under Admin Review</h4>
-              <p className="text-amber-800 text-xs mt-0.5">"{booking.change_request.message}"</p>
-              <p className="text-amber-700 text-[11px] mt-1 font-mono">
+              <h4 className="font-semibold text-indigo-950 text-sm">Change Request Under Admin Review</h4>
+              <p className="text-indigo-800 text-xs mt-0.5">"{booking.change_request.message}"</p>
+              <p className="text-indigo-700 text-[11px] mt-1 font-mono">
                 Submitted on {booking.change_request.requested_at ? new Date(booking.change_request.requested_at).toLocaleDateString() : "Recently"}
               </p>
             </div>
@@ -569,18 +675,22 @@ export default function CustomerEventDashboard() {
 
         {/* Main Tabbed Interface */}
         <Tabs defaultValue="overview" className="w-full space-y-6">
-          <TabsList className="bg-card border border-border p-1 rounded-2xl w-full sm:w-auto grid grid-cols-3 sm:inline-flex h-auto gap-1">
-            <TabsTrigger value="overview" className="rounded-xl px-5 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+          <TabsList className="bg-card border border-border p-1 rounded-2xl w-full sm:w-auto grid grid-cols-4 sm:inline-flex h-auto gap-1">
+            <TabsTrigger value="overview" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <Utensils className="w-4 h-4 mr-2 hidden sm:inline" />
               Reservation Overview
             </TabsTrigger>
-            <TabsTrigger value="financials" className="rounded-xl px-5 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <TabsTrigger value="financials" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <CreditCard className="w-4 h-4 mr-2 hidden sm:inline" />
               Payments & Billing
             </TabsTrigger>
-            <TabsTrigger value="timeline" className="rounded-xl px-5 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <TabsTrigger value="timeline" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <Clock className="w-4 h-4 mr-2 hidden sm:inline" />
               Status & Timeline
+            </TabsTrigger>
+            <TabsTrigger value="revisions" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+              <Layers className="w-4 h-4 mr-2 hidden sm:inline" />
+              Revisions & History
             </TabsTrigger>
           </TabsList>
 
@@ -866,8 +976,8 @@ export default function CustomerEventDashboard() {
               </Card>
             </div>
 
-            {/* Pending Payments Action Card */}
-            {pendingPayments.length > 0 && (
+            {/* Pending Payments Action Card - ONLY render if outstandingAmount > 0 */}
+            {outstandingAmount > 0 && (
               <Card className="border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm">
                 <CardContent className="p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -877,22 +987,22 @@ export default function CustomerEventDashboard() {
                         Outstanding Payment Due
                       </h4>
                       <p className="text-xs text-amber-800">
-                        You have pending payment request(s) ready to be paid via PayMongo online checkout.
+                        Remaining balance of <strong className="font-bold">{formatCurrency(outstandingAmount)}</strong> is pending online checkout payment.
                       </p>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row gap-3">
-                      {pendingPayments.map((payment) => (
-                        <Button 
-                          key={payment._id}
-                          onClick={() => startPayment(payment)}
-                          disabled={payingPaymentId === payment._id}
-                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-xs gap-2 shrink-0"
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          {payingPaymentId === payment._id ? "Opening Checkout..." : `Pay ${formatCurrency(payment.amount)}`}
-                        </Button>
-                      ))}
+                      <Button 
+                        onClick={() => {
+                          const activePayment = pendingPayments[0] || { amount: outstandingAmount, payment_type: "balance" };
+                          startPayment({ ...activePayment, amount: Math.min(activePayment.amount || outstandingAmount, outstandingAmount) });
+                        }}
+                        disabled={payingPaymentId !== null}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-xs gap-2 shrink-0"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        {payingPaymentId ? "Opening Checkout..." : `Pay Outstanding Balance (${formatCurrency(outstandingAmount)})`}
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -912,22 +1022,15 @@ export default function CustomerEventDashboard() {
                 </CardHeader>
                 <CardContent className="pt-4 space-y-3 text-sm">
                   <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Base Package Price</span>
-                    <span className="font-medium text-foreground">{formatCurrency(booking.package_id?.price || booking.total_price)}</span>
+                    <span className="truncate pr-2">Base Package Subtotal</span>
+                    <span className="font-medium text-foreground shrink-0">{formatCurrency(basePackageSubtotal)}</span>
                   </div>
-
-                  {booking.guest_count > 0 && (
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Guests ({booking.guest_count} pax)</span>
-                      <span className="font-medium text-foreground">Included</span>
-                    </div>
-                  )}
 
                   {booking.service_items && booking.service_items.length > 0 && (
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Add-on Services ({booking.service_items.length})</span>
                       <span className="font-medium text-foreground">
-                        {formatCurrency(booking.service_items.reduce((s, i) => s + (i.price * (i.quantity || 1)), 0))}
+                        {formatCurrency(serviceItemsSubtotal)}
                       </span>
                     </div>
                   )}
@@ -936,8 +1039,15 @@ export default function CustomerEventDashboard() {
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span>Additional Fees</span>
                       <span className="font-medium text-foreground">
-                        {formatCurrency(booking.additional_charges.reduce((s, c) => s + (Number(c.amount) || 0), 0))}
+                        {formatCurrency(additionalChargesSubtotal)}
                       </span>
+                    </div>
+                  )}
+
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-xs text-emerald-700 font-medium">
+                      <span>Discount / Special Reduction</span>
+                      <span>- {formatCurrency(discountAmount)}</span>
                     </div>
                   )}
 
@@ -1101,7 +1211,24 @@ export default function CustomerEventDashboard() {
             </div>
           </TabsContent>
 
+          {/* TAB 4: REVISIONS & HISTORY */}
+          <TabsContent value="revisions" className="space-y-6">
+            <Card className="border-border shadow-xs p-6">
+              <BookingRevisionHistory booking={booking} />
+            </Card>
+          </TabsContent>
+
         </Tabs>
+
+        {/* Modal: Revision Proposal Review */}
+        <RevisionProposalModal
+          open={showProposalModal}
+          onClose={() => setShowProposalModal(false)}
+          booking={booking}
+          onAccept={handleAcceptRevision}
+          onReject={handleRejectRevision}
+          isCustomer={true}
+        />
       </div>
 
       {/* Add Guests Dialog */}
@@ -1203,46 +1330,86 @@ export default function CustomerEventDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Request Change Dialog */}
+      {/* Request / Propose Booking Changes Dialog */}
       <Dialog open={requestingChange} onOpenChange={setRequestingChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[520px]">
           <form onSubmit={submitChangeRequest}>
             <DialogHeader>
-              <DialogTitle>Request Booking Changes</DialogTitle>
-              <DialogDescription className="pt-2">
-                Describe the modifications you would like to make.
-                <strong className="text-foreground block mt-1">
-                  Note: Sensitive modifications (Date, Venue, Downgrades, Cancellations) require admin approval.
-                </strong>
+              <DialogTitle>Propose Booking Changes</DialogTitle>
+              <DialogDescription className="pt-1 text-xs">
+                Select your desired changes or describe modifications for admin review.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium leading-none" htmlFor="booking-change-request">
-                  Change Details
+
+            <div className="grid gap-3 py-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">New Event Date (Optional)</label>
+                  <Input 
+                    type="date" 
+                    value={changeFields.event_date} 
+                    onChange={(e) => setChangeFields({ ...changeFields, event_date: e.target.value })} 
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">New Start Time (Optional)</label>
+                  <Input 
+                    type="time" 
+                    value={changeFields.start_time} 
+                    onChange={(e) => setChangeFields({ ...changeFields, start_time: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">New Guest Count (Optional)</label>
+                  <Input 
+                    type="number" 
+                    placeholder={`Current: ${booking?.guest_count || 0}`}
+                    value={changeFields.guest_count} 
+                    onChange={(e) => setChangeFields({ ...changeFields, guest_count: e.target.value })} 
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Venue Location (Optional)</label>
+                  <Input 
+                    type="text" 
+                    placeholder="e.g. Garden Hall"
+                    value={changeFields.venue_type} 
+                    onChange={(e) => setChangeFields({ ...changeFields, venue_type: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700 block" htmlFor="booking-change-request">
+                  Change Note / Reason
                 </label>
                 <textarea
                   id="booking-change-request"
-                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  rows={6}
+                  className="flex min-h-[90px] w-full rounded-xl border border-input bg-background px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  rows={4}
                   value={requestNote}
                   onChange={(event) => setRequestNote(event.target.value)}
-                  placeholder="Example: Please change guest count to 80 and update start time to 2:00 PM..."
+                  placeholder="Describe your change request (e.g. Adding 20 guests and changing start time to 3 PM)..."
                 />
               </div>
+
               {!canModifyBooking && (
-                <div className="flex items-center gap-2 text-destructive text-sm">
+                <div className="flex items-center gap-2 text-destructive text-xs font-medium">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   Booking changes are locked within 3 days of the event.
                 </div>
               )}
             </div>
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRequestingChange(false)}>
+              <Button type="button" variant="outline" onClick={() => setRequestingChange(false)} className="text-xs">
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmittingRequest || !canModifyBooking}>
-                {isSubmittingRequest ? "Sending..." : "Send Request"}
+              <Button type="submit" disabled={isSubmittingRequest || !canModifyBooking} className="text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
+                {isSubmittingRequest ? "Sending Proposal..." : "Submit Revision Proposal"}
               </Button>
             </DialogFooter>
           </form>

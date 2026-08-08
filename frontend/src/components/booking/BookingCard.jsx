@@ -186,6 +186,12 @@ export default function BookingCard({
               <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
                 {serviceType}
               </span>
+
+              {booking.is_revised && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  Revised (v{booking.revision_count || 1})
+                </span>
+              )}
             </div>
 
             <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">

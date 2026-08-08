@@ -230,10 +230,14 @@ export default function QuoteWizard() {
       : String(form.event_type || "").trim();
 
   const buildInquiryPayload = () => {
+    // Labels must match the canonical service_type values used everywhere else
+    // (Booking.service_type enum, StepServiceType.jsx, admin/customer filters) —
+    // "Food & Event Setup" here used to diverge from "Food and Event Setup" and
+    // silently fail to persist against the Inquiry schema's enum.
     const serviceLookup = {
       food: { include_food: true, label: "Food Only" },
       event: { include_food: false, label: "Event Setup Only" },
-      full: { include_food: true, label: "Food & Event Setup" }
+      full: { include_food: true, label: "Food and Event Setup" }
     };
     const serviceConfig = serviceLookup[form.service_type] || serviceLookup.full;
 

@@ -6,26 +6,20 @@ import { createConversation } from "../../api/messages";
 import useToast from "../../hooks/useToast";
 import BookingCard from "../../components/booking/BookingCard";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent } from "../../components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { 
-  CalendarClock, 
-  Plus, 
-  AlertCircle, 
-  Search, 
-  Filter, 
-  CheckCircle2, 
-  Calendar, 
-  CreditCard, 
-  Sparkles,
-  RefreshCw,
-  Clock,
-  History
-} from "lucide-react";
+import PortalToolbar from "../../components/customer/portal/PortalToolbar";
+import EmptyState from "../../components/customer/portal/EmptyState";
+import LoadingState from "../../components/customer/portal/LoadingState";
+import StateNotice from "../../components/customer/portal/StateNotice";
+import { bookingStatusGroup, resolveServiceType } from "../../components/customer/portal/statusMeta";
+import { formatCurrency } from "../../utils/format";
+import { CalendarClock, Plus, AlertCircle, CreditCard } from "lucide-react";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
 
 export default function CustomerBookings() {
   const navigate = useNavigate();
@@ -76,35 +70,49 @@ export default function CustomerBookings() {
     loadData();
   }, []);
 
-  // Compute KPI counts
-  const kpiStats = useMemo(() => {
-    const total = bookings.length;
-    const confirmed = bookings.filter((b) => ["Confirmed", "confirmed", "Converted to Booking"].includes(b.status)).length;
-    const depositNeeded = bookings.filter((b) => ["Deposit Pending", "pending deposit"].includes(b.status)).length;
-    const completed = bookings.filter((b) => ["Completed", "completed"].includes(b.status)).length;
+  // Outstanding balance per booking — drives both the "needs payment" view
+  // and the summary notice at the top of the list.
+  const balanceOf = useMemo(() => {
+    return (booking) => {
+      const total = Number(booking.total_price || 0);
+      const rawPaid = payments
+        .filter((p) => String(p.booking_id?._id || p.booking_id) === String(booking._id) && p.status === "approved")
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const paid = total > 0 ? Math.min(rawPaid, total) : rawPaid;
+      return Math.max(0, total - paid);
+    };
+  }, [payments]);
 
-    return { total, confirmed, depositNeeded, completed };
-  }, [bookings]);
+  const needsPayment = useMemo(
+    () => bookings.filter((b) => !["cancelled", "completed"].includes(bookingStatusGroup(b)) && balanceOf(b) > 0),
+    [bookings, balanceOf]
+  );
+
+  const counts = useMemo(() => ({
+    all: bookings.length,
+    needs_payment: needsPayment.length,
+    confirmed: bookings.filter((b) => bookingStatusGroup(b) === "confirmed").length,
+    completed: bookings.filter((b) => bookingStatusGroup(b) === "completed").length,
+    cancelled: bookings.filter((b) => bookingStatusGroup(b) === "cancelled").length,
+  }), [bookings, needsPayment]);
+
+  const amountDue = useMemo(
+    () => needsPayment.reduce((sum, b) => sum + balanceOf(b), 0),
+    [needsPayment, balanceOf]
+  );
 
   // Filtered Bookings List
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
-      const rawStatus = (b.status || "").toLowerCase();
-
       // 1. Status Filter
-      if (statusTab === "confirmed" && !["confirmed", "converted to booking"].includes(rawStatus)) return false;
-      if (statusTab === "deposit_needed" && !["deposit pending", "pending deposit"].includes(rawStatus)) return false;
-      if (statusTab === "completed" && !["completed"].includes(rawStatus)) return false;
-      if (statusTab === "cancelled" && !["cancelled"].includes(rawStatus)) return false;
+      if (statusTab === "needs_payment") {
+        if (["cancelled", "completed"].includes(bookingStatusGroup(b)) || balanceOf(b) <= 0) return false;
+      } else if (statusTab !== "all" && bookingStatusGroup(b) !== statusTab) {
+        return false;
+      }
 
       // 2. Service Type Filter
-      if (serviceTypeFilter !== "all") {
-        const st = b.service_type || (
-          b.event_type?.toLowerCase().includes("food delivery") || b.delivery_method !== "setup" ? "Food Only" :
-          !b.include_food ? "Event Setup Only" : "Food and Event Setup"
-        );
-        if (st !== serviceTypeFilter) return false;
-      }
+      if (serviceTypeFilter !== "all" && resolveServiceType(b) !== serviceTypeFilter) return false;
 
       // 3. Search Query
       if (searchQuery.trim()) {
@@ -118,7 +126,9 @@ export default function CustomerBookings() {
 
       return true;
     });
-  }, [bookings, statusTab, serviceTypeFilter, searchQuery]);
+  }, [bookings, statusTab, serviceTypeFilter, searchQuery, balanceOf]);
+
+  const isFiltered = Boolean(searchQuery.trim()) || statusTab !== "all" || serviceTypeFilter !== "all";
 
   // Payment Checkout Action
   const startPayment = async (booking, isBalance = false) => {
@@ -243,203 +253,119 @@ export default function CustomerBookings() {
   return (
     <CustomerDashboardLayout
       title="My Bookings"
-      subtitle="Manage your event reservations, track payment balances, and coordinate event arrangements"
+      subtitle="Track your reserved events, payments, and what to do next."
+      actions={
+        <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>
+          <Plus className="h-4 w-4" /> Book an event
+        </Button>
+      }
     >
-      {/* Top Banner & KPI Stat Cards */}
-      <div className="mb-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
-          <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight mb-1 flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-amber-400" /> Event Reservations
-            </h2>
-            <p className="text-xs text-slate-300">
-              View your confirmed catering reservations, track remaining balances, and manage your event details.
-            </p>
-          </div>
-          
-          <Button 
-            onClick={() => navigate("/customer/book", { state: { resetWizard: true } })} 
-            className="rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 py-2.5 shadow-md flex items-center gap-2 shrink-0 transition-transform active:scale-95 text-xs"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" /> Book an Event
-          </Button>
-        </div>
-
-        {/* KPI Cards Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-medium mb-2">
-              <span>Total Bookings</span>
-              <Calendar className="w-4 h-4 text-slate-400" />
-            </div>
-            <div className="text-2xl font-bold text-slate-900">{kpiStats.total}</div>
-          </div>
-
-          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-medium mb-2">
-              <span>Confirmed & Reserved</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div className="text-2xl font-bold text-emerald-700">{kpiStats.confirmed}</div>
-          </div>
-
-          <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between transition-colors ${
-            kpiStats.depositNeeded > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"
-          }`}>
-            <div className="flex items-center justify-between text-xs font-semibold mb-2 text-amber-800">
-              <span>Deposit Needed</span>
-              <CreditCard className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="text-2xl font-bold text-amber-900">{kpiStats.depositNeeded}</div>
-          </div>
-
-          <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-medium mb-2">
-              <span>Completed Events</span>
-              <History className="w-4 h-4 text-slate-400" />
-            </div>
-            <div className="text-2xl font-bold text-slate-900">{kpiStats.completed}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter & Search Bar Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+      {/* What needs your attention, in one sentence */}
+      {!loading && needsPayment.length > 0 && (
+        <StateNotice tone="warning" icon={CreditCard} title="Payment needed." className="mb-6">
+          {needsPayment.length === 1
+            ? `One booking has ${formatCurrency(amountDue)} still to pay.`
+            : `${needsPayment.length} bookings have ${formatCurrency(amountDue)} still to pay in total.`}{" "}
+          {statusTab !== "needs_payment" && (
             <button
-              onClick={() => setStatusTab("all")}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                statusTab === "all" ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
-              }`}
+              type="button"
+              onClick={() => setStatusTab("needs_payment")}
+              className="font-semibold underline underline-offset-2 hover:no-underline"
             >
-              All Bookings ({kpiStats.total})
+              Show them
             </button>
-            <button
-              onClick={() => setStatusTab("confirmed")}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                statusTab === "confirmed" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              Confirmed ({kpiStats.confirmed})
-            </button>
-            <button
-              onClick={() => setStatusTab("deposit_needed")}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                statusTab === "deposit_needed" ? "bg-amber-500 text-slate-950 shadow-sm" : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              Deposit Needed ({kpiStats.depositNeeded})
-            </button>
-            <button
-              onClick={() => setStatusTab("completed")}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
-                statusTab === "completed" ? "bg-slate-200 text-slate-800 shadow-sm" : "text-slate-500 hover:bg-slate-100"
-              }`}
-            >
-              Completed ({kpiStats.completed})
-            </button>
-          </div>
+          )}
+        </StateNotice>
+      )}
 
-          {/* Search Box */}
-          <div className="relative w-full md:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Search reference, event..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 text-xs rounded-xl border-slate-200 focus:ring-amber-500 focus:border-amber-500"
-            />
-          </div>
-        </div>
-
-        {/* Sub Filters: Service Type */}
-        <div className="pt-3 border-t border-slate-100 flex items-center gap-2 overflow-x-auto text-xs">
-          <span className="text-slate-400 font-medium flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5" /> Service Type:
-          </span>
-          {["all", "Food Only", "Event Setup Only", "Food and Event Setup"].map((st) => (
-            <button
-              key={st}
-              onClick={() => setServiceTypeFilter(st)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
-                serviceTypeFilter === st
-                  ? "bg-amber-100 text-amber-900 border border-amber-300 font-semibold"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {st === "all" ? "All Services" : st}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PortalToolbar
+        className="mb-6"
+        activeSegment={statusTab}
+        onSegmentChange={setStatusTab}
+        segments={[
+          { id: "all", label: "All", count: counts.all },
+          { id: "needs_payment", label: "Needs payment", count: counts.needs_payment },
+          { id: "confirmed", label: "Confirmed", count: counts.confirmed },
+          { id: "completed", label: "Completed", count: counts.completed },
+          { id: "cancelled", label: "Cancelled", count: counts.cancelled },
+        ]}
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Search by event or reference",
+          label: "Search bookings",
+        }}
+        filter={{
+          label: "Service:",
+          value: serviceTypeFilter,
+          onChange: setServiceTypeFilter,
+          options: [
+            { id: "all", label: "All services" },
+            ...SERVICE_TYPES.map((type) => ({ id: type, label: type })),
+          ],
+        }}
+      />
 
       {/* Bookings List Cards */}
       <div className="space-y-4">
         {loading ? (
-          <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 space-y-3">
-            <RefreshCw className="w-8 h-8 animate-spin text-amber-500 mx-auto" />
-            <p className="text-sm font-medium">Loading your event reservations...</p>
-          </div>
+          <LoadingState label="Loading your bookings" />
         ) : filteredBookings.length === 0 ? (
-          <Card className="border-dashed border-slate-300 bg-slate-50/50">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <CalendarClock className="w-12 h-12 text-slate-300 mb-3" />
-              <h3 className="text-base font-bold text-slate-800">No bookings found</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                {searchQuery || statusTab !== "all" || serviceTypeFilter !== "all"
-                  ? "Try clearing or adjusting your search filters above."
-                  : "You don't have any confirmed bookings yet. Submit a quote request or start a new booking!"}
-              </p>
-              <Button 
-                onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="mt-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 text-xs shadow-sm"
-              >
-                + Book an Event
-              </Button>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={CalendarClock}
+            title={isFiltered ? "No bookings match your filters" : "No bookings yet"}
+            description={
+              isFiltered
+                ? "Try a different filter or clear your search to see all your bookings."
+                : "Once a quote is accepted and confirmed, your event will appear here."
+            }
+            action={
+              isFiltered ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStatusTab("all");
+                    setServiceTypeFilter("all");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              ) : (
+                <Button onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>
+                  <Plus className="h-4 w-4" /> Book an event
+                </Button>
+              )
+            }
+          />
         ) : (
-          filteredBookings.map((booking) => {
-            const canRequestChangeLocal = booking.event_date 
-              ? new Date(booking.event_date).getTime() - Date.now() > THREE_DAYS_MS 
-              : false;
-
-            return (
-              <BookingCard
-                key={booking._id}
-                booking={booking}
-                payments={payments}
-                canRequestChange={canRequestChangeLocal}
-                startPayment={startPayment}
-                setUpgradingBooking={setUpgradingBooking}
-                openChangeRequest={() => {
-                  setRequestingBooking(booking);
-                  setRequestNote(booking.change_request?.message || "");
-                }}
-                setAddingGuestsBooking={setAddingGuestsBooking}
-                openCatererChat={async () => {
-                  try {
-                    const conversation = await createConversation({ booking_id: booking._id });
-                    navigate(`/customer/messages/${conversation._id}`);
-                  } catch (error) {
-                    if (error.response?.status === 400 || error.response?.status === 404) {
-                      notify(error.response?.data?.message || "This booking is not ready for chat yet.", "error");
-                      return;
-                    }
-                    notify(error.response?.data?.message || "We could not open the conversation.", "error");
+          filteredBookings.map((booking) => (
+            <BookingCard
+              key={booking._id}
+              booking={booking}
+              payments={payments}
+              startPayment={startPayment}
+              setUpgradingBooking={setUpgradingBooking}
+              openChangeRequest={() => {
+                setRequestingBooking(booking);
+                setRequestNote(booking.change_request?.message || "");
+              }}
+              setAddingGuestsBooking={setAddingGuestsBooking}
+              openCatererChat={async () => {
+                try {
+                  const conversation = await createConversation({ booking_id: booking._id });
+                  navigate(`/customer/messages/${conversation._id}`);
+                } catch (error) {
+                  if (error.response?.status === 400 || error.response?.status === 404) {
+                    notify(error.response?.data?.message || "This booking is not ready for chat yet.", "error");
+                    return;
                   }
-                }}
-                submitAddGuests={submitAddGuests}
-                isSubmittingGuests={isSubmittingGuests}
-                setAdditionalGuestsGlobal={setAdditionalGuests}
-                onBookingUpdate={loadData}
-              />
-            );
-          })
+                  notify(error.response?.data?.message || "We could not open the conversation.", "error");
+                }
+              }}
+              onBookingUpdate={loadData}
+            />
+          ))
         )}
       </div>
 

@@ -12,6 +12,14 @@ const InquirySchema = new mongoose.Schema(
     guest_count: { type: Number, required: true },
     
     venue_type: String,
+    // Not validated at the route layer (no Joi schema is wired to POST /inquiries),
+    // so this enum is what actually guards the value — must stay in sync with the
+    // canonical labels used everywhere else (Booking.service_type, StepServiceType.jsx).
+    service_type: {
+      type: String,
+      enum: ["Food Only", "Event Setup Only", "Food and Event Setup"],
+    },
+    include_food: { type: Boolean, default: true },
     province: String,
     municipality: String,
     barangay: String,

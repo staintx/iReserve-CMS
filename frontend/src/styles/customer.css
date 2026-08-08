@@ -1,5 +1,28 @@
 /* Google Fonts are imported globally in globals.css (Playfair Display + Work Sans) */
 
+/* ═══════════════════════════════════════════════════════════════
+   Customer-portal-scoped design tokens — same technique as
+   .admin-shell in admin.css: overrides the shared brand tokens from
+   globals.css ONLY inside .customer-shell (the CustomerDashboardLayout
+   root), so the dashboard/inquiries/bookings/messages shell shares the
+   admin portal's Royal Blue + Powder Blue + Charcoal Slate language,
+   while public marketing pages (Landing, packages, etc.) keep the
+   warmer boutique palette below untouched.
+   ═══════════════════════════════════════════════════════════════ */
+.customer-shell {
+  --color-primary: #4C81E0;
+  --color-primary-foreground: #FFFFFF;
+  --color-accent: #C5A059;
+  --color-accent-foreground: #4A3B1F;
+  --color-border: #E2E8F0;
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: #64748B;
+  --color-foreground: #1E293B;
+  --color-background: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-ring: #4C81E0;
+}
+
 /* Customer UI theme tokens */
 :root {
   --cust-bg: #F7F4EE;
@@ -119,10 +142,16 @@
   margin: 40px 0;
 }
 
-:where(.grid) {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+/* Legacy default for bare `class="grid"` markup. Must stay inside
+   @layer components: unlayered CSS outranks Tailwind's utilities layer, so
+   without this the auto-fit columns silently override every `grid-cols-*`
+   utility in the app. */
+@layer components {
+  :where(.grid) {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
 }
 
 /* Customer: Packages page */

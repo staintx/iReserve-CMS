@@ -2,23 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { NotificationAPI } from "../../api/notifications";
 import { getSocket } from "../../api/socket";
-import { Bell, Check, Circle } from "lucide-react";
+import { Bell, Check } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { getNotificationMeta, groupNotificationsByDay } from "./notificationMeta";
 
-const formatDate = (value) => {
+const formatTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 };
 
 export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSidebar }) {
@@ -84,20 +84,21 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
       const state = { ...notification.meta };
       if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
       if (state.booking_id) state.openBookingId = state.booking_id;
-      
+
       navigate(notification.link, { state });
       setOpen(false);
     }
   };
 
-  const empty = useMemo(() => items.length === 0, [items]);
+  const groups = useMemo(() => groupNotificationsByDay(items), [items]);
+  const empty = items.length === 0;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         {isSidebarItem ? (
-          /* Mirrors AdminSidebar's NAV_ROW so this row matches every other
-             sidebar item in height, radius, gap, type scale and states. */
+          /* Sits above the "Menu" section as its own global row — see AdminSidebar,
+             which renders this before any nav-category label, not nested inside one. */
           <button className={cn(
             "group relative flex items-center gap-3 rounded-md text-[13.5px] whitespace-nowrap",
             "transition-colors duration-150 cursor-pointer outline-none",
@@ -131,7 +132,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           </Button>
         )}
       </DropdownMenuTrigger>
-      
+
       <DropdownMenuContent side={isSidebarItem ? "right" : "bottom"} align={isSidebarItem ? "start" : "end"} sideOffset={isSidebarItem ? 16 : 4} className="w-80 sm:w-96 p-0 border-border shadow-lg z-[100]">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
           <div className="flex items-center gap-2">
@@ -142,71 +143,82 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
               </span>
             )}
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={markAllRead} 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={markAllRead}
             disabled={unreadCount === 0}
-            className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground"
+            className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             <Check className="w-3.5 h-3.5 mr-1" />
             Mark all read
           </Button>
         </div>
 
-        <ScrollArea className="h-[400px]">
+        <ScrollArea className="h-[420px]">
           {empty ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
               <Bell className="w-8 h-8 mb-3 opacity-20" />
               <p className="text-sm">No notifications yet.</p>
+              <p className="text-xs mt-1 text-muted-foreground/70">You'll see updates here as they happen.</p>
             </div>
           ) : (
             <div className="flex flex-col">
-              {items.map((item) => (
-                <div key={item._id} className="relative group">
-                  <DropdownMenuItem
-                    className={cn(
-                      "flex flex-col items-start px-4 py-3.5 cursor-pointer relative transition-colors duration-150 focus:bg-muted/50 focus:text-foreground hover:bg-muted/50",
-                      item.is_read ? "opacity-75" : "bg-powder/40 border-l-2 border-primary pl-[14px]"
-                    )}
-                    onClick={() => handleItemClick(item)}
-                  >
-                    <div className="flex w-full gap-3 pr-16">
-                      <div className="mt-1 flex-shrink-0">
-                        {!item.is_read ? (
-                          <Circle className="w-2 h-2 fill-primary text-primary animate-pulse" />
-                        ) : (
-                          <div className="w-2 h-2 rounded-full border border-muted-foreground/30" />
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className={cn("text-sm font-semibold leading-snug", item.is_read ? "text-foreground/80" : "text-foreground")}>
-                          {item.title}
-                        </p>
-                        <p className={cn("text-xs leading-relaxed line-clamp-2", item.is_read ? "text-muted-foreground/80" : "text-muted-foreground")}>
-                          {item.body}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="absolute top-3.5 right-4 text-[10px] text-muted-foreground font-medium whitespace-nowrap">
-                      {formatDate(item.createdAt)}
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="m-0" />
+              {groups.map(([label, groupItems]) => (
+                <div key={label}>
+                  <div className="sticky top-0 z-10 px-4 pt-3 pb-1.5 bg-card/95 backdrop-blur-sm text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                    {label}
+                  </div>
+                  <div className="flex flex-col">
+                    {groupItems.map((item) => {
+                      const meta = getNotificationMeta(item.type);
+                      const Icon = meta.icon;
+                      return (
+                        <DropdownMenuItem
+                          key={item._id}
+                          className={cn(
+                            "flex items-start gap-3 px-4 py-3 cursor-pointer relative transition-colors duration-150 focus:bg-muted/50 focus:text-foreground hover:bg-muted/50 border-l-2",
+                            item.is_read ? "border-transparent opacity-80" : "border-primary bg-powder/40"
+                          )}
+                          onClick={() => handleItemClick(item)}
+                        >
+                          <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full", meta.chipClass)}>
+                            <Icon className={cn("w-3.5 h-3.5", meta.iconClass)} />
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className={cn("text-sm leading-snug", item.is_read ? "font-medium text-foreground/80" : "font-semibold text-foreground")}>
+                                {item.title}
+                              </p>
+                              {!item.is_read && (
+                                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" aria-hidden="true" />
+                              )}
+                            </div>
+                            <p className="text-xs leading-relaxed line-clamp-2 text-muted-foreground">
+                              {item.body}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/70 font-medium pt-0.5">
+                              {formatTime(item.createdAt)}
+                            </p>
+                          </div>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </ScrollArea>
-        
+
         <div className="p-2 border-t border-border bg-muted/50">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className="w-full text-sm font-medium text-primary hover:text-primary-hover hover:bg-powder"
-            onClick={() => { 
-              setOpen(false); 
+            onClick={() => {
+              setOpen(false);
               if (onCloseSidebar) onCloseSidebar();
-              navigate("/admin/notifications"); 
+              navigate("/admin/notifications");
             }}
           >
             View All

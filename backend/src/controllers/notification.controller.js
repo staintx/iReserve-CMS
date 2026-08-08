@@ -6,12 +6,15 @@ exports.getMine = asyncHandler(async (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1);
   const skip = (page - 1) * limit;
 
+  const query = { user_id: req.user._id };
+  if (req.query.unread === "true") query.is_read = false;
+
   const [items, total, unreadCount] = await Promise.all([
-    Notification.find({ user_id: req.user._id })
+    Notification.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
-    Notification.countDocuments({ user_id: req.user._id }),
+    Notification.countDocuments(query),
     Notification.countDocuments({ user_id: req.user._id, is_read: false })
   ]);
 

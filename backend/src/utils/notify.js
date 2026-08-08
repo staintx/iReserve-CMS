@@ -20,7 +20,9 @@ const createNotification = async ({ userId, title, body, type = "info", link, me
 };
 
 const notifyAdmins = async ({ title, body, type = "info", link, meta }, io) => {
-  const admins = await User.find({ role: "admin" });
+  // Managers share the admin portal (AdminSidebar/notification bell) and
+  // must receive the same admin-side notifications, not just role "admin".
+  const admins = await User.find({ role: { $in: ["admin", "manager"] } });
   const notifications = [];
   for (const admin of admins) {
     const notification = await createNotification({

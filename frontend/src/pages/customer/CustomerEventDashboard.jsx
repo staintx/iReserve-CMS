@@ -41,7 +41,6 @@ import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
-import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimeline";
 import BookingVersionHistory from "../../components/booking/BookingVersionHistory";
 import AmountSummary from "../../components/customer/portal/AmountSummary";
@@ -280,8 +279,13 @@ export default function CustomerEventDashboard() {
       if (!sourceInquiry) return;
 
       const qRes = await CustomerAPI.getQuotationsForInquiry(sourceInquiry._id);
-      const picked = selectSourceQuotation(qRes.data || []);
-      if (picked) setSourceQuotation({ quotation: picked, inquiry: sourceInquiry });
+      const allVersions = qRes.data || [];
+      const picked = selectSourceQuotation(allVersions);
+      if (picked) {
+        // Keep every saved version too: the quotation evolution that led to
+        // this booking is real history worth showing alongside the reference.
+        setSourceQuotation({ quotation: picked, inquiry: sourceInquiry, versions: allVersions });
+      }
     } catch {
       // A missing link is normal for bookings made outside the quote flow.
     }
@@ -1291,14 +1295,10 @@ export default function CustomerEventDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <BookingVersionHistory booking={booking} />
+                <BookingVersionHistory booking={booking} sourceQuotation={sourceQuotation} />
               </CardContent>
             </Card>
 
-            {/* Full audit view of every confirmed revision */}
-            <Card className="border-border shadow-xs p-6">
-              <BookingRevisionHistory booking={booking} />
-            </Card>
 
             {/* §6 — a pointer to the quotation this booking came from, not a
                 copy of its history. The quotation keeps its own versions. */}

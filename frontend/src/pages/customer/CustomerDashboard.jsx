@@ -66,7 +66,7 @@ export default function CustomerDashboard() {
       reference: i.reference || `INQ-${i._id.substring(0, 6).toUpperCase()}`,
       date: i.event_date,
       statusLabel: "Quote Ready for Review",
-      statusVariant: "bg-indigo-600 text-white font-bold",
+      statusVariant: "bg-primary text-primary-foreground font-bold",
       actionText: "Review & Accept Quote",
       onAction: () => navigate("/customer/inquiries")
     }));
@@ -104,10 +104,10 @@ export default function CustomerDashboard() {
       subtitle="Overview of your event bookings, quote requests, and communications"
     >
       {/* Hero Welcome Banner */}
-      <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-slate-900 via-slate-800 to-amber-950 rounded-2xl text-white shadow-xl relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-        <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-[#1E293B] via-[#1E293B] to-[#2C4470] rounded-2xl text-white shadow-xl relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+        <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-64 h-64 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
         <div>
-          <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs uppercase tracking-wider mb-2">
+          <div className="flex items-center gap-2 text-accent font-semibold text-xs uppercase tracking-wider mb-2">
             <Sparkles className="w-4 h-4" /> Caezelle's Catering Customer Portal
           </div>
           <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight mb-2">
@@ -120,7 +120,7 @@ export default function CustomerDashboard() {
 
         <Button
           onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-          className="rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-3 shadow-lg flex items-center gap-2 shrink-0 transition-transform active:scale-95 text-sm"
+          className="rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-6 py-3 shadow-lg flex items-center gap-2 shrink-0 transition-transform active:scale-95 text-sm"
         >
           <PlusCircle className="w-5 h-5 stroke-[2.5]" /> Request a Quote
         </Button>
@@ -129,57 +129,57 @@ export default function CustomerDashboard() {
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {/* Active Quote Requests */}
-        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border border-border shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-powder text-primary flex items-center justify-center shrink-0">
               <FileText className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quote Requests</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{activeInquiries.length}</h3>
-              <p className="text-[11px] text-slate-400">Active inquiries</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quote Requests</p>
+              <h3 className="text-2xl font-bold text-foreground mt-0.5">{activeInquiries.length}</h3>
+              <p className="text-[11px] text-muted-foreground/70">Active inquiries</p>
             </div>
           </CardContent>
         </Card>
 
         {/* Confirmed Upcoming Events */}
-        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border border-border shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200/80 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-accent/15 text-accent border border-accent/25 flex items-center justify-center shrink-0">
               <Calendar className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Confirmed Events</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{upcomingEvents.length}</h3>
-              <p className="text-[11px] text-slate-400">Upcoming celebrations</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Confirmed Events</p>
+              <h3 className="text-2xl font-bold text-foreground mt-0.5">{upcomingEvents.length}</h3>
+              <p className="text-[11px] text-muted-foreground/70">Upcoming celebrations</p>
             </div>
           </CardContent>
         </Card>
 
         {/* Unread Messages */}
-        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border border-border shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200/80 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
               <MessageSquare className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unread Messages</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{unreadCount}</h3>
-              <p className="text-[11px] text-slate-400">Caterer communications</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Unread Messages</p>
+              <h3 className="text-2xl font-bold text-foreground mt-0.5">{unreadCount}</h3>
+              <p className="text-[11px] text-muted-foreground/70">Caterer communications</p>
             </div>
           </CardContent>
         </Card>
 
         {/* Completed Events */}
-        <Card className="border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+        <Card className="border border-border shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed Events</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{completedEvents.length}</h3>
-              <p className="text-[11px] text-slate-400">Past celebrations</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Completed Events</p>
+              <h3 className="text-2xl font-bold text-foreground mt-0.5">{completedEvents.length}</h3>
+              <p className="text-[11px] text-muted-foreground/70">Past celebrations</p>
             </div>
           </CardContent>
         </Card>
@@ -191,31 +191,31 @@ export default function CustomerDashboard() {
           
           {/* Action Required Banner Section if any */}
           {actionRequiredItems.length > 0 && (
-            <Card className="border-2 border-indigo-200 bg-indigo-50/40 shadow-sm">
-              <CardHeader className="pb-3 border-b border-indigo-100">
-                <CardTitle className="text-base font-bold text-indigo-950 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-indigo-600 animate-pulse" /> Action Required ({actionRequiredItems.length})
+            <Card className="border-2 border-primary/20 bg-powder/30 shadow-sm">
+              <CardHeader className="pb-3 border-b border-primary/10">
+                <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary animate-pulse" /> Action Required ({actionRequiredItems.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5 space-y-3">
                 {actionRequiredItems.map((item) => (
-                  <div key={item.id} className="p-4 bg-white rounded-xl border border-indigo-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div key={item.id} className="p-4 bg-card rounded-xl border border-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs font-semibold text-slate-600">{item.reference}</span>
+                        <span className="font-mono text-xs font-semibold text-muted-foreground">{item.reference}</span>
                         <span className={`px-2.5 py-0.5 text-[11px] rounded-full ${item.statusVariant}`}>
                           {item.statusLabel}
                         </span>
                       </div>
-                      <h4 className="font-bold text-slate-900 text-sm">{item.title}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <h4 className="font-bold text-foreground text-sm">{item.title}</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Target Date: {item.date ? new Date(item.date).toLocaleDateString() : "TBA"}
                       </p>
                     </div>
 
-                    <Button 
+                    <Button
                       onClick={item.onAction}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shrink-0 shadow-sm"
+                      className="bg-primary hover:bg-primary-hover text-primary-foreground font-bold text-xs px-4 py-2 rounded-xl shrink-0 shadow-sm"
                     >
                       {item.actionText}
                     </Button>
@@ -226,13 +226,13 @@ export default function CustomerDashboard() {
           )}
 
           {/* Next Upcoming Event Card */}
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
-              <CardTitle className="text-lg font-serif font-bold text-slate-900">Next Upcoming Event</CardTitle>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-amber-700 hover:text-amber-800 hover:bg-amber-50 text-xs font-semibold" 
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border">
+              <CardTitle className="text-lg font-serif font-bold text-foreground">Next Upcoming Event</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary hover:text-primary-hover hover:bg-powder text-xs font-semibold"
                 onClick={() => navigate("/customer/bookings")}
               >
                 View All Bookings <ArrowRight className="w-4 h-4 ml-1" />
@@ -241,12 +241,12 @@ export default function CustomerDashboard() {
 
             <CardContent className="p-6">
               {nextEvent ? (
-                <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
-                  <div className="absolute right-0 bottom-0 translate-x-6 translate-y-6 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="bg-gradient-to-br from-[#1E293B] to-[#0f1729] text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
+                  <div className="absolute right-0 bottom-0 translate-x-6 translate-y-6 w-40 h-40 bg-primary/15 rounded-full blur-2xl pointer-events-none" />
 
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-700/80">
                     <div>
-                      <span className="text-[10px] uppercase font-mono tracking-widest text-amber-400 font-semibold block mb-1">
+                      <span className="text-[10px] uppercase font-mono tracking-widest text-accent font-semibold block mb-1">
                         Ref: {nextEvent.reference || nextEvent._id}
                       </span>
                       <h4 className="text-2xl font-serif font-bold text-white">
@@ -284,23 +284,23 @@ export default function CustomerDashboard() {
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-700/80 flex justify-end">
-                    <Button 
+                    <Button
                       onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
-                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl px-5 py-2"
+                      className="bg-primary hover:bg-primary-hover text-primary-foreground font-bold text-xs rounded-xl px-5 py-2"
                     >
                       View Event Details & Payments <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
-                  <CalendarClock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <h4 className="text-base font-bold text-slate-800">No upcoming confirmed events</h4>
-                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                <div className="text-center py-12 px-4 rounded-2xl border-2 border-dashed border-border bg-muted/40">
+                  <CalendarClock className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                  <h4 className="text-base font-bold text-foreground">No upcoming confirmed events</h4>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
                     Submit a quote request or check your active inquiries to book your next catering service.
                   </p>
-                  <Button 
-                    className="mt-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 text-xs shadow-sm" 
+                  <Button
+                    className="mt-4 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-5 text-xs shadow-sm"
                     onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
                   >
                     + Request a Quote
@@ -313,85 +313,85 @@ export default function CustomerDashboard() {
 
         {/* Right Sidebar Quick Actions */}
         <div className="space-y-6">
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-lg font-serif font-bold text-slate-900">Quick Actions</CardTitle>
+          <Card className="border border-border shadow-sm">
+            <CardHeader className="pb-3 border-b border-border">
+              <CardTitle className="text-lg font-serif font-bold text-foreground">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
 
               {/* 1. Request a Quote */}
               <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 transition-all text-left group"
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-primary/40 hover:bg-powder/40 transition-all text-left group"
                 onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-xl bg-powder text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
                     <PlusCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 text-sm">Request a Quote</div>
-                    <div className="text-xs text-slate-500">Get a custom catering estimate</div>
+                    <div className="font-bold text-foreground text-sm">Request a Quote</div>
+                    <div className="text-xs text-muted-foreground">Get a custom catering estimate</div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
 
               {/* 2. My Inquiries */}
               <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 transition-all text-left group"
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-primary/40 hover:bg-powder/40 transition-all text-left group"
                 onClick={() => navigate("/customer/inquiries")}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-xl bg-powder text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 text-sm">My Inquiries</div>
-                    <div className="text-xs text-slate-500">Review quotes & status</div>
+                    <div className="font-bold text-foreground text-sm">My Inquiries</div>
+                    <div className="text-xs text-muted-foreground">Review quotes & status</div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
 
               {/* 3. My Bookings */}
               <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition-all text-left group"
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-primary/40 hover:bg-powder/40 transition-all text-left group"
                 onClick={() => navigate("/customer/bookings")}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <div className="w-10 h-10 rounded-xl bg-powder text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
                     <History className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 text-sm">My Bookings</div>
-                    <div className="text-xs text-slate-500">Track confirmed reservations</div>
+                    <div className="font-bold text-foreground text-sm">My Bookings</div>
+                    <div className="text-xs text-muted-foreground">Track confirmed reservations</div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
 
               {/* 4. Messages */}
               <button
-                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50/40 transition-all text-left group"
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:border-primary/40 hover:bg-powder/40 transition-all text-left group"
                 onClick={() => navigate("/customer/messages")}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <div className="w-10 h-10 rounded-xl bg-powder text-primary flex items-center justify-center group-hover:scale-105 transition-transform">
                       <MessageSquare className="w-5 h-5" />
                     </div>
                     {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white" />
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-destructive rounded-full border-2 border-card" />
                     )}
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 text-sm">Messages</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-bold text-foreground text-sm">Messages</div>
+                    <div className="text-xs text-muted-foreground">
                       {unreadCount > 0 ? `${unreadCount} unread message(s)` : "Chat with our team"}
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-600 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </button>
             </CardContent>
           </Card>

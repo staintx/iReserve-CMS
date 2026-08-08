@@ -3,6 +3,6 @@ module.exports = {
   INQUIRY_STATUS: ["new", "under review", "awaiting confirmation", "negotiating", "confirmed", "declined", "abandoned", "expired", "spam", "cancelled"],
   BOOKING_STATUS: ["active", "completed", "cancelled"],
   PAYMENT_STATUS: ["pending", "approved", "rejected"],
-  SERVICE_TYPES: ["Food Only", "Event Setup Only", "Food & Event Setup"],
+  SERVICE_TYPES: ["Food Only", "Event Setup Only", "Food and Event Setup"],
   MENU_CATEGORIES: ["Main Course", "Appetizer", "Dessert", "Drinks", "Veggies", "Pasta", "Fried"]
 };

@@ -284,10 +284,10 @@ export default function CustomerBookings() {
         onSegmentChange={setStatusTab}
         segments={[
           { id: "all", label: "All", count: counts.all },
-          { id: "needs_payment", label: "Needs payment", count: counts.needs_payment },
-          { id: "confirmed", label: "Confirmed", count: counts.confirmed },
-          { id: "completed", label: "Completed", count: counts.completed },
-          { id: "cancelled", label: "Cancelled", count: counts.cancelled },
+          { id: "needs_payment", label: "Needs payment", count: counts.needs_payment, tone: "warning" },
+          { id: "confirmed", label: "Confirmed", count: counts.confirmed, tone: "success" },
+          { id: "completed", label: "Completed", count: counts.completed, tone: "neutral" },
+          { id: "cancelled", label: "Cancelled", count: counts.cancelled, tone: "danger" },
         ]}
         search={{
           value: searchQuery,

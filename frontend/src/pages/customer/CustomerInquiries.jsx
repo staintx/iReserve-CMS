@@ -27,6 +27,12 @@ import {
   resolveServiceType,
   serviceIcon,
 } from "../../components/customer/portal/statusMeta";
+import {
+  ACTION_PAY_SECONDARY,
+  ACTION_MESSAGE,
+  ACTION_DANGER,
+} from "../../components/customer/portal/actionStyles";
+import { cn } from "@/lib/utils";
 import { formatCurrency, formatEventDateTime, formatShortDate } from "../../utils/format";
 import {
   FileText,
@@ -226,7 +232,11 @@ export default function CustomerInquiries() {
     // Paying the deposit matters enough to stay visible, but must not compete
     // with the primary step.
     const secondaryAction = isAccepted ? (
-      <Button variant="outline" onClick={() => startInquiryCheckout(inq)} className="w-full sm:w-auto">
+      <Button
+        variant="outline"
+        onClick={() => startInquiryCheckout(inq)}
+        className={cn("w-full sm:w-auto", ACTION_PAY_SECONDARY)}
+      >
         <CreditCard className="h-4 w-4" /> Pay deposit
       </Button>
     ) : null;
@@ -239,7 +249,7 @@ export default function CustomerInquiries() {
           </Button>
         )}
 
-        <Button variant="outline" size="sm" onClick={() => handleOpenChat(inq._id)}>
+        <Button variant="outline" size="sm" onClick={() => handleOpenChat(inq._id)} className={ACTION_MESSAGE}>
           <MessageSquare className="h-4 w-4" /> Message us
         </Button>
 
@@ -248,7 +258,7 @@ export default function CustomerInquiries() {
             variant="ghost"
             size="sm"
             onClick={() => setCancellingInquiry(inq)}
-            className="text-destructive hover:bg-destructive/10 hover:text-destructive sm:ml-auto"
+            className={cn(ACTION_DANGER, "sm:ml-auto")}
           >
             <XCircle className="h-4 w-4" /> Cancel request
           </Button>
@@ -345,10 +355,10 @@ export default function CustomerInquiries() {
         onSegmentChange={setStatusTab}
         segments={[
           { id: "all", label: "All", count: counts.all },
-          { id: "quote_ready", label: "Quote ready", count: counts.quote_ready },
-          { id: "under_review", label: "Under review", count: counts.under_review },
-          { id: "accepted", label: "Accepted", count: counts.accepted },
-          { id: "closed", label: "Closed", count: counts.closed },
+          { id: "quote_ready", label: "Quote ready", count: counts.quote_ready, tone: "info" },
+          { id: "under_review", label: "Under review", count: counts.under_review, tone: "warning" },
+          { id: "accepted", label: "Accepted", count: counts.accepted, tone: "success" },
+          { id: "closed", label: "Closed", count: counts.closed, tone: "neutral" },
         ]}
         search={{
           value: searchQuery,

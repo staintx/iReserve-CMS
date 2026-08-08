@@ -20,6 +20,10 @@
   --color-foreground: #1E293B;
   --color-background: #F8FAFC;
   --color-card: #FFFFFF;
+  /* Without this, anything inside a <Card> that doesn't set its own colour
+     (e.g. CardTitle) falls back to the boutique brown from globals.css and
+     renders warm brown text on the portal's cool slate surfaces. */
+  --color-card-foreground: #1E293B;
   --color-ring: #4C81E0;
 }
 

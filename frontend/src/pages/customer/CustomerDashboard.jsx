@@ -17,6 +17,9 @@ import {
   recordTitle,
   resolveServiceType,
 } from "../../components/customer/portal/statusMeta";
+import { TONE_ACCENT } from "../../components/customer/portal/tones";
+import { ACTION_PAY } from "../../components/customer/portal/actionStyles";
+import { cn } from "@/lib/utils";
 import { formatEventDateTime, formatShortDate } from "../../utils/format";
 import {
   CalendarClock,
@@ -94,6 +97,7 @@ export default function CustomerDashboard() {
         status,
         description: status.notice?.text,
         actionText: "Pay deposit",
+        isPayment: true,
         onAction: () => navigate(`/customer/bookings/${b._id}`)
       };
     });
@@ -114,29 +118,35 @@ export default function CustomerDashboard() {
   const nextEventStatus = nextEvent ? bookingStatusMeta(nextEvent) : null;
   const firstName = user?.full_name ? user.full_name.split(" ")[0] : "";
 
+  // Tones match the destination, so the same colour means the same thing here
+  // as it does on the stat tiles and the cards themselves.
   const quickActions = [
     {
       label: "Request a quote",
       description: "Tell us about your event",
       icon: PlusCircle,
+      tone: "info",
       onClick: () => navigate("/customer/book", { state: { resetWizard: true } })
     },
     {
       label: "My inquiries",
       description: "Quote requests and their status",
       icon: FileText,
+      tone: "warning",
       onClick: () => navigate("/customer/inquiries")
     },
     {
       label: "My bookings",
       description: "Reserved events and payments",
       icon: Calendar,
+      tone: "success",
       onClick: () => navigate("/customer/bookings")
     },
     {
       label: "Messages",
       description: unreadCount > 0 ? `${unreadCount} unread` : "Chat with our team",
       icon: MessageSquare,
+      tone: "comms",
       badge: unreadCount > 0,
       onClick: () => navigate("/customer/messages")
     }
@@ -156,6 +166,7 @@ export default function CustomerDashboard() {
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           icon={FileText}
+          tone="warning"
           label="Quote requests"
           value={activeInquiries.length}
           hint="Still open"
@@ -163,6 +174,7 @@ export default function CustomerDashboard() {
         />
         <StatTile
           icon={Calendar}
+          tone="success"
           label="Upcoming events"
           value={upcomingEvents.length}
           hint="Confirmed and reserved"
@@ -170,6 +182,7 @@ export default function CustomerDashboard() {
         />
         <StatTile
           icon={MessageSquare}
+          tone="comms"
           label="Unread messages"
           value={unreadCount}
           hint="From our team"
@@ -177,6 +190,7 @@ export default function CustomerDashboard() {
         />
         <StatTile
           icon={CheckCircle2}
+          tone="neutral"
           label="Completed events"
           value={completedEvents.length}
           hint="Past celebrations"
@@ -203,11 +217,13 @@ export default function CustomerDashboard() {
                       <h3 className="font-sans text-sm font-semibold text-foreground">{item.title}</h3>
                       <StatusPill tone={item.status.tone} label={item.status.label} icon={item.status.icon} />
                     </div>
-                    <p className="text-sm text-muted-foreground">{formatEventDateTime(item.date, item.startTime)}</p>
-                    {item.description && <p className="text-sm text-foreground">{item.description}</p>}
+                    <p className="text-sm font-medium text-foreground">{formatEventDateTime(item.date, item.startTime)}</p>
+                    {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
                   </div>
 
-                  <Button onClick={item.onAction} className="shrink-0">
+                  {/* Paying is the money action, so it carries the amber; the
+                      rest are ordinary next steps and stay primary blue. */}
+                  <Button onClick={item.onAction} className={cn("shrink-0", item.isPayment && ACTION_PAY)}>
                     {item.actionText}
                   </Button>
                 </div>
@@ -286,7 +302,12 @@ export default function CustomerDashboard() {
                 className="group flex w-full items-center justify-between gap-3 rounded-lg border border-border p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="flex min-w-0 items-center gap-3">
-                  <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <span
+                    className={cn(
+                      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                      TONE_ACCENT[action.tone] || TONE_ACCENT.neutral
+                    )}
+                  >
                     <action.icon className="h-[18px] w-[18px]" />
                     {action.badge && (
                       <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-destructive" />

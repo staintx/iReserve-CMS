@@ -70,9 +70,12 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
       tone: "success",
       label: "Confirmed & Reserved",
       icon: CheckCircle2,
+      // A reserved booking with a balance is good news with a future task, not
+      // a warning — it stays quiet and lets the amber amount and Pay button
+      // carry the money signal. Amber is reserved for what's urgent now.
       notice:
         balance > 0
-          ? { tone: "info", title: "Your date is reserved.", text: "The remaining balance is due before your event setup." }
+          ? { tone: "neutral", title: "Your date is reserved.", text: "The remaining balance is due before your event setup." }
           : { tone: "success", title: "Your date is reserved.", text: "Everything is paid — nothing is needed from you right now." },
     };
   }
@@ -106,7 +109,7 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
       tone: "info",
       label: "Being Prepared",
       icon: ChefHat,
-      notice: { tone: "info", title: "We're preparing your event.", text: nothingOrBalance },
+      notice: { tone: balance > 0 ? "neutral" : "info", title: "We're preparing your event.", text: nothingOrBalance },
     };
   }
 

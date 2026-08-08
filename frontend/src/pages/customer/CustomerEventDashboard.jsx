@@ -40,6 +40,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/ta
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
+import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimeline";
+import AmountSummary from "../../components/customer/portal/AmountSummary";
+import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/actionStyles";
+import { cn } from "@/lib/utils";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -477,7 +481,7 @@ export default function CustomerEventDashboard() {
       <div className="max-w-6xl mx-auto space-y-6 pb-12">
         {/* Navigation Top Bar */}
         <div className="flex items-center justify-between">
-          <Button 
+          <Button
             variant="ghost"
             onClick={() => navigate("/customer/bookings")}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground font-medium transition-colors -ml-3"
@@ -485,92 +489,109 @@ export default function CustomerEventDashboard() {
             <ChevronLeft className="w-5 h-5" />
             Back to My Bookings
           </Button>
-
-          <Badge className={`px-3 py-1 text-xs rounded-full shadow-xs ${statusBadge.variant}`}>
-            {statusBadge.label}
-          </Badge>
         </div>
 
-        {/* Hero Banner Card */}
-        <div className="rounded-3xl border border-border bg-card shadow-sm p-6 sm:p-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="font-serif font-bold text-2xl sm:text-3xl text-foreground">
+        {/* Header — what this booking is, when, and what it costs */}
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-7">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
+            <div className="min-w-0 space-y-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="font-serif text-2xl font-bold text-foreground sm:text-3xl">
                   {booking.event_type || "Catering Event"}
                 </h1>
-                
-                <div 
-                  onClick={copyReferenceCode}
-                  className="inline-flex items-center gap-1.5 bg-muted/80 hover:bg-muted text-foreground px-3 py-1 rounded-full text-xs font-mono cursor-pointer transition-colors border border-border"
-                  title="Click to copy reference code"
-                >
-                  <span>{refCode}</span>
-                  <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                </div>
-
+                <Badge className={`rounded-full px-3 py-1 text-xs ${statusBadge.variant}`}>
+                  {statusBadge.label}
+                </Badge>
                 {booking.is_revised && (
-                  <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-bold text-xs">
-                    Revised (v{booking.revision_count || 1})
+                  <Badge className="border-amber-300 bg-amber-100 text-xs font-semibold text-amber-900">
+                    Revised · v{booking.revision_count || 1}
                   </Badge>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-primary shrink-0" />
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="font-medium text-foreground">
-                    {booking.event_date ? new Date(booking.event_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : "Date TBD"}
+                    {booking.event_date ? new Date(booking.event_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : "Date to be confirmed"}
                   </span>
                   {booking.start_time && (
-                    <span className="text-muted-foreground">@ {booking.start_time}</span>
+                    <span className="text-muted-foreground">· {booking.start_time}</span>
                   )}
-                </div>
+                </span>
 
-                <div className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-primary shrink-0" />
-                  <span className="font-medium text-foreground">{booking.guest_count || 0} Guests</span>
-                </div>
+                <span className="flex items-center gap-1.5">
+                  <Users className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="font-medium text-foreground">{booking.guest_count || 0} guests</span>
+                </span>
 
-                <div className="flex items-center gap-1.5">
-                  <Utensils className="w-4 h-4 text-primary shrink-0" />
+                <span className="flex items-center gap-1.5">
+                  <Utensils className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="font-medium text-foreground">{booking.service_type || "Food & Setup"}</span>
-                </div>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={copyReferenceCode}
+                  title="Copy reference code"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="font-mono">{refCode}</span>
+                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
               </div>
             </div>
 
-            {/* Hero Quick Financial Summary Pill & Actions */}
-            <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 pt-4 lg:pt-0 border-t lg:border-t-0 border-border">
-              <div className="text-left lg:text-right">
-                <span className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Grand Total</span>
-                <p className="text-2xl sm:text-3xl font-bold font-serif text-foreground">{formatCurrency(grandTotal)}</p>
-                <p className="text-xs font-medium mt-0.5">
-                  {isFullyPaid ? (
-                    <span className="text-emerald-600 font-semibold inline-flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Fully Paid
-                    </span>
-                  ) : (
-                    <span className="text-amber-600 font-semibold inline-flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> Balance Due: {formatCurrency(outstandingAmount)}
-                    </span>
-                  )}
-                </p>
+            {/* The whole money story — total, paid, remaining — so the
+                customer never has to open Payments & Billing to find it. */}
+            <div className="w-full shrink-0 rounded-xl border border-border bg-muted/30 p-4 lg:w-[23rem]">
+              <div className="flex items-baseline justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Total cost</span>
+                <span className="font-sans text-sm font-semibold tabular-nums text-foreground">{formatCurrency(grandTotal)}</span>
               </div>
+              <div className="mt-1.5 flex items-baseline justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Amount paid</span>
+                <span className="font-sans text-sm font-medium tabular-nums text-emerald-700">
+                  {displayPaid > 0 ? `− ${formatCurrency(displayPaid)}` : formatCurrency(0)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-border pt-2.5">
+                <span className="text-sm font-semibold text-foreground">
+                  {isFullyPaid ? "Paid in full" : "Remaining balance"}
+                </span>
+                <span className={`font-sans text-2xl font-bold tabular-nums ${isFullyPaid ? "text-emerald-700" : "text-amber-700"}`}>
+                  {formatCurrency(isFullyPaid ? grandTotal : outstandingAmount)}
+                </span>
+              </div>
+
+              {outstandingAmount > 0 && (
+                <Button
+                  onClick={() => {
+                    const activePayment = pendingPayments[0] || { amount: outstandingAmount, payment_type: "balance" };
+                    startPayment({ ...activePayment, amount: Math.min(activePayment.amount || outstandingAmount, outstandingAmount) });
+                  }}
+                  disabled={payingPaymentId !== null}
+                  className={cn("mt-3 w-full", ACTION_PAY)}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {payingPaymentId ? "Opening checkout…" : "Pay remaining balance"}
+                </Button>
+              )}
             </div>
           </div>
 
           {/* Quick Action Toolbar */}
           <div className="mt-8 pt-6 border-t border-border flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Button 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleOpenChat}
                 disabled={isOpeningChat}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs px-4 py-2 rounded-xl shadow-xs gap-2"
+                className={cn("gap-1.5 rounded-xl text-xs font-medium", ACTION_MESSAGE)}
               >
                 <MessageSquare className="w-4 h-4" />
-                {isOpeningChat ? "Opening Chat..." : "Chat with Caterer"}
+                {isOpeningChat ? "Opening chat…" : "Message us"}
               </Button>
 
               {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
@@ -675,20 +696,20 @@ export default function CustomerEventDashboard() {
 
         {/* Main Tabbed Interface */}
         <Tabs defaultValue="overview" className="w-full space-y-6">
-          <TabsList className="bg-card border border-border p-1 rounded-2xl w-full sm:w-auto grid grid-cols-4 sm:inline-flex h-auto gap-1">
-            <TabsTrigger value="overview" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+          <TabsList className="bg-card border border-border p-1 rounded-2xl w-full sm:w-auto flex sm:inline-flex h-auto gap-1 overflow-x-auto justify-start">
+            <TabsTrigger value="overview" className="shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <Utensils className="w-4 h-4 mr-2 hidden sm:inline" />
               Reservation Overview
             </TabsTrigger>
-            <TabsTrigger value="financials" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <TabsTrigger value="financials" className="shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <CreditCard className="w-4 h-4 mr-2 hidden sm:inline" />
               Payments & Billing
             </TabsTrigger>
-            <TabsTrigger value="timeline" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <TabsTrigger value="timeline" className="shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <Clock className="w-4 h-4 mr-2 hidden sm:inline" />
               Status & Timeline
             </TabsTrigger>
-            <TabsTrigger value="revisions" className="rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+            <TabsTrigger value="revisions" className="shrink-0 whitespace-nowrap rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
               <Layers className="w-4 h-4 mr-2 hidden sm:inline" />
               Revisions & History
             </TabsTrigger>
@@ -710,7 +731,7 @@ export default function CustomerEventDashboard() {
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8 text-sm">
                       <div>
-                        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-1">Package Name</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Package Name</p>
                         <p className="font-semibold text-foreground">{booking.package_id?.name || "Custom Catering Build"}</p>
                         {booking.package_id?.description && (
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{booking.package_id.description}</p>
@@ -718,14 +739,14 @@ export default function CustomerEventDashboard() {
                       </div>
 
                       <div>
-                        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-1">Event Type / Theme</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Event Type / Theme</p>
                         <p className="font-semibold text-foreground">
                           {booking.event_type} {booking.event_theme ? `(${booking.event_theme})` : ""}
                         </p>
                       </div>
 
                       <div>
-                        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-1">Date & Time</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Date & Time</p>
                         <p className="font-semibold text-foreground">
                           {booking.event_date ? new Date(booking.event_date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : "TBD"}
                         </p>
@@ -733,7 +754,7 @@ export default function CustomerEventDashboard() {
                       </div>
 
                       <div>
-                        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-1">Expected Guests</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Expected Guests</p>
                         <p className="font-semibold text-foreground">{booking.guest_count || 0} pax</p>
                         {canModifyBooking && (
                           <button 
@@ -746,13 +767,13 @@ export default function CustomerEventDashboard() {
                       </div>
 
                       <div>
-                        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-1">Venue / Setup Type</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Venue / Setup Type</p>
                         <p className="font-semibold text-foreground">{booking.venue_type || "Standard Venue"}</p>
                         <p className="text-xs text-muted-foreground mt-0.5 capitalize">Service: {booking.service_type || "Food & Setup"}</p>
                       </div>
 
                       <div>
-                        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-1">Location Address</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Location Address</p>
                         {booking.delivery_method === "pickup" ? (
                           <p className="font-semibold text-foreground">Customer Pickup: {booking.pickup_location || "Store Premises"}</p>
                         ) : (
@@ -781,21 +802,27 @@ export default function CustomerEventDashboard() {
                     {/* Selected Dishes */}
                     {booking.menu_items && booking.menu_items.length > 0 ? (
                       <div>
-                        <h4 className="text-xs uppercase font-semibold tracking-wider text-muted-foreground mb-3">Selected Dishes</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <h4 className="font-sans text-sm font-semibold text-foreground mb-3">Selected Dishes</h4>
+                        {/* A plain list reads faster than numbered tiles, and
+                            the number carried no meaning. What matters is which
+                            dishes cost extra, so that stays called out. */}
+                        <ul className="divide-y divide-border rounded-xl border border-border">
                           {booking.menu_items.map((item, idx) => (
-                            <div key={idx} className="bg-muted/40 p-3.5 rounded-xl border border-border flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                                {idx + 1}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium text-foreground text-sm">{item.name}</p>
+                            <li key={idx} className="flex items-baseline justify-between gap-4 px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">{item.name}</p>
                                 {item.note && <p className="text-xs text-muted-foreground mt-0.5">{item.note}</p>}
-                                {item.price > 0 && <p className="text-xs font-semibold text-primary mt-0.5">+{formatCurrency(item.price)}</p>}
                               </div>
-                            </div>
+                              <span className="shrink-0 font-sans text-sm tabular-nums text-muted-foreground">
+                                {item.price > 0 ? (
+                                  <span className="font-medium text-foreground">+{formatCurrency(item.price)}</span>
+                                ) : (
+                                  "Included"
+                                )}
+                              </span>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       </div>
                     ) : (
                       <div className="bg-muted/30 p-4 rounded-xl text-sm text-muted-foreground flex items-center gap-2">
@@ -807,7 +834,7 @@ export default function CustomerEventDashboard() {
                     {/* Additional Service Items */}
                     {booking.service_items && booking.service_items.length > 0 && (
                       <div>
-                        <h4 className="text-xs uppercase font-semibold tracking-wider text-muted-foreground mb-3">Add-on Services & Rental Items</h4>
+                        <h4 className="font-sans text-sm font-semibold text-foreground mb-3">Add-on Services & Rental Items</h4>
                         <div className="divide-y divide-border border border-border rounded-xl overflow-hidden bg-card">
                           {booking.service_items.map((item, idx) => (
                             <div key={idx} className="p-3 flex items-center justify-between text-sm">
@@ -825,7 +852,7 @@ export default function CustomerEventDashboard() {
                     {/* Special Requests / Dietary Restrictions */}
                     {(booking.special_requests || booking.dietary_restrictions || booking.allergies) && (
                       <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-4 space-y-2">
-                        <h4 className="font-semibold text-amber-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <h4 className="font-sans font-semibold text-amber-900 text-sm flex items-center gap-1.5">
                           <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Special Instructions & Dietary Notes
                         </h4>
                         {booking.dietary_restrictions && (
@@ -856,18 +883,18 @@ export default function CustomerEventDashboard() {
                   </CardHeader>
                   <CardContent className="pt-4 space-y-3 text-sm">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-semibold">Contact Name</p>
+                      <p className="text-xs font-medium text-muted-foreground">Contact Name</p>
                       <p className="font-medium text-foreground">{booking.contact_first_name} {booking.contact_last_name}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-semibold">Email Address</p>
+                      <p className="text-xs font-medium text-muted-foreground">Email Address</p>
                       <p className="font-medium text-foreground flex items-center gap-1.5 mt-0.5">
                         <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                         {booking.contact_email}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-semibold">Mobile Phone</p>
+                      <p className="text-xs font-medium text-muted-foreground">Mobile Phone</p>
                       <p className="font-medium text-foreground flex items-center gap-1.5 mt-0.5">
                         <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                         {booking.contact_phone}
@@ -878,7 +905,7 @@ export default function CustomerEventDashboard() {
                     </div>
                     {booking.contact_method && (
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase font-semibold">Preferred Contact Method</p>
+                        <p className="text-xs font-medium text-muted-foreground">Preferred Contact Method</p>
                         <p className="font-medium text-foreground capitalize mt-0.5">{booking.contact_method}</p>
                       </div>
                     )}
@@ -903,7 +930,7 @@ export default function CustomerEventDashboard() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-foreground text-sm truncate">{eventManager.full_name || "Event Manager"}</p>
-                              <Badge variant="outline" className="text-[10px] uppercase bg-primary/10 text-primary border-primary/20">Event Manager</Badge>
+                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">Event Manager</Badge>
                               {eventManager.phone && (
                                 <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                   <Phone className="w-3 h-3" /> {eventManager.phone}
@@ -919,7 +946,7 @@ export default function CustomerEventDashboard() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-foreground text-sm truncate">{staff.name || staff.full_name || "Catering Staff"}</p>
-                              <p className="text-[10px] text-muted-foreground uppercase font-mono">{staff.role || "Staff Member"}</p>
+                              <p className="text-xs text-muted-foreground">{staff.role || "Staff Member"}</p>
                               {staff.phone && (
                                 <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                   <Phone className="w-3 h-3" /> {staff.phone}
@@ -947,67 +974,42 @@ export default function CustomerEventDashboard() {
           {/* TAB 2: FINANCIALS & PAYMENTS */}
           <TabsContent value="financials" className="space-y-6">
             
-            {/* 3 Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card className="border-border shadow-xs bg-card">
-                <CardContent className="p-5">
-                  <p className="text-xs uppercase font-semibold tracking-wider text-muted-foreground">Grand Total Price</p>
-                  <p className="text-2xl font-bold font-serif text-foreground mt-1">{formatCurrency(grandTotal)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Package & add-on total</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-emerald-200 bg-emerald-50/50 shadow-xs">
-                <CardContent className="p-5">
-                  <p className="text-xs uppercase font-semibold tracking-wider text-emerald-800">Total Approved Paid</p>
-                  <p className="text-2xl font-bold font-serif text-emerald-900 mt-1">{formatCurrency(displayPaid)}</p>
-                  <p className="text-xs text-emerald-700 mt-1">{bookingPayments.filter(p => p.status === 'approved').length} payment transactions cleared</p>
-                </CardContent>
-              </Card>
-
-              <Card className={`shadow-xs ${outstandingAmount > 0 ? 'border-amber-200 bg-amber-50/50' : 'border-slate-200 bg-slate-50/50'}`}>
-                <CardContent className="p-5">
-                  <p className={`text-xs uppercase font-semibold tracking-wider ${outstandingAmount > 0 ? 'text-amber-800' : 'text-slate-700'}`}>Outstanding Balance</p>
-                  <p className={`text-2xl font-bold font-serif mt-1 ${outstandingAmount > 0 ? 'text-amber-900' : 'text-slate-800'}`}>{formatCurrency(outstandingAmount)}</p>
-                  <p className={`text-xs mt-1 ${outstandingAmount > 0 ? 'text-amber-700 font-medium' : 'text-slate-600'}`}>
-                    {outstandingAmount > 0 ? "Pending payment due" : "No balance due"}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Pending Payments Action Card - ONLY render if outstandingAmount > 0 */}
-            {outstandingAmount > 0 && (
-              <Card className="border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <h4 className="font-semibold text-amber-900 text-base flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-amber-600" />
-                        Outstanding Payment Due
-                      </h4>
-                      <p className="text-xs text-amber-800">
-                        Remaining balance of <strong className="font-bold">{formatCurrency(outstandingAmount)}</strong> is pending online checkout payment.
-                      </p>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <Button 
-                        onClick={() => {
-                          const activePayment = pendingPayments[0] || { amount: outstandingAmount, payment_type: "balance" };
-                          startPayment({ ...activePayment, amount: Math.min(activePayment.amount || outstandingAmount, outstandingAmount) });
-                        }}
-                        disabled={payingPaymentId !== null}
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-xs gap-2 shrink-0"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        {payingPaymentId ? "Opening Checkout..." : `Pay Outstanding Balance (${formatCurrency(outstandingAmount)})`}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Where the money stands, and what to do about it */}
+            <AmountSummary
+              rows={[
+                { label: "Total cost", value: formatCurrency(grandTotal), strong: true },
+                {
+                  label: "Amount paid",
+                  value: formatCurrency(displayPaid),
+                  tone: displayPaid > 0 ? "success" : undefined,
+                  negative: displayPaid > 0,
+                  hint: `${bookingPayments.filter((p) => p.status === "approved").length} payment(s) received`,
+                },
+              ]}
+              headline={{
+                label: isFullyPaid ? "Paid in full" : "Remaining balance",
+                value: formatCurrency(outstandingAmount),
+                hint: isFullyPaid
+                  ? "Nothing else is due for this booking."
+                  : "Due before your event setup.",
+                tone: isFullyPaid ? "success" : "warning",
+              }}
+              action={
+                outstandingAmount > 0 ? (
+                  <Button
+                    onClick={() => {
+                      const activePayment = pendingPayments[0] || { amount: outstandingAmount, payment_type: "balance" };
+                      startPayment({ ...activePayment, amount: Math.min(activePayment.amount || outstandingAmount, outstandingAmount) });
+                    }}
+                    disabled={payingPaymentId !== null}
+                    className={cn("w-full sm:w-auto", ACTION_PAY)}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {payingPaymentId ? "Opening checkout…" : "Pay now"}
+                  </Button>
+                ) : null
+              }
+            />
 
             {/* Price Breakdown Card & Transaction Table */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1021,50 +1023,66 @@ export default function CustomerEventDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4 space-y-3 text-sm">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="truncate pr-2">Base Package Subtotal</span>
-                    <span className="font-medium text-foreground shrink-0">{formatCurrency(basePackageSubtotal)}</span>
+                  {/* pkgLabelText spells out the per-head maths so the base
+                      figure never looks like it came from nowhere. */}
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 text-muted-foreground">{pkgLabelText}</span>
+                    <span className="shrink-0 font-sans font-medium tabular-nums text-foreground">{formatCurrency(basePackageSubtotal)}</span>
                   </div>
 
                   {booking.service_items && booking.service_items.length > 0 && (
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Add-on Services ({booking.service_items.length})</span>
-                      <span className="font-medium text-foreground">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-muted-foreground">Add-on services ({booking.service_items.length})</span>
+                      <span className="shrink-0 font-sans font-medium tabular-nums text-foreground">
                         {formatCurrency(serviceItemsSubtotal)}
                       </span>
                     </div>
                   )}
 
                   {booking.additional_charges && booking.additional_charges.length > 0 && (
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Additional Fees</span>
-                      <span className="font-medium text-foreground">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-muted-foreground">Additional fees</span>
+                      <span className="shrink-0 font-sans font-medium tabular-nums text-foreground">
                         {formatCurrency(additionalChargesSubtotal)}
                       </span>
                     </div>
                   )}
 
                   {discountAmount > 0 && (
-                    <div className="flex items-center justify-between text-xs text-emerald-700 font-medium">
-                      <span>Discount / Special Reduction</span>
-                      <span>- {formatCurrency(discountAmount)}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-muted-foreground">Discount</span>
+                      <span className="shrink-0 font-sans font-medium tabular-nums text-emerald-700">− {formatCurrency(discountAmount)}</span>
                     </div>
                   )}
 
-                  <div className="pt-3 border-t border-border flex items-center justify-between font-bold text-foreground">
-                    <span>Grand Total</span>
-                    <span className="text-primary font-serif text-lg">{formatCurrency(grandTotal)}</span>
+                  <div className="pt-3 border-t border-border flex items-center justify-between gap-3">
+                    <span className="font-semibold text-foreground">Total cost</span>
+                    <span className="shrink-0 font-sans text-lg font-bold tabular-nums text-foreground">{formatCurrency(grandTotal)}</span>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-emerald-700 font-medium">
-                    <span>Total Payments Approved</span>
-                    <span>- {formatCurrency(displayPaid)}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground">Amount paid</span>
+                    <span className="shrink-0 font-sans font-medium tabular-nums text-emerald-700">− {formatCurrency(displayPaid)}</span>
                   </div>
 
-                  <div className="pt-2 border-t border-border flex items-center justify-between font-bold text-sm">
-                    <span className={outstandingAmount > 0 ? "text-amber-800" : "text-emerald-700"}>Remaining Balance</span>
-                    <span className={outstandingAmount > 0 ? "text-amber-900" : "text-emerald-700"}>{formatCurrency(outstandingAmount)}</span>
+                  <div className="pt-2 border-t border-border flex items-center justify-between gap-3">
+                    <span className="font-semibold text-foreground">
+                      {outstandingAmount > 0 ? "Remaining balance" : "Paid in full"}
+                    </span>
+                    <span className={`shrink-0 font-sans font-bold tabular-nums ${outstandingAmount > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                      {formatCurrency(outstandingAmount)}
+                    </span>
                   </div>
+
+                  {/* The stored total is authoritative and may already include
+                      adjustments (added guests, upgrades, admin edits) that
+                      aren't itemised above. Say so instead of leaving the
+                      customer to wonder why the lines don't sum. */}
+                  <p className="pt-3 border-t border-border text-xs leading-relaxed text-muted-foreground">
+                    <span className="font-medium text-foreground">About the final total:</span>{" "}
+                    The final total may include pricing adjustments, discounts, service fees, or
+                    other applicable charges that are not shown as separate line items.
+                  </p>
                 </CardContent>
               </Card>
 
@@ -1146,7 +1164,7 @@ export default function CustomerEventDashboard() {
                     {booking.ocular_visit && booking.ocular_visit.status === "scheduled" && (
                       <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-emerald-900 text-xs uppercase tracking-wider">Scheduled Visit</span>
+                          <span className="font-semibold text-emerald-900 text-sm">Scheduled Visit</span>
                           <Badge className="bg-emerald-600 text-white text-[10px]">Scheduled</Badge>
                         </div>
                         <p className="text-sm font-semibold text-emerald-950 flex items-center gap-2">
@@ -1165,7 +1183,7 @@ export default function CustomerEventDashboard() {
                     {pendingOcular && (
                       <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-blue-900 text-xs uppercase tracking-wider">Request Sent</span>
+                          <span className="font-semibold text-blue-900 text-sm">Request Sent</span>
                           <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[10px]">Awaiting Confirmation</Badge>
                         </div>
                         <p className="text-xs text-blue-800">Your requested ocular visit date is under review by admin.</p>
@@ -1178,7 +1196,7 @@ export default function CustomerEventDashboard() {
                     {booking.ocular_visit && booking.ocular_visit.status === "completed" && (
                       <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Inspection Done</span>
+                          <span className="font-semibold text-slate-900 text-sm">Inspection Done</span>
                           <Badge className="bg-slate-800 text-white text-[10px]">Completed</Badge>
                         </div>
                         <p className="text-xs text-slate-700">The venue layout and logistics have been verified.</p>
@@ -1213,6 +1231,22 @@ export default function CustomerEventDashboard() {
 
           {/* TAB 4: REVISIONS & HISTORY */}
           <TabsContent value="revisions" className="space-y-6">
+            <Card className="border-border shadow-xs">
+              <CardHeader className="border-b border-border pb-3">
+                <CardTitle className="text-base font-serif flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" />
+                  Booking History
+                </CardTitle>
+                <CardDescription>
+                  Everything that has happened to this booking, newest first.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <BookingHistoryTimeline booking={booking} payments={bookingPayments} />
+              </CardContent>
+            </Card>
+
+            {/* Detailed before/after view of confirmed revisions */}
             <Card className="border-border shadow-xs p-6">
               <BookingRevisionHistory booking={booking} />
             </Card>

@@ -12,6 +12,7 @@ import {
   Sparkles,
   FileCheck2,
   FileText,
+  ArrowRight,
 } from "lucide-react";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
@@ -21,7 +22,8 @@ import StateNotice from "./portal/StateNotice";
 import DetailGrid from "./portal/DetailGrid";
 import AmountSummary from "./portal/AmountSummary";
 import { ACTION_DANGER } from "./portal/actionStyles";
-import { formatCurrency, formatEventDate, formatTime } from "../../utils/format";
+import { formatCurrency, formatEventDate, formatShortDate, formatTime } from "../../utils/format";
+import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationDiff";
 
 /** Quotation status → the portal's shared semantic tones. */
 const statusMeta = (status, isExpired) => {
@@ -38,11 +40,12 @@ const statusMeta = (status, isExpired) => {
   }
 };
 
-export default function CustomerQuotationModal({ open, onClose, quotation, inquiry, onUpdated }) {
+export default function CustomerQuotationModal({ open, onClose, quotation, inquiry, versions = [], onUpdated }) {
   const { notify } = useToast();
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pane, setPane] = useState("quotation");
 
   if (!quotation) return null;
 
@@ -159,6 +162,15 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   const hasFees =
     quotation.transportation_fee > 0 || quotation.equipment_fee > 0 || quotation.decoration_fee > 0;
 
+  // What the caterer actually changed between the previous saved version and
+  // this one. Derived from two real quotation documents — see quotationDiff.
+  const previousVersion = previousVersionOf(versions, quotation);
+  const changes = diffQuotationVersions(previousVersion, quotation);
+  const hasChanges = changes.length > 0;
+  const previousVersionLabel = previousVersion
+    ? `${Number(previousVersion.version_number) || 1}.0`
+    : null;
+
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       {/* `block w-full` overrides Radix's grid layout so the content flows
@@ -174,7 +186,7 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
             pr-12 keeps content clear of the dialog's own close button. */}
         <div className="relative border-b border-border bg-card px-5 py-5 pr-12 sm:px-7 sm:py-6 sm:pr-14">
           <span className="absolute inset-x-0 top-0 h-1 bg-primary" aria-hidden="true" />
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-1 items-start gap-3.5">
               <span
                 className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-powder text-primary ring-1 ring-accent/40"
@@ -186,22 +198,28 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 <DialogTitle className="font-serif text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                   Official Catering Quotation
                 </DialogTitle>
-                <DialogDescription className="mt-1.5 font-sans text-sm text-muted-foreground">
+                {/* flex-wrap rather than inline spans: each segment is
+                    whitespace-nowrap, and with no whitespace between them the
+                    browser has no soft-wrap opportunity and the line overflows
+                    on narrow screens. */}
+                <DialogDescription className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 font-sans text-sm text-muted-foreground">
                   <span className="whitespace-nowrap">
                     Quotation Ref:{" "}
-                    <span className="font-semibold text-foreground">
+                    <span className="font-semibold tabular-nums text-foreground">
                       {quotation.quotation_number || "QTN-000001"}
                     </span>
                   </span>
-                  <span className="px-1.5 opacity-40" aria-hidden="true">·</span>
+                  <span className="opacity-40" aria-hidden="true">·</span>
                   <span className="whitespace-nowrap">
-                    Version <span className="font-semibold text-foreground">{versionLabel}</span>
+                    Version{" "}
+                    <span className="font-semibold tabular-nums text-foreground">{versionLabel}</span>
                   </span>
                   {inquiry?.reference && (
                     <>
-                      <span className="px-1.5 opacity-40" aria-hidden="true">·</span>
+                      <span className="opacity-40" aria-hidden="true">·</span>
                       <span className="whitespace-nowrap">
-                        Inquiry: <span className="font-semibold text-foreground">{inquiry.reference}</span>
+                        Inquiry:{" "}
+                        <span className="font-semibold tabular-nums text-foreground">{inquiry.reference}</span>
                       </span>
                     </>
                   )}
@@ -216,6 +234,89 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           <span className="absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-accent/60 to-transparent sm:inset-x-7" aria-hidden="true" />
         </div>
 
+        {/* Revised-quotation indicator + the switch between the clean
+            quotation and the focused comparison. Only rendered when there is
+            a real earlier version to compare against. */}
+        {hasChanges && (
+          <div className="flex flex-col gap-3 border-b border-border bg-amber-50/60 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <p className="flex items-start gap-2.5 text-sm leading-relaxed text-amber-900">
+              <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+              <span>
+                <strong className="font-semibold">Quotation revised — Version {versionLabel}.</strong>{" "}
+                <span className="tabular-nums">Updated {formatShortDate(quotation.updatedAt || quotation.createdAt)}</span>
+              </span>
+            </p>
+            <div className="inline-flex shrink-0 rounded-lg bg-card p-1 ring-1 ring-amber-200">
+              <button
+                type="button"
+                onClick={() => setPane("quotation")}
+                aria-pressed={pane === "quotation"}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  pane === "quotation" ? "bg-muted font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Current quotation
+              </button>
+              <button
+                type="button"
+                onClick={() => setPane("changes")}
+                aria-pressed={pane === "changes"}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  pane === "changes" ? "bg-muted font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"
+                )}
+              >
+                View {changes.length} change{changes.length === 1 ? "" : "s"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pane === "changes" && hasChanges ? (
+          <div className="space-y-4 px-5 py-6 sm:px-7">
+            <div>
+              <h3 className="font-serif text-lg font-bold text-foreground">
+                Changes since Version {previousVersionLabel}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                <span className="tabular-nums">{changes.length}</span> update
+                {changes.length === 1 ? " was" : "s were"} made to your quotation.
+              </p>
+            </div>
+
+            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+              {changes.map((change, idx) => (
+                <li key={idx} className="flex flex-col gap-1 px-4 py-3.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4 sm:px-5">
+                  <span className="min-w-0 text-sm font-medium text-foreground">
+                    {change.name ? `${change.label}: ${change.name}` : change.label}
+                  </span>
+                  {change.detail ? (
+                    <span
+                      className={cn(
+                        "shrink-0 font-sans text-sm font-medium tabular-nums",
+                        change.kind === "removed" ? "text-rose-700" : "text-emerald-700"
+                      )}
+                    >
+                      {change.detail}
+                    </span>
+                  ) : (
+                    <span className="flex shrink-0 items-baseline gap-2 font-sans text-sm tabular-nums">
+                      <span className="text-muted-foreground line-through">{change.from}</span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
+                      <span className="font-semibold text-foreground">{change.to}</span>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              These are the changes your caterer applied to this version. Anything you asked for that
+              isn't listed here was not carried into this quotation.
+            </p>
+          </div>
+        ) : (
         <div className="space-y-6 px-5 py-6 sm:px-7">
 
           {isExpired && (
@@ -503,33 +604,40 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
             </form>
           )}
         </div>
+        )}
 
-        {/* Actions — one obvious next step */}
-        <div className="sticky bottom-0 flex flex-col gap-3 border-t border-border bg-card px-5 py-4 sm:flex-row-reverse sm:items-center sm:justify-between sm:px-7">
-          {canRespond && !showRevisionForm ? (
-            <>
+        {/* Decision bar. No Close action here by design — the dialog is
+            dismissed with the top-right X or Escape, so the footer carries
+            only the three decisions. On mobile they stack full-width in
+            priority order rather than being squeezed onto one row. */}
+        {canRespond && !showRevisionForm && (
+          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-7">
+            <Button
+              variant="ghost"
+              onClick={handleReject}
+              disabled={isSubmitting}
+              className={cn("w-full sm:w-auto", ACTION_DANGER)}
+            >
+              <XCircle className="h-4 w-4" /> Decline
+            </Button>
+            {/* col-reverse puts Accept first on mobile (priority order top to
+                bottom); the sm row restores DOM order so it sits rightmost. */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowRevisionForm(true)}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto"
+              >
+                <RefreshCw className="h-4 w-4" /> Request a change
+              </Button>
               <Button onClick={handleAccept} disabled={isSubmitting} className="w-full sm:w-auto">
                 <CheckCircle2 className="h-4 w-4" />
                 {isSubmitting ? "Processing…" : "Accept & Continue to Payment"}
               </Button>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => setShowRevisionForm(true)} disabled={isSubmitting}>
-                  <RefreshCw className="h-4 w-4" /> Request a change
-                </Button>
-                <Button variant="ghost" onClick={handleReject} disabled={isSubmitting} className={cn(ACTION_DANGER)}>
-                  <XCircle className="h-4 w-4" /> Decline
-                </Button>
-                <Button variant="ghost" onClick={onClose}>
-                  Close
-                </Button>
-              </div>
-            </>
-          ) : (
-            <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
-              Close
-            </Button>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

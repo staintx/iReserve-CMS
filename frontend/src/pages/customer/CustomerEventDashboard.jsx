@@ -27,7 +27,8 @@ import {
   Calendar,
   Info,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  History
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -41,6 +42,7 @@ import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimeline";
+import BookingVersionHistory from "../../components/booking/BookingVersionHistory";
 import AmountSummary from "../../components/customer/portal/AmountSummary";
 import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/actionStyles";
 import { cn } from "@/lib/utils";
@@ -1106,10 +1108,27 @@ export default function CustomerEventDashboard() {
             </div>
           </TabsContent>
 
-          {/* TAB 3: STATUS & TIMELINE */}
+          {/* TAB 3: STATUS & TIMELINE — booking & payment lifecycle */}
           <TabsContent value="timeline" className="space-y-6">
+            {/* Everything that has happened to the booking itself. Version
+                changes live in Revisions & History, not here. */}
+            <Card className="border-border shadow-xs">
+              <CardHeader className="border-b border-border pb-3">
+                <CardTitle className="text-base font-serif flex items-center gap-2">
+                  <History className="w-4 h-4 text-primary" />
+                  Activity
+                </CardTitle>
+                <CardDescription>
+                  Booking and payment events, newest first.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <BookingHistoryTimeline booking={booking} payments={bookingPayments} />
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
+
               {/* Event Progress Step Tracker (2 cols) */}
               <Card className="border-border shadow-xs lg:col-span-2">
                 <CardHeader className="border-b border-border pb-4">
@@ -1229,24 +1248,24 @@ export default function CustomerEventDashboard() {
             </div>
           </TabsContent>
 
-          {/* TAB 4: REVISIONS & HISTORY */}
+          {/* TAB 4: REVISIONS & HISTORY — what changed between versions */}
           <TabsContent value="revisions" className="space-y-6">
             <Card className="border-border shadow-xs">
               <CardHeader className="border-b border-border pb-3">
                 <CardTitle className="text-base font-serif flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-primary" />
-                  Booking History
+                  <Layers className="w-4 h-4 text-primary" />
+                  Revisions & History
                 </CardTitle>
                 <CardDescription>
-                  Everything that has happened to this booking, newest first.
+                  What changed between versions of this booking.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-6">
-                <BookingHistoryTimeline booking={booking} payments={bookingPayments} />
+                <BookingVersionHistory booking={booking} />
               </CardContent>
             </Card>
 
-            {/* Detailed before/after view of confirmed revisions */}
+            {/* Full audit view of every confirmed revision */}
             <Card className="border-border shadow-xs p-6">
               <BookingRevisionHistory booking={booking} />
             </Card>

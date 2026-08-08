@@ -61,6 +61,7 @@ export default function CustomerInquiries() {
   // Modal State for viewing Quotation
   const [selectedInquiryForModal, setSelectedInquiryForModal] = useState(null);
   const [activeQuotation, setActiveQuotation] = useState(null);
+  const [quotationVersions, setQuotationVersions] = useState([]);
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
   const [isLoadingQuotation, setIsLoadingQuotation] = useState(false);
 
@@ -128,6 +129,7 @@ export default function CustomerInquiries() {
       const quotes = res.data || [];
       if (quotes.length > 0) {
         setActiveQuotation(quotes[0]); // highest/latest version
+        setQuotationVersions(quotes); // every saved version, for the change comparison
         setIsQuotationModalOpen(true);
       } else {
         notify("No formal quotation details found for this inquiry.", "error");
@@ -420,6 +422,7 @@ export default function CustomerInquiries() {
           open={isQuotationModalOpen}
           onClose={() => setIsQuotationModalOpen(false)}
           quotation={activeQuotation}
+          versions={quotationVersions}
           inquiry={selectedInquiryForModal}
           onUpdated={fetchInquiries}
         />

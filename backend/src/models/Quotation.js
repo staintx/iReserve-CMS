@@ -42,7 +42,10 @@ const QuotationSchema = new mongoose.Schema(
     expiration_date: { type: Date },
     admin_notes: String,
     customer_response: String,
-    
+    // When the customer submitted customer_response. Kept separate from
+    // updatedAt, which moves on any later write to this quotation.
+    revision_requested_at: { type: Date },
+
     status: {
       type: String,
       enum: [

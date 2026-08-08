@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import Modal from "../../common/Modal";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
-import { Calculator, Save, AlertCircle } from "lucide-react";
+import { Calculator, Save, AlertCircle, ArrowRight, RefreshCw } from "lucide-react";
+import { diffQuotationVersions } from "../../../utils/quotationDiff";
 
 export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const { notify } = useToast();
@@ -90,28 +91,36 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const totalCost = subtotal + Number(taxes) - Number(discounts);
   const remainingBalance = totalCost - Number(depositAmount);
 
+  // The version about to be saved. Used both for the pre-send change summary
+  // and as the submit payload, so what the admin reviews is exactly what ships.
+  const draft = {
+    inquiry_id: inquiry._id,
+    package_id: inquiry.package_id?._id,
+    package_name: inquiry.package_id?.name,
+    guest_count: inquiry.guest_count,
+    menu_items: menuItems,
+    add_ons: addOns,
+    transportation_fee: Number(transportationFee),
+    equipment_fee: Number(equipmentFee),
+    decoration_fee: Number(decorationFee),
+    taxes: Number(taxes),
+    discounts: Number(discounts),
+    subtotal,
+    total_cost: totalCost,
+    deposit_amount: Number(depositAmount),
+    remaining_balance: remainingBalance,
+    admin_notes: adminNotes
+  };
+
+  // Only meaningful when revising: compares the draft against the latest
+  // saved version using the same helper the customer's "what changed" view uses.
+  const pendingChanges = quotation ? diffQuotationVersions(quotation, draft) : [];
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
-    const payload = {
-      inquiry_id: inquiry._id,
-      package_id: inquiry.package_id?._id,
-      package_name: inquiry.package_id?.name,
-      guest_count: inquiry.guest_count,
-      menu_items: menuItems,
-      add_ons: addOns,
-      transportation_fee: Number(transportationFee),
-      equipment_fee: Number(equipmentFee),
-      decoration_fee: Number(decorationFee),
-      taxes: Number(taxes),
-      discounts: Number(discounts),
-      subtotal,
-      total_cost: totalCost,
-      deposit_amount: Number(depositAmount),
-      remaining_balance: remainingBalance,
-      admin_notes: adminNotes
-    };
+    const payload = draft;
 
     try {
       await AdminAPI.createQuotation(payload);
@@ -323,9 +332,53 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <button 
-              type="button" 
+          {/* Pre-send review: exactly what the customer will see as
+              "what changed", computed from the draft vs the last saved version. */}
+          {quotation && (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <RefreshCw size={14} className="text-amber-300 shrink-0" />
+                <span className="text-xs font-bold text-white">
+                  Changes to Version {(Number(quotation.version_number) || 1) + 1}.0
+                </span>
+              </div>
+
+              {pendingChanges.length === 0 ? (
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Nothing has changed yet. Adjust the quotation before sending a new version.
+                </p>
+              ) : (
+                <ul className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                  {pendingChanges.map((change, idx) => (
+                    <li key={idx} className="text-xs text-slate-300 leading-relaxed">
+                      <span className="font-semibold text-white">
+                        {change.name ? `${change.label}: ${change.name}` : change.label}
+                      </span>
+                      {change.detail ? (
+                        <span className="ml-1.5 text-emerald-300">{change.detail}</span>
+                      ) : (
+                        <span className="ml-1.5 inline-flex items-center gap-1 tabular-nums">
+                          <span className="text-slate-500 line-through">{change.from}</span>
+                          <ArrowRight size={10} className="text-slate-500 shrink-0" />
+                          <span className="font-semibold text-white">{change.to}</span>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">
+                This is what the customer will see as the changes in this version.
+              </p>
+            </div>
+          )}
+
+          {/* Pinned so the send action stays reachable now that the change
+              summary can make this column scroll. */}
+          <div className="sticky bottom-0 -mx-6 mt-auto flex flex-col gap-3 border-t border-white/10 bg-slate-900 px-6 pt-4">
+            <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
             >
@@ -341,7 +394,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               ) : (
                 <Save size={16} />
               )}
-              {submitting ? "Saving..." : (quotation ? "Generate New Version" : "Send Quotation")}
+              {submitting ? "Saving..." : (quotation ? "Send Revised Quotation" : "Send Quotation")}
             </button>
           </div>
         </div>

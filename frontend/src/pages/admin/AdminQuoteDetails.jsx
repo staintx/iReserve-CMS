@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Badge from "../../components/admin/ui/Badge";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
+import { pendingChangeRequestOf } from "../../utils/quotationDiff";
 
 const DetailCard = ({ title, icon: Icon, children }) => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow duration-300">
@@ -47,6 +48,7 @@ export default function AdminQuoteDetails() {
   const { notify } = useToast();
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [quotations, setQuotations] = useState([]);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showConfirmConvert, setShowConfirmConvert] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +59,16 @@ export default function AdminQuoteDetails() {
       try {
         const res = await AdminAPI.getInquiry(id);
         if (isMounted) setQuote(res.data);
+
+        // The customer's change request is stored on the quotation
+        // (customer_response), not the inquiry — load the versions so the
+        // admin can read what was actually asked for.
+        try {
+          const qRes = await AdminAPI.getQuotationsByInquiry(id);
+          if (isMounted) setQuotations(qRes.data || []);
+        } catch {
+          if (isMounted) setQuotations([]);
+        }
       } catch (err) {
         notify(err.response?.data?.message || "Could not load quote details.", "error");
       } finally {
@@ -182,25 +194,64 @@ export default function AdminQuoteDetails() {
           </div>
         )}
 
-        {quote.status === "Revision Requested" && (
-          <div className="mb-6 p-4 bg-orange-50/90 border border-orange-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-orange-500 text-white rounded-lg shadow-sm">
-                <RefreshCw size={20} />
+        {quote.status === "Revision Requested" && (() => {
+          // Show what the customer actually wrote, not a generic notice. The
+          // message lives on the quotation as customer_response; there is no
+          // dedicated request timestamp, so updatedAt is the closest real value.
+          const request = pendingChangeRequestOf(quotations);
+          const nextVersion = (quotations.reduce(
+            (max, q) => Math.max(max, Number(q.version_number) || 1), 0
+          ) || 1) + 1;
+
+          return (
+            <div className="mb-6 p-4 bg-orange-50/90 border border-orange-200 rounded-xl shadow-sm">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2.5 bg-orange-500 text-white rounded-lg shadow-sm shrink-0">
+                    <RefreshCw size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-orange-950 text-sm">Pending Change Request</h4>
+                    <p className="text-xs text-orange-700 mt-0.5">
+                      {request?.version_number
+                        ? `Requested against quotation v${request.version_number}`
+                        : "Requested against the issued quotation"}
+                      {/* Falls back to updatedAt for requests submitted before
+                          revision_requested_at existed. */}
+                      {(request?.revision_requested_at || request?.updatedAt) && (
+                        <> · Submitted {new Date(request.revision_requested_at || request.updatedAt).toLocaleString(undefined, {
+                          month: "short", day: "numeric", year: "numeric",
+                          hour: "numeric", minute: "2-digit",
+                        })}</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowConvertModal(true)}
+                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
+                >
+                  Review &amp; Create v{nextVersion}
+                </button>
               </div>
-              <div>
-                <h4 className="font-bold text-orange-950 text-sm">Revision Requested by Customer</h4>
-                <p className="text-xs text-orange-700 mt-0.5">The customer requested modifications to the previously issued quotation. Click below to generate a new version.</p>
-              </div>
+
+              {request?.customer_response ? (
+                <blockquote className="mt-3 rounded-lg border border-orange-200 bg-white/70 px-4 py-3 text-sm text-slate-800 leading-relaxed">
+                  “{request.customer_response}”
+                </blockquote>
+              ) : (
+                <p className="mt-3 text-xs text-orange-700 italic">
+                  The customer did not include a written message with this request.
+                </p>
+              )}
+
+              <p className="mt-2 text-xs text-orange-700">
+                Review the request, then create a new quotation version with whatever you approve.
+                The customer only sees changes you actually save.
+              </p>
             </div>
-            <button
-              onClick={() => setShowConvertModal(true)}
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
-            >
-              Create New Version (v2)
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {(quote.status === "Awaiting Final Confirmation" || quote.status === "Quote Accepted") && (
           <div className="mb-6 p-4 bg-purple-50/90 border border-purple-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">

@@ -11,6 +11,9 @@ router.post("/", protect, authorize("admin", "staff", "customer"), validate(book
 
 router.post("/:id/change-request", protect, authorize("customer"), ctrl.requestChange);
 router.post("/:id/change-request/resolve", protect, authorize("admin", "staff"), ctrl.resolveChangeRequest);
+router.post("/:id/propose-revision", protect, authorize("admin", "staff", "customer"), ctrl.proposeRevision);
+router.post("/:id/accept-revision", protect, authorize("admin", "staff", "customer"), ctrl.acceptRevision);
+router.post("/:id/reject-revision", protect, authorize("admin", "staff", "customer"), ctrl.rejectRevision);
 router.put("/:id/send-quote", protect, authorize("admin", "staff"), ctrl.sendQuote);
 router.put("/:id/accept-quote", protect, authorize("customer"), ctrl.acceptQuote);
 router.post("/:id/add-guests", protect, authorize("customer"), ctrl.addGuests);

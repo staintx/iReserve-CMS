@@ -104,6 +104,7 @@ const BookingSchema = new mongoose.Schema(
     contact_method: String,
 
     total_price: Number,
+    discount_amount: { type: Number, default: 0 },
     payment_method: String,
     payment_status: {
       type: String,
@@ -129,6 +130,42 @@ const BookingSchema = new mongoose.Schema(
       requested_at: Date,
       resolved_at: Date,
     },
+
+    is_revised: { type: Boolean, default: false },
+    revision_count: { type: Number, default: 0 },
+
+    pending_revision: {
+      status: {
+        type: String,
+        enum: ["none", "pending_customer_approval", "pending_admin_approval", "approved", "rejected"],
+        default: "none",
+      },
+      proposed_by: { type: String, enum: ["admin", "customer"] },
+      proposed_by_user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      proposed_changes: { type: mongoose.Schema.Types.Mixed },
+      proposed_snapshot: { type: mongoose.Schema.Types.Mixed },
+      message: String,
+      price_difference: { type: Number, default: 0 },
+      requested_at: Date,
+      resolved_at: Date,
+      rejection_reason: String,
+    },
+
+    revisions: [
+      {
+        revision_number: { type: Number, required: true },
+        proposed_by: String,
+        confirmed_by: String,
+        admin_confirmed_at: Date,
+        customer_confirmed_at: Date,
+        status: { type: String, enum: ["confirmed", "rejected"], default: "confirmed" },
+        changes: { type: mongoose.Schema.Types.Mixed },
+        message: String,
+        price_difference: { type: Number, default: 0 },
+        snapshot: { type: mongoose.Schema.Types.Mixed },
+        created_at: { type: Date, default: Date.now },
+      },
+    ],
 
     status: {
       type: String,

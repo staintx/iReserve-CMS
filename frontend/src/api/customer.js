@@ -44,6 +44,9 @@ export const CustomerAPI = {
   addGuests: (id, data) => api.post(`/bookings/${id}/add-guests`, data),
   upgradeBooking: (id, data) => api.post(`/bookings/${id}/upgrade-booking`, data),
   acceptQuote: (id, data) => api.put(`/bookings/${id}/accept-quote`, data),
+  proposeRevision: (id, data) => api.post(`/bookings/${id}/propose-revision`, data),
+  acceptRevision: (id) => api.post(`/bookings/${id}/accept-revision`),
+  rejectRevision: (id, data) => api.post(`/bookings/${id}/reject-revision`, data),
 
   // profile
   getProfile: () => api.get("/users/me"),

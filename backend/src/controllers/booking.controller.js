@@ -2107,7 +2107,6 @@ exports.sendQuote = asyncHandler(async (req, res) => {
   // Notify customer
   const io = req.app.get("io");
   if (io && booking.customer_id) {
-    const { createNotification } = require("../controllers/notification.controller");
     await createNotification({
       userId: booking.customer_id,
       title: "Quote Received",

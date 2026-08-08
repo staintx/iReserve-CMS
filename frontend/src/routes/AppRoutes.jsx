@@ -150,7 +150,7 @@ export default function AppRoutes() {
         <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMessagesList /></ProtectedRoute>} />
         <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMessagesChat /></ProtectedRoute>} />
         <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />
-        <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminOnly}><AdminNotifications /></ProtectedRoute>} />
+        <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminNotifications /></ProtectedRoute>} />
 
         {/* Manager (protected by role) */}
         <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />

@@ -197,11 +197,16 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
         </button>
       </div>
 
+      {/* Global, not a nav category: notifications apply across the whole admin
+          portal, so this sits above "Menu" in its own zone with its own
+          divider rather than reading as just another link inside a category. */}
+      <div className="px-3 pt-1 pb-2 border-b border-border">
+        <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
+      </div>
+
       <nav className="flex flex-col flex-1 px-3 pt-1 pb-6 space-y-0.5 overflow-y-auto hide-scrollbar">
         <div className={sectionLabelClass}>Menu</div>
-        
-        <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
-        
+
         <NavLink to="/admin/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
           {({ isActive }) => (
             <>

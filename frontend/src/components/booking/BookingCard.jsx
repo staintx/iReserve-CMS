@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import RecordCard from "../customer/portal/RecordCard";
 import DetailGrid from "../customer/portal/DetailGrid";
@@ -12,6 +13,7 @@ import {
   resolveServiceType,
   serviceIcon,
 } from "../customer/portal/statusMeta";
+import { ACTION_PAY, ACTION_MESSAGE, ACTION_DANGER } from "../customer/portal/actionStyles";
 import { formatCurrency, formatEventDateTime, formatShortDate } from "../../utils/format";
 import {
   Settings,
@@ -125,14 +127,14 @@ export default function BookingCard({
   const primaryAction = (() => {
     if (["deposit pending", "pending deposit", "customer_accepted"].includes(rawStatus)) {
       return (
-        <Button onClick={() => startPayment(booking, false)} className="w-full sm:w-auto">
+        <Button onClick={() => startPayment(booking, false)} className={cn("w-full sm:w-auto", ACTION_PAY)}>
           <CreditCard className="h-4 w-4" /> Pay Deposit
         </Button>
       );
     }
     if (["confirmed", "converted to booking", "preparing", "ocular scheduled"].includes(rawStatus) && balance > 0) {
       return (
-        <Button onClick={() => startPayment(booking, true)} className="w-full sm:w-auto">
+        <Button onClick={() => startPayment(booking, true)} className={cn("w-full sm:w-auto", ACTION_PAY)}>
           <CreditCard className="h-4 w-4" /> Pay Remaining Balance
         </Button>
       );
@@ -243,7 +245,7 @@ export default function BookingCard({
       </Button>
 
       {openCatererChat && (
-        <Button variant="outline" size="sm" onClick={openCatererChat}>
+        <Button variant="outline" size="sm" onClick={openCatererChat} className={ACTION_MESSAGE}>
           <MessageSquare className="h-4 w-4" /> Message us
         </Button>
       )}
@@ -272,7 +274,7 @@ export default function BookingCard({
           size="sm"
           onClick={handleCancellationRequest}
           disabled={isCancelling || booking.change_request?.status === "pending"}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive sm:ml-auto"
+          className={cn(ACTION_DANGER, "sm:ml-auto")}
         >
           <XCircle className="h-4 w-4" /> {isCancelling ? "Processing…" : "Cancel booking"}
         </Button>

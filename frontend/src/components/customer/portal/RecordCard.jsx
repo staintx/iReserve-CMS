@@ -2,7 +2,7 @@ import { useId } from "react";
 import { ChevronDown, CheckCircle2, Clock, XCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import StatusPill from "./StatusPill";
-import { TONE_TEXT, TONE_NOTICE, TONE_ICON } from "./tones";
+import { TONE_TEXT, TONE_NOTICE, TONE_ICON, TONE_ACCENT } from "./tones";
 
 const NOTICE_ICON = {
   success: CheckCircle2,
@@ -70,10 +70,12 @@ export default function RecordCard({
         {/* Identity: name, status, when */}
         <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           {Icon && (
+            // Shape says what service it is; tint repeats the status, so the
+            // state of a record is readable before you get to the badge.
             <span
               className={cn(
                 "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                quiet ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"
+                quiet ? TONE_ACCENT.neutral : TONE_ACCENT[status?.tone] || TONE_ACCENT.neutral
               )}
               aria-hidden="true"
             >
@@ -95,10 +97,12 @@ export default function RecordCard({
             </div>
 
             {visibleMeta.length > 0 && (
+              // The first entry is the event date — the one thing customers
+              // scan for — so it carries weight; the rest stay secondary.
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {visibleMeta.map((item, index) => (
-                  <span key={index}>
-                    {index > 0 && <span className="px-1.5 opacity-40" aria-hidden="true">·</span>}
+                  <span key={index} className={index === 0 ? "font-medium text-foreground" : undefined}>
+                    {index > 0 && <span className="px-1.5 font-normal opacity-40" aria-hidden="true">·</span>}
                     {item}
                   </span>
                 ))}

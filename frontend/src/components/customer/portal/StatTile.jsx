@@ -1,10 +1,14 @@
 import { cn } from "@/lib/utils";
+import { TONE_ACCENT } from "./tones";
 
 /**
  * Compact overview metric. Interactive when `onClick` is supplied so the
  * dashboard numbers double as shortcuts into the matching list.
+ *
+ * `tone` tints only the icon tile — the card surface stays white so a row of
+ * tiles reads as one set rather than as four coloured blocks.
  */
-export default function StatTile({ icon: Icon, label, value, hint, onClick, className }) {
+export default function StatTile({ icon: Icon, label, value, hint, tone = "neutral", onClick, className }) {
   const Wrapper = onClick ? "button" : "div";
 
   return (
@@ -18,13 +22,19 @@ export default function StatTile({ icon: Icon, label, value, hint, onClick, clas
       )}
     >
       {Icon && (
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary" aria-hidden="true">
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+            TONE_ACCENT[tone] || TONE_ACCENT.neutral
+          )}
+          aria-hidden="true"
+        >
           <Icon className="h-5 w-5" />
         </span>
       )}
       <div className="min-w-0">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold leading-tight text-foreground tabular-nums">{value}</div>
+        <div className="text-sm font-medium text-muted-foreground">{label}</div>
+        <div className="text-2xl font-bold leading-tight text-foreground tabular-nums">{value}</div>
         {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
       </div>
     </Wrapper>

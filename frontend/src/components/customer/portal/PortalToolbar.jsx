@@ -1,11 +1,15 @@
-import { Search } from "lucide-react";
+import { Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TONE_SEGMENT_ACTIVE } from "./tones";
+import { FILTER_ACTIVE_BRAND } from "./actionStyles";
 
 /**
  * Shared list toolbar: status segments + search + one row of secondary chips.
  *
- * Segments are deliberately monochrome — the status colour lives on the cards,
- * so the filter row stays quiet and the list below does the talking.
+ * Status segments carry a soft pastel tint when active, matching the status
+ * pill colour they filter for (e.g. "Confirmed" activates green) — the
+ * service-type chips are a different kind of filter (category, not status),
+ * so they activate in a single calm brand blue instead.
  */
 export default function PortalToolbar({
   segments = [],
@@ -26,6 +30,7 @@ export default function PortalToolbar({
             <div className="inline-flex items-center gap-1 rounded-lg bg-muted/60 p-1">
               {segments.map((segment) => {
                 const isActive = activeSegment === segment.id;
+                const tone = segment.tone || "neutral";
                 return (
                   <button
                     key={segment.id}
@@ -35,15 +40,25 @@ export default function PortalToolbar({
                     className={cn(
                       "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isActive
-                        ? "bg-card font-semibold text-foreground shadow-sm"
-                        : "font-medium text-muted-foreground hover:text-foreground"
+                        ? cn("font-semibold", TONE_SEGMENT_ACTIVE[tone] || TONE_SEGMENT_ACTIVE.neutral)
+                        : "font-medium text-muted-foreground hover:bg-card/70 hover:text-foreground"
                     )}
                   >
                     {segment.label}
                     {typeof segment.count === "number" && (
                       // Count chip inherits the button's text colour so contrast
-                      // holds in both states.
-                      <span className={cn("rounded px-1.5 py-0.5 text-xs tabular-nums", isActive ? "bg-powder" : "bg-card")}>
+                      // holds in both states; active pastel tones get a
+                      // translucent white chip instead of the neutral grey one.
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-xs tabular-nums",
+                          isActive
+                            ? tone === "neutral"
+                              ? "bg-muted font-semibold"
+                              : "bg-white/60 font-semibold"
+                            : "bg-card font-medium"
+                        )}
+                      >
                         {segment.count}
                       </span>
                     )}
@@ -71,7 +86,7 @@ export default function PortalToolbar({
 
       {filter && filter.options?.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <span className="text-sm text-muted-foreground">{filter.label}</span>
+          <span className="text-sm font-medium text-foreground">{filter.label}</span>
           {filter.options.map((option) => {
             const isActive = filter.value === option.id;
             return (
@@ -81,12 +96,16 @@ export default function PortalToolbar({
                 onClick={() => filter.onChange?.(option.id)}
                 aria-pressed={isActive}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   isActive
-                    ? "border-primary/40 bg-powder font-medium text-foreground"
-                    : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                    // Category filter (not a status), so it gets its own
+                    // single calm navy rather than a status pastel — filled +
+                    // ticked + bold so it also survives greyscale.
+                    ? cn("font-semibold", FILTER_ACTIVE_BRAND)
+                    : "border-border font-normal text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
+                {isActive && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
                 {option.label}
               </button>
             );

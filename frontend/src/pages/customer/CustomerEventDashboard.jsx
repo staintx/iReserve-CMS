@@ -28,7 +28,8 @@ import {
   Info,
   ExternalLink,
   ChevronRight,
-  History
+  History,
+  FileText
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -46,6 +47,8 @@ import BookingVersionHistory from "../../components/booking/BookingVersionHistor
 import AmountSummary from "../../components/customer/portal/AmountSummary";
 import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/actionStyles";
 import { cn } from "@/lib/utils";
+import { selectSourceQuotation } from "../../utils/quotationDiff";
+import { formatShortDate } from "../../utils/format";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -72,6 +75,7 @@ export default function CustomerEventDashboard() {
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
 
+  const [sourceQuotation, setSourceQuotation] = useState(null);
   const [payments, setPayments] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(true);
   const [payingPaymentId, setPayingPaymentId] = useState(null);
@@ -148,6 +152,7 @@ export default function CustomerEventDashboard() {
   useEffect(() => {
     fetchBooking();
     fetchPayments();
+    fetchSourceQuotation();
     CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
   }, [id]);
 
@@ -255,6 +260,31 @@ export default function CustomerEventDashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  /**
+   * Which quotation this booking came from.
+   *
+   * Booking has no quotation_id — the only stored link runs the other way
+   * (Inquiry.converted_booking_id, set during conversion), so it is resolved
+   * by reverse lookup through existing customer endpoints. Read-only, and it
+   * mirrors the backend's own "prefer Accepted, else latest version" rule so
+   * the reference can't disagree with the version the booking was built from.
+   */
+  const fetchSourceQuotation = async () => {
+    try {
+      const inqRes = await CustomerAPI.getInquiries();
+      const sourceInquiry = (inqRes.data || []).find(
+        (i) => String(i.converted_booking_id || "") === String(id)
+      );
+      if (!sourceInquiry) return;
+
+      const qRes = await CustomerAPI.getQuotationsForInquiry(sourceInquiry._id);
+      const picked = selectSourceQuotation(qRes.data || []);
+      if (picked) setSourceQuotation({ quotation: picked, inquiry: sourceInquiry });
+    } catch {
+      // A missing link is normal for bookings made outside the quote flow.
+    }
   };
 
   const copyReferenceCode = () => {
@@ -1269,6 +1299,36 @@ export default function CustomerEventDashboard() {
             <Card className="border-border shadow-xs p-6">
               <BookingRevisionHistory booking={booking} />
             </Card>
+
+            {/* §6 — a pointer to the quotation this booking came from, not a
+                copy of its history. The quotation keeps its own versions. */}
+            {sourceQuotation && (
+              <Card className="border-border shadow-xs">
+                <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-sans text-sm font-semibold text-foreground">Source quotation</p>
+                    <p className="mt-0.5 font-sans text-sm text-muted-foreground">
+                      <span className="tabular-nums">
+                        {sourceQuotation.quotation.quotation_number || "Quotation"} · Version{" "}
+                        {Number(sourceQuotation.quotation.version_number) || 1}.0
+                      </span>
+                      {sourceQuotation.quotation.status === "Accepted" &&
+                        sourceQuotation.quotation.updatedAt && (
+                          <> · Accepted {formatShortDate(sourceQuotation.quotation.updatedAt)}</>
+                        )}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => navigate("/customer/inquiries")}
+                  >
+                    <FileText className="h-4 w-4" /> View quotation
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
         </Tabs>

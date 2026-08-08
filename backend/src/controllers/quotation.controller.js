@@ -77,6 +77,7 @@ exports.requestRevision = asyncHandler(async (req, res) => {
 
   quotation.status = "Revision Requested";
   quotation.customer_response = req.body.customer_response;
+  quotation.revision_requested_at = new Date();
   await quotation.save();
 
   const inquiry = await Inquiry.findById(quotation.inquiry_id);

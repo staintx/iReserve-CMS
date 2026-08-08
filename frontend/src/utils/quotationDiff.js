@@ -140,6 +140,39 @@ export function diffQuotationVersions(previous, current) {
 }
 
 /**
+ * The quotation a booking was actually created from.
+ *
+ * Mirrors the backend's own selection rule at conversion time
+ * (booking.controller.js: prefer status "Accepted", otherwise the highest
+ * version_number) so the reference shown to the customer cannot drift from the
+ * version the booking was really built on.
+ */
+export function selectSourceQuotation(versions = []) {
+  if (!Array.isArray(versions) || versions.length === 0) return null;
+  return (
+    versions.find((v) => v.status === "Accepted") ||
+    [...versions].sort(
+      (a, b) => (Number(b.version_number) || 1) - (Number(a.version_number) || 1)
+    )[0] ||
+    null
+  );
+}
+
+/**
+ * The most recent version whose status shows the customer asked for changes.
+ * `customer_response` holds their message; the backend stores no dedicated
+ * request timestamp, so callers fall back to updatedAt.
+ */
+export function pendingChangeRequestOf(versions = [], current = null) {
+  const pool = Array.isArray(versions) && versions.length > 0 ? versions : [current].filter(Boolean);
+  return (
+    pool
+      .filter((v) => v?.status === "Revision Requested" && v?.customer_response)
+      .sort((a, b) => (Number(b.version_number) || 1) - (Number(a.version_number) || 1))[0] || null
+  );
+}
+
+/**
  * Picks the version immediately below `current` from a list of saved versions.
  * The API returns them sorted by version_number descending.
  */

@@ -331,10 +331,24 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
             </StateNotice>
           )}
 
+          {/* A submitted request is pending until an admin acts on it — it is
+              not itself a change to the quotation (§3). */}
           {quotation.customer_response && (
-            <StateNotice tone="info" icon={RefreshCw} title="Your revision request:">
-              {quotation.customer_response}
-            </StateNotice>
+            quotation.status === "Revision Requested" ? (
+              <StateNotice tone="warning" icon={Clock} title="Your change request is with our team.">
+                “{quotation.customer_response}” — we'll review it and send an updated quotation if we
+                can accommodate it. This quotation is unchanged until then.
+                {(quotation.revision_requested_at || quotation.updatedAt) && (
+                  <span className="mt-1 block text-xs tabular-nums opacity-80">
+                    Submitted {formatShortDate(quotation.revision_requested_at || quotation.updatedAt)}
+                  </span>
+                )}
+              </StateNotice>
+            ) : (
+              <StateNotice tone="info" icon={RefreshCw} title="Your earlier change request:">
+                {quotation.customer_response}
+              </StateNotice>
+            )
           )}
 
           {/* 1. What it costs and what to pay — the most prominent block */}
@@ -583,16 +597,24 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
               className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5"
             >
               <label htmlFor="revision-note" className="block text-sm font-semibold text-foreground">
-                What would you like changed?
+                What would you like to change?
               </label>
+              <p className="text-sm text-muted-foreground">
+                Describe it in your own words — you might mention guest count, menu or package,
+                add-ons, event details, or anything else.
+              </p>
               <textarea
                 id="revision-note"
                 className="min-h-[110px] w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="For example: please change the guest count to 80, swap one dish, or move the setup time earlier."
+                placeholder="For example: can we increase the guest count from 50 to 70 and add 2 cocktail tables?"
                 value={revisionNote}
                 onChange={(e) => setRevisionNote(e.target.value)}
                 required
               />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                This sends a request to our team — it doesn't change your quotation on its own.
+                We'll review it and send you an updated version if we can accommodate it.
+              </p>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setShowRevisionForm(false)}>
                   Cancel

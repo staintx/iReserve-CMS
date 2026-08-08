@@ -15,7 +15,7 @@
   --color-muted: #F1F5F9;
   --color-muted-foreground: #64748B;
   --color-foreground: #1E293B;
-  --color-background: #F8FAFC;
+  --color-background: #FFFFFF;
   --color-card: #FFFFFF;
   --color-ring: #4C81E0;
 }
@@ -75,7 +75,7 @@
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: #F7F4EE;
+  background: #FFFFFF;
 }
 
 /* Sidebar */

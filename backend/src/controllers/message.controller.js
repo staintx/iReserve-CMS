@@ -2,6 +2,7 @@ const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const Booking = require("../models/Booking");
 const Inquiry = require("../models/Inquiry");
+const Notification = require("../models/Notification");
 
 const asyncHandler = require("../utils/asyncHandler");
 const { canAccessConversation } = require("../utils/chatAccess");
@@ -234,6 +235,11 @@ exports.markAsRead = asyncHandler(async (req, res) => {
   await Message.updateMany(
     { conversation_id: conversation._id, "read_by.user_id": { $ne: req.user._id } },
     { $push: { read_by: { user_id: req.user._id, read_at: new Date() } } }
+  );
+
+  await Notification.updateMany(
+    { user_id: req.user._id, "meta.conversation_id": conversation._id, is_read: false },
+    { $set: { is_read: true, read_at: new Date() } }
   );
 
   res.json({ ok: true, conversation_id: conversation._id });

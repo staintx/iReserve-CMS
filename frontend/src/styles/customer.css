@@ -261,18 +261,6 @@
   border-radius: 6px;
 }
 
-.chat-fab {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  background: #2C4B8A;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 52px;
-  height: 52px;
-}
-
 /* Booking wizard */
 .booking-page {
   display: grid;

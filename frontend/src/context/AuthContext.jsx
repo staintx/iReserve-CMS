@@ -1,6 +1,6 @@
 import { createContext, useCallback, useEffect, useState } from "react";
 import api from "../api/axios";
-import { resetSocket } from "../api/socket";
+import { getSocket, resetSocket } from "../api/socket";
 
 export const AuthContext = createContext();
 
@@ -13,7 +13,9 @@ export default function AuthProvider({ children }) {
     const saved = localStorage.getItem("user");
     if (saved) {
       try {
-        setUser(JSON.parse(saved));
+        const parsedUser = JSON.parse(saved);
+        setUser(parsedUser);
+        getSocket().connect();
       } catch (err) {
         localStorage.removeItem("user");
       }
@@ -27,6 +29,7 @@ export default function AuthProvider({ children }) {
     setUser(data.user);
     setSessionExpired(false);
     resetSocket();
+    getSocket().connect();
     return data.user;
   };
 

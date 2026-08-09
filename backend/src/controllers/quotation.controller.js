@@ -31,6 +31,9 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   inquiry.revision_count = nextVersion - 1;
   await inquiry.save();
 
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "quotation", action: "create" });
+
   res.status(201).json(quotation);
 });
 
@@ -94,6 +97,9 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
     await inquiry.save();
   }
 
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "quotation", action: "accept" });
+
   res.json({ message: "Quotation accepted, awaiting final admin confirmation", quotation });
 });
 
@@ -118,6 +124,9 @@ exports.requestRevision = asyncHandler(async (req, res) => {
     await inquiry.save();
   }
 
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "quotation", action: "revise" });
+
   res.json({ message: "Revision requested", quotation });
 });
 
@@ -139,6 +148,9 @@ exports.rejectQuotation = asyncHandler(async (req, res) => {
     inquiry.status = "Quote Rejected";
     await inquiry.save();
   }
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "quotation", action: "reject" });
 
   res.json({ message: "Quotation rejected", quotation });
 });

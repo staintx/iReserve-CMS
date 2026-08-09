@@ -37,6 +37,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
@@ -154,6 +155,11 @@ export default function CustomerEventDashboard() {
     fetchSourceQuotation();
     CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
   }, [id]);
+
+  useRealTimeRefresh(() => {
+    fetchBooking();
+    fetchPayments();
+  });
 
   const canModifyBooking = useMemo(() => {
     if (!booking || !booking.event_date) return false;

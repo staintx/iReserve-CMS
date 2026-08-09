@@ -32,6 +32,7 @@ import {
   ChevronRight,
   Sparkles,
 } from "lucide-react";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
@@ -41,7 +42,7 @@ export default function CustomerDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
     Promise.all([
       CustomerAPI.getInquiries().catch(() => ({ data: [] })),
@@ -58,7 +59,13 @@ export default function CustomerDashboard() {
       }).length;
       setUnreadCount(unread);
     }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, [user]);
+
+  useRealTimeRefresh(loadData);
 
   const now = useMemo(() => new Date(), []);
 

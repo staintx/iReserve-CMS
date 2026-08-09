@@ -35,6 +35,10 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     type: "new_inquiry",
     link: "/admin/bookings/inquiries"
   });
+  
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "inquiry", action: "create" });
+
   res.status(201).json(inquiry);
 });
 
@@ -71,6 +75,10 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
 exports.updateInquiry = asyncHandler(async (req, res) => {
   const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true });
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+  
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
+
   res.json(inquiry);
 });
 
@@ -87,5 +95,8 @@ exports.deleteInquiry = asyncHandler(async (req, res) => {
   inquiry.status = "Cancelled";
   await inquiry.save();
   
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "inquiry", action: "delete" });
+
   res.json({ message: "Inquiry cancelled" });
 });

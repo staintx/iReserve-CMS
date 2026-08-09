@@ -35,6 +35,7 @@ import DrawerField from "../../components/admin/table/DrawerField";
 import BulkActionBar from "../../components/admin/table/BulkActionBar";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 
 export default function AdminReservations() {
@@ -79,6 +80,8 @@ export default function AdminReservations() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 

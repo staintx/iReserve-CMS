@@ -8,6 +8,7 @@ import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import AdminEventCalendar from "../../components/dashboard/AdminEventCalendar";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -31,11 +32,16 @@ export default function AdminDashboard() {
     return Number.isNaN(d.getTime()) ? null : d;
   };
 
-  useEffect(() => {
+  const loadData = () => {
     const loadAdminDashboard = async () => {
       try {
-        const res = await AdminAPI.getBookings();
-        const data = Array.isArray(res.data) ? res.data : [];
+        const [bookRes, inqRes] = await Promise.all([
+          AdminAPI.getBookings().catch(() => ({ data: [] })),
+          AdminAPI.getInquiries().catch(() => ({ data: [] }))
+        ]);
+        
+        const data = Array.isArray(bookRes.data) ? bookRes.data : [];
+        const inquiries = Array.isArray(inqRes.data) ? inqRes.data : [];
         setBookings(data);
 
         const now = new Date();
@@ -80,7 +86,13 @@ export default function AdminDashboard() {
         setInventoryAlerts(items.filter((item) => (item.available_quantity ?? 0) <= (item.minStock || 0)));
       })
       .catch(() => setInventoryAlerts([]));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const formatEventDate = (value) => {
     const date = parseDate(value);

@@ -156,6 +156,10 @@ exports.create = asyncHandler(async (req, res) => {
 	if (payment.status === "approved" && payment.booking_id) {
 		await syncBookingStatus(payment.booking_id);
 	}
+	
+	const io = req.app.get("io");
+	if (io) io.emit("system:refresh", { type: "payment", action: "create" });
+	
 	res.status(201).json(payment);
 });
 exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id")));
@@ -210,9 +214,18 @@ exports.update = asyncHandler(async (req, res) => {
 			}, io);
 		}
 	}
+	
+	const io = req.app.get("io");
+	if (io) io.emit("system:refresh", { type: "payment", action: "update" });
+	
 	res.json(payment);
 });
-exports.remove = asyncHandler(async (req, res) => { await Payment.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); });
+exports.remove = asyncHandler(async (req, res) => { 
+	await Payment.findByIdAndDelete(req.params.id); 
+	const io = req.app.get("io");
+	if (io) io.emit("system:refresh", { type: "payment", action: "delete" });
+	res.json({ message: "Deleted" }); 
+});
 
 async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type }) {
 	if (inquiry_id) {
@@ -501,6 +514,9 @@ exports.processIntent = asyncHandler(async (req, res) => {
 		if (localPayment.booking_id) await syncBookingStatus(localPayment.booking_id);
 	}
 
+	const io = req.app.get("io");
+	if (io) io.emit("system:refresh", { type: "payment", action: "processIntent" });
+
 	res.json({
 		status,
 		next_action_url: nextActionUrl,
@@ -613,6 +629,8 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 			}
 		}
 	}
+
+	io.emit("system:refresh", { type: "payment", action: "webhook" });
 
 	res.status(200).json({ ok: true });
 });

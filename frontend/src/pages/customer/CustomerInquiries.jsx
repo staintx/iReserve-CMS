@@ -4,6 +4,7 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import CustomerQuotationModal from "../../components/customer/CustomerQuotationModal";
 import { Button } from "../../components/ui/button";
 import {
@@ -85,6 +86,8 @@ export default function CustomerInquiries() {
   useEffect(() => {
     fetchInquiries();
   }, []);
+
+  useRealTimeRefresh(fetchInquiries);
 
   const counts = useMemo(() => ({
     all: inquiries.length,

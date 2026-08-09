@@ -468,6 +468,9 @@ exports.create = asyncHandler(async (req, res) => {
   // Payment is NOT triggered during inquiry creation.
   // It will be triggered after the quote is accepted by the customer.
 
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "booking", action: "create" });
+
   res.status(201).json(booking);
 });
 
@@ -806,11 +809,15 @@ exports.update = asyncHandler(async (req, res) => {
           ...updated.change_request.toObject?.(),
           status: "approved",
           resolved_at: new Date(),
+          reviewed_by: req.user?._id
         };
       }
       await updated.save();
     }
   }
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "booking", action: "update" });
 
   res.json(updated);
 });

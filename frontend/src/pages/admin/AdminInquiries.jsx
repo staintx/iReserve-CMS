@@ -19,6 +19,7 @@ import DrawerField from "../../components/admin/table/DrawerField";
 import BulkActionBar from "../../components/admin/table/BulkActionBar";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
 export default function AdminInquiries() {
   const navigate = useNavigate();
@@ -57,6 +58,8 @@ export default function AdminInquiries() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 

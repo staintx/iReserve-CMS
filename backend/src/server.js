@@ -112,9 +112,11 @@ io.use(async (socket, next) => {
 	try {
 		const cookies = cookie.parse(socket.handshake.headers.cookie || "");
 		let token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
+		require("fs").appendFileSync("socket-debug.log", `[${new Date().toISOString()}] USE ${socket.id} - token present: ${!!token}, auth token: ${!!socket.handshake.auth?.token}, cookies token: ${!!cookies.token}\n`);
 		if (!token) {
 			// Allow anonymous sockets to connect (they won't join private rooms).
 			socket.data.user = null;
+			require("fs").appendFileSync("socket-debug.log", `[${new Date().toISOString()}] USE ${socket.id} - No token, allowing anonymous\n`);
 			return next();
 		}
 		const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -138,6 +140,7 @@ io.use(async (socket, next) => {
 });
 
 io.on("connection", (socket) => {
+	require("fs").appendFileSync("socket-debug.log", `[${new Date().toISOString()}] CONNECT ${socket.id} - User: ${socket.data.user ? socket.data.user.email : 'Anonymous'}\n`);
 	const emitMessageToRooms = (conversation, payload) => {
 		const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
 		const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
@@ -149,7 +152,22 @@ io.on("connection", (socket) => {
 		io.to("role:manager").emit("message:new", payload);
 	};
 
-	const persistSocketMessage = async ({ conversationId, body, attachments = [], client_message_id: clientMessageId }) => {
+	const persistSocketMessage = async ({ conversationId, body, attachments = [], client_message_id: clientMessageId, token }) => {
+		if (!socket.data.user && token) {
+			try {
+				const decoded = jwt.verify(token, process.env.JWT_SECRET);
+				const user = await User.findById(decoded.id).select("-password");
+				if (user) {
+					socket.data.user = user;
+					socket.join(`user:${user._id}`);
+					if (user.role === "admin" || user.role === "manager") {
+						socket.join("role:admin");
+						socket.join("role:manager");
+					}
+				}
+			} catch (e) {}
+		}
+
 		if (!socket.data.user) {
 			throw new Error("Unauthorized");
 		}
@@ -264,6 +282,20 @@ io.on("connection", (socket) => {
 
 	socket.on("message:send", async (payload, ack) => {
 		try {
+			if (payload?.token && !socket.data.user) {
+				try {
+					const decoded = jwt.verify(payload.token, process.env.JWT_SECRET);
+					const user = await User.findById(decoded.id).select("-password");
+					if (user) {
+						socket.data.user = user;
+						socket.join(`user:${user._id}`);
+						if (user.role === "admin" || user.role === "manager") {
+							socket.join("role:admin");
+							socket.join("role:manager");
+						}
+					}
+				} catch (e) {}
+			}
 			const message = await persistSocketMessage(payload || {});
 			if (ack) ack({ ok: true, message });
 		} catch (err) {
@@ -271,34 +303,30 @@ io.on("connection", (socket) => {
 		}
 	});
 
-	socket.on("conversation:join", async (conversationId, ack) => {
+	socket.on("conversation:join", async (data, ack) => {
 		try {
+			const conversationId = typeof data === "object" ? data?.conversationId : data;
+			const token = typeof data === "object" ? data?.token : (socket.handshake.auth?.token || null);
+
+			if (token && !socket.data.user) {
+				try {
+					const decoded = jwt.verify(token, process.env.JWT_SECRET);
+					const user = await User.findById(decoded.id).select("-password");
+					if (user) {
+						socket.data.user = user;
+						socket.join(`user:${user._id}`);
+						if (user.role === "admin" || user.role === "manager") {
+							socket.join("role:admin");
+							socket.join("role:manager");
+						}
+					}
+				} catch (e) {}
+			}
+
 			const conversation = await Conversation.findById(conversationId);
 			if (!conversation) {
 				if (ack) ack({ ok: false, message: "Conversation not found" });
 				return;
-			}
-
-			// Ensure socket has an authenticated user if possible (try one-time verification)
-			if (!socket.data.user) {
-				try {
-					const cookies = cookie.parse(socket.handshake.headers.cookie || "");
-					const token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
-					if (token) {
-						const decoded = jwt.verify(token, process.env.JWT_SECRET);
-						const user = await User.findById(decoded.id).select("-password");
-						if (user) {
-							socket.data.user = user;
-							socket.join(`user:${user._id}`);
-							if (user.role === "admin" || user.role === "manager") {
-								socket.join("role:admin");
-								socket.join("role:manager");
-							}
-						}
-					}
-				} catch (e) {
-					// ignore verification error here; we'll handle access below
-				}
 			}
 
 			if (!canAccessConversation(socket.data.user, conversation)) {

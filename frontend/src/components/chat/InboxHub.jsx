@@ -328,6 +328,31 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     return () => { isMounted = false; };
   }, [activeId, isCustomerRole]);
 
+  // Active Conversation Live Polling Net (Every 3 seconds)
+  useEffect(() => {
+    if (!activeId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const [fetchedMsgs, fetchedThreads] = await Promise.all([
+          getMessages(activeId).catch(() => null),
+          listConversations().catch(() => null)
+        ]);
+
+        if (fetchedMsgs && Array.isArray(fetchedMsgs)) {
+          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs));
+        }
+        if (fetchedThreads && Array.isArray(fetchedThreads)) {
+          setThreads(fetchedThreads);
+        }
+      } catch (e) {
+        // silent catch
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [activeId]);
+
   useEffect(() => {
     const socket = getSocket();
     socketRef.current = socket;
@@ -335,7 +360,8 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
     const joinActiveRoom = () => {
       if (joinedConversationId && socket.connected) {
-        socket.emit("conversation:join", joinedConversationId);
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        socket.emit("conversation:join", { conversationId: joinedConversationId, token });
       }
     };
 
@@ -473,7 +499,8 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         conversationId: activeId,
         body: textToSend,
         attachments: attachmentsToSend,
-        client_message_id: clientMessageId
+        client_message_id: clientMessageId,
+        token: typeof window !== "undefined" ? localStorage.getItem("token") : null
       };
 
       const newMsg = await sendMessageWithFallback({

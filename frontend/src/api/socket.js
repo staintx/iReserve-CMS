@@ -23,17 +23,21 @@ export const getSocket = () => {
 
     // Auto-logout when the server rejects the socket due to an expired JWT
     socket.on("connect_error", (err) => {
+      console.error("[Socket] connect_error:", err.message);
       if (err.message === "TOKEN_EXPIRED") {
         window.dispatchEvent(new CustomEvent("session-expired"));
       }
     });
 
     // Helpful debug logs for connection lifecycle in production troubleshooting
-    socket.on("connect", () => console.debug("Socket connected"));
-    socket.on("reconnect", (attempt) => console.debug("Socket reconnected", attempt));
-    socket.on("disconnect", (reason) => console.debug("Socket disconnected", reason));
+    socket.on("connect", () => {
+      console.debug("[Socket] connected with auth:", socket.auth);
+    });
+    socket.on("reconnect", (attempt) => console.debug("[Socket] reconnected", attempt));
+    socket.on("disconnect", (reason) => console.debug("[Socket] disconnected", reason));
   } else {
     socket.auth = token ? { token } : undefined;
+    console.debug("[Socket] getSocket called, updated auth:", socket.auth);
   }
 
   return socket;

@@ -202,6 +202,20 @@ export default function FloatingChatWidget() {
     return () => { isMounted = false; };
   }, [isOpen, user]);
 
+  // Active polling net for floating widget when open (every 3 seconds)
+  useEffect(() => {
+    if (!isOpen || !conversation?._id) return;
+    const interval = setInterval(async () => {
+      try {
+        const fetchedMsgs = await getMessages(conversation._id);
+        if (fetchedMsgs && Array.isArray(fetchedMsgs)) {
+          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs));
+        }
+      } catch (e) {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isOpen, conversation?._id]);
+
   const convIdRef = useRef(conversation?._id);
   useEffect(() => {
     convIdRef.current = conversation?._id;
@@ -217,7 +231,8 @@ export default function FloatingChatWidget() {
 
     const joinRoom = () => {
       if (joinedConversationId && socket.connected) {
-        socket.emit("conversation:join", joinedConversationId);
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        socket.emit("conversation:join", { conversationId: joinedConversationId, token });
       }
     };
 
@@ -305,7 +320,8 @@ export default function FloatingChatWidget() {
         conversationId: activeConvId,
         body: textToSend,
         attachments: attachmentsToSend,
-        client_message_id: clientMessageId
+        client_message_id: clientMessageId,
+        token: typeof window !== "undefined" ? localStorage.getItem("token") : null
       };
 
       const newMsg = await sendMessageWithFallback({

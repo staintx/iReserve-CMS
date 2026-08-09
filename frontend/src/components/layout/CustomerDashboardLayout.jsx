@@ -98,7 +98,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, chil
   );
 
   return (
-    <div className="customer-shell min-h-screen bg-background flex">
+    <div className="customer-shell fixed inset-0 overflow-hidden bg-background flex">
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div

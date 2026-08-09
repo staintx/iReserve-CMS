@@ -98,7 +98,7 @@ startCronJobs(io);
 io.use(async (socket, next) => {
 	try {
 		const cookies = cookie.parse(socket.handshake.headers.cookie || "");
-		const token = cookies.token;
+		let token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
 		if (!token) return next(new Error("Missing token"));
 		const decoded = jwt.verify(token, process.env.JWT_SECRET);
 		const user = await User.findById(decoded.id).select("-password");

@@ -17,13 +17,13 @@ export default function useRealTimeRefresh(onRefresh) {
     };
 
     socket.on("system:refresh", handleRefresh);
-    // Also listen to notifications because sometimes they are fired before system:refresh
-    // or as a more specific trigger for the customer
     socket.on("notification:new", handleRefresh);
+    socket.on("message:new", handleRefresh);
 
     return () => {
       socket.off("system:refresh", handleRefresh);
       socket.off("notification:new", handleRefresh);
+      socket.off("message:new", handleRefresh);
     };
   }, [onRefresh]);
 }

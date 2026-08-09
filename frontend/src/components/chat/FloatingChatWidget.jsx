@@ -102,23 +102,30 @@ export default function FloatingChatWidget() {
     return () => { isMounted = false; };
   }, [isOpen, user]);
 
+  const convIdRef = useRef(conversation?._id);
+  useEffect(() => {
+    convIdRef.current = conversation?._id;
+  }, [conversation?._id]);
+
   // Real-time socket integration
   useEffect(() => {
-    if (!isOpen || !conversation?._id || !user) return undefined;
+    if (!isOpen || !user) return undefined;
 
     const socket = getSocket();
     socketRef.current = socket;
 
     const joinRoom = () => {
-      if (conversation?._id && socket.connected) {
-        socket.emit("conversation:join", conversation._id);
+      const currentConvId = convIdRef.current;
+      if (currentConvId && socket.connected) {
+        socket.emit("conversation:join", currentConvId);
       }
     };
 
     if (!socket.connected) {
       socket.connect();
+    } else {
+      joinRoom();
     }
-    joinRoom();
 
     const onConnect = () => {
       joinRoom();
@@ -127,10 +134,11 @@ export default function FloatingChatWidget() {
     const handleNewMessage = (msg) => {
       if (!msg) return;
       const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
-      if (String(convId) !== String(conversation._id)) return;
+      const currentConvId = convIdRef.current;
+      if (!currentConvId || String(convId) !== String(currentConvId)) return;
 
       setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
-      markConversationAsRead(conversation._id).catch(() => {});
+      markConversationAsRead(currentConvId).catch(() => {});
     };
 
     const handleTypingStart = (payload) => {
@@ -149,8 +157,8 @@ export default function FloatingChatWidget() {
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      if (conversation?._id && socket.connected) {
-        socket.emit("conversation:leave", conversation._id);
+      if (convIdRef.current && socket.connected) {
+        socket.emit("conversation:leave", convIdRef.current);
       }
       socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);

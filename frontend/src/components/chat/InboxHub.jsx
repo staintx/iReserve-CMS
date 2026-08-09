@@ -132,6 +132,11 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   const typingTimeoutRef = useRef(null);
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const activeIdRef = useRef(activeId);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   useEffect(() => {
     if (routeId && routeId !== activeId) {
@@ -205,15 +210,17 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     socketRef.current = socket;
 
     const joinActiveRoom = () => {
-      if (activeId && socket.connected) {
-        socket.emit("conversation:join", activeId);
+      const currentId = activeIdRef.current;
+      if (currentId && socket.connected) {
+        socket.emit("conversation:join", currentId);
       }
     };
 
     if (!socket.connected) {
       socket.connect();
+    } else {
+      joinActiveRoom();
     }
-    joinActiveRoom();
 
     const onConnect = () => {
       joinActiveRoom();
@@ -224,34 +231,38 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
       const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
       if (!convId) return;
 
-      const isCurrentThread = activeId && String(convId) === String(activeId);
+      const currentId = activeIdRef.current;
+      const isCurrentThread = currentId && String(convId) === String(currentId);
+
       if (isCurrentThread) {
         setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
-        markConversationAsRead(activeId).catch(() => {});
+        markConversationAsRead(currentId).catch(() => {});
       }
 
       setThreads((prev) => {
-        const threadExists = prev.some((t) => String(t._id) === String(convId));
-        if (!threadExists) {
+        const threadIndex = prev.findIndex((t) => String(t._id) === String(convId));
+        if (threadIndex === -1) {
           loadThreads(false);
           return prev;
         }
 
+        const targetThread = prev[threadIndex];
         const msgSnippet = msg.body || (msg.attachments?.length ? "[Attachment]" : "New message");
-        return prev.map((t) => {
-          if (String(t._id) !== String(convId)) return t;
-          return {
-            ...t,
-            last_message: msgSnippet,
-            last_message_at: msg.createdAt || new Date().toISOString(),
-            unread_admin_count: isCustomerRole
-              ? t.unread_admin_count
-              : isCurrentThread ? 0 : (t.unread_admin_count || 0) + 1,
-            unread_customer_count: !isCustomerRole
-              ? t.unread_customer_count
-              : isCurrentThread ? 0 : (t.unread_customer_count || 0) + 1
-          };
-        });
+        const updatedThread = {
+          ...targetThread,
+          last_message: msgSnippet,
+          last_message_at: msg.createdAt || new Date().toISOString(),
+          unread_admin_count: isCustomerRole
+            ? targetThread.unread_admin_count
+            : isCurrentThread ? 0 : (targetThread.unread_admin_count || 0) + 1,
+          unread_customer_count: !isCustomerRole
+            ? targetThread.unread_customer_count
+            : isCurrentThread ? 0 : (targetThread.unread_customer_count || 0) + 1
+        };
+
+        const nextThreads = [...prev];
+        nextThreads.splice(threadIndex, 1);
+        return [updatedThread, ...nextThreads];
       });
     };
 
@@ -271,8 +282,8 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      if (activeId && socket.connected) {
-        socket.emit("conversation:leave", activeId);
+      if (activeIdRef.current && socket.connected) {
+        socket.emit("conversation:leave", activeIdRef.current);
       }
       socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
@@ -308,13 +319,19 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
       
       socketRef.current?.emit("typing:stop", activeId);
 
-      setThreads((prev) =>
-        prev.map((t) =>
-          t._id === activeId
-            ? { ...t, last_message: newMsg.body, last_message_at: newMsg.createdAt }
-            : t
-        )
-      );
+      setThreads((prev) => {
+        const threadIndex = prev.findIndex((t) => String(t._id) === String(activeId));
+        if (threadIndex === -1) return prev;
+        const targetThread = prev[threadIndex];
+        const updatedThread = {
+          ...targetThread,
+          last_message: newMsg.body || (attachmentsToSend.length ? "[Attachment]" : "New message"),
+          last_message_at: newMsg.createdAt || new Date().toISOString()
+        };
+        const nextThreads = [...prev];
+        nextThreads.splice(threadIndex, 1);
+        return [updatedThread, ...nextThreads];
+      });
     } catch (err) {
       notify(err.response?.data?.message || "Could not send message.", "error");
     } finally {

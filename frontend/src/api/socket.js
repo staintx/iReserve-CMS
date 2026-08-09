@@ -10,6 +10,10 @@ export const getSocket = () => {
     autoConnect: false,
     transports: ["polling", "websocket"],
     withCredentials: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
   });
 
   // Auto-logout when the server rejects the socket due to an expired JWT

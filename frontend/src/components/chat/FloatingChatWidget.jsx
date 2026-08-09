@@ -108,12 +108,27 @@ export default function FloatingChatWidget() {
 
     const socket = getSocket();
     socketRef.current = socket;
-    socket.connect();
 
-    socket.emit("conversation:join", conversation._id);
+    const joinRoom = () => {
+      if (conversation?._id && socket.connected) {
+        socket.emit("conversation:join", conversation._id);
+      }
+    };
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+    joinRoom();
+
+    const onConnect = () => {
+      joinRoom();
+    };
 
     const handleNewMessage = (msg) => {
-      if (String(msg?.conversation_id) !== String(conversation._id)) return;
+      if (!msg) return;
+      const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
+      if (String(convId) !== String(conversation._id)) return;
+
       setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
       markConversationAsRead(conversation._id).catch(() => {});
     };
@@ -128,12 +143,16 @@ export default function FloatingChatWidget() {
       setTypingUsers((prev) => prev.filter((item) => item.user_id !== payload.user_id));
     };
 
+    socket.on("connect", onConnect);
     socket.on("message:new", handleNewMessage);
     socket.on("typing:start", handleTypingStart);
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      socket.emit("conversation:leave", conversation._id);
+      if (conversation?._id && socket.connected) {
+        socket.emit("conversation:leave", conversation._id);
+      }
+      socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
       socket.off("typing:start", handleTypingStart);
       socket.off("typing:stop", handleTypingStop);
@@ -192,11 +211,18 @@ export default function FloatingChatWidget() {
     }, 1200);
   };
 
+  const unreadCount = user
+    ? messages.filter((m) => m.sender_id?._id !== user?._id).length
+    : 0;
+
   return (
     <>
-      {/* FLOATING POPUP WIDGET */}
-      {isOpen && (
-        <div className="fixed bottom-24 right-4 sm:right-6 z-50 w-[92vw] max-w-[360px] sm:w-[380px] h-[520px] max-h-[80vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
+      {isOpen ? (
+        /* OPEN CHAT CONVERSATION CARD (REPLACES TRIGGER CIRCLE) */
+        <div
+          className="fixed right-4 sm:right-6 z-50 w-[92vw] max-w-[360px] sm:w-[380px] h-[520px] max-h-[82vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+          style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
+        >
           {/* HEADER */}
           <div className="bg-primary text-primary-foreground p-4 flex items-center justify-between shadow-md relative">
             <div className="flex items-center gap-3">
@@ -213,8 +239,9 @@ export default function FloatingChatWidget() {
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-primary-foreground/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-colors"
+              className="text-primary-foreground/80 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
               aria-label="Close chat"
+              title="Close conversation"
             >
               <X className="w-5 h-5" />
             </button>
@@ -411,22 +438,25 @@ export default function FloatingChatWidget() {
             </div>
           )}
         </div>
+      ) : (
+        /* COLLAPSED FLOATING TRIGGER BUTTON */
+        <Button
+          className="fixed right-4 sm:right-6 z-50 h-14 w-14 rounded-full shadow-2xl bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all duration-300 ease-out flex items-center justify-center border-2 border-background cursor-pointer animate-in fade-in zoom-in-75"
+          style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
+          size="icon"
+          type="button"
+          onClick={() => setIsOpen(true)}
+          aria-label="Open chat widget"
+          title="Chat with Caezelle Support"
+        >
+          <MessageSquare className="w-6 h-6" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold h-5 min-w-5 rounded-full px-1 flex items-center justify-center border-2 border-background animate-pulse">
+              {unreadCount}
+            </span>
+          )}
+        </Button>
       )}
-
-      {/* FLOATING STICKY TRIGGER BUTTON */}
-      <Button
-        className={cn(
-          "chat-fab fixed right-4 sm:right-6 bottom-6 z-50 h-14 w-14 rounded-full shadow-2xl bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center border-2 border-background cursor-pointer",
-          isOpen ? "rotate-90 bg-muted-foreground" : ""
-        )}
-        size="icon"
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Toggle chat widget"
-        title="Chat with Caezelle Support"
-      >
-        {isOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
-      </Button>
     </>
   );
 }

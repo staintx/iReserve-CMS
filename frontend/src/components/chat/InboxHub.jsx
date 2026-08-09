@@ -201,26 +201,58 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   }, [activeId, isCustomerRole]);
 
   useEffect(() => {
-    if (!activeId) return undefined;
     const socket = getSocket();
     socketRef.current = socket;
-    socket.connect();
 
-    socket.emit("conversation:join", activeId);
+    const joinActiveRoom = () => {
+      if (activeId && socket.connected) {
+        socket.emit("conversation:join", activeId);
+      }
+    };
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+    joinActiveRoom();
+
+    const onConnect = () => {
+      joinActiveRoom();
+    };
 
     const handleNewMessage = (msg) => {
-      if (String(msg?.conversation_id) !== String(activeId)) {
-        setThreads((prev) =>
-          prev.map((t) =>
-            t._id === msg.conversation_id
-              ? { ...t, last_message: msg.body, last_message_at: msg.createdAt }
-              : t
-          )
-        );
-        return;
+      if (!msg) return;
+      const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
+      if (!convId) return;
+
+      const isCurrentThread = activeId && String(convId) === String(activeId);
+      if (isCurrentThread) {
+        setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
+        markConversationAsRead(activeId).catch(() => {});
       }
-      setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
-      markConversationAsRead(activeId).catch(() => {});
+
+      setThreads((prev) => {
+        const threadExists = prev.some((t) => String(t._id) === String(convId));
+        if (!threadExists) {
+          loadThreads(false);
+          return prev;
+        }
+
+        const msgSnippet = msg.body || (msg.attachments?.length ? "[Attachment]" : "New message");
+        return prev.map((t) => {
+          if (String(t._id) !== String(convId)) return t;
+          return {
+            ...t,
+            last_message: msgSnippet,
+            last_message_at: msg.createdAt || new Date().toISOString(),
+            unread_admin_count: isCustomerRole
+              ? t.unread_admin_count
+              : isCurrentThread ? 0 : (t.unread_admin_count || 0) + 1,
+            unread_customer_count: !isCustomerRole
+              ? t.unread_customer_count
+              : isCurrentThread ? 0 : (t.unread_customer_count || 0) + 1
+          };
+        });
+      });
     };
 
     const handleTypingStart = (payload) => {
@@ -233,18 +265,22 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
       setTypingUsers((prev) => prev.filter((item) => item.user_id !== payload.user_id));
     };
 
+    socket.on("connect", onConnect);
     socket.on("message:new", handleNewMessage);
     socket.on("typing:start", handleTypingStart);
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      socket.emit("conversation:leave", activeId);
+      if (activeId && socket.connected) {
+        socket.emit("conversation:leave", activeId);
+      }
+      socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
       socket.off("typing:start", handleTypingStart);
       socket.off("typing:stop", handleTypingStop);
       setTypingUsers([]);
     };
-  }, [activeId, user?._id]);
+  }, [activeId, user?._id, isCustomerRole]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

@@ -11,7 +11,7 @@ exports.getMine = asyncHandler(async (req, res) => {
 
   const [items, total, unreadCount] = await Promise.all([
     Notification.find(query)
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit),
     Notification.countDocuments(query),

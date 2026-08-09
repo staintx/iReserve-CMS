@@ -192,7 +192,7 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
-	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
 	if (req.body.status && payment && payment.booking_id) {
 		await syncBookingStatus(payment.booking_id);
 		

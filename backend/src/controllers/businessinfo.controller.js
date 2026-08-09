@@ -36,7 +36,7 @@ exports.update = asyncHandler(async (req, res) => {
   const updated = await BusinessInfo.findOneAndUpdate(
     {},
     data,
-    { new: true, upsert: true, setDefaultsOnInsert: true }
+    { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
   );
 
   res.json(updated);

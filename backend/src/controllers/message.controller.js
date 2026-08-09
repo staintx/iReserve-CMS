@@ -21,7 +21,7 @@ const ensureBookingConversations = async (bookings) => {
         },
         $setOnInsert: { booking_id: booking._id }
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     ));
   await Promise.all(tasks);
 };
@@ -38,7 +38,7 @@ const ensureInquiryConversations = async (inquiries) => {
         },
         $setOnInsert: { inquiry_id: inquiry._id }
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     ));
   await Promise.all(tasks);
 };
@@ -54,7 +54,7 @@ const ensureCustomerSupportConversation = async (customerId) => {
     {
       $set: { type: "support", customer_id: customerId }
     },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   );
 };
 
@@ -270,7 +270,7 @@ exports.createConversation = asyncHandler(async (req, res) => {
         },
         $setOnInsert: { booking_id: booking._id }
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
 
     return res.status(201).json(conversation);
@@ -296,7 +296,7 @@ exports.createConversation = asyncHandler(async (req, res) => {
         },
         $setOnInsert: { inquiry_id: inquiry._id }
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
 
     return res.status(201).json(conversation);

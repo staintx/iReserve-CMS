@@ -41,7 +41,7 @@ exports.update = async (req, res) => {
     const result = await uploadToCloudinary(req.file.buffer, "gallery");
     data.image_url = result.secure_url;
   }
-  res.json(await Gallery.findByIdAndUpdate(req.params.id, data, { new: true }));
+  res.json(await Gallery.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after' }));
 };
 
 exports.remove = async (req, res) => {

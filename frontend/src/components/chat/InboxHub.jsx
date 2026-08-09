@@ -104,6 +104,95 @@ const QUICK_REPLIES = [
   "We have sent you the customized quotation details for your review."
 ];
 
+const getMessageConversationId = (msg) => {
+  if (!msg?.conversation_id) return null;
+  return typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
+};
+
+const createOptimisticMessage = ({ clientMessageId, conversationId, user, body, attachments }) => ({
+  _id: clientMessageId,
+  client_message_id: clientMessageId,
+  conversation_id: conversationId,
+  sender_id: {
+    _id: user._id,
+    full_name: user.full_name,
+    role: user.role,
+    email: user.email
+  },
+  body,
+  attachments,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  pending: true
+});
+
+const mergeMessageIntoList = (list, message) => {
+  if (!message) return list;
+  const clientMessageId = message.client_message_id;
+  const messageId = message._id;
+  const matchIndex = list.findIndex((item) => {
+    if (clientMessageId && item.client_message_id === clientMessageId) return true;
+    return String(item._id) === String(messageId);
+  });
+
+  if (matchIndex === -1) {
+    return [...list, { ...message, pending: false }];
+  }
+
+  const next = [...list];
+  next[matchIndex] = { ...message, pending: false };
+  return next;
+};
+
+const mergeMessageLists = (existingMessages, fetchedMessages) => {
+  const merged = [...existingMessages];
+  for (const message of fetchedMessages || []) {
+    const clientMessageId = message.client_message_id;
+    const messageId = message._id;
+    const matchIndex = merged.findIndex((item) => {
+      if (clientMessageId && item.client_message_id === clientMessageId) return true;
+      return String(item._id) === String(messageId);
+    });
+
+    if (matchIndex === -1) {
+      merged.push({ ...message, pending: false });
+    } else {
+      merged[matchIndex] = { ...merged[matchIndex], ...message, pending: false };
+    }
+  }
+
+  return merged.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+};
+
+const sendMessageThroughSocket = (socket, payload) => {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error("Socket unavailable"));
+      return;
+    }
+
+    socket.emit("message:send", payload, (response) => {
+      if (!response?.ok) {
+        reject(new Error(response?.message || "Could not send message."));
+        return;
+      }
+      resolve(response.message);
+    });
+  });
+};
+
+const sendMessageWithFallback = async ({ socket, activeId, payload }) => {
+  if (socket?.connected) {
+    try {
+      return await sendMessageThroughSocket(socket, payload);
+    } catch (socketErr) {
+      console.debug("Socket send failed, falling back to REST:", socketErr.message);
+    }
+  }
+
+  return sendMessage(activeId, payload);
+};
+
 export default function InboxHub({ basePath = "/admin/messages" }) {
   const { id: routeId } = useParams();
   const navigate = useNavigate();
@@ -133,10 +222,44 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const activeIdRef = useRef(activeId);
+  const pendingThreadFetchRef = useRef(new Set());
+  const isInitialScroll = useRef(true);
 
   useEffect(() => {
     activeIdRef.current = activeId;
   }, [activeId]);
+
+  const upsertThreadFromConversation = (conversation) => {
+    if (!conversation?._id) return;
+
+    setThreads((prev) => {
+      const threadIndex = prev.findIndex((thread) => String(thread._id) === String(conversation._id));
+      if (threadIndex === -1) {
+        return [conversation, ...prev];
+      }
+
+      const next = [...prev];
+      next[threadIndex] = { ...next[threadIndex], ...conversation };
+      return next;
+    });
+  };
+
+  const ensureThreadLoaded = async (conversationId) => {
+    const key = String(conversationId);
+    if (pendingThreadFetchRef.current.has(key)) return;
+
+    pendingThreadFetchRef.current.add(key);
+    try {
+      const conversation = await getConversation(conversationId);
+      upsertThreadFromConversation(conversation);
+    } catch (err) {
+      if (err.response?.status !== 404) {
+        console.error("Failed to sync conversation thread", err);
+      }
+    } finally {
+      pendingThreadFetchRef.current.delete(key);
+    }
+  };
 
   useEffect(() => {
     if (routeId && routeId !== activeId) {
@@ -178,7 +301,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         ]);
         if (!isMounted) return;
         setActiveConversation(convData);
-        setMessages(msgData || []);
+        setMessages((prev) => mergeMessageLists(prev, msgData || []));
 
         await markConversationAsRead(activeId).catch(() => {});
         setThreads((prev) =>
@@ -208,11 +331,11 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   useEffect(() => {
     const socket = getSocket();
     socketRef.current = socket;
+    const joinedConversationId = activeIdRef.current;
 
     const joinActiveRoom = () => {
-      const currentId = activeIdRef.current;
-      if (currentId && socket.connected) {
-        socket.emit("conversation:join", currentId);
+      if (joinedConversationId && socket.connected) {
+        socket.emit("conversation:join", joinedConversationId);
       }
     };
 
@@ -228,21 +351,22 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
     const handleNewMessage = (msg) => {
       if (!msg) return;
-      const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
+      const convId = getMessageConversationId(msg);
       if (!convId) return;
 
       const currentId = activeIdRef.current;
       const isCurrentThread = currentId && String(convId) === String(currentId);
 
       if (isCurrentThread) {
-        setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
+        setMessages((prev) => mergeMessageIntoList(prev, msg));
         markConversationAsRead(currentId).catch(() => {});
       }
 
+      let shouldLoadThread = false;
       setThreads((prev) => {
         const threadIndex = prev.findIndex((t) => String(t._id) === String(convId));
         if (threadIndex === -1) {
-          loadThreads(false);
+          shouldLoadThread = true;
           return prev;
         }
 
@@ -264,6 +388,10 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         nextThreads.splice(threadIndex, 1);
         return [updatedThread, ...nextThreads];
       });
+
+      if (shouldLoadThread) {
+        ensureThreadLoaded(convId);
+      }
     };
 
     const handleTypingStart = (payload) => {
@@ -282,8 +410,8 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      if (activeIdRef.current && socket.connected) {
-        socket.emit("conversation:leave", activeIdRef.current);
+      if (joinedConversationId && socket.connected) {
+        socket.emit("conversation:leave", joinedConversationId);
       }
       socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
@@ -294,7 +422,18 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   }, [activeId, user?._id, isCustomerRole]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    isInitialScroll.current = true;
+  }, [activeId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ 
+      behavior: isInitialScroll.current ? "auto" : "smooth" 
+    });
+    if (messages.length > 0) {
+      setTimeout(() => {
+        isInitialScroll.current = false;
+      }, 50);
+    }
   }, [messages, typingUsers]);
 
   const handleSend = async (overrideBody = null) => {
@@ -306,19 +445,44 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     if ((!textToSend && attachmentsToSend.length === 0) || isSending || !activeId) return;
 
     setIsSending(true);
-    try {
-      const newMsg = await sendMessage(activeId, {
-        body: textToSend,
-        attachments: attachmentsToSend
-      });
-      setMessages((prev) => (prev.some((item) => item._id === newMsg._id) ? prev : [...prev, newMsg]));
-      
-      if (overrideBody === null) setDraft("");
-      setAttachmentUrl("");
-      setShowAttachmentInput(false);
-      
-      socketRef.current?.emit("typing:stop", activeId);
+    const clientMessageId = window.crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const optimisticMessage = createOptimisticMessage({
+      clientMessageId,
+      conversationId: activeId,
+      user,
+      body: textToSend,
+      attachments: attachmentsToSend
+    });
 
+    setMessages((prev) => [...prev, optimisticMessage]);
+    const optimisticThreadUpdate = {
+      last_message: textToSend || (attachmentsToSend.length ? "[Attachment]" : "New message"),
+      last_message_at: optimisticMessage.createdAt
+    };
+    setThreads((prev) => {
+      const threadIndex = prev.findIndex((t) => String(t._id) === String(activeId));
+      if (threadIndex === -1) return prev;
+      const targetThread = prev[threadIndex];
+      const updatedThread = { ...targetThread, ...optimisticThreadUpdate };
+      const nextThreads = [...prev];
+      nextThreads.splice(threadIndex, 1);
+      return [updatedThread, ...nextThreads];
+    });
+    try {
+      const sendPayload = {
+        conversationId: activeId,
+        body: textToSend,
+        attachments: attachmentsToSend,
+        client_message_id: clientMessageId
+      };
+
+      const newMsg = await sendMessageWithFallback({
+        socket: socketRef.current,
+        activeId,
+        payload: sendPayload
+      });
+
+      setMessages((prev) => mergeMessageIntoList(prev, newMsg));
       setThreads((prev) => {
         const threadIndex = prev.findIndex((t) => String(t._id) === String(activeId));
         if (threadIndex === -1) return prev;
@@ -326,13 +490,21 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         const updatedThread = {
           ...targetThread,
           last_message: newMsg.body || (attachmentsToSend.length ? "[Attachment]" : "New message"),
-          last_message_at: newMsg.createdAt || new Date().toISOString()
+          last_message_at: newMsg.createdAt || optimisticMessage.createdAt
         };
         const nextThreads = [...prev];
         nextThreads.splice(threadIndex, 1);
         return [updatedThread, ...nextThreads];
       });
+
+      if (overrideBody === null) setDraft("");
+      setAttachmentUrl("");
+      setShowAttachmentInput(false);
+      
+      socketRef.current?.emit("typing:stop", activeId);
     } catch (err) {
+      setMessages((prev) => prev.filter((item) => item.client_message_id !== clientMessageId && item._id !== clientMessageId));
+      if (overrideBody === null) setDraft(textToSend);
       notify(err.response?.data?.message || "Could not send message.", "error");
     } finally {
       setIsSending(false);
@@ -400,7 +572,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     : (activeCustomer?.full_name || activeCustomer?.email || "Customer");
 
   return (
-    <div className="h-[calc(100vh-160px)] min-h-[560px] bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col md:flex-row">
+    <div className="h-[calc(100vh-160px)] min-h-140 bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col md:flex-row">
       {/* LEFT PANE: Thread List */}
       <div className={cn(
         "w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card shrink-0 transition-all",
@@ -637,7 +809,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
                           <div
                             className={cn(
-                              "px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-2xs leading-relaxed",
+                              "px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap wrap-break-word shadow-2xs leading-relaxed",
                               isMe
                                 ? "bg-primary text-primary-foreground rounded-br-xs font-normal"
                                 : "bg-card border border-border text-foreground rounded-bl-xs font-normal"
@@ -740,7 +912,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowAttachmentInput(!showAttachmentInput)}
-                className="h-[44px] w-[44px] rounded-xl shrink-0 text-muted-foreground hover:text-foreground"
+                className="h-11 w-11 rounded-xl shrink-0 text-muted-foreground hover:text-foreground"
                 title="Attach URL link"
               >
                 <Paperclip className="w-4 h-4" />
@@ -748,7 +920,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
               <div className="relative flex-1">
                 <textarea
-                  className="flex w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px] max-h-[120px] resize-none leading-relaxed"
+                  className="flex w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-11 max-h-30 resize-none leading-relaxed"
                   placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)"
                   value={draft}
                   onChange={handleDraftChange}
@@ -766,7 +938,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 type="submit"
                 size="icon"
                 disabled={isSending || (!draft.trim() && !attachmentUrl.trim())}
-                className="h-[44px] w-[44px] rounded-xl shrink-0"
+                className="h-11 w-11 rounded-xl shrink-0"
               >
                 <Send className="w-4 h-4" />
               </Button>

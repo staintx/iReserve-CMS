@@ -28,6 +28,95 @@ const QUICK_REPLIES = [
   "Dietary restrictions"
 ];
 
+const getMessageConversationId = (msg) => {
+  if (!msg?.conversation_id) return null;
+  return typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
+};
+
+const createOptimisticMessage = ({ clientMessageId, conversationId, user, body, attachments }) => ({
+  _id: clientMessageId,
+  client_message_id: clientMessageId,
+  conversation_id: conversationId,
+  sender_id: {
+    _id: user._id,
+    full_name: user.full_name,
+    role: user.role,
+    email: user.email
+  },
+  body,
+  attachments,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  pending: true
+});
+
+const mergeMessageIntoList = (list, message) => {
+  if (!message) return list;
+  const clientMessageId = message.client_message_id;
+  const messageId = message._id;
+  const matchIndex = list.findIndex((item) => {
+    if (clientMessageId && item.client_message_id === clientMessageId) return true;
+    return String(item._id) === String(messageId);
+  });
+
+  if (matchIndex === -1) {
+    return [...list, { ...message, pending: false }];
+  }
+
+  const next = [...list];
+  next[matchIndex] = { ...message, pending: false };
+  return next;
+};
+
+const mergeMessageLists = (existingMessages, fetchedMessages) => {
+  const merged = [...existingMessages];
+  for (const message of fetchedMessages || []) {
+    const clientMessageId = message.client_message_id;
+    const messageId = message._id;
+    const matchIndex = merged.findIndex((item) => {
+      if (clientMessageId && item.client_message_id === clientMessageId) return true;
+      return String(item._id) === String(messageId);
+    });
+
+    if (matchIndex === -1) {
+      merged.push({ ...message, pending: false });
+    } else {
+      merged[matchIndex] = { ...merged[matchIndex], ...message, pending: false };
+    }
+  }
+
+  return merged.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+};
+
+const sendMessageThroughSocket = (socket, payload) => {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error("Socket unavailable"));
+      return;
+    }
+
+    socket.emit("message:send", payload, (response) => {
+      if (!response?.ok) {
+        reject(new Error(response?.message || "Could not send message."));
+        return;
+      }
+      resolve(response.message);
+    });
+  });
+};
+
+const sendMessageWithFallback = async ({ socket, conversationId, payload }) => {
+  if (socket?.connected) {
+    try {
+      return await sendMessageThroughSocket(socket, payload);
+    } catch (socketErr) {
+      console.debug("Socket send failed, falling back to REST:", socketErr.message);
+    }
+  }
+
+  return sendMessage(conversationId, payload);
+};
+
 const formatTimeAgo = (dateString) => {
   if (!dateString) return "";
   const date = new Date(dateString);
@@ -60,12 +149,23 @@ export default function FloatingChatWidget() {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const isInitialScroll = useRef(true);
 
   // Auto scroll to bottom
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!isOpen) {
+      isInitialScroll.current = true;
+      return;
     }
+    let t = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ 
+        behavior: isInitialScroll.current ? "auto" : "smooth" 
+      });
+      if (messages.length > 0) {
+        isInitialScroll.current = false;
+      }
+    }, 60);
+    return () => clearTimeout(t);
   }, [messages, typingUsers, isOpen]);
 
   // Load support conversation when widget opens & user is logged in
@@ -88,7 +188,7 @@ export default function FloatingChatWidget() {
 
         if (supportConv?._id) {
           const msgs = await getMessages(supportConv._id);
-          if (isMounted) setMessages(msgs || []);
+          if (isMounted) setMessages((prev) => mergeMessageLists(prev, msgs || []));
           await markConversationAsRead(supportConv._id).catch(() => {});
         }
       } catch (err) {
@@ -113,11 +213,11 @@ export default function FloatingChatWidget() {
 
     const socket = getSocket();
     socketRef.current = socket;
+    const joinedConversationId = convIdRef.current;
 
     const joinRoom = () => {
-      const currentConvId = convIdRef.current;
-      if (currentConvId && socket.connected) {
-        socket.emit("conversation:join", currentConvId);
+      if (joinedConversationId && socket.connected) {
+        socket.emit("conversation:join", joinedConversationId);
       }
     };
 
@@ -157,8 +257,8 @@ export default function FloatingChatWidget() {
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      if (convIdRef.current && socket.connected) {
-        socket.emit("conversation:leave", convIdRef.current);
+      if (joinedConversationId && socket.connected) {
+        socket.emit("conversation:leave", joinedConversationId);
       }
       socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
@@ -182,26 +282,46 @@ export default function FloatingChatWidget() {
     }
 
     setIsSending(true);
+    let activeConvId = conversation?._id;
     try {
-      let activeConvId = conversation?._id;
       if (!activeConvId) {
         const created = await createConversation({ customer_id: user._id });
         setConversation(created);
         activeConvId = created._id;
       }
 
-      const newMsg = await sendMessage(activeConvId, {
+      const clientMessageId = window.crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const optimisticMessage = createOptimisticMessage({
+        clientMessageId,
+        conversationId: activeConvId,
+        user,
         body: textToSend,
         attachments: attachmentsToSend
       });
 
-      setMessages((prev) => (prev.some((item) => item._id === newMsg._id) ? prev : [...prev, newMsg]));
+      setMessages((prev) => [...prev, optimisticMessage]);
+
+      const sendPayload = {
+        conversationId: activeConvId,
+        body: textToSend,
+        attachments: attachmentsToSend,
+        client_message_id: clientMessageId
+      };
+
+      const newMsg = await sendMessageWithFallback({
+        socket: socketRef.current,
+        conversationId: activeConvId,
+        payload: sendPayload
+      });
+
+      setMessages((prev) => mergeMessageIntoList(prev, newMsg));
 
       if (overrideBody === null) setDraft("");
       setAttachmentUrl("");
       setShowAttachmentInput(false);
-      socketRef.current?.emit("typing:stop", conversation._id);
+      socketRef.current?.emit("typing:stop", activeConvId);
     } catch (err) {
+      setMessages((prev) => prev.filter((item) => item.client_message_id !== clientMessageId && item._id !== clientMessageId));
       notify(err.response?.data?.message || "Could not send message.", "error");
     } finally {
       setIsSending(false);
@@ -228,7 +348,7 @@ export default function FloatingChatWidget() {
       {isOpen ? (
         /* OPEN CHAT CONVERSATION CARD (REPLACES TRIGGER CIRCLE) */
         <div
-          className="fixed right-4 sm:right-6 z-50 w-[92vw] max-w-[360px] sm:w-[380px] h-[520px] max-h-[82vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+          className="fixed right-4 sm:right-6 z-50 w-[92vw] max-w-90 sm:w-95 h-130 max-h-[82vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
           style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
         >
           {/* HEADER */}
@@ -311,7 +431,7 @@ export default function FloatingChatWidget() {
                       <div className={cn("flex flex-col max-w-[82%]", isMe ? "items-end" : "items-start")}>
                         <div
                           className={cn(
-                            "px-3.5 py-2.5 rounded-2xl text-xs whitespace-pre-wrap break-words shadow-2xs leading-relaxed",
+                            "px-3.5 py-2.5 rounded-2xl text-xs whitespace-pre-wrap wrap-break-word shadow-2xs leading-relaxed",
                             isMe
                               ? "bg-primary text-primary-foreground rounded-br-xs"
                               : "bg-card border border-border text-foreground rounded-bl-xs"

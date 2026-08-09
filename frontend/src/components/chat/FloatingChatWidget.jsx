@@ -108,12 +108,27 @@ export default function FloatingChatWidget() {
 
     const socket = getSocket();
     socketRef.current = socket;
-    socket.connect();
 
-    socket.emit("conversation:join", conversation._id);
+    const joinRoom = () => {
+      if (conversation?._id && socket.connected) {
+        socket.emit("conversation:join", conversation._id);
+      }
+    };
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+    joinRoom();
+
+    const onConnect = () => {
+      joinRoom();
+    };
 
     const handleNewMessage = (msg) => {
-      if (String(msg?.conversation_id) !== String(conversation._id)) return;
+      if (!msg) return;
+      const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
+      if (String(convId) !== String(conversation._id)) return;
+
       setMessages((prev) => (prev.some((item) => item._id === msg._id) ? prev : [...prev, msg]));
       markConversationAsRead(conversation._id).catch(() => {});
     };
@@ -128,12 +143,16 @@ export default function FloatingChatWidget() {
       setTypingUsers((prev) => prev.filter((item) => item.user_id !== payload.user_id));
     };
 
+    socket.on("connect", onConnect);
     socket.on("message:new", handleNewMessage);
     socket.on("typing:start", handleTypingStart);
     socket.on("typing:stop", handleTypingStop);
 
     return () => {
-      socket.emit("conversation:leave", conversation._id);
+      if (conversation?._id && socket.connected) {
+        socket.emit("conversation:leave", conversation._id);
+      }
+      socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
       socket.off("typing:start", handleTypingStart);
       socket.off("typing:stop", handleTypingStop);

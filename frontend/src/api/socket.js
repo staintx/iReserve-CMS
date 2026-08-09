@@ -8,7 +8,7 @@ export const getSocket = () => {
   const baseUrl = rawUrl.replace(/\/api\/?$/, "");
   socket = io(baseUrl, {
     autoConnect: false,
-    transports: ["websocket"],
+    transports: ["polling", "websocket"],
     withCredentials: true,
   });
 

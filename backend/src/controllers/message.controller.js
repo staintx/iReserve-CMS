@@ -170,12 +170,17 @@ exports.sendMessage = asyncHandler(async (req, res) => {
   const populated = await message.populate("sender_id", "full_name role email");
   const io = req.app.get("io");
   if (io) {
-    io.to(`conversation:${conversation._id}`).emit("message:new", populated);
-
     const senderId = String(req.user._id);
     const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
     const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
     const senderName = req.user.full_name || req.user.email || "Someone";
+
+    // Emit to conversation room, customer, manager, and admin/manager role rooms
+    io.to(`conversation:${conversation._id}`).emit("message:new", populated);
+    if (customerId) io.to(`user:${customerId}`).emit("message:new", populated);
+    if (managerId) io.to(`user:${managerId}`).emit("message:new", populated);
+    io.to("role:admin").emit("message:new", populated);
+    io.to("role:manager").emit("message:new", populated);
 
     if (customerId && senderId !== customerId) {
       await createNotification({

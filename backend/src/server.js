@@ -115,6 +115,10 @@ io.use(async (socket, next) => {
 
 io.on("connection", (socket) => {
 	socket.join(`user:${socket.data.user._id}`);
+	if (socket.data.user.role === "admin" || socket.data.user.role === "manager") {
+		socket.join("role:admin");
+		socket.join("role:manager");
+	}
 
 	socket.on("conversation:join", async (conversationId, ack) => {
 		try {

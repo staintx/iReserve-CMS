@@ -147,7 +147,7 @@ export default function CustomerInquiries() {
   // Open Chat
   const handleOpenChat = async (inquiryId) => {
     try {
-      const conversation = await createConversation({ booking_id: inquiryId });
+      const conversation = await createConversation({ inquiry_id: inquiryId });
       navigate(`/customer/messages/${conversation._id}`);
     } catch (err) {
       notify("Could not initiate chat at this moment.", "error");

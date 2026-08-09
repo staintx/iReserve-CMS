@@ -52,24 +52,39 @@ const createOptimisticMessage = ({ clientMessageId, conversationId, user, body, 
 
 const mergeMessageIntoList = (list, message) => {
   if (!message) return list;
+  const targetConvId = getMessageConversationId(message);
+  const cleanList = targetConvId
+    ? list.filter((item) => {
+        const itemConvId = getMessageConversationId(item);
+        return !itemConvId || String(itemConvId) === String(targetConvId);
+      })
+    : list;
+
   const clientMessageId = message.client_message_id;
   const messageId = message._id;
-  const matchIndex = list.findIndex((item) => {
+  const matchIndex = cleanList.findIndex((item) => {
     if (clientMessageId && item.client_message_id === clientMessageId) return true;
     return String(item._id) === String(messageId);
   });
 
   if (matchIndex === -1) {
-    return [...list, { ...message, pending: false }];
+    return [...cleanList, { ...message, pending: false }];
   }
 
-  const next = [...list];
+  const next = [...cleanList];
   next[matchIndex] = { ...message, pending: false };
   return next;
 };
 
-const mergeMessageLists = (existingMessages, fetchedMessages) => {
-  const merged = [...existingMessages];
+const mergeMessageLists = (existingMessages, fetchedMessages, targetConversationId = null) => {
+  const existingForConv = targetConversationId
+    ? existingMessages.filter((msg) => {
+        const convId = getMessageConversationId(msg);
+        return !convId || String(convId) === String(targetConversationId);
+      })
+    : existingMessages;
+
+  const merged = [...existingForConv];
   for (const message of fetchedMessages || []) {
     const clientMessageId = message.client_message_id;
     const messageId = message._id;
@@ -188,7 +203,7 @@ export default function FloatingChatWidget() {
 
         if (supportConv?._id) {
           const msgs = await getMessages(supportConv._id);
-          if (isMounted) setMessages((prev) => mergeMessageLists(prev, msgs || []));
+          if (isMounted) setMessages((prev) => mergeMessageLists(prev, msgs || [], supportConv._id));
           await markConversationAsRead(supportConv._id).catch(() => {});
         }
       } catch (err) {
@@ -209,7 +224,7 @@ export default function FloatingChatWidget() {
       try {
         const fetchedMsgs = await getMessages(conversation._id);
         if (fetchedMsgs && Array.isArray(fetchedMsgs)) {
-          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs));
+          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs, conversation._id));
         }
       } catch (e) {}
     }, 3000);

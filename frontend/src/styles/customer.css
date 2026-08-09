@@ -1471,52 +1471,6 @@
   }
 }
 
-/* Auth */
-.auth-page {
-  display: flex;
-  min-height: 100vh;
-}
-
-.auth-left, .auth-right {
-  flex: 1;
-  padding: 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.auth-left {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('../assets/images/img-bg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  color: #fff;
-}
-
-.logo-card {
-  background: #fff;
-  color: #1e4e79;
-  width: 200px;
-  height: 200px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-
-.auth-error {
-  margin: 8px 0;
-  color: #dc2626;
-  font-size: 14px;
-}
-
-.auth-success {
-  margin: 8px 0;
-  color: #059669;
-  font-size: 14px;
-}
-
 /* Customer dashboard */
 .customer-dashboard {
   min-height: 100vh;

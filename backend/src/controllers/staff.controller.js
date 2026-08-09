@@ -66,7 +66,7 @@ exports.updateStaff = asyncHandler(async (req, res) => {
     updates.password = await bcrypt.hash(req.body.password, 10);
   }
 
-  const staff = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
+  const staff = await User.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
   res.json(staff);
 });
 

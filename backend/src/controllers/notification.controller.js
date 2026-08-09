@@ -25,7 +25,7 @@ exports.markRead = asyncHandler(async (req, res) => {
   const notification = await Notification.findOneAndUpdate(
     { _id: req.params.id, user_id: req.user._id },
     { is_read: true, read_at: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (!notification) return res.status(404).json({ message: "Notification not found" });
   res.json(notification);

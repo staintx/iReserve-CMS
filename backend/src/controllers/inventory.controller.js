@@ -21,7 +21,7 @@ exports.getById = async (req, res) => res.json(await Inventory.findById(req.para
 exports.update = async (req, res) => {
   const { reason, ...updates } = req.body;
   const before = await Inventory.findById(req.params.id);
-  const item = await Inventory.findByIdAndUpdate(req.params.id, updates, { new: true });
+  const item = await Inventory.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
 
   if (before && item && typeof updates.quantity === "number" && updates.quantity !== before.quantity) {
     writeInventoryLog({

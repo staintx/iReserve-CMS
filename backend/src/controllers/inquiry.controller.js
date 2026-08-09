@@ -73,7 +73,7 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
 
 // Admin updates inquiry (status, details)
 exports.updateInquiry = asyncHandler(async (req, res) => {
-  const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
   
   const io = req.app.get("io");

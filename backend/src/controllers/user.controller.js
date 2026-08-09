@@ -33,7 +33,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
     address: req.body.address,
     ...(req.body.username && { username: req.body.username })
   };
-  const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+  const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
   res.json(user);
 });
 
@@ -105,7 +105,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
   const user = await User.findByIdAndUpdate(
     req.params.id,
     { is_active: Boolean(req.body.is_active) },
-    { new: true }
+    { returnDocument: 'after' }
   );
   if (!user) return res.status(404).json({ message: "User not found" });
   res.json(user);

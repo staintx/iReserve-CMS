@@ -112,7 +112,9 @@ exports.login = async (req, res, next) => {
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
 
-    res.json({ user: sanitizeUser(user) });
+    // Also return token in response body so clients that cannot read httpOnly
+    // cookie (e.g. socket handshake auth fallbacks) can still include it.
+    res.json({ user: sanitizeUser(user), token });
   } catch (err) {
     next(err);
   }

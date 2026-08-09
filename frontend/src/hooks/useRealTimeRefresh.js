@@ -16,14 +16,15 @@ export default function useRealTimeRefresh(onRefresh) {
       }
     };
 
+    // Ensure no duplicate handlers are attached
+    socket.off("system:refresh", handleRefresh);
+    socket.off("notification:new", handleRefresh);
     socket.on("system:refresh", handleRefresh);
     socket.on("notification:new", handleRefresh);
-    socket.on("message:new", handleRefresh);
 
     return () => {
       socket.off("system:refresh", handleRefresh);
       socket.off("notification:new", handleRefresh);
-      socket.off("message:new", handleRefresh);
     };
   }, [onRefresh]);
 }

@@ -169,6 +169,10 @@ exports.sendMessage = asyncHandler(async (req, res) => {
   await conversation.save();
 
   const populated = await message.populate("sender_id", "full_name role email");
+  const responsePayload = populated.toObject ? populated.toObject() : populated;
+  if (req.body.client_message_id) {
+    responsePayload.client_message_id = req.body.client_message_id;
+  }
   const io = req.app.get("io");
   if (io) {
     const senderId = String(req.user._id);
@@ -177,11 +181,11 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     const senderName = req.user.full_name || req.user.email || "Someone";
 
     // Emit to conversation room, customer, manager, and admin/manager role rooms
-    io.to(`conversation:${conversation._id}`).emit("message:new", populated);
-    if (customerId) io.to(`user:${customerId}`).emit("message:new", populated);
-    if (managerId) io.to(`user:${managerId}`).emit("message:new", populated);
-    io.to("role:admin").emit("message:new", populated);
-    io.to("role:manager").emit("message:new", populated);
+    io.to(`conversation:${conversation._id}`).emit("message:new", responsePayload);
+    if (customerId) io.to(`user:${customerId}`).emit("message:new", responsePayload);
+    if (managerId) io.to(`user:${managerId}`).emit("message:new", responsePayload);
+    io.to("role:admin").emit("message:new", responsePayload);
+    io.to("role:manager").emit("message:new", responsePayload);
 
     if (customerId && senderId !== customerId) {
       await createNotification({
@@ -215,7 +219,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     }
   }
 
-  res.status(201).json(populated);
+  res.status(201).json(responsePayload);
 });
 
 exports.markAsRead = asyncHandler(async (req, res) => {
@@ -241,6 +245,8 @@ exports.markAsRead = asyncHandler(async (req, res) => {
     { user_id: req.user._id, "meta.conversation_id": conversation._id, is_read: false },
     { $set: { is_read: true, read_at: new Date() } }
   );
+
+  const io = req.app.get("io");
 
   res.json({ ok: true, conversation_id: conversation._id });
 });

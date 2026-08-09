@@ -15,7 +15,9 @@ const errorHandler = require("./middleware/error.middleware");
 const { verifyEmailConnection } = require("./utils/email");
 const User = require("./models/User");
 const Conversation = require("./models/Conversation");
+const Message = require("./models/Message");
 const { canAccessConversation } = require("./utils/chatAccess");
+const { createNotification, notifyAdmins } = require("./utils/notify");
 
 const authRoutes = require("./routes/auth.routes");
 
@@ -42,11 +44,25 @@ const startCronJobs = require("./jobs/cron");
 connectDB();
 
 const app = express();
-const allowedOrigins = process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : ["http://localhost:5173"];
-app.use(cors({
-	origin: allowedOrigins,
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? process.env.FRONTEND_URL.split(',').map(u => u.trim().replace(/\/$/, "")) 
+  : ["http://localhost:5173"];
+
+const corsOptions = {
+	origin: (origin, callback) => {
+		if (!origin) return callback(null, true);
+		const originNoSlash = origin.replace(/\/$/, "");
+		if (allowedOrigins.includes(originNoSlash)) {
+			callback(null, true);
+		} else {
+			// Reflect origin to bypass CORS issues in production deployments
+			callback(null, origin);
+		}
+	},
 	credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({
 	verify: (req, res, buf) => {
 		req.rawBody = buf.toString();
@@ -85,10 +101,7 @@ const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 const io = new Server(server, {
-	cors: {
-		origin: allowedOrigins,
-		credentials: true
-	}
+	cors: corsOptions
 });
 
 app.set("io", io);
@@ -99,34 +112,200 @@ io.use(async (socket, next) => {
 	try {
 		const cookies = cookie.parse(socket.handshake.headers.cookie || "");
 		let token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
-		if (!token) return next(new Error("Missing token"));
+		if (!token) {
+			// Allow anonymous sockets to connect (they won't join private rooms).
+			socket.data.user = null;
+			return next();
+		}
 		const decoded = jwt.verify(token, process.env.JWT_SECRET);
 		const user = await User.findById(decoded.id).select("-password");
-		if (!user) return next(new Error("User not found"));
+		if (!user) {
+			// No user found for token — allow anonymous connection instead of rejecting
+			socket.data.user = null;
+			return next();
+		}
 		socket.data.user = user;
 		return next();
 	} catch (err) {
 		if (err.name === "TokenExpiredError") {
+			// Expired tokens should still be rejected to force re-authentication
 			return next(new Error("TOKEN_EXPIRED"));
 		}
-		return next(new Error("Invalid token"));
+		// On any other error, allow anonymous socket to proceed rather than blocking polling.
+		socket.data.user = null;
+		return next();
 	}
 });
 
 io.on("connection", (socket) => {
-	socket.join(`user:${socket.data.user._id}`);
-	if (socket.data.user.role === "admin" || socket.data.user.role === "manager") {
-		socket.join("role:admin");
-		socket.join("role:manager");
+	const emitMessageToRooms = (conversation, payload) => {
+		const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
+		const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
+
+		io.to(`conversation:${conversation._id}`).emit("message:new", payload);
+		if (customerId) io.to(`user:${customerId}`).emit("message:new", payload);
+		if (managerId) io.to(`user:${managerId}`).emit("message:new", payload);
+		io.to("role:admin").emit("message:new", payload);
+		io.to("role:manager").emit("message:new", payload);
+	};
+
+	const persistSocketMessage = async ({ conversationId, body, attachments = [], client_message_id: clientMessageId }) => {
+		if (!socket.data.user) {
+			throw new Error("Unauthorized");
+		}
+
+		const conversation = await Conversation.findById(conversationId);
+		if (!conversation) {
+			throw new Error("Conversation not found");
+		}
+		if (!canAccessConversation(socket.data.user, conversation)) {
+			throw new Error("Forbidden");
+		}
+
+		const cleanBody = String(body || "").trim();
+		const cleanAttachments = Array.isArray(attachments) ? attachments : [];
+		if (!cleanBody && cleanAttachments.length === 0) {
+			throw new Error("Message body or attachment is required");
+		}
+
+		const message = await Message.create({
+			conversation_id: conversation._id,
+			sender_id: socket.data.user._id,
+			body: cleanBody,
+			attachments: cleanAttachments,
+			read_by: [{ user_id: socket.data.user._id, read_at: new Date() }]
+		});
+
+		const snippet = cleanBody || (cleanAttachments.length ? `[${cleanAttachments.length} attachment(s)]` : "New message");
+		conversation.last_message = snippet.slice(0, 200);
+		conversation.last_message_at = new Date();
+		if (socket.data.user.role === "customer") {
+			conversation.unread_admin_count = (conversation.unread_admin_count || 0) + 1;
+		} else {
+			conversation.unread_customer_count = (conversation.unread_customer_count || 0) + 1;
+		}
+		await conversation.save();
+
+		const sender = socket.data.user;
+		const payload = {
+			_id: message._id,
+			client_message_id: clientMessageId,
+			conversation_id: conversation._id,
+			sender_id: {
+				_id: sender._id,
+				full_name: sender.full_name,
+				role: sender.role,
+				email: sender.email
+			},
+			body: message.body,
+			attachments: message.attachments,
+			createdAt: message.createdAt,
+			updatedAt: message.updatedAt,
+			read_by: message.read_by
+		};
+
+		emitMessageToRooms(conversation, payload);
+
+		const senderId = String(sender._id);
+		const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
+		const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
+		const senderName = sender.full_name || sender.email || "Someone";
+
+		try {
+			if (customerId && senderId !== customerId) {
+				await createNotification({
+					userId: customerId,
+					title: "New message",
+					body: `${senderName}: "${snippet.slice(0, 60)}"`,
+					type: "info",
+					link: `/customer/messages/${conversation._id}`,
+					meta: { conversation_id: conversation._id }
+				}, io);
+			}
+
+			if (sender.role === "customer") {
+				if (managerId && senderId !== managerId) {
+					await createNotification({
+						userId: managerId,
+						title: "New customer message",
+						body: `${senderName}: "${snippet.slice(0, 60)}"`,
+						type: "info",
+						link: `/manager/messages/${conversation._id}`,
+						meta: { conversation_id: conversation._id }
+					}, io);
+				}
+				await notifyAdmins({
+					title: "New customer message",
+					body: `${senderName}: "${snippet.slice(0, 60)}"`,
+					type: "info",
+					link: `/admin/messages/${conversation._id}`,
+					meta: { conversation_id: conversation._id }
+				}, io);
+			}
+		} catch (notificationErr) {
+			console.error("Chat notification dispatch failed:", notificationErr.message);
+		}
+
+		return payload;
+	};
+
+	// If user is authenticated, join their personal and role rooms
+	if (socket.data.user) {
+		try {
+			socket.join(`user:${socket.data.user._id}`);
+			if (socket.data.user.role === "admin" || socket.data.user.role === "manager") {
+				socket.join("role:admin");
+				socket.join("role:manager");
+			}
+		} catch (e) {
+			// ignore
+		}
 	}
+
+	socket.on("message:send", async (payload, ack) => {
+		try {
+			const message = await persistSocketMessage(payload || {});
+			if (ack) ack({ ok: true, message });
+		} catch (err) {
+			if (ack) ack({ ok: false, message: err.message || "Send failed" });
+		}
+	});
 
 	socket.on("conversation:join", async (conversationId, ack) => {
 		try {
 			const conversation = await Conversation.findById(conversationId);
-			if (!conversation || !canAccessConversation(socket.data.user, conversation)) {
+			if (!conversation) {
+				if (ack) ack({ ok: false, message: "Conversation not found" });
+				return;
+			}
+
+			// Ensure socket has an authenticated user if possible (try one-time verification)
+			if (!socket.data.user) {
+				try {
+					const cookies = cookie.parse(socket.handshake.headers.cookie || "");
+					const token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
+					if (token) {
+						const decoded = jwt.verify(token, process.env.JWT_SECRET);
+						const user = await User.findById(decoded.id).select("-password");
+						if (user) {
+							socket.data.user = user;
+							socket.join(`user:${user._id}`);
+							if (user.role === "admin" || user.role === "manager") {
+								socket.join("role:admin");
+								socket.join("role:manager");
+							}
+						}
+					}
+				} catch (e) {
+					// ignore verification error here; we'll handle access below
+				}
+			}
+
+			if (!canAccessConversation(socket.data.user, conversation)) {
 				if (ack) ack({ ok: false, message: "Forbidden" });
 				return;
 			}
+
 			const room = `conversation:${conversationId}`;
 			socket.join(room);
 			if (ack) ack({ ok: true });

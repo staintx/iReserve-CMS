@@ -8,7 +8,10 @@ const bcrypt = require("bcryptjs");
 const VIP_SPENDING_THRESHOLD = 100000;
 
 exports.getMe = asyncHandler(async (req, res) => {
-  res.json(req.user);
+  const token = req.cookies?.token || (req.headers.authorization ? req.headers.authorization.split(" ")[1] : null);
+  const userData = req.user.toObject ? req.user.toObject() : { ...req.user };
+  delete userData.password;
+  res.json({ ...userData, token });
 });
 
 exports.updateMe = asyncHandler(async (req, res) => {

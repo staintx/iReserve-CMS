@@ -1,66 +1,152 @@
-import { Link } from "react-router-dom";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
+import { useState } from "react";
+import { AtSign, LockKeyhole } from "lucide-react";
+import {
+  AuthAlert,
+  AuthButton,
+  AuthField,
+  AuthHeading,
+  AuthInput,
+  AuthLink,
+  AuthPasswordInput,
+  AuthPrompt,
+} from "../auth/AuthUI";
+import { focusFirstError } from "../auth/authFocus";
+import { isEmail } from "@/lib/authErrors";
 
-export default function AuthLoginForm({ email, password, error, onEmailChange, onPasswordChange, onSubmit }) {
+const FIELD_ORDER = ["login-identifier", "login-password"];
+
+/**
+ * Sign-in form. Validation runs on blur and on submit, then follows the user's
+ * corrections — the form never turns red while they are still typing a value
+ * for the first time.
+ *
+ * The identifier accepts an email *or* a username because the API matches both;
+ * format is only checked once the value looks like it is meant to be an email.
+ */
+export default function AuthLoginForm({ onSubmit, loading = false, formError = null, banner = null }) {
+  const [values, setValues] = useState({ identifier: "", password: "" });
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+
+  const validate = (field, value) => {
+    if (field === "identifier") {
+      if (!value.trim()) return "Enter your email address or username.";
+      if (value.includes("@") && !isEmail(value)) return "Enter a valid email address.";
+    }
+    if (field === "password" && !value) return "Enter your password.";
+    return "";
+  };
+
+  const handleChange = (field) => (event) => {
+    const value = event.target.value;
+    setValues((current) => ({ ...current, [field]: value }));
+    // Only re-validate a field that is already showing an error, so corrections
+    // clear immediately without new errors appearing mid-keystroke.
+    if (errors[field]) setErrors((current) => ({ ...current, [field]: validate(field, value) }));
+  };
+
+  const handleBlur = (field) => () => {
+    setTouched((current) => ({ ...current, [field]: true }));
+    setErrors((current) => ({ ...current, [field]: validate(field, values[field]) }));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const nextErrors = {
+      identifier: validate("identifier", values.identifier),
+      password: validate("password", values.password),
+    };
+    setErrors(nextErrors);
+    setTouched({ identifier: true, password: true });
+
+    if (nextErrors.identifier || nextErrors.password) {
+      focusFirstError(
+        { "login-identifier": nextErrors.identifier, "login-password": nextErrors.password },
+        FIELD_ORDER
+      );
+      return;
+    }
+
+    onSubmit({ identifier: values.identifier.trim(), password: values.password });
+  };
+
+  const fieldError = (field) => (touched[field] ? errors[field] : "");
+
   return (
-    <div className="w-full max-w-md mx-auto space-y-8">
-      <div className="text-center sm:text-left">
-        <h1 className="text-3xl sm:text-4xl font-bold font-serif text-foreground tracking-tight">Welcome back</h1>
-        <p className="mt-2 text-sm sm:text-base text-muted-foreground">Sign in to manage your bookings.</p>
-      </div>
+    <div className="space-y-5">
+      <AuthHeading
+        title="Welcome back"
+        subtitle="Sign in to manage your reservations, quotes, and messages."
+      />
 
-      <form className="space-y-6" onSubmit={onSubmit}>
-        <div className="space-y-2">
-          <Label htmlFor="login-email" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">EMAIL OR USERNAME</Label>
-          <Input
-            id="login-email"
+      {banner}
+
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField id="login-identifier" label="Email or username" error={fieldError("identifier")}>
+          <AuthInput
+            id="login-identifier"
             type="text"
-            autoComplete="email username"
-            placeholder="Email or Username"
-            value={email}
-            onChange={onEmailChange}
-            className="h-12"
+            icon={AtSign}
+            autoComplete="username"
+            autoFocus
+            placeholder="you@example.com"
+            value={values.identifier}
+            disabled={loading}
+            hasError={Boolean(fieldError("identifier"))}
+            describedBy={fieldError("identifier") ? "login-identifier-error" : undefined}
+            onChange={handleChange("identifier")}
+            onBlur={handleBlur("identifier")}
           />
-        </div>
+        </AuthField>
 
-        <div className="space-y-2">
-          <Label htmlFor="login-password" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">PASSWORD</Label>
-          <Input
+        {/* Recovery sits on the label row: it stays one tab away from the
+            password field without spending a whole row under the form. */}
+        <AuthField
+          id="login-password"
+          label="Password"
+          error={fieldError("password")}
+          optionalLabel={
+            <AuthLink to="/forgot-password" className="text-[11px] font-semibold">
+              Forgot password?
+            </AuthLink>
+          }
+        >
+          <AuthPasswordInput
             id="login-password"
-            type="password"
+            icon={LockKeyhole}
             autoComplete="current-password"
-            placeholder="••••••••"
-            value={password}
-            onChange={onPasswordChange}
-            className="h-12"
+            placeholder="Enter your password"
+            value={values.password}
+            disabled={loading}
+            visible={showPassword}
+            onToggleVisibility={() => setShowPassword((visible) => !visible)}
+            hasError={Boolean(fieldError("password"))}
+            describedBy={fieldError("password") ? "login-password-error" : undefined}
+            onChange={handleChange("password")}
+            onBlur={handleBlur("password")}
           />
-        </div>
+        </AuthField>
 
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium rounded-lg">
-            {error}
-          </div>
+        {formError && (
+          <AuthAlert tone={formError.tone} action={formError.action}>
+            {formError.message}
+          </AuthAlert>
         )}
 
-        <div className="flex items-center justify-between text-sm">
-          <Link className="text-muted-foreground hover:text-foreground transition-colors font-medium flex items-center gap-1" to="/">
-            &larr; Back to homepage
-          </Link>
-          <Link className="text-primary hover:underline font-semibold" to="/forgot-password">
-            Forgot password?
-          </Link>
-        </div>
-
-        <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit">
-          Login now
-        </Button>
-
-        <p className="text-center text-sm text-muted-foreground pt-4">
-          Don't have an account? <Link className="text-primary font-bold hover:underline ml-1" to="/signup">Register</Link>
-        </p>
+        <AuthButton
+          type="submit"
+          className="w-full"
+          loading={loading}
+          loadingLabel="Signing in…"
+        >
+          Sign in
+        </AuthButton>
       </form>
+
+      <AuthPrompt>
+        New to Caezelle&rsquo;s? <AuthLink to="/signup">Create an account</AuthLink>
+      </AuthPrompt>
     </div>
   );
 }

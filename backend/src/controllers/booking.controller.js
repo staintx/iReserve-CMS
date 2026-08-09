@@ -1172,6 +1172,12 @@ exports.remove = asyncHandler(async (req, res) => {
     });
   }
 
+  // Emit realtime update so listings refresh
+  try {
+    const io = req.app.get("io");
+    if (io) io.emit("system:refresh", { type: "booking", action: "delete", booking_id: req.params.id });
+  } catch (e) {}
+
   res.json({ message: "Deleted" });
 });
 
@@ -2124,6 +2130,9 @@ exports.sendQuote = asyncHandler(async (req, res) => {
     }, io);
   }
 
+  // Emit realtime refresh for booking/inquiry lists
+  if (io) io.emit("system:refresh", { type: "booking", action: "quote_sent", booking_id: booking._id });
+
   res.json({ message: "Quote sent successfully", booking });
 });
 
@@ -2245,6 +2254,11 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
   });
 
   res.json({ message: "Quote accepted", booking, checkout_url });
+  // Emit realtime refresh so admin/customer views update
+  try {
+    const io = req.app.get("io");
+    if (io) io.emit("system:refresh", { type: "booking", action: "accept_quote", booking_id: booking._id });
+  } catch (e) {}
 });
 
 exports.convertInquiry = asyncHandler(async (req, res) => {
@@ -2381,6 +2395,16 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       await InventoryReservation.insertMany(reservations);
     }
   }
+
+  // Notify realtime clients about the conversion
+  try {
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("system:refresh", { type: "booking", action: "converted", booking_id: newBooking._id });
+      io.emit("system:refresh", { type: "inquiry", action: "converted", inquiry_id: inquiryId });
+      if (quotation) io.emit("system:refresh", { type: "quotation", action: "converted", quotation_id: quotation._id });
+    }
+  } catch (e) {}
 
   res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });
 });

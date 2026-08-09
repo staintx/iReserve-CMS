@@ -1,9 +1,10 @@
 const Joi = require("joi");
+const { passwordRule } = require("./password.rule");
 
 exports.registerSchema = Joi.object({
   full_name: Joi.string().required(),
   email: Joi.string().email().required(),
-  password: Joi.string().min(6).required()
+  password: passwordRule
 });
 
 exports.loginSchema = Joi.object({
@@ -26,5 +27,5 @@ exports.forgotPasswordSchema = Joi.object({
 
 exports.resetPasswordSchema = Joi.object({
   token: Joi.string().required(),
-  password: Joi.string().min(6).required()
+  password: passwordRule
 });

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
-import { User, Lock, Save, ShieldCheck } from "lucide-react";
+import { User, Lock, Save, ShieldCheck, Eye, EyeOff } from "lucide-react";
+import PasswordRequirements from "../../components/auth/PasswordRequirements";
+import { describePasswordGap } from "../../components/auth/passwordPolicy";
 
 export default function AdminProfile() {
   const [activeTab, setActiveTab] = useState("profile");
@@ -15,7 +17,8 @@ export default function AdminProfile() {
   });
   const [security, setSecurity] = useState({ current_password: "", new_password: "", confirm_password: "" });
   const [isLoading, setIsLoading] = useState(false);
-  const toast = useToast();
+  const [visible, setVisible] = useState({ current_password: false, new_password: false, confirm_password: false });
+  const { notify } = useToast();
 
   useEffect(() => {
     AdminAPI.getProfile().then((res) => {
@@ -34,9 +37,9 @@ export default function AdminProfile() {
         phone: form.phone || "",
         address: form.address || ""
       });
-      toast.success("Profile updated successfully!");
+      notify("Profile updated successfully!", "success");
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to update profile");
+      notify(err.response?.data?.message || "Failed to update profile", "error");
     } finally {
       setIsLoading(false);
     }
@@ -45,14 +48,16 @@ export default function AdminProfile() {
   const savePassword = async (e) => {
     e.preventDefault();
     if (!security.current_password || !security.new_password || !security.confirm_password) {
-      return toast.error("All password fields are required");
+      return notify("All password fields are required", "error");
     }
     if (security.new_password !== security.confirm_password) {
-      return toast.error("New passwords do not match");
+      return notify("Your passwords don't match yet.", "error");
     }
-    if (security.new_password.length < 6) {
-      return toast.error("New password must be at least 6 characters");
+    const passwordGap = describePasswordGap(security.new_password);
+    if (passwordGap) {
+      return notify(passwordGap, "error");
     }
+
     
     setIsLoading(true);
     try {
@@ -60,10 +65,10 @@ export default function AdminProfile() {
         current_password: security.current_password,
         new_password: security.new_password
       });
-      toast.success("Password changed successfully!");
+      notify("Password changed successfully!", "success");
       setSecurity({ current_password: "", new_password: "", confirm_password: "" });
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to change password");
+      notify(err.response?.data?.message || "Failed to change password", "error");
     } finally {
       setIsLoading(false);
     }
@@ -192,38 +197,40 @@ export default function AdminProfile() {
               </div>
 
               <form onSubmit={savePassword} className="space-y-6 max-w-md">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Current Password</label>
-                  <input
-                    className="input w-full bg-slate-50 border-slate-200 focus:bg-white transition-colors"
-                    type="password"
-                    value={security.current_password}
-                    onChange={(e) => setSecurity({ ...security, current_password: e.target.value })}
-                    placeholder="Enter your current password"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">New Password</label>
-                  <input
-                    className="input w-full bg-slate-50 border-slate-200 focus:bg-white transition-colors"
-                    type="password"
-                    value={security.new_password}
-                    onChange={(e) => setSecurity({ ...security, new_password: e.target.value })}
-                    placeholder="At least 6 characters"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Confirm New Password</label>
-                  <input
-                    className="input w-full bg-slate-50 border-slate-200 focus:bg-white transition-colors"
-                    type="password"
-                    value={security.confirm_password}
-                    onChange={(e) => setSecurity({ ...security, confirm_password: e.target.value })}
-                    placeholder="Type your new password again"
-                  />
-                </div>
+                {[
+                  { key: "current_password", label: "Current Password", placeholder: "Enter your current password", autoComplete: "current-password" },
+                  { key: "new_password", label: "New Password", placeholder: "Choose a new password", autoComplete: "new-password" },
+                  { key: "confirm_password", label: "Confirm New Password", placeholder: "Type your new password again", autoComplete: "new-password" }
+                ].map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <label htmlFor={`admin-${field.key}`} className="text-sm font-semibold text-slate-700">
+                      {field.label}
+                    </label>
+                    <div className="relative">
+                      <input
+                        id={`admin-${field.key}`}
+                        className="input w-full bg-slate-50 border-slate-200 focus:bg-white transition-colors pr-11"
+                        type={visible[field.key] ? "text" : "password"}
+                        autoComplete={field.autoComplete}
+                        value={security[field.key]}
+                        onChange={(e) => setSecurity({ ...security, [field.key]: e.target.value })}
+                        placeholder={field.placeholder}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setVisible((v) => ({ ...v, [field.key]: !v[field.key] }))}
+                        aria-label={visible[field.key] ? `Hide ${field.label.toLowerCase()}` : `Show ${field.label.toLowerCase()}`}
+                        aria-pressed={visible[field.key]}
+                        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4C81E0] focus-visible:ring-offset-2"
+                      >
+                        {visible[field.key] ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                      </button>
+                    </div>
+                    {field.key === "new_password" && security.new_password && (
+                      <PasswordRequirements value={security.new_password} className="pt-1" />
+                    )}
+                  </div>
+                ))}
 
                 <div className="pt-4">
                   <button 

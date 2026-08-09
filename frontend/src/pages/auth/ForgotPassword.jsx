@@ -1,84 +1,126 @@
 import { useState } from "react";
-import { CustomerAPI } from "../../api/customer";
-import { Link } from "react-router-dom";
-import AuthForgotPasswordForm from "../../components/forms/AuthForgotPasswordForm";
-import logo from "../../assets/images/logo.jpg";
-import useToast from "../../hooks/useToast";
 import { MailCheck } from "lucide-react";
+import { CustomerAPI } from "../../api/customer";
+import AuthLayout from "../../components/auth/AuthLayout";
+import {
+  AuthAlert,
+  AuthButton,
+  AuthLink,
+  AuthStatus,
+  EmailChip,
+} from "../../components/auth/AuthUI";
+import AuthForgotPasswordForm from "../../components/forms/AuthForgotPasswordForm";
+import useCooldown, { formatCooldown } from "../../hooks/useCooldown";
+import useToast from "../../hooks/useToast";
+import { resolveAuthError } from "../../lib/authErrors";
+
+// The API refuses a second reset link within two minutes of the last one
+// (auth.controller.js), so the button stays quiet for exactly that long.
+const RESEND_COOLDOWN_SECONDS = 120;
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [isSent, setIsSent] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [sentTo, setSentTo] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [resendState, setResendState] = useState(null);
   const { notify } = useToast();
+  const cooldown = useCooldown(RESEND_COOLDOWN_SECONDS);
 
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!email) {
-      setError("Email address is required.");
-      return;
-    }
-    
-    setError("");
-    setIsLoading(true);
-    
+  const request = async (email, { isResend = false } = {}) => {
+    setFormError(null);
+    setResendState(null);
+    setLoading(true);
     try {
       await CustomerAPI.forgotPassword({ email });
-      notify("Reset link sent. Check your email.", "success");
-      setIsSent(true);
+      setSentTo(email);
+      cooldown.start();
+      if (isResend) {
+        setResendState({ tone: "success", message: "We've sent another link to your inbox." });
+      }
+      notify("If that address is registered, a reset link is on its way.", "success");
     } catch (err) {
-      const message = err.response?.data?.message || "We could not send the reset link. Please try again.";
-      setError(message);
-      notify(message, "error");
+      const resolved = resolveAuthError(
+        err,
+        "We could not send the reset link. Please try again."
+      );
+      if (isResend) {
+        setResendState({ tone: resolved.tone, message: resolved.message });
+        // A 429 means the server's own window is still open — respect it.
+        if (resolved.kind === "rate_limited") cooldown.start();
+      } else {
+        setFormError(resolved);
+      }
+      notify(resolved.message, resolved.tone === "warning" ? "warning" : "error");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="auth-page">
-      <div className="auth-left">
-        <div className="brand-hero">
-          <div className="logo-badge">
-            <img src={logo} alt="Caezelle's logo" className="object-cover w-full h-full rounded-full" />
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/70">Caezelle's</p>
-            <p className="text-sm text-white/70">Food, Catering & Services</p>
-          </div>
-        </div>
-        <div className="hero-copy">
-          <h2 className="text-4xl font-semibold">Forgot your password? Let’s fix that in a bite.</h2>
-          <p className="mt-4 text-sm text-white/70">Enter your email and we'll send you a reset link right away.</p>
-        </div>
-      </div>
+  const layout = {
+    title: "Forgot your password? Let's fix that in a bite.",
+    body: "Tell us the address on your account and we'll send a secure link so you can get back to planning.",
+  };
 
-      <div className="bg-white auth-right">
-        {isSent ? (
-          <div className="flex flex-col items-center text-center p-10 auth-card surface">
-            <div className="flex items-center justify-center w-16 h-16 mb-6 text-green-600 bg-green-100 rounded-full">
-              <MailCheck size={32} />
-            </div>
-            <h1 className="mb-2 text-2xl font-semibold">Check your inbox!</h1>
-            <p className="mb-8 text-gray-500">We sent a password reset link. It expires in 15 minutes.</p>
-            <Link to="/login" className="w-full text-center text-sm font-medium text-[var(--primary)] hover:underline mt-4 inline-block">
-              Back to login
-            </Link>
+  if (sentTo) {
+    return (
+      <AuthLayout {...layout} backTo="/login" backLabel="Back to sign in">
+        <AuthStatus
+          icon={MailCheck}
+          tone="success"
+          title="Check your inbox"
+          description={
+            <>
+              If <EmailChip email={sentTo} /> is registered with us, a password reset link is on
+              its way. The link works once and expires in one hour.
+            </>
+          }
+          actions={
+            <>
+              <AuthButton
+                variant="outline"
+                className="w-full"
+                onClick={() => request(sentTo, { isResend: true })}
+                loading={loading}
+                loadingLabel="Resending…"
+                disabled={cooldown.isCoolingDown}
+              >
+                {cooldown.isCoolingDown
+                  ? `Resend available in ${formatCooldown(cooldown.remaining)}`
+                  : "Resend the link"}
+              </AuthButton>
+              <AuthButton
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setSentTo("");
+                  setResendState(null);
+                  cooldown.reset();
+                }}
+              >
+                Use a different email address
+              </AuthButton>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {resendState && <AuthAlert tone={resendState.tone}>{resendState.message}</AuthAlert>}
+            <AuthAlert tone="info" title="Nothing in your inbox?">
+              Give it a minute, then check your spam or promotions folder. Make sure you used the
+              address you registered with.
+            </AuthAlert>
           </div>
-        ) : (
-          <div className="p-10 auth-card surface">
-            <AuthForgotPasswordForm
-              email={email}
-              error={error}
-              isLoading={isLoading}
-              onEmailChange={(e) => setEmail(e.target.value)}
-              onSubmit={submit}
-            />
-          </div>
-        )}
-        <div className="auth-footer">© 2026 Caezelle's Food, Catering & Services. All rights reserved.</div>
-      </div>
-    </div>
+        </AuthStatus>
+
+        <p className="mt-6 text-center text-[13px] text-[#64748B]">
+          Remembered it? <AuthLink to="/login">Back to sign in</AuthLink>
+        </p>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout {...layout} backTo="/login" backLabel="Back to sign in">
+      <AuthForgotPasswordForm onSubmit={request} loading={loading} formError={formError} />
+    </AuthLayout>
   );
 }

@@ -958,214 +958,74 @@
     color: var(--color-brown-dark);
   }
 
-  /* ── Auth ───────────────────────────────────────────────── */
-  .auth-page {
-    display: grid;
-    min-height: 100vh;
-    grid-template-columns: 1fr;
+  /* == Auth =================================================
+     The authentication screens are composed in JSX
+     (components/auth/AuthLayout.jsx + AuthUI.jsx) using the iReserve
+     portal palette, so no page-level auth CSS is needed here. The token
+     block below only exists so shared shadcn primitives rendered inside
+     an auth screen resolve to the portal colours instead of the
+     boutique browns. */
+  .auth-shell {
+    --color-primary: #4C81E0;
+    --color-primary-foreground: #FFFFFF;
+    --color-accent: #C5A059;
+    --color-border: #E2E8F0;
+    --color-muted: #F1F5F9;
+    --color-muted-foreground: #64748B;
+    --color-foreground: #1E293B;
+    --color-background: #F8FAFC;
+    --color-card: #FFFFFF;
+    --color-card-foreground: #1E293B;
+    --color-ring: #4C81E0;
   }
 
-  @media (min-width: 1024px) { .auth-page { grid-template-columns: 1fr 1fr; } }
-
-  .auth-left, .auth-right {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 56px 32px;
+  /* Entrance motion. Short, single-shot, and downward-biased so the card
+     settles rather than flies in. Everything else in auth uses Tailwind
+     transitions, which the reduced-motion block below also neutralises. */
+  @keyframes authRise {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  .auth-left {
-    color: #fff;
-    position: relative;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url('../assets/images/img-bg.jpg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+  @keyframes authFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
 
-  .auth-left-copy {
-    max-width: 36rem;
-    display: flex;
-    flex-direction: column;
-    gap: 40px;
+  @keyframes authPop {
+    0%   { opacity: 0; transform: scale(0.86); }
+    70%  { transform: scale(1.04); }
+    100% { opacity: 1; transform: scale(1); }
   }
 
-  .brand-hero {
-    position: absolute;
-    top: 1.75rem;
-    left: 1.75rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #fff;
-    z-index: 20;
+  .auth-rise {
+    animation: authRise 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  .logo-badge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 56px;
-    height: 56px;
-    border-radius: 9999px;
-    box-shadow: var(--shadow-soft);
-    position: relative;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+  .auth-fade {
+    animation: authFade 0.5s ease-out both;
   }
 
-  .hero-copy h2 {
-    font-size: 2.25rem;
-    font-weight: 600;
-    line-height: 1.25;
-    color: #fff;
+  .auth-pop {
+    animation: authPop 0.38s cubic-bezier(0.34, 1.4, 0.64, 1) both;
   }
 
-  .hero-copy {
-    position: absolute;
-    left: 2rem;
-    bottom: 3rem;
-    z-index: 20;
-    max-width: 44rem;
-    color: #fff;
-  }
-
-  .hero-copy-right {
-    left: auto;
-    right: 2rem;
-    text-align: right;
-  }
-
-  .auth-right {
-    align-items: center;
-    background: var(--color-cream-light);
-    position: relative;
-  }
-
-  .auth-card {
-    width: 100%;
-    max-width: 28rem;
-    margin: 0 auto;
-  }
-
-  .session-expired-banner {
-    background: #FEF3CD;
-    color: #856404;
-    border: 1px solid #F5D77A;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-align: center;
-    animation: fadeSlideIn 0.3s ease-out;
-  }
-
-  @keyframes fadeSlideIn {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
+  /* Reduced motion: keep every state change, drop the movement. Scoped to the
+     auth shell so it cannot alter the rest of the app. */
+  @media (prefers-reduced-motion: reduce) {
+    .auth-shell .auth-rise,
+    .auth-shell .auth-fade,
+    .auth-shell .auth-pop {
+      animation: none;
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+
+    .auth-shell *,
+    .auth-shell *::before,
+    .auth-shell *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
-  }
-
-  .auth-footer {
-    position: absolute;
-    bottom: 1.25rem;
-    left: 0;
-    right: 0;
-    text-align: center;
-    color: var(--color-brown-medium);
-    font-size: 13px;
-    z-index: 10;
-  }
-
-  .auth-left::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.55));
-    pointer-events: none;
-  }
-
-  .auth-input-label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.24em;
-    color: var(--color-brown-medium);
-  }
-
-  .auth-form p:not(.auth-form-footer),
-  .auth-form div:not(.auth-form-footer):not(.auth-form-resend) {
-    text-align: left;
-  }
-
-  .auth-form-footer {
-    text-align: center !important;
-    margin-top: 0.75rem;
-  }
-
-  .auth-form-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 0.875rem;
-  }
-
-  .auth-form-link {
-    color: var(--color-brown-medium);
-    transition: color 0.2s ease;
-  }
-
-  .auth-form-link:hover {
-    color: var(--color-brown-dark);
-  }
-
-  .auth-error {
-    margin-top: 8px;
-    font-size: 0.875rem;
-    color: var(--color-destructive);
-  }
-
-  .auth-success {
-    margin-top: 8px;
-    font-size: 0.875rem;
-    color: #059669;
-  }
-
-  .auth-processing {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: rgba(44, 75, 138, 0.08);
-    border: 1px solid rgba(44, 75, 138, 0.2);
-    border-radius: 8px;
-    color: var(--color-primary);
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .auth-processing-spinner {
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(44, 75, 138, 0.2);
-    border-top-color: var(--color-primary);
-    border-radius: 50%;
-    animation: auth-spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes auth-spin {
-    to { transform: rotate(360deg); }
   }
 
   /* ── User Menu ──────────────────────────────────────────── */

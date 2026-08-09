@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
-import { User, Mail, Phone, MapPin, Lock, ShieldCheck, CreditCard, Save } from "lucide-react";
+import { User, Mail, Phone, MapPin, Lock, ShieldCheck, CreditCard, Save, Eye, EyeOff } from "lucide-react";
+import PasswordRequirements from "../../components/auth/PasswordRequirements";
+import { describePasswordGap } from "../../components/auth/passwordPolicy";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -20,6 +22,7 @@ export default function CustomerProfile() {
   const [security, setSecurity] = useState({ current: "", next: "", confirm: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
+  const [visible, setVisible] = useState({ current: false, next: false, confirm: false });
   const { notify } = useToast();
 
   useEffect(() => {
@@ -53,10 +56,12 @@ export default function CustomerProfile() {
       return notify("All password fields are required", "error");
     }
     if (security.next !== security.confirm) {
-      return notify("New passwords do not match", "error");
+      return notify("Your passwords don't match yet.", "error");
     }
-    if (security.next.length < 6) {
-      return notify("New password must be at least 6 characters", "error");
+    // Same policy the sign-up and reset screens enforce.
+    const passwordGap = describePasswordGap(security.next);
+    if (passwordGap) {
+      return notify(passwordGap, "error");
     }
 
     setIsSecurityLoading(true);
@@ -193,41 +198,40 @@ export default function CustomerProfile() {
             </CardHeader>
             <CardContent className="p-0">
               <form onSubmit={savePassword} className="p-6 sm:p-8 space-y-5">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-muted-foreground" /> Current Password
-                  </Label>
-                  <Input
-                    placeholder="Enter current password"
-                    type="password"
-                    value={security.current}
-                    onChange={(e) => setSecurity({ ...security, current: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-muted-foreground" /> New Password
-                  </Label>
-                  <Input
-                    placeholder="Minimum 6 characters"
-                    type="password"
-                    value={security.next}
-                    onChange={(e) => setSecurity({ ...security, next: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-muted-foreground" /> Confirm Password
-                  </Label>
-                  <Input
-                    placeholder="Repeat new password"
-                    type="password"
-                    value={security.confirm}
-                    onChange={(e) => setSecurity({ ...security, confirm: e.target.value })}
-                  />
-                </div>
+                {[
+                  { key: "current", label: "Current Password", placeholder: "Enter current password", autoComplete: "current-password" },
+                  { key: "next", label: "New Password", placeholder: "Choose a new password", autoComplete: "new-password" },
+                  { key: "confirm", label: "Confirm Password", placeholder: "Repeat new password", autoComplete: "new-password" }
+                ].map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <Label htmlFor={`profile-${field.key}`} className="flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-muted-foreground" /> {field.label}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id={`profile-${field.key}`}
+                        className="pr-11"
+                        placeholder={field.placeholder}
+                        type={visible[field.key] ? "text" : "password"}
+                        autoComplete={field.autoComplete}
+                        value={security[field.key]}
+                        onChange={(e) => setSecurity({ ...security, [field.key]: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setVisible((v) => ({ ...v, [field.key]: !v[field.key] }))}
+                        aria-label={visible[field.key] ? `Hide ${field.label.toLowerCase()}` : `Show ${field.label.toLowerCase()}`}
+                        aria-pressed={visible[field.key]}
+                        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        {visible[field.key] ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                      </button>
+                    </div>
+                    {field.key === "next" && security.next && (
+                      <PasswordRequirements value={security.next} className="pt-1" />
+                    )}
+                  </div>
+                ))}
 
                 <div className="pt-4">
                   <Button type="submit" disabled={isSecurityLoading} className="w-full bg-rose-600 hover:bg-rose-700 text-white" size="lg">

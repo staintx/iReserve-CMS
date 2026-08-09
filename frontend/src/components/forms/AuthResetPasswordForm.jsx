@@ -1,53 +1,170 @@
-import { Link } from "react-router-dom";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { Check, LockKeyhole, X } from "lucide-react";
+import {
+  AuthAlert,
+  AuthButton,
+  AuthField,
+  AuthHeading,
+  AuthPasswordInput,
+} from "../auth/AuthUI";
+import { focusFirstError } from "../auth/authFocus";
+import PasswordRequirements from "../auth/PasswordRequirements";
+import { describePasswordGap } from "../auth/passwordPolicy";
 
-export default function AuthResetPasswordForm({ password, confirm, error, onPasswordChange, onConfirmChange, onSubmit }) {
+/**
+ * Step two of password recovery. Uses the same password affordances as
+ * registration — live requirements, match feedback, visibility toggles — so the
+ * rules only ever have to be learned once.
+ */
+export default function AuthResetPasswordForm({ onSubmit, loading = false, formError = null }) {
+  const [values, setValues] = useState({ password: "", confirm: "" });
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
+  const validate = (field, value, all = values) => {
+    if (field === "password") {
+      if (!value) return "Choose a new password.";
+      return describePasswordGap(value);
+    }
+    if (field === "confirm") {
+      if (!value) return "Re-enter your new password.";
+      if (value !== all.password) return "Your passwords don't match yet.";
+    }
+    return "";
+  };
+
+  const handleChange = (field) => (event) => {
+    const value = event.target.value;
+    const next = { ...values, [field]: value };
+    setValues(next);
+
+    setErrors((current) => {
+      const updated = { ...current };
+      if (current[field]) updated[field] = validate(field, value, next);
+      if (field === "password" && touched.confirm) updated.confirm = validate("confirm", next.confirm, next);
+      return updated;
+    });
+  };
+
+  const handleBlur = (field) => () => {
+    setTouched((current) => ({ ...current, [field]: true }));
+    setErrors((current) => ({ ...current, [field]: validate(field, values[field]) }));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const nextErrors = {
+      password: validate("password", values.password),
+      confirm: validate("confirm", values.confirm),
+    };
+    setErrors(nextErrors);
+    setTouched({ password: true, confirm: true });
+
+    if (nextErrors.password || nextErrors.confirm) {
+      focusFirstError(
+        { "reset-password": nextErrors.password, "reset-confirm": nextErrors.confirm },
+        ["reset-password", "reset-confirm"]
+      );
+      return;
+    }
+
+    onSubmit(values.password);
+  };
+
+  const fieldError = (field) => (touched[field] ? errors[field] : "");
+  const showRequirements = passwordFocused || Boolean(values.password);
+  const confirmFilled = Boolean(values.confirm);
+  const confirmMatches = confirmFilled && values.confirm === values.password;
+
   return (
-    <div className="w-full max-w-md mx-auto space-y-8">
-      <div className="text-center sm:text-left">
-        <h1 className="text-3xl sm:text-4xl font-bold font-serif text-foreground tracking-tight">Reset password</h1>
-        <p className="mt-2 text-sm sm:text-base text-muted-foreground">Create a new password for your account.</p>
-      </div>
+    <div className="space-y-5">
+      <AuthHeading
+        step="Step 2 of 2 · Set a new password"
+        title="Choose a new password"
+        subtitle="Pick a password you haven't used here before. Once it's saved you can sign in right away."
+      />
 
-      <form className="space-y-6" onSubmit={onSubmit}>
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">NEW PASSWORD</Label>
-          <Input 
-            placeholder="••••••••" 
-            type="password" 
-            value={password} 
-            onChange={onPasswordChange} 
-            className="h-12"
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField id="reset-password" label="New password" error={fieldError("password")}>
+          <AuthPasswordInput
+            id="reset-password"
+            icon={LockKeyhole}
+            autoComplete="new-password"
+            autoFocus
+            placeholder="Create a new password"
+            value={values.password}
+            disabled={loading}
+            visible={showPassword}
+            onToggleVisibility={() => setShowPassword((visible) => !visible)}
+            hasError={Boolean(fieldError("password"))}
+            describedBy="reset-password-requirements"
+            onChange={handleChange("password")}
+            onFocus={() => setPasswordFocused(true)}
+            onBlur={(event) => {
+              setPasswordFocused(false);
+              handleBlur("password")(event);
+            }}
           />
-        </div>
+        </AuthField>
 
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">CONFIRM PASSWORD</Label>
-          <Input 
-            placeholder="••••••••" 
-            type="password" 
-            value={confirm} 
-            onChange={onConfirmChange} 
-            className="h-12"
+        {showRequirements && (
+          <PasswordRequirements
+            id="reset-password-requirements"
+            value={values.password}
+            className="-mt-1"
           />
-        </div>
-
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium rounded-lg">
-            {error}
-          </div>
         )}
 
-        <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit">
-          Reset password
-        </Button>
+        <AuthField id="reset-confirm" label="Confirm new password" error={fieldError("confirm")}>
+          <AuthPasswordInput
+            id="reset-confirm"
+            icon={LockKeyhole}
+            autoComplete="new-password"
+            placeholder="Re-enter your new password"
+            value={values.confirm}
+            disabled={loading}
+            visible={showConfirm}
+            onToggleVisibility={() => setShowConfirm((visible) => !visible)}
+            hasError={Boolean(fieldError("confirm"))}
+            describedBy={fieldError("confirm") ? "reset-confirm-error" : "reset-confirm-status"}
+            onChange={handleChange("confirm")}
+            onBlur={handleBlur("confirm")}
+          />
+          {confirmFilled && !fieldError("confirm") && (
+            <p
+              id="reset-confirm-status"
+              aria-live="polite"
+              className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${
+                confirmMatches ? "text-emerald-600" : "text-[#64748B]"
+              }`}
+            >
+              {confirmMatches ? (
+                <Check size={13} strokeWidth={3} aria-hidden="true" />
+              ) : (
+                <X size={13} strokeWidth={3} aria-hidden="true" />
+              )}
+              {confirmMatches ? "Passwords match" : "Your passwords don't match yet"}
+            </p>
+          )}
+        </AuthField>
 
-        <div className="text-center text-sm text-muted-foreground pt-4 flex items-center justify-center gap-1">
-          <Link className="text-primary font-bold hover:underline flex items-center" to="/login"><ArrowLeft className="w-3 h-3 mr-1" /> Back to login</Link>
-        </div>
+        {formError && (
+          <AuthAlert tone={formError.tone} action={formError.action}>
+            {formError.message}
+          </AuthAlert>
+        )}
+
+        <AuthButton
+          type="submit"
+          className="w-full"
+          loading={loading}
+          loadingLabel="Updating password…"
+        >
+          Update password
+        </AuthButton>
       </form>
     </div>
   );

@@ -1,85 +1,110 @@
 import { useEffect, useState } from "react";
-import useAuth from "../../hooks/useAuth";
 import { useLocation, useNavigate } from "react-router-dom";
-import logo from "../../assets/images/logo.jpg";
+import useAuth from "../../hooks/useAuth";
+import AuthLayout from "../../components/auth/AuthLayout";
+import { AuthAlert, AuthLink } from "../../components/auth/AuthUI";
 import AuthLoginForm from "../../components/forms/AuthLoginForm";
+import { resolveAuthError } from "../../lib/authErrors";
+
+const HOME_BY_ROLE = {
+  admin: "/admin/dashboard",
+  manager: "/manager/dashboard",
+  staff: "/staff/dashboard",
+};
+
+const homeFor = (role) => HOME_BY_ROLE[role] || "/";
 
 export default function Login() {
-  const { login, clearSessionExpired } = useAuth();
+  const { user, isReady, login, clearSessionExpired } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
 
-  const showSessionExpired = location.state?.sessionExpired;
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const sessionExpired = Boolean(location.state?.sessionExpired);
+  const justVerified = Boolean(location.state?.verified);
+  const passwordReset = Boolean(location.state?.passwordReset);
 
   // Clear the sessionExpired flag in context once the login page mounts
   useEffect(() => {
-    if (showSessionExpired) {
+    if (sessionExpired) {
       clearSessionExpired();
     }
-  }, [showSessionExpired, clearSessionExpired]);
+  }, [sessionExpired, clearSessionExpired]);
 
-  const submit = async (e) => {
-    e.preventDefault();
-    setError("");
+  // Already authenticated — send them where they were headed anyway.
+  useEffect(() => {
+    if (isReady && user) {
+      navigate(homeFor(user.role), { replace: true });
+    }
+  }, [isReady, user, navigate]);
+
+  const submit = async ({ identifier, password }) => {
+    setFormError(null);
+    setLoading(true);
     try {
-      const loggedInUser = await login(email, password);
-      const role = loggedInUser?.role;
-
-      if (role === "admin") {
-        navigate("/admin/dashboard", { replace: true });
-      } else if (role === "manager") {
-        navigate("/manager/dashboard", { replace: true });
-      } else if (role === "staff") {
-        navigate("/staff/dashboard", { replace: true });
-      } else {
-        navigate("/", { replace: true });
-      }
+      const loggedInUser = await login(identifier, password);
+      navigate(homeFor(loggedInUser?.role), { replace: true });
     } catch (err) {
-      setError(err.response?.data?.errors?.[0] || err.response?.data?.message || "We could not sign you in. Check your email and password and try again.");
+      const resolved = resolveAuthError(
+        err,
+        "We could not sign you in. Please check your details and try again."
+      );
+
+      // An unverified account is recoverable in one click — offer the route out.
+      if (resolved.kind === "unverified") {
+        setFormError({
+          ...resolved,
+          message: "Your email address hasn't been verified yet. Verify it to finish setting up your account.",
+          action: (
+            <AuthLink
+              to={`/verify-email?email=${encodeURIComponent(identifier)}`}
+              className="text-[13px]"
+            >
+              Verify my email
+            </AuthLink>
+          ),
+        });
+      } else {
+        setFormError(resolved);
+      }
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="auth-page">
-      <div className="auth-left">
-        <div className="auth-left-copy">
-          <div className="brand-hero">
-            <div className="logo-badge">
-              <img src={logo} alt="Caezelle's logo" className="object-cover w-full h-full rounded-full" />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/70">Caezelle's</p>
-              <p className="text-sm text-white/70">Food, Catering & Services</p>
-            </div>
-          </div>
+  let banner = null;
+  if (sessionExpired) {
+    banner = (
+      <AuthAlert tone="warning" title="Your session expired">
+        You were signed out after a period of inactivity. Please sign in again to continue.
+      </AuthAlert>
+    );
+  } else if (passwordReset) {
+    banner = (
+      <AuthAlert tone="success" title="Password updated">
+        Sign in with your new password to pick up where you left off.
+      </AuthAlert>
+    );
+  } else if (justVerified) {
+    banner = (
+      <AuthAlert tone="success" title="Email verified">
+        Your account is active. Sign in to start planning.
+      </AuthAlert>
+    );
+  }
 
-          <div className="hero-copy">
-            <h2 className="text-4xl font-semibold">Your next delicious moment starts here.</h2>
-            <p className="mt-4 max-w-lg text-sm text-white/70">Handcrafted menus, seamless service, unforgettable events.</p>
-          </div>
-        </div>
-      </div>
-      <div className="auth-right">
-        <div className="auth-card surface p-10">
-          {showSessionExpired && (
-            <div className="session-expired-banner">
-              Your session has expired. Please log in again.
-            </div>
-          )}
-          <AuthLoginForm
-            email={email}
-            password={password}
-            error={error}
-            onEmailChange={(e) => setEmail(e.target.value)}
-            onPasswordChange={(e) => setPassword(e.target.value)}
-            onSubmit={submit}
-          />
-        </div>
-        <div className="auth-footer">© 2026 Caezelle's Food, Catering & Services. All rights reserved.</div>
-      </div>
-    </div>
+  return (
+    <AuthLayout
+      title="Your next delicious moment starts here."
+      body="Handcrafted menus, seamless service, and every detail of your event tracked in one place."
+    >
+      <AuthLoginForm
+        onSubmit={submit}
+        loading={loading}
+        formError={formError}
+        banner={banner}
+      />
+    </AuthLayout>
   );
-}
+}

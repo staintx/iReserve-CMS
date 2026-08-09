@@ -1,95 +1,197 @@
-import { Link } from "react-router-dom";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Loader2, ArrowLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Mail, MailCheck, PenLine } from "lucide-react";
+import {
+  AuthAlert,
+  AuthButton,
+  AuthField,
+  AuthHeading,
+  AuthInput,
+  AuthLink,
+  AuthPrompt,
+  AuthTextButton,
+  EmailChip,
+  OtpInput,
+} from "../auth/AuthUI";
+import { formatCooldown } from "@/hooks/useCooldown";
+import { isEmail } from "@/lib/authErrors";
 
+const CODE_LENGTH = 6;
+
+/**
+ * Code-entry state of email verification.
+ *
+ * When the address is already known (straight from registration) it is shown as
+ * context rather than as an editable field — the code is the only thing left to
+ * do. "Use a different address" reveals the input for the recovery case.
+ */
 export default function AuthVerifyEmailForm({
   email,
-  otp,
-  status,
-  justRegistered,
-  token,
   onEmailChange,
-  onOtpChange,
-  onSubmitOtp,
-  onResendOtp
+  code,
+  onCodeChange,
+  onSubmit,
+  onResend,
+  loading = false,
+  resending = false,
+  cooldown = 0,
+  emailLocked = false,
+  formError = null,
+  notice = null,
 }) {
+  const [editingEmail, setEditingEmail] = useState(!emailLocked);
+  const [emailError, setEmailError] = useState("");
+  const [codeError, setCodeError] = useState("");
+
+  const validateEmail = (value) => {
+    if (!value.trim()) return "Enter the email address you registered with.";
+    if (!isEmail(value)) return "Enter a valid email address.";
+    return "";
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const nextEmailError = validateEmail(email);
+    const nextCodeError =
+      code.length === CODE_LENGTH ? "" : `Enter all ${CODE_LENGTH} digits of your code.`;
+
+    setEmailError(nextEmailError);
+    setCodeError(nextCodeError);
+    if (nextEmailError) {
+      setEditingEmail(true);
+      return;
+    }
+    if (nextCodeError) return;
+
+    onSubmit();
+  };
+
+  const handleResend = () => {
+    const nextEmailError = validateEmail(email);
+    setEmailError(nextEmailError);
+    if (nextEmailError) {
+      setEditingEmail(true);
+      return;
+    }
+    onResend();
+  };
+
   return (
-    <div className="w-full max-w-md mx-auto space-y-8">
-      <div className="text-center sm:text-left">
-        <h1 className="text-3xl sm:text-4xl font-bold font-serif text-foreground tracking-tight">Verify your email</h1>
-        <p className="mt-2 text-sm sm:text-base text-muted-foreground">
-          Enter the 6-digit code we sent to your email address.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <AuthHeading
+        step="Step 2 of 2 · Verify email"
+        title="Verify your email"
+        subtitle={
+          email && !editingEmail
+            ? // The address itself is shown in the chip below, so the sentence
+              // stays short and can't break mid-word.
+              `Enter the ${CODE_LENGTH}-digit code we emailed you to activate your account.`
+            : `Enter your email address and the ${CODE_LENGTH}-digit code we sent you.`
+        }
+      />
 
-      {justRegistered && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-sm font-medium rounded-lg">
-          Registration successful. Please check your email for the OTP to verify your account.
-        </div>
-      )}
-      
-      {status.loading && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" /> Verifying your email...
-        </div>
-      )}
+      {notice}
 
-      {!token && (
-        <form className="space-y-6" onSubmit={onSubmitOtp}>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">EMAIL ADDRESS</Label>
-            <Input 
-              placeholder="you@example.com" 
-              value={email} 
-              onChange={onEmailChange} 
-              className="h-12"
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        {editingEmail ? (
+          <AuthField id="verify-email" label="Email address" error={emailError}>
+            <AuthInput
+              id="verify-email"
+              type="email"
+              icon={Mail}
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              disabled={loading}
+              hasError={Boolean(emailError)}
+              describedBy={emailError ? "verify-email-error" : undefined}
+              onChange={(event) => {
+                onEmailChange(event.target.value);
+                if (emailError) setEmailError(validateEmail(event.target.value));
+              }}
+              onBlur={() => setEmailError(validateEmail(email))}
             />
+          </AuthField>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5">
+            <span className="flex min-w-0 items-center gap-2.5 text-[13px] text-[#64748B]">
+              <MailCheck size={16} className="shrink-0 text-[#4C81E0]" aria-hidden="true" />
+              <EmailChip email={email} />
+            </span>
+            <AuthTextButton
+              className="flex shrink-0 items-center gap-1 text-[13px]"
+              onClick={() => setEditingEmail(true)}
+            >
+              <PenLine size={13} aria-hidden="true" />
+              Change
+            </AuthTextButton>
           </div>
-          
-          <div className="space-y-2">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">OTP (6 DIGITS)</Label>
-            <Input 
-              placeholder="000000" 
-              value={otp} 
-              onChange={onOtpChange} 
-              className="h-12 text-center text-xl tracking-widest font-mono"
-              maxLength={6}
-            />
-          </div>
+        )}
 
-          {status.message && !status.loading && (
-            <div className={cn(
-              "p-3 text-sm font-medium rounded-lg border",
-              status.tone === "success" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-600",
-              status.tone === "error" && "bg-destructive/10 border-destructive/20 text-destructive",
-              status.tone === "info" && "bg-muted text-muted-foreground border-border"
-            )}>
-              {status.message}
-            </div>
+        <div>
+          <span
+            id="verify-code-label"
+            className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]"
+          >
+            Verification code
+          </span>
+          <OtpInput
+            value={code}
+            onChange={(next) => {
+              onCodeChange(next);
+              if (codeError && next.length === CODE_LENGTH) setCodeError("");
+            }}
+            length={CODE_LENGTH}
+            disabled={loading}
+            hasError={Boolean(codeError)}
+            describedBy={codeError ? "verify-code-error" : "verify-code-help"}
+            label={`Verification code, ${CODE_LENGTH} digits`}
+          />
+          {codeError ? (
+            <p
+              id="verify-code-error"
+              role="alert"
+              className="mt-1.5 text-xs font-medium text-[#DC2626]"
+            >
+              {codeError}
+            </p>
+          ) : (
+            <p id="verify-code-help" className="mt-1.5 text-xs text-[#64748B]">
+              The code expires 10 minutes after it is sent. Check your spam folder if it
+              hasn&rsquo;t arrived.
+            </p>
           )}
+        </div>
 
-          <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit" disabled={status.loading}>
-            Verify
-          </Button>
-        </form>
-      )}
+        {formError && (
+          <AuthAlert tone={formError.tone} action={formError.action}>
+            {formError.message}
+          </AuthAlert>
+        )}
 
-      <div className="text-center text-sm text-muted-foreground pt-4">
-        Didn't receive the code?{" "}
-        <button
-          className="text-primary font-bold hover:underline"
-          type="button"
-          onClick={onResendOtp}
+        <AuthButton
+          type="submit"
+          className="w-full"
+          loading={loading}
+          loadingLabel="Verifying…"
         >
-          Resend OTP
-        </button>
-      </div>
+          Verify email
+        </AuthButton>
+      </form>
 
-      <div className="text-center text-sm text-muted-foreground pt-2 flex items-center justify-center gap-1">
-        Already verified? <Link className="text-primary font-bold hover:underline flex items-center ml-1" to="/login"><ArrowLeft className="w-3 h-3 mr-1" /> Go to login</Link>
+      <div className="space-y-1.5">
+        <AuthPrompt>
+          Didn&rsquo;t get the code?{" "}
+          <AuthTextButton onClick={handleResend} disabled={cooldown > 0 || resending || loading}>
+            {resending
+              ? "Sending…"
+              : cooldown > 0
+                ? `Resend in ${formatCooldown(cooldown)}`
+                : "Resend code"}
+          </AuthTextButton>
+        </AuthPrompt>
+        <AuthPrompt>
+          Already verified? <AuthLink to="/login">Sign in</AuthLink>
+        </AuthPrompt>
       </div>
     </div>
   );

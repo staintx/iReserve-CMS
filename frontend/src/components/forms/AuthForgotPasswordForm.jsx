@@ -1,50 +1,102 @@
-import { Link } from "react-router-dom";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Mail } from "lucide-react";
+import {
+  AuthAlert,
+  AuthButton,
+  AuthField,
+  AuthHeading,
+  AuthInput,
+  AuthLink,
+  AuthPrompt,
+} from "../auth/AuthUI";
+import { isEmail } from "@/lib/authErrors";
 
-export default function AuthForgotPasswordForm({ email, error, isLoading, onEmailChange, onSubmit }) {
+/**
+ * Step one of password recovery. It says up front what will happen next, so the
+ * success screen confirms an expectation instead of springing one.
+ */
+export default function AuthForgotPasswordForm({
+  initialEmail = "",
+  onSubmit,
+  loading = false,
+  formError = null,
+}) {
+  const [email, setEmail] = useState(initialEmail);
+  const [error, setError] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const validate = (value) => {
+    if (!value.trim()) return "Enter the email address on your account.";
+    if (!isEmail(value)) return "Enter a valid email address.";
+    return "";
+  };
+
+  const handleChange = (event) => {
+    const value = event.target.value;
+    setEmail(value);
+    if (error) setError(validate(value));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const nextError = validate(email);
+    setError(nextError);
+    setTouched(true);
+    if (nextError) return;
+    onSubmit(email.trim());
+  };
+
+  const visibleError = touched ? error : "";
+
   return (
-    <div className="w-full max-w-md mx-auto space-y-8">
-      <div className="text-center sm:text-left">
-        <h1 className="text-3xl sm:text-4xl font-bold font-serif text-foreground tracking-tight">Forgot password</h1>
-        <p className="mt-2 text-sm sm:text-base text-muted-foreground">We will send you a reset link.</p>
-      </div>
+    <div className="space-y-5">
+      <AuthHeading
+        step="Step 1 of 2 · Request a link"
+        title="Forgot your password?"
+        subtitle="Enter the email address on your account and we'll send you a secure link to choose a new password."
+      />
 
-      <form className="space-y-6" onSubmit={onSubmit}>
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">EMAIL ADDRESS</Label>
-          <Input 
-            placeholder="you@example.com" 
-            value={email} 
-            onChange={onEmailChange} 
-            className="h-12"
-            disabled={isLoading}
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField
+          id="forgot-email"
+          label="Email address"
+          error={visibleError}
+          hint="The reset link stays valid for one hour."
+        >
+          <AuthInput
+            id="forgot-email"
+            type="email"
+            icon={Mail}
+            autoComplete="email"
+            autoFocus
+            placeholder="you@example.com"
+            value={email}
+            disabled={loading}
+            hasError={Boolean(visibleError)}
+            describedBy={visibleError ? "forgot-email-error" : "forgot-email-hint"}
+            onChange={handleChange}
+            onBlur={() => {
+              setTouched(true);
+              setError(validate(email));
+            }}
           />
-        </div>
+        </AuthField>
 
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-sm font-medium rounded-lg">
-            {error}
-          </div>
-        )}
+        {formError && <AuthAlert tone={formError.tone}>{formError.message}</AuthAlert>}
 
-        <Button className="w-full h-12 text-base font-bold shadow-sm" type="submit" disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            "Send reset link"
-          )}
-        </Button>
-
-        <div className="text-center text-sm text-muted-foreground pt-4 flex items-center justify-center gap-1">
-          Remembered it? <Link className="text-primary font-bold hover:underline flex items-center" to="/login"><ArrowLeft className="w-3 h-3 mr-1" /> Back to login</Link>
-        </div>
+        <AuthButton
+          type="submit"
+          className="w-full"
+          loading={loading}
+          loadingLabel="Sending link…"
+        >
+          Send reset link
+        </AuthButton>
       </form>
+
+      <AuthPrompt>
+        Remembered it? <AuthLink to="/login">Back to sign in</AuthLink>
+      </AuthPrompt>
     </div>
   );
 }

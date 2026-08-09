@@ -1,4 +1,5 @@
 const Joi = require("joi");
+const { passwordRule } = require("./password.rule");
 
 exports.updateUserSchema = Joi.object({
   full_name: Joi.string().required(),
@@ -8,7 +9,10 @@ exports.updateUserSchema = Joi.object({
   username: Joi.string().allow("").optional()
 });
 
+// The current password is only compared against the stored hash, so it is never
+// held to the complexity rules — users with an older password can still sign in
+// and change it. Only the replacement must satisfy the policy.
 exports.changePasswordSchema = Joi.object({
   current_password: Joi.string().required(),
-  new_password: Joi.string().min(6).required()
+  new_password: passwordRule
 });

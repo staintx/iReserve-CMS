@@ -181,9 +181,27 @@ exports.getCheckoutSession = async (checkoutSessionId) => {
 	});
 };
 
+exports.verifyPayMongoConfig = () => {
+	const secretKey = process.env.PAYMONGO_SECRET_KEY;
+	const webhookSecret = process.env.PAYMONGO_WEBHOOK_SECRET;
+
+	if (!secretKey) {
+		console.warn("⚠️ [PayMongo] PAYMONGO_SECRET_KEY is missing from environment variables. Online payment creation will fail.");
+	} else {
+		console.log("✅ [PayMongo] Secret Key loaded successfully.");
+	}
+
+	if (!webhookSecret) {
+		console.warn("⚠️ [PayMongo] PAYMONGO_WEBHOOK_SECRET is missing from environment variables.");
+	} else {
+		console.log("✅ [PayMongo] Webhook Secret loaded successfully.");
+	}
+};
+
 exports.verifyWebhookSignature = ({ rawBody, signatureHeader }) => {
 	const webhookSecret = process.env.PAYMONGO_WEBHOOK_SECRET;
 	if (!webhookSecret) {
+		console.warn("⚠️ Cannot verify PayMongo webhook signature: PAYMONGO_WEBHOOK_SECRET is missing");
 		return process.env.NODE_ENV !== "production";
 	}
 

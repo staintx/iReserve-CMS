@@ -59,8 +59,9 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
   
   // Security check for customer
-  if (req.user.role === "customer" && inquiry.customer_id._id.toString() !== req.user._id.toString()) {
-    return res.status(403).json({ message: "Unauthorized" });
+  const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
+  if (req.user.role === "customer" && String(inquiryCustomerId) !== String(req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
   }
   
   res.json(inquiry);
@@ -77,6 +78,11 @@ exports.updateInquiry = asyncHandler(async (req, res) => {
 exports.deleteInquiry = asyncHandler(async (req, res) => {
   const inquiry = await Inquiry.findById(req.params.id);
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
+  if (req.user.role === "customer" && String(inquiryCustomerId) !== String(req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
+  }
   
   inquiry.status = "Cancelled";
   await inquiry.save();

@@ -214,6 +214,34 @@ exports.update = asyncHandler(async (req, res) => {
 });
 exports.remove = asyncHandler(async (req, res) => { await Payment.findByIdAndDelete(req.params.id); res.json({ message: "Deleted" }); });
 
+async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type }) {
+	if (inquiry_id) {
+		const existingApproved = await Payment.findOne({ inquiry_id, status: "approved" });
+		if (existingApproved) {
+			return "This inquiry/quotation has already been paid.";
+		}
+		const inquiry = await Inquiry.findById(inquiry_id);
+		if (inquiry && inquiry.converted_booking_id) {
+			const booking = await Booking.findById(inquiry.converted_booking_id);
+			if (booking && ["deposit_paid", "fully_paid"].includes(booking.payment_status)) {
+				return "This inquiry/quotation has already been converted and paid.";
+			}
+		}
+	} else if (booking_id) {
+		const booking = await Booking.findById(booking_id);
+		if (booking) {
+			if (booking.payment_status === "fully_paid") {
+				return "This booking is already fully paid.";
+			}
+			const existingApprovedType = await Payment.findOne({ booking_id, payment_type, status: "approved" });
+			if (existingApprovedType) {
+				return `The ${payment_type} payment for this booking has already been completed.`;
+			}
+		}
+	}
+	return null;
+}
+
 exports.createCheckout = asyncHandler(async (req, res) => {
 	const {
 		booking_id,
@@ -227,6 +255,11 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 
 	if (!booking_id && !inquiry_id) {
 		return res.status(400).json({ message: "booking_id or inquiry_id is required" });
+	}
+
+	const duplicateErr = await checkDuplicatePayment({ booking_id, inquiry_id, payment_type });
+	if (duplicateErr) {
+		return res.status(400).json({ message: duplicateErr });
 	}
 
 	let targetDoc = null;
@@ -349,6 +382,11 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	
 	if (!booking_id && !inquiry_id) return res.status(400).json({ message: "booking_id or inquiry_id is required" });
 	
+	const duplicateErr = await checkDuplicatePayment({ booking_id, inquiry_id, payment_type });
+	if (duplicateErr) {
+		return res.status(400).json({ message: duplicateErr });
+	}
+
 	let targetDoc = null;
 	let eventName = "Event";
 	let customerId = req.user._id;
@@ -427,6 +465,11 @@ exports.processIntent = asyncHandler(async (req, res) => {
 		gateway_payment_intent_id: intent_id,
 	});
 	if (!localPayment) return res.status(404).json({ message: "Payment not found" });
+
+	if (localPayment.status === "approved") {
+		return res.status(400).json({ message: "This payment has already been approved and completed." });
+	}
+
 	const isOwner = String(localPayment.customer_id) === String(req.user._id);
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) {

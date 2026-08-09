@@ -128,24 +128,39 @@ const createOptimisticMessage = ({ clientMessageId, conversationId, user, body, 
 
 const mergeMessageIntoList = (list, message) => {
   if (!message) return list;
+  const targetConvId = getMessageConversationId(message);
+  const cleanList = targetConvId
+    ? list.filter((item) => {
+        const itemConvId = getMessageConversationId(item);
+        return !itemConvId || String(itemConvId) === String(targetConvId);
+      })
+    : list;
+
   const clientMessageId = message.client_message_id;
   const messageId = message._id;
-  const matchIndex = list.findIndex((item) => {
+  const matchIndex = cleanList.findIndex((item) => {
     if (clientMessageId && item.client_message_id === clientMessageId) return true;
     return String(item._id) === String(messageId);
   });
 
   if (matchIndex === -1) {
-    return [...list, { ...message, pending: false }];
+    return [...cleanList, { ...message, pending: false }];
   }
 
-  const next = [...list];
+  const next = [...cleanList];
   next[matchIndex] = { ...message, pending: false };
   return next;
 };
 
-const mergeMessageLists = (existingMessages, fetchedMessages) => {
-  const merged = [...existingMessages];
+const mergeMessageLists = (existingMessages, fetchedMessages, targetConversationId = null) => {
+  const existingForConv = targetConversationId
+    ? existingMessages.filter((msg) => {
+        const convId = getMessageConversationId(msg);
+        return !convId || String(convId) === String(targetConversationId);
+      })
+    : existingMessages;
+
+  const merged = [...existingForConv];
   for (const message of fetchedMessages || []) {
     const clientMessageId = message.client_message_id;
     const messageId = message._id;
@@ -289,11 +304,18 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   }, []);
 
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId) {
+      setActiveConversation(null);
+      setMessages([]);
+      return;
+    }
 
     let isMounted = true;
+    setActiveConversation(null);
+    setMessages([]);
+    setIsLoadingMessages(true);
+
     const loadConversationDetails = async () => {
-      setIsLoadingMessages(true);
       try {
         const [convData, msgData] = await Promise.all([
           getConversation(activeId),
@@ -301,7 +323,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         ]);
         if (!isMounted) return;
         setActiveConversation(convData);
-        setMessages((prev) => mergeMessageLists(prev, msgData || []));
+        setMessages((prev) => mergeMessageLists(prev, msgData || [], activeId));
 
         await markConversationAsRead(activeId).catch(() => {});
         setThreads((prev) =>
@@ -340,7 +362,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
         ]);
 
         if (fetchedMsgs && Array.isArray(fetchedMsgs)) {
-          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs));
+          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs, activeId));
         }
         if (fetchedThreads && Array.isArray(fetchedThreads)) {
           setThreads(fetchedThreads);

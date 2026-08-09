@@ -1,6 +1,13 @@
 const Quotation = require("../models/Quotation");
 const Inquiry = require("../models/Inquiry");
+const Payment = require("../models/Payment");
 const asyncHandler = require("../utils/asyncHandler");
+
+// Helper to check customer ownership of inquiry/quotation
+const verifyCustomerOwnership = (inquiry, userId) => {
+  const customerId = inquiry?.customer_id?._id || inquiry?.customer_id;
+  return String(customerId) === String(userId);
+};
 
 // Admin generates a new quotation or new version
 exports.createQuotation = asyncHandler(async (req, res) => {
@@ -24,8 +31,6 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   inquiry.revision_count = nextVersion - 1;
   await inquiry.save();
 
-  // notifyCustomer({ type: "QUOTATION_SENT", quotationId: quotation._id });
-
   res.status(201).json(quotation);
 });
 
@@ -42,6 +47,13 @@ exports.getAllQuotations = asyncHandler(async (req, res) => {
 
 // Get all quotations for an inquiry
 exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
+  const inquiry = await Inquiry.findById(req.params.inquiryId);
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  if (req.user?.role === "customer" && !verifyCustomerOwnership(inquiry, req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to this quotation" });
+  }
+
   const quotations = await Quotation.find({ inquiry_id: req.params.inquiryId }).sort({ version_number: -1 });
   res.json(quotations);
 });
@@ -50,6 +62,11 @@ exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
 exports.getQuotationById = asyncHandler(async (req, res) => {
   const quotation = await Quotation.findById(req.params.id).populate("inquiry_id");
   if (!quotation) return res.status(404).json({ message: "Quotation not found" });
+
+  if (req.user?.role === "customer" && !verifyCustomerOwnership(quotation.inquiry_id, req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to this quotation" });
+  }
+
   res.json(quotation);
 });
 
@@ -58,10 +75,20 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
   const quotation = await Quotation.findById(req.params.id).populate("inquiry_id");
   if (!quotation) return res.status(404).json({ message: "Quotation not found" });
 
+  if (req.user?.role === "customer" && !verifyCustomerOwnership(quotation.inquiry_id, req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to accept this quotation" });
+  }
+
+  const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id;
+  const existingApprovedPayment = await Payment.findOne({ inquiry_id: inquiryId, status: "approved" });
+  if (existingApprovedPayment) {
+    return res.status(400).json({ message: "This quotation/inquiry has already been paid and accepted." });
+  }
+
   quotation.status = "Awaiting Final Confirmation";
   await quotation.save();
 
-  const inquiry = await Inquiry.findById(quotation.inquiry_id._id || quotation.inquiry_id);
+  const inquiry = await Inquiry.findById(inquiryId);
   if (inquiry) {
     inquiry.status = "Awaiting Final Confirmation";
     await inquiry.save();
@@ -72,32 +99,46 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
 
 // Customer requests revision
 exports.requestRevision = asyncHandler(async (req, res) => {
-  const quotation = await Quotation.findById(req.params.id);
+  const quotation = await Quotation.findById(req.params.id).populate("inquiry_id");
   if (!quotation) return res.status(404).json({ message: "Quotation not found" });
+
+  if (req.user?.role === "customer" && !verifyCustomerOwnership(quotation.inquiry_id, req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to modify this quotation" });
+  }
 
   quotation.status = "Revision Requested";
   quotation.customer_response = req.body.customer_response;
   quotation.revision_requested_at = new Date();
   await quotation.save();
 
-  const inquiry = await Inquiry.findById(quotation.inquiry_id);
-  inquiry.status = "Revision Requested";
-  await inquiry.save();
+  const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id;
+  const inquiry = await Inquiry.findById(inquiryId);
+  if (inquiry) {
+    inquiry.status = "Revision Requested";
+    await inquiry.save();
+  }
 
   res.json({ message: "Revision requested", quotation });
 });
 
 // Customer rejects quotation
 exports.rejectQuotation = asyncHandler(async (req, res) => {
-  const quotation = await Quotation.findById(req.params.id);
+  const quotation = await Quotation.findById(req.params.id).populate("inquiry_id");
   if (!quotation) return res.status(404).json({ message: "Quotation not found" });
+
+  if (req.user?.role === "customer" && !verifyCustomerOwnership(quotation.inquiry_id, req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to reject this quotation" });
+  }
 
   quotation.status = "Rejected";
   await quotation.save();
 
-  const inquiry = await Inquiry.findById(quotation.inquiry_id);
-  inquiry.status = "Quote Rejected";
-  await inquiry.save();
+  const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id;
+  const inquiry = await Inquiry.findById(inquiryId);
+  if (inquiry) {
+    inquiry.status = "Quote Rejected";
+    await inquiry.save();
+  }
 
   res.json({ message: "Quotation rejected", quotation });
 });

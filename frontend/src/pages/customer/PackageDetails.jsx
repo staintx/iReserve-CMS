@@ -1,457 +1,528 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/layout/CustomerLayout";
+import CustomerFooter from "../../components/layout/CustomerFooter";
+import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
-import { Button } from "../../components/ui/button";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
-import {
-  ArrowLeft,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Star,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  capacityLabel,
+  eventTypeForPackage,
+  groupInclusions,
+  guestRange,
+  perGuestPrice,
+  peso,
+  priceLabel,
+  serviceLabel,
+  serviceTypeForPackage,
+} from "../../lib/packageDisplay";
 
 export default function PackageDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [pkg, setPkg] = useState(null);
+  const businessInfo = useBusinessInfo();
+  // The result is stamped with the id it belongs to, so navigating between
+  // packages shows a loading state until the new one lands instead of briefly
+  // rendering the previous package's content under the new URL.
+  const [result, setResult] = useState({ id: null, status: "loading", data: null });
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
+  const fetchPackage = useCallback(
+    () =>
+      CustomerAPI.getPackageById(id)
+        .then((res) => {
+          if (!res?.data) return { status: "error", data: null };
+          if (res.data.available === false) {
+            return { status: "unavailable", data: null };
+          }
+          return { status: "ready", data: res.data };
+        })
+        .catch((error) => ({
+          // A 404 means the package is gone, which is a different message from
+          // "our server had a problem" — and neither should be a silent
+          // redirect that leaves the customer wondering what happened.
+          status: error?.response?.status === 404 ? "missing" : "error",
+          data: null,
+        })),
+    [id],
+  );
+
   useEffect(() => {
-    let isMounted = true;
-
-    CustomerAPI.getPackageById(id)
-      .then((res) => {
-        if (!isMounted) return;
-        if (res?.data?.available === false) {
-          navigate("/packages", { replace: true });
-          return;
-        }
-        setPkg(res.data);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        navigate("/packages", { replace: true });
-      });
-
+    let cancelled = false;
+    fetchPackage().then((next) => {
+      if (!cancelled) setResult({ ...next, id });
+    });
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
-  }, [id, navigate]);
+  }, [fetchPackage, id]);
 
-  if (!pkg) return null;
+  const pkg = result.id === id ? result : { status: "loading", data: null };
 
-  const formatMoney = (value) => {
-    const number = Number(value);
-    return Number.isFinite(number)
-      ? number.toLocaleString("en-PH")
-      : value || "";
+  const retry = () => {
+    setResult({ id: null, status: "loading", data: null });
+    fetchPackage().then((next) => setResult({ ...next, id }));
   };
 
-  // Use price_per_guest directly
-  const perGuest = Number(pkg.price_per_guest);
-  const hasPrice = Number.isFinite(perGuest);
+  const data = pkg.data;
 
-  const getEventType = (data) => {
-    if (data?.event_type) return data.event_type;
-    const name = (data?.name || "").toLowerCase();
-    if (name.includes("birthday")) return "Birthday";
-    if (name.includes("wedding")) return "Wedding";
-    if (name.includes("corporate")) return "Corporate";
-    return "";
-  };
+  const gallery = useMemo(
+    () => (Array.isArray(data?.gallery) ? data.gallery.filter(Boolean) : []),
+    [data],
+  );
 
-  const derivedEventType = getEventType(pkg);
+  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
 
-  const inclusions = Array.isArray(pkg.inclusions) ? pkg.inclusions : [];
-  const addOns = Array.isArray(pkg.add_ons) ? pkg.add_ons : [];
+  const stepLightbox = useCallback(
+    (delta) => {
+      setLightboxIndex((current) => {
+        if (current === null || gallery.length === 0) return current;
+        return (current + delta + gallery.length) % gallery.length;
+      });
+    },
+    [gallery.length],
+  );
 
-  // Estimate total for a typical guest count (if min/max available)
-  const guestMin = pkg.guest_min || 0;
-  const guestMax = pkg.guest_max || 0;
-  const estimatedTotal = hasPrice && guestMin > 0 ? perGuest * guestMin : null;
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") closeLightbox();
+      if (event.key === "ArrowLeft") stepLightbox(-1);
+      if (event.key === "ArrowRight") stepLightbox(1);
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [lightboxIndex, closeLightbox, stepLightbox]);
+
+  const contactNumber =
+    businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
+  const contactEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
+
+  const bookingState = data
+    ? {
+        resetWizard: true,
+        initialStep: 0,
+        eventType: eventTypeForPackage(data),
+        serviceType: serviceTypeForPackage(data),
+        packageId: data._id,
+        packageName: data.name,
+        packagePrice: perGuestPrice(data) || 0,
+        guestMin: data.guest_min || null,
+        guestMax: data.guest_max || null,
+      }
+    : null;
+
+  const scaffoldOptions = Array.isArray(data?.scaffold_size_options)
+    ? data.scaffold_size_options.filter(
+        (option) => option?.label || option?.width_ft || option?.price,
+      )
+    : [];
+
+  const inclusionGroups = groupInclusions(data?.inclusions);
+  const addOns = Array.isArray(data?.add_ons)
+    ? data.add_ons.filter((item) => item?.name || typeof item === "string")
+    : [];
+
+  const [guestMin, guestMax] = data ? guestRange(data) : [null, null];
+  const capacity = data ? capacityLabel(data) : null;
+  const service = data ? serviceLabel(data) : null;
+  const event = data ? eventTypeForPackage(data) : "";
+  const longDescription = data?.fullDescription || data?.description;
+
+  const renderState = (title, message, actions) => (
+    <section className="ls-band ls-band--page">
+      <div className="ls-inner">
+        <div className="ls-state" role="status">
+          <p className="ls-state-title">{title}</p>
+          <p>{message}</p>
+          <div className="ls-state-actions">{actions}</div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const browseButton = (
+    <button
+      type="button"
+      className="ls-btn ls-btn--sm ls-btn--ghost"
+      onClick={() => navigate("/packages")}
+    >
+      Browse all packages
+    </button>
+  );
+
+  const callButton = (
+    <a
+      className="ls-btn ls-btn--sm ls-btn--ghost"
+      href={`tel:${contactNumber.replace(/\s+/g, "")}`}
+    >
+      Call {contactNumber}
+    </a>
+  );
 
   return (
-    <CustomerLayout>
-      <div className="bg-background min-h-screen">
-        {/* Hero Section */}
-        <div
-          className="relative h-[60vh] min-h-[400px] w-full bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: `url(${pkg.image_url})` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10 flex flex-col justify-end px-4 pb-16 pt-8 md:px-12 lg:px-24">
-            <Button
-              variant="ghost"
-              className="absolute top-6 left-4 md:left-12 lg:left-24 text-white hover:bg-white/20 hover:text-white group"
-              onClick={() => navigate("/packages")}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
-              Back to Packages
-            </Button>
-
-            <div className="max-w-4xl">
-              <p className="text-accent font-bold tracking-widest uppercase text-sm mb-2 drop-shadow-md">
-                Caezelle's Catering
-              </p>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-4 drop-shadow-lg leading-tight">
-                {pkg.name}
-              </h1>
-              <p className="text-lg md:text-xl text-white/90 max-w-2xl mb-8 drop-shadow-md">
-                {pkg.description}
-              </p>
-
-              <div className="flex flex-wrap gap-3">
-                <div className="bg-black/40 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center shadow-lg">
-                  <span className="opacity-70 mr-1">Size:</span>{" "}
-                  {pkg.size || "Custom"}
-                </div>
-                {/* Price per guest */}
-                <div className="bg-accent text-accent-foreground px-4 py-2 rounded-full text-sm font-bold flex items-center shadow-lg">
-                  {hasPrice ? (
-                    <>
-                      ₱{formatMoney(perGuest)}{" "}
-                      <span className="font-normal text-xs ml-1 opacity-80">
-                        / guest
-                      </span>
-                    </>
-                  ) : (
-                    "Contact for pricing"
-                  )}
-                </div>
-                <div className="bg-black/40 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center shadow-lg">
-                  {pkg.rating || "4.5"}{" "}
-                  <Star className="w-3.5 h-3.5 ml-1 fill-accent text-accent" />
-                </div>
-              </div>
+    <CustomerLayout marketing contentClassName="ls-main">
+      {pkg.status === "loading" && (
+        <div className="ls-pagehead">
+          <div className="ls-inner ls-detail-head" aria-hidden="true">
+            <div>
+              <div className="ls-skel ls-skel-line" style={{ width: "30%" }} />
+              <div className="ls-skel ls-skel-line" style={{ width: "70%", height: 34 }} />
+              <div className="ls-skel ls-skel-line" />
+              <div className="ls-skel ls-skel-line" style={{ width: "80%" }} />
             </div>
+            <div className="ls-skel ls-skel-media" />
           </div>
         </div>
+      )}
 
-        {/* Content Section */}
-        <div className="mx-auto max-w-7xl px-4 py-12 md:px-8 lg:px-12 flex flex-col lg:flex-row gap-12">
-          {/* Main Details */}
-          <div className="flex-1 space-y-12">
-            <section>
-              <h2 className="text-2xl font-serif font-bold text-foreground mb-6 pb-4 border-b border-border">
-                About This Package
-              </h2>
-              <p className="text-muted-foreground leading-relaxed text-lg mb-8">
-                {pkg.fullDescription || pkg.description}
-              </p>
-            </section>
+      {pkg.status === "error" &&
+        renderState(
+          "We couldn't load this package",
+          "Something went wrong on our side. Try again in a moment, or call us and we'll tell you everything this package includes.",
+          <>
+            <button type="button" className="ls-btn ls-btn--sm ls-btn--ghost" onClick={retry}>
+              Try again
+            </button>
+            {callButton}
+          </>,
+        )}
 
-            <section>
-              <div className="flex items-end justify-between mb-6 pb-4 border-b border-border">
-                <h2 className="text-2xl font-serif font-bold text-foreground">
-                  Services & Inclusions
-                </h2>
-                <span className="text-sm font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
-                  {inclusions.length || "0"} items
-                </span>
-              </div>
+      {pkg.status === "missing" &&
+        renderState(
+          "We couldn't find that package",
+          "It may have been renamed or taken down. Have a look at what we're offering now.",
+          <>
+            {browseButton}
+            {callButton}
+          </>,
+        )}
 
-              {inclusions.length ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-                  {inclusions.map((item) => (
-                    <div className="flex items-start gap-3" key={item}>
-                      <div className="mt-1 w-5 h-5 rounded-full bg-accent/10 text-accent flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3" strokeWidth={3} />
-                      </div>
-                      <span className="text-foreground">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-muted rounded-xl p-8 text-center text-muted-foreground italic">
-                  Inclusions will be tailored based on your event needs.
-                </div>
-              )}
-            </section>
+      {pkg.status === "unavailable" &&
+        renderState(
+          "This package isn't available right now",
+          "We're not taking bookings on it at the moment. Our other packages are still open, or call us and we'll work something out for your date.",
+          <>
+            {browseButton}
+            {callButton}
+          </>,
+        )}
 
-            <section>
-              <div className="flex items-end justify-between mb-6 pb-4 border-b border-border">
-                <h2 className="text-2xl font-serif font-bold text-foreground">
-                  Add Ons
-                </h2>
-                <span className="text-sm font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
-                  {addOns.length || "0"} options
-                </span>
-              </div>
+      {pkg.status === "ready" && data && (
+        <>
+          {/* ── Above the fold: the questions a customer arrives with ── */}
+          <div className="ls-pagehead">
+            <div className="ls-inner">
+              <button
+                type="button"
+                className="ls-backlink"
+                onClick={() => navigate("/packages")}
+              >
+                <ArrowLeft size={15} aria-hidden="true" />
+                Back to packages
+              </button>
 
-              {addOns.length ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-                  {addOns.map((item, idx) => (
-                    <div className="flex items-start gap-3" key={idx}>
-                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                      <span className="text-foreground">
-                        {item.name || item}
-                        {item.price ? (
-                          <span className="text-muted-foreground ml-1">
-                            (₱{formatMoney(item.price)})
-                          </span>
-                        ) : null}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-muted rounded-xl p-8 text-center text-muted-foreground italic">
-                  Let us know if you want additional services or items.
-                </div>
-              )}
-            </section>
-
-            {pkg.gallery && pkg.gallery.length > 0 && (
-              <section>
-                <div className="flex items-end justify-between mb-6 pb-4 border-b border-border">
-                  <h2 className="text-2xl font-serif font-bold text-foreground">
-                    Gallery
-                  </h2>
-                  <span className="text-sm font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
-                    {pkg.gallery.length} photos
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {pkg.gallery.map((imgUrl, idx) => (
-                    <div
-                      key={idx}
-                      className="aspect-square rounded-xl overflow-hidden cursor-pointer group relative"
-                      onClick={() => setLightboxIndex(idx)}
-                    >
-                      <img
-                        src={imgUrl}
-                        alt={`Gallery ${idx + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
-                        <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 font-medium">
-                          View
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-
-          {/* Sidebar / Pricing Card */}
-          <aside className="w-full lg:w-[400px] shrink-0">
-            <div className="sticky top-24 space-y-6">
-              <Card className="border-border shadow-lg overflow-hidden">
-                <div className="bg-accent/10 p-6 border-b border-border">
-                  <p className="text-sm font-bold text-accent uppercase tracking-wider mb-2">
-                    Per‑Guest Price
+              <div className="ls-detail-head">
+                <div>
+                  <p className="ls-eyebrow">
+                    {[service, event].filter(Boolean).join(" · ") || "Catering package"}
                   </p>
-                  <h2 className="text-4xl font-serif font-bold text-foreground">
-                    {hasPrice ? <>₱{formatMoney(perGuest)}</> : "Contact us"}
-                  </h2>
-                  {hasPrice && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      per person (minimum {guestMin || "0"} guests)
-                    </p>
-                  )}
-                </div>
+                  <h1>{data.name}</h1>
+                  {data.description && <p className="ls-lede">{data.description}</p>}
 
-                <CardContent className="p-6">
-                  <div className="space-y-4 mb-8">
-                    <div className="flex justify-between items-center py-2 border-b border-border border-dashed">
-                      <span className="text-muted-foreground">Guest Range</span>
-                      <strong className="text-foreground">
-                        {guestMin && guestMax
-                          ? `${guestMin} – ${guestMax}`
-                          : pkg.size || "Custom"}
-                      </strong>
+                  <dl className="ls-detail-facts">
+                    <div>
+                      <dt>Price</dt>
+                      <dd>{priceLabel(data)}</dd>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b border-border border-dashed">
-                      <span className="text-muted-foreground">
-                        Starting Price
-                      </span>
-                      <strong className="text-foreground">
-                        {hasPrice && guestMin > 0 ? (
-                          <>₱{formatMoney(estimatedTotal)}</>
-                        ) : (
-                          "Varies"
-                        )}
-                      </strong>
-                    </div>
-                    {pkg.max_guests && (
-                      <div className="flex justify-between items-center py-2 border-b border-border border-dashed">
-                        <span className="text-muted-foreground">
-                          Max Guests
-                        </span>
-                        <strong className="text-foreground">
-                          {pkg.max_guests}
-                        </strong>
+                    {capacity && (
+                      <div>
+                        <dt>Guests</dt>
+                        <dd>{capacity}</dd>
                       </div>
                     )}
-                    {pkg.event_type && (
-                      <div className="flex justify-between items-center py-2 border-b border-border border-dashed">
-                        <span className="text-muted-foreground">
-                          Event Type
-                        </span>
-                        <strong className="text-foreground">
-                          {pkg.event_type}
-                        </strong>
+                    {inclusionGroups.length > 0 && (
+                      <div>
+                        <dt>Includes</dt>
+                        <dd>
+                          {data.inclusions.length}{" "}
+                          {data.inclusions.length === 1 ? "item" : "items"}
+                        </dd>
                       </div>
                     )}
-                  </div>
+                  </dl>
 
-                  <div className="space-y-3">
-                    <Button
-                      className="w-full py-6 text-base font-bold shadow-md"
+                  <div className="ls-detail-actions">
+                    <button
+                      type="button"
+                      className="ls-btn ls-btn--primary"
                       onClick={() =>
-                        navigate("/customer/book", {
-                          state: {
-                            eventType: derivedEventType,
-                            packageId: pkg._id,
-                            packagePrice: hasPrice ? perGuest : 0, // per‑guest price
-                            packageName: pkg.name,
-                            guestMin: pkg.guest_min || 0,
-                            guestMax: pkg.guest_max || 100,
-                            initialStep: 0,
-                            resetWizard: true,
-                          },
-                        })
+                        navigate("/customer/book", { state: bookingState })
                       }
                     >
-                      Book Now
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full py-6 text-base"
+                      Book this package
+                    </button>
+                    <button
+                      type="button"
+                      className="ls-btn ls-btn--ghost"
                       onClick={() =>
                         navigate("/customer/quote", {
-                          state: { eventType: derivedEventType },
+                          state: { eventType: event },
                         })
                       }
                     >
-                      Request Custom Quote
-                    </Button>
+                      Request a quote
+                    </button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
 
-              <Card className="bg-primary text-primary-foreground border-none shadow-md">
-                <CardContent className="p-6">
-                  <h4 className="font-bold text-lg mb-2">
-                    Need help deciding?
-                  </h4>
-                  <p className="text-primary-foreground/80 text-sm mb-6 leading-relaxed">
-                    Send us your event details and we will tailor the package to
-                    match your theme and guests.
-                  </p>
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={() => navigate("/customer/messages")}
-                  >
-                    Message Us
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </aside>
-        </div>
-
-        {/* Bottom CTA */}
-        <section className="bg-accent/10 border-t border-accent/20 mt-12 py-16">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-foreground mb-4">
-              Ready to Book?
-            </h2>
-            <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
-              We will confirm availability and secure your date within 24 hours.
-              Start planning your unforgettable event today.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Button
-                size="lg"
-                className="px-8 font-bold"
-                onClick={() =>
-                  navigate("/customer/book", {
-                    state: {
-                      eventType: derivedEventType,
-                      packageId: pkg._id,
-                      packagePrice: hasPrice ? perGuest : 0,
-                      packageName: pkg.name,
-                    },
-                  })
-                }
-              >
-                Book Now
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="px-8 bg-background"
-                onClick={() =>
-                  navigate("/customer/quote", {
-                    state: { eventType: derivedEventType },
-                  })
-                }
-              >
-                Request Custom Quote
-              </Button>
+                {/* Media supports the copy rather than pushing it down the
+                    page, and the layout simply closes up when there is none. */}
+                {data.image_url && (
+                  <div className="ls-detail-media">
+                    <img src={data.image_url} alt={`${data.name} package`} />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </section>
-      </div>
 
-      {/* Lightbox */}
-      {lightboxIndex !== null && (
+          <section className="ls-band ls-band--page">
+            <div className="ls-inner ls-detail-body">
+              {longDescription && longDescription !== data.description && (
+                <section className="ls-detail-section" aria-labelledby="about-title">
+                  <h2 id="about-title">About this package</h2>
+                  <p className="ls-detail-prose">{longDescription}</p>
+                </section>
+              )}
+
+              {inclusionGroups.length > 0 && (
+                <section className="ls-detail-section" aria-labelledby="includes-title">
+                  <h2 id="includes-title">What this package includes</h2>
+                  {inclusionGroups.map((group, groupIndex) => (
+                    <div className="ls-inclusion-group" key={group.category || groupIndex}>
+                      {group.category && <h3>{group.category}</h3>}
+                      <ul className="ls-inclusion-list">
+                        {group.items.map((item, index) => (
+                          <li key={`${item.name}-${index}`}>
+                            <span className="ls-inclusion-check" aria-hidden="true">
+                              <Check size={12} strokeWidth={3} />
+                            </span>
+                            <span>
+                              {item.name}
+                              {item.qty && (
+                                <span className="ls-inclusion-qty"> × {item.qty}</span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </section>
+              )}
+
+              {/* The strongest unused data on the site: real sizes, real guest
+                  ranges, real prices — one row per configurable setup. */}
+              {scaffoldOptions.length > 0 && (
+                <section className="ls-detail-section" aria-labelledby="sizes-title">
+                  <h2 id="sizes-title">Sizes and what they cost</h2>
+                  <p className="ls-detail-prose">
+                    Setup is priced by size. Pick the one that suits your venue
+                    and guest count while you book.
+                  </p>
+                  <div className="ls-table-scroll">
+                    <table className="ls-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Size</th>
+                          <th scope="col">Area</th>
+                          <th scope="col">Guests</th>
+                          <th scope="col">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scaffoldOptions.map((option, index) => {
+                          const dims =
+                            option.width_ft && option.length_ft
+                              ? `${option.width_ft} × ${option.length_ft} ft`
+                              : "—";
+                          const guests =
+                            option.guest_min && option.guest_max
+                              ? `${option.guest_min}–${option.guest_max}`
+                              : option.guest_max
+                                ? `Up to ${option.guest_max}`
+                                : "—";
+                          const price = peso(option.price);
+
+                          return (
+                            <tr key={option._id || `${option.label}-${index}`}>
+                              <th scope="row">{option.label || `Option ${index + 1}`}</th>
+                              <td>{dims}</td>
+                              <td>{guests}</td>
+                              <td>{price || "On request"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {addOns.length > 0 && (
+                <section className="ls-detail-section" aria-labelledby="addons-title">
+                  <h2 id="addons-title">Optional add-ons</h2>
+                  <p className="ls-detail-prose">
+                    Add any of these while you book — they're charged on top of
+                    the package.
+                  </p>
+                  <ul className="ls-addon-list">
+                    {addOns.map((item, index) => {
+                      const name = typeof item === "string" ? item : item.name;
+                      const price = typeof item === "string" ? null : peso(item.price);
+                      return (
+                        <li key={`${name}-${index}`}>
+                          <span>{name}</span>
+                          {price && <strong>{price}</strong>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              <section className="ls-detail-section" aria-labelledby="custom-title">
+                <h2 id="custom-title">Can you change it?</h2>
+                <p className="ls-detail-prose">
+                  Yes. While you book you can set your guest count
+                  {guestMin && guestMax ? ` between ${guestMin} and ${guestMax}` : ""},
+                  choose your dishes, and add extras. If you need something this
+                  package doesn't cover, send us the details and we'll quote for
+                  it instead.
+                </p>
+              </section>
+
+              {gallery.length > 0 && (
+                <section className="ls-detail-section" aria-labelledby="gallery-title">
+                  <h2 id="gallery-title">Photos from this package</h2>
+                  <div className="ls-detail-gallery">
+                    {gallery.map((imageUrl, index) => (
+                      <button
+                        type="button"
+                        key={imageUrl}
+                        className="ls-gallery-item"
+                        onClick={() => setLightboxIndex(index)}
+                        aria-label={`View photo ${index + 1} of ${gallery.length}`}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`${data.name} — photo ${index + 1}`}
+                          loading="lazy"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          </section>
+
+          <section className="ls-band ls-band--ink" aria-labelledby="book-title">
+            <div className="ls-inner ls-bridge">
+              <div>
+                <span className="ls-rule" aria-hidden="true" />
+                <h2 className="ls-title" id="book-title">
+                  Book {data.name}
+                </h2>
+                <p className="ls-lede">
+                  Give us your date and guest count and we'll confirm whether
+                  it's free. Prefer to talk it through first? Call{" "}
+                  <a href={`tel:${contactNumber.replace(/\s+/g, "")}`}>
+                    {contactNumber}
+                  </a>{" "}
+                  or email{" "}
+                  <a href={`mailto:${contactEmail}`}>{contactEmail}</a>.
+                </p>
+              </div>
+              <div className="ls-bridge-actions">
+                <button
+                  type="button"
+                  className="ls-btn ls-btn--onink"
+                  onClick={() => navigate("/customer/book", { state: bookingState })}
+                >
+                  Book this package
+                </button>
+                <button
+                  type="button"
+                  className="ls-btn ls-btn--light"
+                  onClick={() =>
+                    navigate("/customer/quote", { state: { eventType: event } })
+                  }
+                >
+                  Request a quote
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      <CustomerFooter businessInfo={businessInfo} />
+
+      {lightboxIndex !== null && gallery[lightboxIndex] && (
         <div
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center"
-          onClick={() => setLightboxIndex(null)}
+          className="lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Package photo ${lightboxIndex + 1} of ${gallery.length}`}
+          onClick={closeLightbox}
         >
           <button
-            className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-            onClick={() => setLightboxIndex(null)}
+            className="lightbox-close"
+            type="button"
+            aria-label="Close photo"
+            onClick={closeLightbox}
           >
-            <X className="w-6 h-6" />
+            <X size={22} aria-hidden="true" />
           </button>
 
-          <button
-            className="absolute left-6 w-14 h-14 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxIndex(
-                (lightboxIndex - 1 + pkg.gallery.length) % pkg.gallery.length,
-              );
-            }}
-          >
-            <ChevronLeft className="w-8 h-8" />
-          </button>
+          {gallery.length > 1 && (
+            <button
+              className="lightbox-nav lightbox-nav-prev"
+              type="button"
+              aria-label="Previous photo"
+              onClick={(event_) => {
+                event_.stopPropagation();
+                stepLightbox(-1);
+              }}
+            >
+              <ChevronLeft size={28} aria-hidden="true" />
+            </button>
+          )}
 
           <img
-            src={pkg.gallery[lightboxIndex]}
-            alt="Gallery Expanded"
-            className="max-h-[90vh] max-w-[90vw] object-contain shadow-2xl rounded-sm"
-            onClick={(e) => e.stopPropagation()}
+            src={gallery[lightboxIndex]}
+            alt={`${data?.name || "Package"} — photo ${lightboxIndex + 1}`}
+            className="lightbox-image"
+            onClick={(event_) => event_.stopPropagation()}
           />
 
-          <button
-            className="absolute right-6 w-14 h-14 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxIndex((lightboxIndex + 1) % pkg.gallery.length);
-            }}
-          >
-            <ChevronRight className="w-8 h-8" />
-          </button>
-
-          <div className="absolute bottom-6 left-0 right-0 text-center text-white/50 font-medium tracking-widest text-sm">
-            {lightboxIndex + 1} / {pkg.gallery.length}
-          </div>
+          {gallery.length > 1 && (
+            <button
+              className="lightbox-nav lightbox-nav-next"
+              type="button"
+              aria-label="Next photo"
+              onClick={(event_) => {
+                event_.stopPropagation();
+                stepLightbox(1);
+              }}
+            >
+              <ChevronRight size={28} aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
     </CustomerLayout>

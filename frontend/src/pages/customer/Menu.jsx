@@ -1,140 +1,406 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/layout/CustomerLayout";
+import CustomerFooter from "../../components/layout/CustomerFooter";
+import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
-import { Input } from "../../components/ui/input";
-import { Card, CardContent } from "../../components/ui/card";
 import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+/**
+ * `MenuItem.category` is an unconstrained string with no dropdown behind it in
+ * the admin form, so the same idea arrives spelled several ways ("Main Course"
+ * vs "Main Dishes", "Beverage" vs "Drinks", "Dessert" vs "Desserts"). These
+ * groups fold those variants into one customer-facing label.
+ *
+ * This is display-only — nothing is written back, no data is migrated, and the
+ * raw category is still what search matches against. Anything that doesn't map
+ * keeps its own name and is listed after the known groups, so a new category
+ * can never go missing from the page.
+ *
+ * Order is the order a menu reads in, and the order sections render.
+ */
+const CATEGORY_GROUPS = [
+  { id: "appetizers", label: "Appetizers", match: ["appetizer", "starter", "salad", "finger food", "pica"] },
+  { id: "soups", label: "Soups", match: ["soup", "sabaw"] },
+  { id: "mains", label: "Main Dishes", match: ["main", "entree", "viand", "ulam", "chicken", "pork", "beef", "seafood", "fish"] },
+  { id: "noodles", label: "Noodles & Pasta", match: ["pasta", "noodle", "pancit"] },
+  { id: "rice", label: "Rice", match: ["rice", "kanin"] },
+  { id: "vegetables", label: "Vegetables", match: ["vegetable", "veggie", "gulay"] },
+  { id: "desserts", label: "Desserts", match: ["dessert", "cake", "sweet", "pastry", "panghimagas"] },
+  { id: "drinks", label: "Drinks", match: ["drink", "beverage", "juice", "shake", "inumin"] },
+];
+
+const OTHER_GROUP_PREFIX = "other:";
+
+const titleCase = (value) =>
+  value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+/**
+ * Resolves a raw category string to a group. Unknown values become their own
+ * group rather than being dropped or lumped into a vague "Other".
+ */
+function resolveGroup(rawCategory) {
+  const raw = String(rawCategory || "").trim();
+  if (!raw) return { id: "uncategorised", label: "More Dishes" };
+
+  const normalised = raw.toLowerCase();
+  const group = CATEGORY_GROUPS.find((candidate) =>
+    candidate.match.some((keyword) => normalised.includes(keyword)),
+  );
+
+  if (group) return { id: group.id, label: group.label };
+  return { id: `${OTHER_GROUP_PREFIX}${normalised}`, label: titleCase(raw) };
+}
+
+const peso = (amount) => {
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(value);
+};
 
 export default function Menu() {
-  const [menu, setMenu] = useState([]);
+  const navigate = useNavigate();
+  const businessInfo = useBusinessInfo();
+  const [menu, setMenu] = useState({ status: "loading", data: [] });
   const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeGroup, setActiveGroup] = useState("all");
+
+  const fetchMenu = useCallback(
+    () =>
+      CustomerAPI.getMenu()
+        .then((res) => ({
+          status: "ready",
+          data: Array.isArray(res?.data) ? res.data : [],
+        }))
+        .catch(() => ({ status: "error", data: [] })),
+    [],
+  );
 
   useEffect(() => {
-    CustomerAPI.getMenu().then((res) => {
-      const next = Array.isArray(res.data) ? res.data : [];
-      setMenu(next.filter((item) => item?.available !== false));
+    let cancelled = false;
+    fetchMenu().then((next) => {
+      if (!cancelled) setMenu(next);
     });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchMenu]);
 
-  const categories = useMemo(() => {
-    const defaults = [
-      "All",
-      "Main Dishes",
-      "Pasta",
-      "Rice",
-      "Desserts",
-      "Drinks",
-      "Wedding Specials",
-      "Corporate Favorites"
-    ];
+  const retry = () => {
+    setMenu((prev) => ({ ...prev, status: "loading" }));
+    fetchMenu().then(setMenu);
+  };
 
-    const fromData = new Set(
-      menu
-        .map((m) => m?.category)
-        .filter(Boolean)
-        .map((c) => String(c))
+  // Every available dish, tagged with the group it belongs to.
+  const dishes = useMemo(
+    () =>
+      menu.data
+        .filter((item) => item?.available !== false)
+        .map((item) => ({ ...item, group: resolveGroup(item.category) })),
+    [menu.data],
+  );
+
+  // Only groups that actually have dishes — a filter can never come up empty.
+  const groups = useMemo(() => {
+    const byId = new Map();
+    dishes.forEach((dish) => {
+      const existing = byId.get(dish.group.id);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+      byId.set(dish.group.id, { ...dish.group, count: 1 });
+    });
+
+    const order = CATEGORY_GROUPS.map((group) => group.id);
+    return [...byId.values()].sort((a, b) => {
+      const aIndex = order.indexOf(a.id);
+      const bIndex = order.indexOf(b.id);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [dishes]);
+
+  // A category that disappears (the data changed under us) must not leave the
+  // page stuck on a filter that matches nothing — fall back to all dishes.
+  const selectedGroup =
+    activeGroup !== "all" && !groups.some((group) => group.id === activeGroup)
+      ? "all"
+      : activeGroup;
+
+  const searchTerm = query.trim().toLowerCase();
+
+  const filtered = useMemo(
+    () =>
+      dishes.filter((dish) => {
+        if (selectedGroup !== "all" && dish.group.id !== selectedGroup) return false;
+        if (!searchTerm) return true;
+        return (
+          dish.name?.toLowerCase().includes(searchTerm) ||
+          dish.description?.toLowerCase().includes(searchTerm) ||
+          dish.category?.toLowerCase().includes(searchTerm) ||
+          dish.group.label.toLowerCase().includes(searchTerm)
+        );
+      }),
+    [dishes, selectedGroup, searchTerm],
+  );
+
+  // Browsing everything reads best as a menu — grouped sections in course
+  // order. Narrowing to one category or searching reads best as a flat result
+  // list, so the count and the matches are what you see first.
+  const isBrowsingAll = selectedGroup === "all" && !searchTerm;
+
+  const sections = useMemo(() => {
+    if (!isBrowsingAll) return [];
+    return groups
+      .map((group) => ({
+        ...group,
+        items: filtered.filter((dish) => dish.group.id === group.id),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [groups, filtered, isBrowsingAll]);
+
+  const contactNumber =
+    businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
+
+  const renderDish = (dish, { showCategory = false } = {}) => {
+    const price = peso(dish.price);
+    return (
+      <article className="ls-dish" key={dish._id || dish.name}>
+        <div className="ls-dish-media">
+          {dish.image_url ? (
+            <img src={dish.image_url} alt={dish.name} loading="lazy" />
+          ) : (
+            <div className="ls-dish-media-empty">{dish.name}</div>
+          )}
+        </div>
+        <div className="ls-dish-row">
+          <h3>{dish.name}</h3>
+          {price && <span className="ls-dish-price">{price}</span>}
+        </div>
+        {showCategory && <p className="ls-dish-cat">{dish.group.label}</p>}
+        {dish.description && <p className="ls-dish-desc">{dish.description}</p>}
+      </article>
     );
-
-    const merged = [...defaults, ...[...fromData].filter((c) => !defaults.includes(c))];
-    return merged;
-  }, [menu]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return menu.filter((item) => {
-      const matchesCategory = activeCategory === "All" ? true : item.category === activeCategory;
-      const matchesQuery =
-        !q ||
-        item?.name?.toLowerCase().includes(q) ||
-        item?.description?.toLowerCase().includes(q) ||
-        item?.category?.toLowerCase().includes(q);
-      return matchesCategory && matchesQuery;
-    });
-  }, [activeCategory, menu, query]);
+  };
 
   return (
-    <CustomerLayout>
-      <div className="mx-auto max-w-7xl px-4 py-12">
-        <div className="mb-12 text-center">
-          <h1 className="mb-4 font-serif text-4xl font-bold tracking-tight text-foreground md:text-5xl">Our Menu</h1>
-          <p className="mx-auto max-w-2xl text-muted-foreground">
-            Explore our wide selection of dishes crafted with the finest ingredients to make your event unforgettable.
+    <CustomerLayout marketing contentClassName="ls-main">
+      <div className="ls-pagehead">
+        <div className="ls-inner">
+          <span className="ls-rule" aria-hidden="true" />
+          <p className="ls-eyebrow">The food</p>
+          <h1>Browse our menu</h1>
+          <p className="ls-lede">
+            Every dish here can go into a Food Only or Food + Setup booking. Pick
+            what you want and we'll build the menu around your guest count.
           </p>
         </div>
+      </div>
 
-        <div className="mb-10 flex flex-col items-center justify-between gap-6 md:flex-row md:items-end">
-          <div className="flex w-full flex-wrap gap-2 md:w-auto">
-            {categories.map((c) => (
+      {menu.status === "ready" && dishes.length > 0 && (
+        <div className="ls-filterbar">
+          <div className="ls-inner ls-filterbar-inner">
+            <div className="ls-chips" role="group" aria-label="Filter by category">
               <button
-                key={c}
                 type="button"
-                className={cn(
-                  "rounded-full px-5 py-2 text-sm font-medium transition-colors",
-                  activeCategory === c 
-                    ? "bg-accent text-accent-foreground" 
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                )}
-                onClick={() => setActiveCategory(c)}
+                className="ls-chip"
+                aria-pressed={selectedGroup === "all"}
+                onClick={() => setActiveGroup("all")}
               >
-                {c}
+                All dishes
               </button>
-            ))}
-          </div>
+              {groups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  className="ls-chip"
+                  aria-pressed={selectedGroup === group.id}
+                  onClick={() => setActiveGroup(group.id)}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
 
-          <div className="relative w-full max-w-sm shrink-0">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search dishes..."
-              className="pl-10 rounded-full bg-card"
-            />
+            <div className="ls-search">
+              <Search aria-hidden="true" />
+              <label className="sr-only" htmlFor="menu-search">
+                Search dishes
+              </label>
+              <input
+                id="menu-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search dishes"
+              />
+            </div>
           </div>
         </div>
+      )}
 
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <p className="text-xl font-medium text-foreground mb-2">No dishes found</p>
-            <p className="text-muted-foreground">Try adjusting your search or category filter.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((m) => (
-              <Card key={m._id || m.name} className="overflow-hidden border-border transition-all hover:shadow-md bg-card">
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                  {m.image_url ? (
-                    <img 
-                      src={m.image_url} 
-                      alt={m.name} 
-                      className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" 
-                      loading="lazy" 
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-accent/5">
-                      <span className="text-muted-foreground">No image</span>
-                    </div>
-                  )}
-                  {m.category && (
-                    <div className="absolute right-3 top-3 rounded-full bg-background/80 backdrop-blur-sm px-2.5 py-1 text-xs font-medium text-foreground">
-                      {m.category}
-                    </div>
+      <section className="ls-band ls-band--page" aria-label="Menu">
+        <div className="ls-inner">
+          {menu.status === "loading" && (
+            <div className="ls-dish-grid ls-dish-grid--menu" aria-hidden="true">
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((key) => (
+                <div key={key}>
+                  <div className="ls-skel ls-skel-media ls-skel-media--dish" />
+                  <div className="ls-skel ls-skel-line" style={{ width: "70%" }} />
+                  <div className="ls-skel ls-skel-line" style={{ width: "45%" }} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {menu.status === "error" && (
+            <div className="ls-state" role="status">
+              <p className="ls-state-title">We couldn't load the menu</p>
+              <p>
+                Something went wrong on our side. Try again in a moment, or call
+                us and we'll talk you through what we can cook for your event.
+              </p>
+              <div className="ls-state-actions">
+                <button type="button" className="ls-btn ls-btn--sm ls-btn--ghost" onClick={retry}>
+                  Try again
+                </button>
+                <a
+                  className="ls-btn ls-btn--sm ls-btn--ghost"
+                  href={`tel:${contactNumber.replace(/\s+/g, "")}`}
+                >
+                  Call {contactNumber}
+                </a>
+              </div>
+            </div>
+          )}
+
+          {menu.status === "ready" && dishes.length === 0 && (
+            <div className="ls-state">
+              <p className="ls-state-title">The menu is being updated</p>
+              <p>
+                New dishes are on their way. Tell us your date and guest count and
+                we'll put a menu together for you.
+              </p>
+              <div className="ls-state-actions">
+                <button
+                  type="button"
+                  className="ls-btn ls-btn--sm ls-btn--primary"
+                  onClick={() =>
+                    navigate("/customer/book", { state: { resetWizard: true } })
+                  }
+                >
+                  Book an Event
+                </button>
+              </div>
+            </div>
+          )}
+
+          {menu.status === "ready" && dishes.length > 0 && isBrowsingAll && (
+            <div>
+              {sections.map((section) => (
+                <section className="ls-menu-section" key={section.id} aria-labelledby={`section-${section.id}`}>
+                  <div className="ls-menu-section-head">
+                    <h2 id={`section-${section.id}`}>{section.label}</h2>
+                    <span className="ls-menu-count">
+                      {section.items.length}{" "}
+                      {section.items.length === 1 ? "dish" : "dishes"}
+                    </span>
+                  </div>
+                  <div className="ls-dish-grid ls-dish-grid--menu">
+                    {section.items.map((dish) => renderDish(dish))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {menu.status === "ready" && dishes.length > 0 && !isBrowsingAll && (
+            <div>
+              <div className="ls-menu-section-head">
+                <h2>
+                  {searchTerm
+                    ? `Results for "${query.trim()}"`
+                    : groups.find((group) => group.id === selectedGroup)?.label}
+                </h2>
+                <span className="ls-menu-count" role="status">
+                  {filtered.length} {filtered.length === 1 ? "dish" : "dishes"}
+                </span>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div className="ls-state">
+                  <p className="ls-state-title">No dishes match that search</p>
+                  <p>Try a different word, or browse the full menu.</p>
+                  <div className="ls-state-actions">
+                    <button
+                      type="button"
+                      className="ls-btn ls-btn--sm ls-btn--ghost"
+                      onClick={() => {
+                        setQuery("");
+                        setActiveGroup("all");
+                      }}
+                    >
+                      Show all dishes
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="ls-dish-grid ls-dish-grid--menu">
+                  {filtered.map((dish) =>
+                    renderDish(dish, { showCategory: Boolean(searchTerm) }),
                   )}
                 </div>
-                <CardContent className="p-5">
-                  <h3 className="mb-2 font-serif text-lg font-bold text-foreground line-clamp-1">{m.name}</h3>
-                  {m.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2" title={m.description}>
-                      {m.description}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="ls-band ls-band--ink" aria-labelledby="menu-bridge-title">
+        <div className="ls-inner ls-bridge">
+          <div>
+            <span className="ls-rule" aria-hidden="true" />
+            <h2 className="ls-title" id="menu-bridge-title">
+              Ready to build your menu?
+            </h2>
+            <p className="ls-lede">
+              Start a booking and you'll choose your dishes as part of it — or
+              browse the packages if you'd rather start from a set menu.
+            </p>
           </div>
-        )}
-      </div>
+          <div className="ls-bridge-actions">
+            <button
+              type="button"
+              className="ls-btn ls-btn--onink"
+              onClick={() =>
+                navigate("/customer/book", { state: { resetWizard: true } })
+              }
+            >
+              Book an Event
+            </button>
+            <button
+              type="button"
+              className="ls-btn ls-btn--light"
+              onClick={() => navigate("/packages")}
+            >
+              Browse Packages
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <CustomerFooter businessInfo={businessInfo} />
     </CustomerLayout>
   );
 }

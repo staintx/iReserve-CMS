@@ -2,21 +2,7 @@ import React from "react";
 import { ChevronDown, Plus, Minus, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// -----------------------------------------------------------------------------
-// Booking flow design system
-// -----------------------------------------------------------------------------
-// Spacing scale ....... 4 / 8 / 12 / 16 / 24 (gap-1 … gap-6)
-// Radius .............. controls: rounded-xl (12px) · cards: rounded-2xl (16px)
-// Control height ...... h-10 (40px) — compact but comfortable
-// Shadow .............. shadow-sm on resting surfaces, shadow-md on raised
-// Typography .......... step title: Playfair 22–24px · section: 13px semibold
-//                       body/control: 14px · label: 11px uppercase · help: 12px
-// -----------------------------------------------------------------------------
-
-export const ACCENT = "#4C81E0";
-
-export const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4C81E0] focus-visible:ring-offset-2 focus-visible:ring-offset-white";
+import { focusRing } from "../lib/bookingUI";
 
 const controlBase =
   "w-full rounded-xl text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all focus:outline-none focus:ring-2";
@@ -250,18 +236,26 @@ export function TTextarea({
   );
 }
 
-/** Step heading. Compact on desktop so steps stay above the fold. */
+/**
+ * Step heading. The one place in the booking flow that keeps the Playfair
+ * display face, as the title of the screen the customer is on.
+ *
+ * The rest of the wizard is opted out of the site-wide serif heading rule
+ * (see `body.booking-flow` in globals.css) because everything else here is
+ * transactional: section titles, questions, labels, prices and counts are
+ * scanned, not read, and a display serif slows that down.
+ */
 export function SH({ title, sub, aside }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <span
-          className="mb-2 block h-[3px] w-8 rounded-full bg-[#C5A059]"
+          className="mb-1.5 block h-[3px] w-8 rounded-full bg-[#C5A059]"
           aria-hidden="true"
         />
         <h2
-          style={{ fontFamily: "Playfair Display, serif" }}
-          className="text-xl font-semibold leading-tight text-[#1E293B] lg:text-2xl"
+          style={{ fontFamily: "var(--font-serif)" }}
+          className="text-xl font-semibold leading-tight text-[#1E293B]"
         >
           {title}
         </h2>
@@ -277,7 +271,7 @@ export function SectionTitle({ icon: Icon, children, className = "", right }) {
   return (
     <div
       className={cn(
-        "mb-3 flex items-center justify-between gap-3 border-b border-[#E2E8F0] pb-2",
+        "mb-2.5 flex items-center justify-between gap-3 border-b border-[#E2E8F0] pb-1.5",
         className,
       )}
     >
@@ -402,57 +396,122 @@ export function QtyStepper({ value = 0, onDecrease, onIncrease, label = "quantit
   );
 }
 
+/**
+ * Guest count.
+ *
+ * The previous control stepped by 5 from a minimum of 1, so the sequence read
+ * 1, 6, 11, 16 and looked like it only accepted multiples of six. It also
+ * clamped on every keystroke, which made a value below the minimum impossible
+ * to type at all: with min 40, pressing "1" snapped the field to 40 before the
+ * second digit arrived.
+ *
+ * Nothing in the data requires round numbers. The only real constraints are
+ * Package.guest_min/guest_max and the per-size guest ranges on a setup option,
+ * both of which arrive here as `min`/`max`. So: type any number freely, and the
+ * value is only corrected when the field is left.
+ */
 export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
+  const numeric = Number(value) || 0;
+  const [draft, setDraft] = React.useState(String(value ?? ""));
+  const [focused, setFocused] = React.useState(false);
+
+  // Follow the form while the customer is not mid-edit.
+  React.useEffect(() => {
+    if (!focused) setDraft(String(value ?? ""));
+  }, [value, focused]);
+
+  const clamp = (n) => Math.min(max, Math.max(min, n));
+  const step = (delta) => onChange(clamp((numeric || min) + delta));
+
+  const commit = () => {
+    setFocused(false);
+    const parsed = parseInt(String(draft).replace(/[^0-9]/g, ""), 10);
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value ?? min));
+      return;
+    }
+    const next = clamp(parsed);
+    setDraft(String(next));
+    onChange(next);
+  };
+
   const btn = cn(
-    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#1E293B] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40",
+    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#1E293B] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40",
     focusRing,
   );
-  const numeric = Number(value) || min;
+
+  // Round numbers inside the allowed range, so the common cases are one tap.
+  const presets = [25, 50, 100, 150, 200, 300].filter(
+    (n) => n >= min && n <= max,
+  );
+
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(min, numeric - 5))}
-        disabled={numeric <= min}
-        aria-label="Decrease guest count by 5"
-        className={btn}
-      >
-        <Minus size={14} />
-      </button>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        aria-label="Guest count"
-        onChange={(e) =>
-          onChange(Math.min(max, Math.max(min, Number(e.target.value))))
-        }
-        className={cn(
-          controlBase,
-          "h-10 flex-1 px-2 text-center font-semibold tabular-nums",
-          controlIdle,
-        )}
-      />
-      <button
-        type="button"
-        onClick={() => onChange(Math.min(max, numeric + 5))}
-        disabled={numeric >= max}
-        aria-label="Increase guest count by 5"
-        className={btn}
-      >
-        <Plus size={14} />
-      </button>
+    <div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => step(-10)}
+          disabled={numeric <= min}
+          aria-label="Ten fewer guests"
+          className={btn}
+        >
+          <Minus size={15} />
+        </button>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={draft}
+          min={min}
+          max={max}
+          aria-label="Number of guests"
+          onFocus={() => setFocused(true)}
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+          }}
+          className={cn(
+            controlBase,
+            "h-11 flex-1 px-2 text-center text-base font-semibold tabular-nums",
+            controlIdle,
+          )}
+        />
+        <button
+          type="button"
+          onClick={() => step(10)}
+          disabled={numeric >= max}
+          aria-label="Ten more guests"
+          className={btn}
+        >
+          <Plus size={15} />
+        </button>
+      </div>
+
+      {presets.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {presets.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onChange(preset)}
+              aria-pressed={numeric === preset}
+              className={cn(
+                "rounded-lg border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
+                numeric === preset
+                  ? "border-[#4C81E0] bg-[#4C81E0]/5 text-[#1E293B]"
+                  : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#4C81E0]/40",
+                focusRing,
+              )}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
-/** Consistent peso formatting across the flow. */
-export const formatPeso = (value, { decimals = 0 } = {}) =>
-  `₱${Number(value || 0).toLocaleString("en-PH", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })}`;
 
 /**
  * Standard step wrapper: one max width, one rhythm, optional sticky sidebar.

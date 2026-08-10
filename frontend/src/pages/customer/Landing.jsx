@@ -1,60 +1,143 @@
 import CustomerLayout from "../../components/layout/CustomerLayout";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
-import logo from "../../assets/images/logo.jpg";
+import { X } from "lucide-react";
+import CustomerFooter from "../../components/layout/CustomerFooter";
+import { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
+import useRevealOnScroll from "../../hooks/useRevealOnScroll";
+import {
+  capacityLabel,
+  peso,
+  positiveNumbers,
+  priceLabel,
+} from "../../lib/packageDisplay";
 
-const DEFAULT_BUSINESS_INFO = {
-  business_name: "Caezelle's Catering",
-  contact_number: "09123456789",
-  email: "info@caezelle.com",
-  address: "123 Culinary Street Food City",
-  hours: "Mon-Fri: 7:30 AM - 7:00 PM",
-  facebook: "https://facebook.com",
-  instagram: "https://instagram.com",
-  terms_url: "",
-  privacy_url: "",
-};
-
-const HERO_COPY = {
-  titleMain: "Exceptional Catering",
-  titleEmphasis: "& Event Styling",
-  subheadline:
-    "Elevated menus, luxurious presentation, and seamless planning for weddings, corporate events, and once-in-a-lifetime celebrations.",
-};
-
-const CTA_COPY = {
-  headingMain: "Let's create an unforgettable",
-  headingEmphasis: "experience together.",
-  subheadline:
-    "From intimate dinners to grand celebrations — we bring elegance to every table.",
-};
+// One large tile plus four small ones tiles the feature grid exactly.
+const GALLERY_PREVIEW_COUNT = 5;
 
 const HERO_IMAGE_URL =
   "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=1600";
 
-const HOW_IT_WORKS_STEPS = [
+// Mirrors what the booking flow actually does: the wizard submits an inquiry
+// (CustomerAPI.submitInquiry), an admin prices it and returns a quotation, and
+// the date is held once that is accepted and the deposit is paid. Saying
+// "book" and meaning "request a quote" was the biggest expectation gap on the
+// page.
+const BOOKING_STEPS = [
   {
-    title: "Inquiry",
-    text: "Tell us about your event — the date, guest count, vision, and any special requests.",
+    title: "Tell us about the event",
+    text: "Date, guest count, venue, and what you want on the table.",
   },
   {
-    title: "Customize",
-    text: "Choose your package and craft a menu that perfectly matches your taste and theme.",
+    title: "Choose food and setup",
+    text: "Pick a package or build your own from the dishes and add-ons available.",
   },
   {
-    title: "Confirm",
-    text: "Secure your booking with a deposit and receive your personalized event timeline.",
+    title: "We send your quote",
+    text: "We price everything and email you a quotation to review — no payment yet.",
   },
   {
-    title: "Enjoy",
-    text: "We handle everything — setup, service, and teardown — on your special day.",
+    title: "Accept and we handle the day",
+    text: "Your deposit holds the date. Delivery, setup, service, and teardown are ours.",
   },
 ];
 
-function CateringIcon() {
+// Booking-wizard vocabulary. `service_type` (used by the wizard) and
+// `package_type` (stored on the package) differ for the combined option —
+// see StepPackageSelection's PACKAGE_TYPE_BY_SERVICE_TYPE map.
+const SERVICE_PATHS = [
+  {
+    serviceType: "Food Only",
+    packageType: "Food Only",
+    title: "Food only",
+    description:
+      "We cook, deliver, and serve at your venue. Priced by the dishes you choose for your guest count.",
+    Icon: TrayIcon,
+  },
+  {
+    serviceType: "Event Setup Only",
+    packageType: "Event Setup Only",
+    title: "Event setup only",
+    description:
+      "Scaffolding, tables, styling, and teardown. Priced by the setup size your venue and guest count need.",
+    Icon: SetupIcon,
+  },
+  {
+    serviceType: "Food and Event Setup",
+    packageType: "Food + Event Setup",
+    title: "Food and setup",
+    description:
+      "One booking covering the catering and the full event setup, at a single per-guest price.",
+    Icon: SparkleIcon,
+  },
+];
+
+/**
+ * The modal is the decision point for a booking path, and choosing here skips
+ * the wizard's own Service Type step (BookingWizard reads `serviceType` from
+ * router state). So it has to do that step's job: say what the option is, what
+ * the customer will be asked for, and what happens after — without becoming a
+ * tutorial.
+ *
+ * `steps` are the real wizard steps for each path, taken from `wizardSteps` in
+ * BookingWizard.jsx. If that step list changes, this list should follow.
+ */
+const SERVICE_MODAL_CONTENT = {
+  "Food Only": {
+    title: "Food only",
+    description:
+      "We cook and deliver to your venue, or you collect from us. No tables, styling, or setup.",
+    steps: [
+      "Your date and time",
+      "Delivery address or pickup",
+      "The dishes you want",
+      "Any dietary needs",
+      "Contact details",
+    ],
+    pricing: "Priced by the dishes you pick and how many guests you're feeding.",
+  },
+  "Event Setup Only": {
+    title: "Event setup only",
+    description:
+      "Scaffolding, tables, styling, and teardown at your venue. No food.",
+    steps: [
+      "Your date and time — we check it's free",
+      "A setup package and the size you need",
+      "Event type, location, and guest count",
+      "Any add-ons",
+      "Contact details",
+    ],
+    pricing: "Setup is priced by the size you choose, not per guest.",
+  },
+  "Food and Event Setup": {
+    title: "Food and setup",
+    description:
+      "One booking covering the catering and the full event setup, start to finish.",
+    steps: [
+      "Your date and time — we check it's free",
+      "A package to start from, if you want one",
+      "Event type, location, and guest count",
+      "Your dishes and any dietary needs",
+      "Any add-ons",
+      "Contact details",
+    ],
+    pricing: "Priced per guest when you start from one of our packages.",
+  },
+};
+
+// Identical for all three paths, because the backend flow is identical: the
+// wizard submits an inquiry, an admin returns a quotation, and the date is
+// only held once that quote is accepted and the deposit is paid.
+const WHAT_HAPPENS_NEXT = [
+  "You send us the details — nothing is charged yet.",
+  "We price it and send you a quotation to review.",
+  "Accept it and pay the deposit, and your date is held.",
+];
+
+function TrayIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M4 8h16" />
       <path d="M6 8v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" />
       <path d="M9 12h6" />
@@ -65,7 +148,7 @@ function CateringIcon() {
 
 function SetupIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="4" y="5" width="16" height="14" rx="2" />
       <path d="M8 10h8" />
       <path d="M8 14h5" />
@@ -75,7 +158,7 @@ function SetupIcon() {
 
 function SparkleIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z" />
       <path d="m18 15 0.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" />
     </svg>
@@ -90,142 +173,122 @@ function CheckIcon() {
   );
 }
 
-const SERVICE_MODAL_CONTENT = {
-  "Food Only": {
-    title: "Food Only Catering",
-    description:
-      "Professional catering delivered to your venue — from menu planning to on-site service, handled with precision and elegance.",
-    features: [
-      "Chef-crafted multi-course menus",
-      "Premium chafing dishes & service equipment",
-      "Complete serving utensils & buffet accessories",
-      "On-site buffet attendants throughout the event",
-      "Food transport & temperature control",
-    ],
-  },
-  "Event Setup Only": {
-    title: "Event Setup & Styling",
-    description:
-      "Transform any venue into a stunning event space — from scaffold structures to finishing touches, we do it all.",
-    features: [
-      "Premium scaffold setup & structural framing",
-      "Themed backdrop & stage setup",
-      "Guest tables & premium linens",
-      "Centerpiece arrangements & floral accents",
-      "Plates, glassware & dining inventory",
-      "Post-event teardown & cleanup",
-    ],
-  },
-  "Food and Event Setup": {
-    title: "Complete Full-Service",
-    description:
-      "The pinnacle of our offering — seamless catering and event styling combined into one effortless, white-glove experience.",
-    features: [
-      "All-inclusive catering menu & preparation",
-      "Premium scaffold and venue styling",
-      "Professional waitstaff & event crew",
-      "Complete dining inventory & equipment",
-      "Seamless event coordination from start to finish",
-    ],
-  },
-};
-
-function getInitials(name) {
-  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "CU";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [galleryItems, setGalleryItems] = useState([]);
-  const [galleryLightboxIndex, setGalleryLightboxIndex] = useState(null);
-  const [menuItems, setMenuItems] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [packages, setPackages] = useState([]);
+
+  const [content, setContent] = useState({
+    packages: { status: "loading", data: [] },
+    menu: { status: "loading", data: [] },
+    gallery: { status: "loading", data: [] },
+    reviews: { status: "loading", data: [] },
+  });
   const [businessInfo, setBusinessInfo] = useState(DEFAULT_BUSINESS_INFO);
   const [activeServiceModal, setActiveServiceModal] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  // Re-scan for reveal targets whenever a section swaps out of its loading
+  // state, since those cards do not exist on the first pass.
+  const motionSignal = `${content.packages.status}|${content.menu.status}|${content.gallery.status}|${content.reviews.status}`;
+  const revealScope = useRevealOnScroll(motionSignal);
 
-    const loadPublicContent = async () => {
-      try {
-        const [galleryResult, menuResult, ratingsResult, packagesResult, businessResult] =
-          await Promise.allSettled([
-            CustomerAPI.getGallery(),
-            CustomerAPI.getMenu(),
-            CustomerAPI.getRatings(),
-            CustomerAPI.getPackages(),
-            CustomerAPI.getBusinessInfo(),
-          ]);
+  // Resolves to a patch for `content` — every section reports its own outcome,
+  // so one failing endpoint can't take the rest of the page down with it.
+  // Deliberately free of setState: callers apply the patch, which keeps the
+  // mount effect from writing state synchronously.
+  const fetchContent = useCallback(async (keys) => {
+    const requested = keys ?? ["packages", "menu", "gallery", "reviews"];
 
-        if (!isMounted) return;
+    const fetchers = {
+      packages: CustomerAPI.getPackages,
+      menu: CustomerAPI.getMenu,
+      gallery: CustomerAPI.getGallery,
+      reviews: CustomerAPI.getRatings,
+    };
 
-        const toArray = (result) => {
-          if (result?.status !== "fulfilled") return [];
-          return Array.isArray(result.value?.data) ? result.value.data : [];
+    const results = await Promise.allSettled(
+      requested.map((key) => fetchers[key]()),
+    );
+
+    const patch = {};
+    requested.forEach((key, index) => {
+      const result = results[index];
+      if (result.status === "fulfilled") {
+        patch[key] = {
+          status: "ready",
+          data: Array.isArray(result.value?.data) ? result.value.data : [],
         };
-
-        setGalleryItems(toArray(galleryResult));
-        setMenuItems(toArray(menuResult));
-        setReviews(toArray(ratingsResult));
-        setPackages(toArray(packagesResult));
-
-        if (businessResult?.status === "fulfilled") {
-          setBusinessInfo((prev) => ({
-            ...prev,
-            ...(businessResult.value?.data || {}),
-          }));
-        }
-      } catch {
-        if (!isMounted) return;
-        setGalleryItems([]);
-        setMenuItems([]);
-        setReviews([]);
-        setPackages([]);
-        setBusinessInfo(DEFAULT_BUSINESS_INFO);
+      } else {
+        patch[key] = { status: "error", data: [] };
       }
-    };
-
-    loadPublicContent();
-
-    return () => {
-      isMounted = false;
-    };
+    });
+    return patch;
   }, []);
 
-  const scrollToSection = (sectionId) => {
+  const applyPatch = useCallback((patch) => {
+    setContent((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const retryContent = useCallback(
+    (keys) => {
+      setContent((prev) => {
+        const next = { ...prev };
+        keys.forEach((key) => {
+          next[key] = { ...prev[key], status: "loading" };
+        });
+        return next;
+      });
+      fetchContent(keys).then(applyPatch);
+    },
+    [fetchContent, applyPatch],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const apply = (patch) => {
+      if (!cancelled) applyPatch(patch);
+    };
+
+    fetchContent().then(apply);
+
+    // Business info has sensible defaults, so a failure here is not worth a
+    // visible error state — the footer simply keeps the fallback values.
+    CustomerAPI.getBusinessInfo()
+      .then((res) => {
+        if (cancelled || !res?.data) return;
+        setBusinessInfo((prev) => ({ ...prev, ...res.data }));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchContent, applyPatch]);
+
+  const scrollToSection = useCallback((sectionId) => {
     if (sectionId === "top") {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-
-    const target = document.getElementById(sectionId);
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+    document
+      .getElementById(sectionId)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   useEffect(() => {
     const rawHash = (location.hash || "").replace("#", "").trim();
     if (!rawHash) return;
 
-    const legacyMap = {
-      about: "testimonials",
-      packages: "gallery",
-    };
-
+    // Older links pointed at sections that no longer exist on their own.
+    const legacyMap = { about: "contact", testimonials: "contact", foods: "menu" };
     const sectionId = legacyMap[rawHash] || rawHash;
 
-    window.setTimeout(() => {
-      scrollToSection(sectionId);
-    }, 0);
-  }, [location.hash]);
+    const timer = window.setTimeout(() => scrollToSection(sectionId), 0);
+    return () => window.clearTimeout(timer);
+  }, [location.hash, scrollToSection]);
 
   useEffect(() => {
-    if (!activeServiceModal) return;
+    if (!activeServiceModal) return undefined;
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") setActiveServiceModal(null);
@@ -241,676 +304,670 @@ export default function Landing() {
     };
   }, [activeServiceModal]);
 
-  const serviceOptions = [
-    {
-      title: "Catering Service",
-      description: "Custom menus for weddings, birthdays, corporate gatherings, and private celebrations.",
-      icon: <CateringIcon />,
-      serviceType: "Food Only",
-    },
-    {
-      title: "Event Setup",
-      description: "Tables, décor, and on-site setup support designed for seamless event execution.",
-      icon: <SetupIcon />,
-      serviceType: "Event Setup Only",
-    },
-    {
-      title: "Full-Service Booking",
-      description: "A guided booking experience with package selection, add-ons, and coordination support.",
-      icon: <SparkleIcon />,
-      serviceType: "Food and Event Setup",
-    },
-  ];
+  const galleryItems = content.gallery.data;
 
-  const featuredPackages = packages
-    .filter((pkg) => pkg?.available !== false)
-    .slice(0, 3);
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined;
 
-  const formatPrice = (amount) => {
-    if (amount === null || amount === undefined || amount === "") {
-      return null;
-    }
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setLightboxIndex(null);
+    };
 
-    const numericValue = Number(amount);
-    if (Number.isNaN(numericValue)) {
-      return null;
-    }
-
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-      maximumFractionDigits: 0,
-    }).format(numericValue);
-  };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex]);
 
   const goToBooking = (payload = {}) => {
-    navigate("/customer/book", {
-      state: {
-        resetWizard: true,
-        ...payload,
-      },
-    });
+    navigate("/customer/book", { state: { resetWizard: true, ...payload } });
   };
 
-  const footerBusinessName =
-    businessInfo.business_name || DEFAULT_BUSINESS_INFO.business_name;
-  const footerContactNumber =
-    businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
-  const footerEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
-  const footerAddress = businessInfo.address || DEFAULT_BUSINESS_INFO.address;
-  const footerHours = businessInfo.hours || DEFAULT_BUSINESS_INFO.hours;
+  const availablePackages = useMemo(
+    () => content.packages.data.filter((pkg) => pkg?.available !== false),
+    [content.packages.data],
+  );
 
-  const footerLinks = [
-    { label: "Terms & Conditions", href: businessInfo.terms_url },
-    { label: "Privacy Policy", href: businessInfo.privacy_url },
-  ].filter((link) => link.href);
+  const featuredPackages = useMemo(() => {
+    const flagged = availablePackages.filter((pkg) => pkg?.featured === true);
+    return (flagged.length > 0 ? flagged : availablePackages).slice(0, 3);
+  }, [availablePackages]);
 
-  const socialLinks = [
-    {
-      label: "Facebook",
-      href: businessInfo.facebook || DEFAULT_BUSINESS_INFO.facebook,
-      icon: "facebook",
-    },
-    {
-      label: "Instagram",
-      href: businessInfo.instagram || DEFAULT_BUSINESS_INFO.instagram,
-      icon: "instagram",
-    },
-  ].filter((link) => Boolean(link.href));
+  const availableMenu = useMemo(
+    () => content.menu.data.filter((item) => item?.available !== false),
+    [content.menu.data],
+  );
+
+  // Hero proof points, all derived from live data — never rendered when the
+  // underlying numbers aren't there.
+  const heroFacts = useMemo(() => {
+    const facts = [];
+
+    if (availablePackages.length > 0) {
+      facts.push({
+        value: String(availablePackages.length),
+        label: availablePackages.length === 1 ? "package" : "packages to choose from",
+      });
+    }
+
+    const mins = positiveNumbers(
+      availablePackages.flatMap((pkg) => [
+        pkg?.guest_min,
+        ...(pkg?.scaffold_size_options || []).map((o) => o?.guest_min),
+      ]),
+    );
+    const maxs = positiveNumbers(
+      availablePackages.flatMap((pkg) => [
+        pkg?.guest_max,
+        ...(pkg?.scaffold_size_options || []).map((o) => o?.guest_max),
+      ]),
+    );
+    if (mins.length && maxs.length) {
+      facts.push({
+        value: `${Math.min(...mins)}–${Math.max(...maxs)}`,
+        label: "guests catered for",
+      });
+    }
+
+    const eventTypes = [
+      ...new Set(availablePackages.map((pkg) => pkg?.event_type).filter(Boolean)),
+    ];
+    if (eventTypes.length > 0) {
+      facts.push({
+        value: String(eventTypes.length),
+        label: `event types — ${eventTypes.slice(0, 3).join(", ").toLowerCase()}`,
+      });
+    }
+
+    return facts;
+  }, [availablePackages]);
+
+  const packageCountByType = useMemo(() => {
+    const counts = {};
+    availablePackages.forEach((pkg) => {
+      if (!pkg?.package_type) return;
+      counts[pkg.package_type] = (counts[pkg.package_type] || 0) + 1;
+    });
+    return counts;
+  }, [availablePackages]);
+
+  const reviews = content.reviews.data;
+
+  const contactNumber = businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
+  const contactEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
+  const hours = businessInfo.hours || DEFAULT_BUSINESS_INFO.hours;
+
+  const renderError = (title, message, onRetry) => (
+    <div className="ls-state" role="status">
+      <p className="ls-state-title">{title}</p>
+      <p>{message}</p>
+      <div className="ls-state-actions">
+        <button type="button" className="ls-btn ls-btn--sm ls-btn--ghost" onClick={onRetry}>
+          Try again
+        </button>
+        <a className="ls-btn ls-btn--sm ls-btn--ghost" href={`tel:${contactNumber.replace(/\s+/g, "")}`}>
+          Call {contactNumber}
+        </a>
+      </div>
+    </div>
+  );
 
   return (
-    <CustomerLayout>
-      <div id="top" />
-      <section className="landing-hero" aria-label="Featured hero section">
-        <div className="landing-hero-visual" aria-hidden="true">
-          <img src={HERO_IMAGE_URL} alt="Lavish grazing table presentation" />
+    <CustomerLayout
+      marketing
+      overlayHeader
+      contentClassName="ls-main"
+      mainRef={revealScope}
+    >
+      {/* ── Hero ───────────────────────────────────────────── */}
+      <section className="ls-hero ls-hero--under-header" aria-labelledby="hero-title">
+        <div className="ls-hero-media" aria-hidden="true">
+          <img src={HERO_IMAGE_URL} alt="" fetchPriority="high" />
         </div>
-        <div className="landing-hero-overlay" aria-hidden="true" />
-        <div className="landing-hero-content-wrapper">
-          <div className="landing-hero-panel landing-hero-copy">
-            <p className="landing-hero-eyebrow">
-              <span className="landing-hero-eyebrow-line" aria-hidden="true" />
-              Elevated celebrations
-              <span className="landing-hero-eyebrow-line" aria-hidden="true" />
+        <div className="ls-hero-scrim" aria-hidden="true" />
+
+        <div className="ls-inner ls-hero-inner">
+          <p className="ls-hero-eyebrow">Catering &amp; event setup</p>
+          <h1 id="hero-title">
+            Catering and event setup for weddings, birthdays, and corporate events
+          </h1>
+          <p className="ls-hero-sub">
+            Choose a ready-made package or build your own — pick the food, set your
+            guest count, and reserve your date online.
+          </p>
+
+          <div className="ls-hero-actions">
+            <button type="button" className="ls-btn ls-btn--primary" onClick={() => goToBooking()}>
+              Book an Event
+            </button>
+            <button type="button" className="ls-btn ls-btn--light" onClick={() => navigate("/packages")}>
+              Browse Packages
+            </button>
+          </div>
+
+          {heroFacts.length > 0 && (
+            <dl className="ls-hero-facts">
+              {heroFacts.map((fact) => (
+                <div className="ls-hero-fact" key={fact.label}>
+                  <dt className="sr-only">{fact.label}</dt>
+                  <dd>
+                    <strong>{fact.value}</strong>
+                    {fact.label}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      </section>
+
+      {/* ── How booking works ──────────────────────────────── */}
+      <section id="services" className="ls-band ls-band--surface" aria-labelledby="services-title">
+        <div className="ls-inner">
+          <div className="ls-head ls-reveal">
+            <span className="ls-rule" aria-hidden="true" />
+            <p className="ls-eyebrow">What we do</p>
+            <h2 className="ls-title" id="services-title">
+              Three ways to book us
+            </h2>
+            <p className="ls-lede">
+              Start with the one that fits your event. You can still adjust the menu,
+              guest count, and add-ons while you book.
             </p>
-            <h1>
-              {HERO_COPY.titleMain}
-              <br />
-              <em>{HERO_COPY.titleEmphasis}</em>
-            </h1>
-            <p>{HERO_COPY.subheadline}</p>
-            <div className="landing-hero-actions">
-              <button className="landing-btn-primary" type="button" onClick={() => goToBooking()}>
-                Book Now
-                <span aria-hidden="true">→</span>
-              </button>
-              <button
-                className="landing-btn-outline-light"
-                type="button"
-                onClick={() => goToBooking({ serviceType: "Food and Event Setup" })}
-              >
-                Explore Services
-              </button>
-            </div>
           </div>
-        </div>
-      </section>
 
-      <section id="services" className="section landing-section">
-        <div className="landing-section-heading">
-          <p className="landing-section-eyebrow">Custom bookings</p>
-          <h2>Design Your Perfect Event</h2>
-          <p>Tailor every detail to your exact needs. Choose a specific service or let us handle everything.</p>
-        </div>
-        <div className="service-card-grid">
-          {serviceOptions.map((service) => (
-            <div key={service.title} className="service-card">
-              <div className="service-card-icon" aria-hidden="true">
-                {service.icon}
-              </div>
-              <h3>{service.title}</h3>
-              <p>{service.description}</p>
-              <div className="service-card-divider" />
-              <button
-                className="service-card-link"
-                type="button"
-                onClick={() => setActiveServiceModal(service.serviceType)}
-              >
-                Learn More
-                <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="packages" className="section landing-section soft-bg">
-        <div className="landing-section-heading">
-          <p className="landing-section-eyebrow">Ready to reserve</p>
-          <h2>All-Inclusive Packages</h2>
-          <p>Browse our most popular fixed-tier packages designed for seamless celebrations.</p>
-        </div>
-        <div className="package-pricing-grid">
-          {featuredPackages.map((pkg, index) => {
-            const isCenterPackage = index === 1;
-            const guestRange = pkg.guest_min || pkg.guest_max
-              ? `${pkg.guest_min || 0}-${pkg.guest_max || "∞"} guests`
-              : "Flexible guest count";
-            const price = formatPrice(pkg.setup_price);
-            const perPlatePrice = formatPrice(pkg.price_per_guest);
-            const badgeLabel = pkg.badge_text || "Most Popular";
-            const pillLabel = pkg.price_label
-              ? pkg.price_label
-              : perPlatePrice
-                ? `${perPlatePrice} / plate`
-                : price
-                  ? `From ${price}`
-                  : "Custom quote";
-            const featureList = Array.isArray(pkg.features)
-              ? pkg.features.filter(Boolean)
-              : [];
-            const detailPath = pkg._id ? `/packages/${pkg._id}` : "/packages";
-            const bookPayload = {
-              packageId: pkg._id,
-              packageName: pkg.name,
-              packagePrice: pkg.setup_price || 0,
-              guestMin: pkg.guest_min || null,
-              guestMax: pkg.guest_max || null,
-              serviceType:
-                pkg.package_type === "Event Setup Only"
-                  ? "Event Setup Only"
-                  : pkg.package_type === "Food Only"
-                    ? "Food Only"
-                    : "Food and Event Setup",
-            };
-
-            return (
-              <div
-                key={pkg._id || pkg.name}
-                className={`package-pricing-card ${isCenterPackage ? "package-pricing-card-featured" : ""}`}
-              >
-                {isCenterPackage && (
-                  <div className="package-pricing-ribbon">{badgeLabel}</div>
-                )}
-                <div className="package-pricing-pill">{pillLabel}</div>
-                <h3>{pkg.name}</h3>
-                <p className="package-pricing-description">{pkg.description}</p>
-                <div className="package-pricing-meta-row">
-                  <span>{guestRange}</span>
-                  {price && <span>{price} setup fee</span>}
-                </div>
-                {featureList.length > 0 && (
-                  <ul className="package-pricing-features">
-                    {featureList.slice(0, 3).map((feature) => (
-                      <li key={feature}>{feature}</li>
-                    ))}
-                  </ul>
-                )}
-                <div className="package-pricing-actions">
-                  <button
-                    className={isCenterPackage ? "package-pricing-view-primary" : "package-pricing-view"}
-                    type="button"
-                    onClick={() => navigate(detailPath)}
-                  >
-                    View Package
-                    <span aria-hidden="true">→</span>
-                  </button>
-                  <button
-                    className="package-pricing-book"
-                    type="button"
-                    onClick={() => goToBooking(bookPayload)}
-                  >
-                    Book Now
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="how-it-works" className="section landing-section soft-bg">
-        <div className="landing-section-heading">
-          <p className="landing-section-eyebrow">The process</p>
-          <h2>How It Works</h2>
-        </div>
-        <div className="how-works-card">
-          {HOW_IT_WORKS_STEPS.map((step, index) => (
-            <div key={step.title} className="how-works-col">
-              <div className="how-works-number">{String(index + 1).padStart(2, "0")}</div>
-              <span className="how-works-dot" aria-hidden="true" />
-              <h3 className="how-works-title">{step.title}</h3>
-              <p className="how-works-text">{step.text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section id="gallery" className="section landing-section">
-        <div className="landing-section-heading">
-          <p className="landing-section-eyebrow">Portfolio</p>
-          <h2>Moments We Have Crafted</h2>
-        </div>
-        {galleryItems.length === 0 ? (
-          <div className="mt-6 flex items-center justify-center py-16 text-sm text-slate-500">
-            No Photos yet
+          <div className="ls-paths ls-reveal ls-stagger">
+            {SERVICE_PATHS.map((path) => {
+              const { serviceType, title, description } = path;
+              const Icon = path.Icon;
+              const count = packageCountByType[path.packageType] || 0;
+              return (
+                <article className="ls-path" key={serviceType}>
+                  <span className="ls-path-icon">
+                    <Icon />
+                  </span>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                  {count > 0 && (
+                    <p className="ls-path-meta">
+                      {count} {count === 1 ? "package" : "packages"} available
+                    </p>
+                  )}
+                  <div className="ls-path-action">
+                    <button
+                      type="button"
+                      className="ls-textlink"
+                      onClick={() => setActiveServiceModal(serviceType)}
+                    >
+                      See what&apos;s included
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
-        ) : (
-          <>
-            <div className="landing-gallery-grid mt-6">
-              {galleryItems.slice(0, 6).map((item, index) => (
-                <div
-                  key={item._id || item.image_url}
-                  className="image-card landing-gallery-item cursor-pointer hover:scale-[1.02] hover:shadow-lg transition-all duration-200 bg-cover bg-center"
-                  style={
-                    item.image_url
-                      ? { backgroundImage: `url(${item.image_url})` }
-                      : undefined
-                  }
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setGalleryLightboxIndex(index)}
-                  onKeyDown={(event) =>
-                    event.key === "Enter" && setGalleryLightboxIndex(index)
-                  }
-                />
+
+          <ol className="ls-steps ls-reveal ls-stagger">
+            {BOOKING_STEPS.map((step, index) => (
+              <li className="ls-step" key={step.title}>
+                <span className="ls-step-num">STEP {index + 1}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ── Packages ───────────────────────────────────────── */}
+      <section id="packages" className="ls-band ls-band--tint" aria-labelledby="packages-title">
+        <div className="ls-inner">
+          <div className="ls-head ls-head--split ls-reveal">
+            <div>
+              <span className="ls-rule" aria-hidden="true" />
+              <p className="ls-eyebrow">Packages</p>
+              <h2 className="ls-title" id="packages-title">
+                Choose a catering package
+              </h2>
+              <p className="ls-lede">
+                Each package sets the food, the setup, and the guest range it is built
+                for. Open one to see everything it includes.
+              </p>
+            </div>
+            <button type="button" className="ls-textlink" onClick={() => navigate("/packages")}>
+              View all packages
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          {content.packages.status === "loading" && (
+            <div className="ls-card-grid" aria-hidden="true">
+              {[0, 1, 2].map((key) => (
+                <div className="ls-pkg" key={key}>
+                  <div className="ls-skel ls-skel-media" />
+                  <div className="ls-pkg-body">
+                    <div className="ls-skel ls-skel-line" style={{ width: "62%", height: 18 }} />
+                    <div className="ls-skel ls-skel-line" />
+                    <div className="ls-skel ls-skel-line" style={{ width: "80%" }} />
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="flex justify-center mt-8">
-              <button
-                className="landing-btn-outline"
-                type="button"
-                onClick={() => navigate("/gallery")}
-              >
-                View Full Gallery
-              </button>
+          )}
+
+          {content.packages.status === "error" &&
+            renderError(
+              "We couldn't load our packages",
+              "Something went wrong on our side. Try again in a moment, or call us and we'll walk you through the options.",
+              () => retryContent(["packages"]),
+            )}
+
+          {content.packages.status === "ready" && featuredPackages.length === 0 && (
+            <div className="ls-state">
+              <p className="ls-state-title">No packages are published right now</p>
+              <p>
+                We can still cater your event — send us your date and guest count and
+                we'll put a quote together.
+              </p>
+              <div className="ls-state-actions">
+                <button type="button" className="ls-btn ls-btn--sm ls-btn--primary" onClick={() => goToBooking()}>
+                  Book an Event
+                </button>
+              </div>
             </div>
-          </>
-        )}
+          )}
+
+          {content.packages.status === "ready" && featuredPackages.length > 0 && (
+            <div className="ls-card-grid ls-reveal ls-stagger">
+              {featuredPackages.map((pkg) => {
+                const capacity = capacityLabel(pkg);
+                const inclusionCount = Array.isArray(pkg.inclusions)
+                  ? pkg.inclusions.length
+                  : 0;
+
+                return (
+                  <article className="ls-pkg" key={pkg._id || pkg.name}>
+                    <div className="ls-pkg-media">
+                      {pkg.image_url ? (
+                        <img src={pkg.image_url} alt={`${pkg.name} package`} loading="lazy" />
+                      ) : (
+                        <div className="ls-pkg-media-empty">{pkg.name}</div>
+                      )}
+                      {pkg.event_type && <span className="ls-pkg-tag">{pkg.event_type}</span>}
+                    </div>
+
+                    <div className="ls-pkg-body">
+                      <h3>{pkg.name}</h3>
+                      {pkg.description && <p className="ls-pkg-desc">{pkg.description}</p>}
+
+                      <dl className="ls-pkg-facts">
+                        <div className="ls-pkg-fact">
+                          <dt>Price</dt>
+                          <dd>
+                            <strong>{priceLabel(pkg)}</strong>
+                          </dd>
+                        </div>
+                        {capacity && (
+                          <div className="ls-pkg-fact">
+                            <dt>Guests</dt>
+                            <dd>
+                              <strong>{capacity}</strong>
+                            </dd>
+                          </div>
+                        )}
+                        {inclusionCount > 0 && (
+                          <div className="ls-pkg-fact">
+                            <dt>Includes</dt>
+                            <dd>
+                              <strong>
+                                {inclusionCount} {inclusionCount === 1 ? "item" : "items"}
+                              </strong>
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+
+                      <div className="ls-pkg-actions">
+                        <button
+                          type="button"
+                          className="ls-btn ls-btn--primary ls-btn--block"
+                          onClick={() => navigate(`/packages/${pkg._id}`)}
+                        >
+                          View package
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
-      {galleryLightboxIndex !== null && galleryItems[galleryLightboxIndex] && (
+      {/* ── Menu preview ───────────────────────────────────── */}
+      <section id="menu" className="ls-band ls-band--surface" aria-labelledby="menu-title">
+        <div className="ls-inner">
+          <div className="ls-head ls-head--split ls-reveal">
+            <div>
+              <span className="ls-rule" aria-hidden="true" />
+              <p className="ls-eyebrow">The food</p>
+              <h2 className="ls-title" id="menu-title">
+                Browse our menu
+              </h2>
+              <p className="ls-lede">
+                Dishes you can add to any booking, priced per serving.
+              </p>
+            </div>
+            <button type="button" className="ls-textlink" onClick={() => navigate("/menu")}>
+              View full menu
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          {content.menu.status === "loading" && (
+            <div className="ls-dish-grid" aria-hidden="true">
+              {[0, 1, 2, 3].map((key) => (
+                <div key={key}>
+                  <div className="ls-skel ls-skel-media ls-skel-media--dish" />
+                  <div className="ls-skel ls-skel-line" style={{ width: "70%" }} />
+                  <div className="ls-skel ls-skel-line" style={{ width: "40%" }} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {content.menu.status === "error" &&
+            renderError(
+              "We couldn't load the menu",
+              "The dish list didn't come through. Try again, or call us and we'll talk you through what's available.",
+              () => retryContent(["menu"]),
+            )}
+
+          {content.menu.status === "ready" && availableMenu.length === 0 && (
+            <div className="ls-state">
+              <p className="ls-state-title">The menu is being updated</p>
+              <p>New dishes are on their way. Get in touch and we'll tell you what we can cook for your date.</p>
+            </div>
+          )}
+
+          {content.menu.status === "ready" && availableMenu.length > 0 && (
+            <div className="ls-dish-grid ls-reveal ls-stagger">
+              {availableMenu.slice(0, 4).map((dish) => {
+                const price = peso(dish.price);
+                return (
+                  <article className="ls-dish" key={dish._id || dish.name}>
+                    <div className="ls-dish-media">
+                      {dish.image_url ? (
+                        <img src={dish.image_url} alt={dish.name} loading="lazy" />
+                      ) : null}
+                    </div>
+                    <div className="ls-dish-row">
+                      <h3>{dish.name}</h3>
+                      {price && Number(dish.price) > 0 && (
+                        <span className="ls-dish-price">{price}</span>
+                      )}
+                    </div>
+                    {dish.category && <p className="ls-dish-cat">{dish.category}</p>}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Gallery: hidden entirely when there is nothing to show ── */}
+      {!(content.gallery.status === "ready" && galleryItems.length === 0) && (
+      <section id="gallery" className="ls-band ls-band--page" aria-labelledby="gallery-title">
+        <div className="ls-inner ls-inner--wide">
+          <div className="ls-head ls-head--split ls-reveal">
+            <div>
+              <span className="ls-rule" aria-hidden="true" />
+              <p className="ls-eyebrow">Our work</p>
+              <h2 className="ls-title" id="gallery-title">
+                Events we have catered
+              </h2>
+            </div>
+            <button type="button" className="ls-textlink" onClick={() => navigate("/gallery")}>
+              View full gallery
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+
+          {content.gallery.status === "loading" && (
+            <div className="ls-gallery ls-gallery--feature" aria-hidden="true">
+              {[0, 1, 2, 3, 4].map((key) => (
+                <div className="ls-skel ls-gallery-item" key={key} />
+              ))}
+            </div>
+          )}
+
+          {content.gallery.status === "error" &&
+            renderError(
+              "We couldn't load the photos",
+              "Our event photos aren't loading right now. Try again in a moment.",
+              () => retryContent(["gallery"]),
+            )}
+
+          {content.gallery.status === "ready" && galleryItems.length > 0 && (
+            <div
+              className={`ls-gallery ls-reveal ls-stagger${
+                galleryItems.length >= GALLERY_PREVIEW_COUNT
+                  ? " ls-gallery--feature"
+                  : ""
+              }`}
+            >
+              {galleryItems.slice(0, GALLERY_PREVIEW_COUNT).map((item, index) => (
+                <button
+                  type="button"
+                  className="ls-gallery-item"
+                  key={item._id || item.image_url}
+                  onClick={() => setLightboxIndex(index)}
+                  aria-label={`View photo: ${item.title || "catered event"}`}
+                >
+                  <img
+                    src={item.image_url}
+                    alt={item.title || "A catered event by Caezelle's"}
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+      )}
+
+      {/* ── Reviews: only rendered when there are any ──────── */}
+      {content.reviews.status === "ready" && reviews.length > 0 && (
+        <section className="ls-band ls-band--surface" aria-labelledby="reviews-title">
+          <div className="ls-inner">
+            <div className="ls-head ls-reveal">
+              <span className="ls-rule" aria-hidden="true" />
+              <p className="ls-eyebrow">Reviews</p>
+              <h2 className="ls-title" id="reviews-title">
+                What our clients say
+              </h2>
+            </div>
+
+            <div className="ls-quotes ls-reveal ls-stagger">
+              {reviews.slice(0, 3).map((review) => {
+                const stars = Math.max(0, Math.min(5, Number(review.stars) || 0));
+                const name = review?.customer_id?.full_name || "Verified customer";
+
+                return (
+                  <figure className="ls-quote" key={review._id || `${name}-${review.createdAt}`}>
+                    <span className="ls-quote-stars" aria-label={`${stars} out of 5 stars`}>
+                      <span aria-hidden="true">
+                        {"★".repeat(stars)}
+                        {"☆".repeat(5 - stars)}
+                      </span>
+                    </span>
+                    <blockquote>
+                      <p>{review.review}</p>
+                    </blockquote>
+                    <figcaption className="ls-quote-by">{name}</figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Closing booking moment ─────────────────────────── */}
+      <section id="contact" className="ls-band ls-band--ink" aria-labelledby="contact-title">
+        <div className="ls-inner ls-close ls-reveal">
+          <div>
+            <span className="ls-rule" aria-hidden="true" />
+            <h2 className="ls-title" id="contact-title">
+              Reserve your date
+            </h2>
+            <p className="ls-lede">
+              Tell us the date, the guest count, and what you need on the table. We'll
+              confirm availability and send the details back to you.
+            </p>
+            <div className="ls-close-actions">
+              <button type="button" className="ls-btn ls-btn--onink" onClick={() => goToBooking()}>
+                Book an Event
+              </button>
+              <button type="button" className="ls-btn ls-btn--light" onClick={() => navigate("/packages")}>
+                Browse Packages
+              </button>
+            </div>
+          </div>
+
+          <dl className="ls-close-contact">
+            <div>
+              <dt>Call or text</dt>
+              <dd>
+                <a href={`tel:${contactNumber.replace(/\s+/g, "")}`}>{contactNumber}</a>
+              </dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>
+                <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
+              </dd>
+            </div>
+            <div>
+              <dt>Open</dt>
+              <dd>{hours}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      {/* ── Footer ─────────────────────────────────────────── */}
+      <CustomerFooter businessInfo={businessInfo} />
+
+      {/* ── Gallery lightbox ───────────────────────────────── */}
+      {lightboxIndex !== null && galleryItems[lightboxIndex] && (
         <div
           className="lightbox-overlay"
-          onClick={() => setGalleryLightboxIndex(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Gallery photo"
+          onClick={() => setLightboxIndex(null)}
         >
           <button
             className="lightbox-close"
             type="button"
-            onClick={() => setGalleryLightboxIndex(null)}
+            aria-label="Close photo"
+            onClick={() => setLightboxIndex(null)}
           >
             ×
           </button>
           <img
-            src={galleryItems[galleryLightboxIndex].image_url}
-            alt={galleryItems[galleryLightboxIndex].title}
+            src={galleryItems[lightboxIndex].image_url}
+            alt={galleryItems[lightboxIndex].title || "A catered event by Caezelle's"}
             className="lightbox-image"
             onClick={(event) => event.stopPropagation()}
           />
         </div>
       )}
 
+      {/* ── Service detail modal ───────────────────────────── */}
       {activeServiceModal && SERVICE_MODAL_CONTENT[activeServiceModal] && (
-        <div
-          className="service-modal-overlay"
-          onClick={() => setActiveServiceModal(null)}
-        >
+        <div className="ls-modal-overlay" onClick={() => setActiveServiceModal(null)}>
           <div
-            className="service-modal"
+            className="ls-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="service-modal-title"
             onClick={(event) => event.stopPropagation()}
           >
             <button
-              className="service-modal-close"
+              className="ls-modal-close"
               type="button"
               onClick={() => setActiveServiceModal(null)}
               aria-label="Close"
             >
-              ×
+              <X size={18} aria-hidden="true" />
             </button>
-            <p className="service-modal-eyebrow">Custom Service</p>
-            <h3 id="service-modal-title" className="service-modal-title">
-              {SERVICE_MODAL_CONTENT[activeServiceModal].title}
-            </h3>
-            <p className="service-modal-desc">
-              {SERVICE_MODAL_CONTENT[activeServiceModal].description}
-            </p>
-            <div className="service-modal-divider" />
-            <p className="service-modal-subhead">What Is Included</p>
-            <ul className="service-modal-list">
-              {SERVICE_MODAL_CONTENT[activeServiceModal].features.map((feature, index) => (
-                <li key={feature} style={{ animationDelay: `${index * 35}ms` }}>
-                  <span className="service-modal-check" aria-hidden="true">
-                    <CheckIcon />
-                  </span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <button
-              className="service-modal-cta"
-              type="button"
-              onClick={() => {
-                const serviceType = activeServiceModal;
-                setActiveServiceModal(null);
-                goToBooking({ serviceType });
-              }}
-            >
-              Proceed to Booking
-              <span aria-hidden="true">→</span>
-            </button>
+
+            <div className="ls-modal-head">
+              <p className="ls-eyebrow">Booking path</p>
+              <h3 id="service-modal-title">
+                {SERVICE_MODAL_CONTENT[activeServiceModal].title}
+              </h3>
+              <p className="ls-modal-desc">
+                {SERVICE_MODAL_CONTENT[activeServiceModal].description}
+              </p>
+            </div>
+
+            <div className="ls-modal-body">
+              <section className="ls-modal-block">
+                <h4>What we&apos;ll ask you for</h4>
+                <ul className="ls-modal-list">
+                  {SERVICE_MODAL_CONTENT[activeServiceModal].steps.map((item) => (
+                    <li key={item}>
+                      <span className="ls-modal-tick" aria-hidden="true">
+                        <CheckIcon />
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <p className="ls-modal-note">
+                  {SERVICE_MODAL_CONTENT[activeServiceModal].pricing}
+                </p>
+              </section>
+
+              <section className="ls-modal-block">
+                <h4>What happens next</h4>
+                <ol className="ls-modal-steps">
+                  {WHAT_HAPPENS_NEXT.map((item, index) => (
+                    <li key={item}>
+                      <span className="ls-modal-num" aria-hidden="true">
+                        {index + 1}
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+
+            <div className="ls-modal-foot">
+              <button
+                className="ls-btn ls-btn--primary ls-btn--block"
+                type="button"
+                onClick={() => {
+                  const serviceType = activeServiceModal;
+                  setActiveServiceModal(null);
+                  goToBooking({ serviceType });
+                }}
+              >
+                Start booking
+              </button>
+              <p className="ls-modal-reassure">
+                Takes about five minutes. You won&apos;t pay anything yet.
+              </p>
+            </div>
           </div>
         </div>
       )}
-
-      <section id="foods" className="section landing-menu-section">
-        <div className="landing-section-heading">
-          <p className="landing-section-eyebrow landing-menu-eyebrow">Culinary artistry</p>
-          <h2 className="landing-menu-title">Our Featured Dishes</h2>
-        </div>
-        {menuItems.length === 0 ? (
-          <div className="landing-menu-empty">No food yet</div>
-        ) : (
-          <>
-            <div className="landing-menu-grid mt-8">
-              {menuItems.slice(0, 3).map((food) => {
-                const foodPrice = formatPrice(food.price);
-                return (
-                  <div key={food._id || food.name} className="landing-menu-card">
-                    <div
-                      className="landing-menu-media"
-                      style={
-                        food.image_url
-                          ? { backgroundImage: `url(${food.image_url})` }
-                          : undefined
-                      }
-                    >
-                      {food.category && (
-                        <span className="landing-menu-badge">{food.category}</span>
-                      )}
-                    </div>
-                    <div className="landing-menu-body">
-                      <div className="landing-menu-row">
-                        <h3>{food.name}</h3>
-                        {foodPrice && <span className="landing-menu-price">{foodPrice}</span>}
-                      </div>
-                      {food.description && <p>{food.description}</p>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-center mt-8">
-              <button
-                className="landing-btn-gold-outline"
-                type="button"
-                onClick={() => navigate("/menu")}
-              >
-                View Full Menu
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-
-      <section id="testimonials" className="section landing-section">
-        <div className="landing-section-heading">
-          <p className="landing-section-eyebrow">Client stories</p>
-          <h2>What Our Clients Say</h2>
-        </div>
-        {reviews.length === 0 ? (
-          <div className="mt-6 flex items-center justify-center py-16 text-sm text-slate-500">
-            No review yet
-          </div>
-        ) : (
-          <div className="grid mt-6 sm:grid-cols-2 lg:grid-cols-3">
-            {reviews.slice(0, 3).map((review) => {
-              const starsCount = Math.max(
-                0,
-                Math.min(5, Number(review.stars) || 0),
-              );
-              const starText =
-                "★★★★★".slice(0, starsCount) + "☆☆☆☆☆".slice(0, 5 - starsCount);
-              const customerName = review?.customer_id?.full_name || "Customer";
-
-              return (
-                <div
-                  key={review._id || `${customerName}-${review.createdAt}`}
-                  className="testimonial-card"
-                >
-                  <div className="stars">{starText}</div>
-                  <span className="testimonial-quote-icon" aria-hidden="true">
-                    &ldquo;
-                  </span>
-                  <p>{review.review}</p>
-                  <div className="testimonial-footer">
-                    <span className="testimonial-avatar">{getInitials(customerName)}</span>
-                    <strong>{customerName}</strong>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="landing-cta-surface">
-        <span className="landing-cta-decor landing-cta-decor-1" aria-hidden="true" />
-        <span className="landing-cta-decor landing-cta-decor-2" aria-hidden="true" />
-        <div className="landing-cta-content">
-          <h2>
-            {CTA_COPY.headingMain}
-            <br />
-            <em>{CTA_COPY.headingEmphasis}</em>
-          </h2>
-          <p>{CTA_COPY.subheadline}</p>
-          <div className="landing-cta-actions">
-            <button
-              className="landing-btn-cta-primary"
-              type="button"
-              onClick={() =>
-                navigate("/customer/book", { state: { resetWizard: true } })
-              }
-            >
-              Book Now
-              <span aria-hidden="true">→</span>
-            </button>
-            <button
-              className="landing-btn-outline-light"
-              type="button"
-              onClick={() => scrollToSection("contact")}
-            >
-              Talk to Us
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <footer id="contact" className="landing-footer">
-        <div className="footer-grid">
-          <div className="footer-brand-panel">
-            <div className="footer-brand">
-              <img
-                className="footer-logo"
-                src={logo}
-                alt="Caezelle Catering Services"
-              />
-              <div className="footer-brand-text">
-                <div className="footer-brand-title">{footerBusinessName}</div>
-              </div>
-            </div>
-            <div className="footer-brand-summary">
-              Professional catering, memorable presentation, and attentive
-              service for every celebration.
-            </div>
-            {socialLinks.length > 0 && (
-              <div className="footer-social" aria-label="Social links">
-                {socialLinks.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={link.label}
-                  >
-                    {link.icon === "facebook" ? (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M22 12a10 10 0 1 0-11.6 9.9v-7h-2.3V12h2.3V9.8c0-2.3 1.4-3.6 3.5-3.6 1 0 2 .2 2 .2v2.2h-1.1c-1.1 0-1.4.7-1.4 1.4V12h2.4l-.4 2.9h-2v7A10 10 0 0 0 22 12Z" />
-                      </svg>
-                    ) : (
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 4.5A3.5 3.5 0 1 1 8.5 12 3.5 3.5 0 0 1 12 8.5Zm0 2A1.5 1.5 0 1 0 13.5 12 1.5 1.5 0 0 0 12 10.5ZM17.7 6.3a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z" />
-                      </svg>
-                    )}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-          <div>
-            <h4>Quick Links</h4>
-            <a
-              href="/#top"
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToSection("top");
-              }}
-            >
-              Home
-            </a>
-            <a
-              href="/menu"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/menu");
-              }}
-            >
-              Menu
-            </a>
-            <a
-              href="/packages"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/packages");
-              }}
-            >
-              Packages
-            </a>
-            <a
-              href="/gallery"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("/gallery");
-              }}
-            >
-              Gallery
-            </a>
-            <a
-              href="/#testimonials"
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToSection("testimonials");
-              }}
-            >
-              About Us
-            </a>
-            <a
-              href="/#contact"
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToSection("contact");
-              }}
-            >
-              Contact Us
-            </a>
-          </div>
-          <div>
-            <h4>Contact</h4>
-            <div className="footer-contact">
-              <div className="footer-contact-item">
-                <span className="footer-contact-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.3 1.7.54 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.06a2 2 0 0 1 2.11-.45c.8.24 1.64.42 2.5.54A2 2 0 0 1 22 16.92z" />
-                  </svg>
-                </span>
-                <a href={`tel:${footerContactNumber.replace(/\s+/g, "")}`}>
-                  {footerContactNumber}
-                </a>
-              </div>
-              <div className="footer-contact-item">
-                <span className="footer-contact-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 6h16v12H4z" />
-                    <path d="m4 7 8 6 8-6" />
-                  </svg>
-                </span>
-                <a href={`mailto:${footerEmail}`}>{footerEmail}</a>
-              </div>
-              <div className="footer-contact-item">
-                <span className="footer-contact-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 21s7-4.4 7-11a7 7 0 1 0-14 0c0 6.6 7 11 7 11Z" />
-                    <path d="M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-                  </svg>
-                </span>
-                <span>{footerAddress}</span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <h4>Business Hours</h4>
-            <p>{footerHours}</p>
-          </div>
-        </div>
-        <div className="footer-bottom-bar">
-          <span>© 2026 {footerBusinessName}. All rights reserved.</span>
-          {footerLinks.length > 0 && (
-            <div className="footer-bottom-links">
-              {footerLinks.map((link) => (
-                <a
-                  key={link.label}
-                  href={link.href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </footer>
     </CustomerLayout>
   );
 }

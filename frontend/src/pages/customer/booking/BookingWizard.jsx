@@ -192,7 +192,9 @@ export default function BookingWizard() {
     if (isCustomBooking && !shouldSkipServiceType) {
       steps.push({ id: "ServiceType", label: "Service Type", key: "service" });
     }
-    steps.push({ id: "DateTime", label: "Event Info", key: "datetime" });
+    // Label only. "Event Info" sat two steps away from "Event Details" and the
+    // two collect different things — this step is purely date and time.
+    steps.push({ id: "DateTime", label: "Date & Time", key: "datetime" });
 
     if (isFoodOnly) {
       steps.push({ id: "DeliveryDetails", label: "Delivery", key: "delivery" });
@@ -225,7 +227,7 @@ export default function BookingWizard() {
       });
       steps.push({
         id: "AddonSelection",
-        label: "Addons",
+        label: "Add-ons",
         key: "addons",
       });
     } else {
@@ -910,7 +912,15 @@ export default function BookingWizard() {
   const nextStepLabel = wizardSteps[step + 1]?.label;
 
   return (
-    <CustomerLayout contentClassName="mx-auto flex min-h-[calc(100vh-73px)] w-full max-w-6xl flex-col px-4 pb-0 pt-4 sm:px-6">
+    /* `marketing` only remaps the shared --color-* tokens. The wizard already
+       hardcodes the customer blue (#4C81E0) in ~90 places, but its two shadcn
+       Buttons were still resolving --color-primary to the old navy; this makes
+       them agree. The header-height offset now tracks the shared token instead
+       of a stale hardcoded 73px. */
+    <CustomerLayout
+      marketing
+      contentClassName="mx-auto flex min-h-[calc(100vh-var(--ls-header-h))] w-full max-w-6xl flex-col px-4 pb-0 pt-4 sm:px-6"
+    >
       {/* Progress header — sticks under the site header so users never lose place */}
       <div className="sticky top-[73px] z-20 -mx-4 mb-4 border-b border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <BookingStepper currentStepIndex={step + 1} steps={wizardSteps} />

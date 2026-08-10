@@ -1,438 +1,424 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/layout/CustomerLayout";
+import CustomerFooter from "../../components/layout/CustomerFooter";
+import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Card, CardContent } from "../../components/ui/card";
-import { ChevronDown, ChevronUp, Check, Settings } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  SERVICE_LABELS,
+  capacityLabel,
+  eventTypeForPackage,
+  perGuestPrice,
+  priceLabel,
+  serviceLabel,
+} from "../../lib/packageDisplay";
+
+// Order the service filters the way the booking flow presents them.
+const SERVICE_ORDER = ["Food Only", "Event Setup Only", "Food + Event Setup"];
 
 export default function Packages() {
-  const [packages, setPackages] = useState([]);
-  const [filterType, setFilterType] = useState("All");
+  const navigate = useNavigate();
+  const businessInfo = useBusinessInfo();
+  const [packages, setPackages] = useState({ status: "loading", data: [] });
+  const [service, setService] = useState("all");
+  const [eventType, setEventType] = useState("all");
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
-  const [appliedPriceMin, setAppliedPriceMin] = useState("");
-  const [appliedPriceMax, setAppliedPriceMax] = useState("");
-  const [isPriceFilterOpen, setIsPriceFilterOpen] = useState(false);
-  const [expandedMenus, setExpandedMenus] = useState({});
-  const [menuItems, setMenuItems] = useState([]);
-  const [selectedPackageId, setSelectedPackageId] = useState(null);
-  const navigate = useNavigate();
 
-  const formatMoney = (value) => {
-    const number = Number(value);
-    return Number.isFinite(number)
-      ? number.toLocaleString("en-PH")
-      : value || "";
-  };
-
-  const getEventType = (data) => {
-    if (data?.event_type) return data.event_type;
-    const name = (data?.name || "").toLowerCase();
-    if (name.includes("birthday")) return "Birthday";
-    if (name.includes("wedding")) return "Wedding";
-    if (name.includes("corporate")) return "Corporate";
-    return "";
-  };
+  const fetchPackages = useCallback(
+    () =>
+      CustomerAPI.getPackages()
+        .then((res) => ({
+          status: "ready",
+          data: Array.isArray(res?.data) ? res.data : [],
+        }))
+        .catch(() => ({ status: "error", data: [] })),
+    [],
+  );
 
   useEffect(() => {
-    CustomerAPI.getPackages().then((res) => {
-      const next = Array.isArray(res.data) ? res.data : [];
-      setPackages(next.filter((pkg) => pkg?.available !== false));
+    let cancelled = false;
+    fetchPackages().then((next) => {
+      if (!cancelled) setPackages(next);
     });
-    CustomerAPI.getMenu().then((res) => {
-      const next = Array.isArray(res.data) ? res.data : [];
-      setMenuItems(
-        next.filter((item) => item?.available !== false).map((m) => m.name),
-      );
-    });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPackages]);
 
-  const eventTypes = [
-    "All",
-    ...new Set(packages.map((p) => p.event_type).filter(Boolean)),
-  ];
-
-  const filteredPackages = packages.filter((p) => {
-    if (filterType !== "All" && p.event_type !== filterType) return false;
-
-    // Price filter uses price_per_guest
-    if (appliedPriceMin !== "" || appliedPriceMax !== "") {
-      const perGuest = Number(p.price_per_guest);
-      if (!Number.isFinite(perGuest)) return false;
-      if (appliedPriceMin !== "" && perGuest < Number(appliedPriceMin))
-        return false;
-      if (appliedPriceMax !== "" && perGuest > Number(appliedPriceMax))
-        return false;
-    }
-
-    return true;
-  });
-
-  const handleApplyPrice = () => {
-    setAppliedPriceMin(priceMin);
-    setAppliedPriceMax(priceMax);
-    setIsPriceFilterOpen(false);
+  const retry = () => {
+    setPackages((prev) => ({ ...prev, status: "loading" }));
+    fetchPackages().then(setPackages);
   };
 
-  const handleClearFilters = () => {
-    setFilterType("All");
+  const available = useMemo(
+    () => packages.data.filter((pkg) => pkg?.available !== false),
+    [packages.data],
+  );
+
+  // Filter options come from the data, so a filter can never match nothing.
+  const serviceOptions = useMemo(() => {
+    const present = new Set(
+      available.map((pkg) => pkg.package_type).filter((type) => SERVICE_LABELS[type]),
+    );
+    return SERVICE_ORDER.filter((type) => present.has(type));
+  }, [available]);
+
+  const eventOptions = useMemo(
+    () =>
+      [...new Set(available.map(eventTypeForPackage).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [available],
+  );
+
+  // A filter whose option vanished must not strand the page on an empty list.
+  const selectedService = serviceOptions.includes(service) ? service : "all";
+  const selectedEvent = eventOptions.includes(eventType) ? eventType : "all";
+
+  const hasPriceFilter = priceMin !== "" || priceMax !== "";
+  const hasAnyFilter =
+    selectedService !== "all" || selectedEvent !== "all" || hasPriceFilter;
+
+  const filtered = useMemo(
+    () =>
+      available.filter((pkg) => {
+        if (selectedService !== "all" && pkg.package_type !== selectedService) {
+          return false;
+        }
+        if (selectedEvent !== "all" && eventTypeForPackage(pkg) !== selectedEvent) {
+          return false;
+        }
+
+        if (hasPriceFilter) {
+          // Only per-guest packages have a figure this range can compare
+          // against; the filter's help text says so out loud.
+          const perGuest = perGuestPrice(pkg);
+          if (!perGuest) return false;
+          if (priceMin !== "" && perGuest < Number(priceMin)) return false;
+          if (priceMax !== "" && perGuest > Number(priceMax)) return false;
+        }
+
+        return true;
+      }),
+    [available, selectedService, selectedEvent, hasPriceFilter, priceMin, priceMax],
+  );
+
+  const clearFilters = () => {
+    setService("all");
+    setEventType("all");
     setPriceMin("");
     setPriceMax("");
-    setAppliedPriceMin("");
-    setAppliedPriceMax("");
-    setIsPriceFilterOpen(false);
   };
 
+  const contactNumber =
+    businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
+
   return (
-    <CustomerLayout>
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="mb-10 mt-8 text-center">
-          <h1 className="mb-3 font-serif text-4xl font-bold tracking-tight text-foreground">
-            Browse Catering Packages
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Select the package that best fits your event and guest count
+    <CustomerLayout marketing contentClassName="ls-main">
+      <div className="ls-pagehead">
+        <div className="ls-inner">
+          <span className="ls-rule" aria-hidden="true" />
+          <p className="ls-eyebrow">Packages</p>
+          <h1>Choose a catering package</h1>
+          <p className="ls-lede">
+            Each package sets what's covered — food, event setup, or both — the
+            guest range it's built for, and how it's priced. Open one to see
+            everything it includes.
           </p>
-        </div>
-
-        <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
-          {/* Event Type Chips */}
-          {eventTypes.map((type) => (
-            <button
-              key={type}
-              type="button"
-              className={cn(
-                "rounded-full px-4 py-2 text-sm transition",
-                filterType === type
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-primary text-primary hover:bg-primary/5",
-              )}
-              onClick={() => setFilterType(type)}
-            >
-              {type}
-            </button>
-          ))}
-
-          {/* Subtle Vertical Divider */}
-          <div className="mx-1 h-6 w-px bg-border" />
-
-          {/* Price Filter Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-full border border-primary px-4 py-2 text-sm text-primary transition hover:bg-primary/5"
-              onClick={() => setIsPriceFilterOpen(!isPriceFilterOpen)}
-            >
-              Price Filter
-              {isPriceFilterOpen ? (
-                <ChevronUp size={14} />
-              ) : (
-                <ChevronDown size={14} />
-              )}
-            </button>
-
-            {isPriceFilterOpen && (
-              <div className="absolute left-1/2 top-full z-50 mt-2 flex w-72 -translate-x-1/2 flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-lg">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      ₱
-                    </span>
-                    <Input
-                      type="number"
-                      placeholder="Min per guest"
-                      value={priceMin}
-                      onChange={(e) => setPriceMin(e.target.value)}
-                      className="pl-7"
-                    />
-                  </div>
-                  <span className="text-muted-foreground">-</span>
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      ₱
-                    </span>
-                    <Input
-                      type="number"
-                      placeholder="Max per guest"
-                      value={priceMax}
-                      onChange={(e) => setPriceMax(e.target.value)}
-                      className="pl-7"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={handleApplyPrice}>
-                    Apply
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setPriceMin("");
-                      setPriceMax("");
-                      setAppliedPriceMin("");
-                      setAppliedPriceMax("");
-                    }}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {filteredPackages.length === 0 ? (
-          <div className="my-10 py-20 text-center">
-            <h3 className="mb-2 text-xl font-medium text-foreground">
-              No packages found
-            </h3>
-            <p className="mb-6 text-muted-foreground">
-              Try adjusting your filters or clearing them to see all packages.
-            </p>
-            <Button
-              variant="outline"
-              onClick={handleClearFilters}
-              className="rounded-full"
-            >
-              Clear All Filters
-            </Button>
-          </div>
-        ) : (
-          <div className="mb-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredPackages.map((p, index) => {
-              const perGuest = Number(p.price_per_guest);
-              const hasPrice = Number.isFinite(perGuest);
-              const guestMin = p.guest_min || 0;
-              const guestMax = p.guest_max || 0;
-              const startingTotal =
-                hasPrice && guestMin > 0 ? perGuest * guestMin : null;
-              const inclusions = Array.isArray(p.inclusions)
-                ? p.inclusions
-                : [];
-
-              const isPopular =
-                p.name.toLowerCase().includes("gold") ||
-                p.name.toLowerCase().includes("prestige");
-              const isSelected = selectedPackageId === p._id;
-
-              return (
-                <Card
-                  className={cn(
-                    "flex cursor-pointer flex-col overflow-hidden transition-all hover:shadow-md",
-                    isSelected
-                      ? "border-2 border-accent ring-1 ring-accent"
-                      : "border-border shadow-sm",
-                  )}
-                >
-                  <div className="group relative h-56 w-full">
-                    <img
-                      src={p.image_url}
-                      alt={p.name}
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all duration-300 group-hover:bg-black/30">
-                      <Button
-                        variant="secondary"
-                        className="opacity-0 translate-y-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/packages/${p._id}`);
-                        }}
-                      >
-                        View Details
-                      </Button>
-                    </div>
-
-                    {isSelected && (
-                      <div className="absolute left-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-md">
-                        <Check size={14} strokeWidth={3} />
-                      </div>
-                    )}
-
-                    {isPopular && (
-                      <div className="absolute right-3 top-3 rounded-full bg-gold-400 px-3 py-1 text-xs font-bold text-gold-900 shadow">
-                        Most Popular
-                      </div>
-                    )}
-
-                    <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-                      <h3
-                        className="cursor-pointer text-2xl font-serif font-bold leading-tight text-white transition hover:text-accent"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/packages/${p._id}`);
-                        }}
-                      >
-                        {p.name}
-                      </h3>
-                      {(p.size || p.max_guests) && (
-                        <span className="text-[13px] text-white/90 drop-shadow-sm">
-                          {p.size
-                            ? p.size.toLowerCase().includes("guest") ||
-                              p.size.toLowerCase().includes("pax")
-                              ? p.size
-                              : `${p.size} guests`
-                            : `Up to ${p.max_guests} guests`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <CardContent className="flex flex-1 flex-col p-6">
-                    <p className="mb-5 min-h-[40px] text-sm leading-relaxed text-muted-foreground">
-                      {p.description}
-                    </p>
-                    <div className="mb-5 flex flex-wrap gap-2">
-                      {p.event_type && (
-                        <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                          {p.event_type}
-                        </span>
-                      )}
-
-                      {p.max_guests && (
-                        <span className="rounded-full bg-muted px-3 py-1 text-xs">
-                          Up to {p.max_guests} Guests
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mb-6">
-                      {expandedMenus[p._id] && (
-                        <ul className="mt-3 space-y-1.5 border-l-2 border-accent/30 pl-3">
-                          {(menuItems.length > 0
-                            ? menuItems.slice(
-                                index % Math.max(1, menuItems.length - 6),
-                                (index % Math.max(1, menuItems.length - 6)) + 6,
-                              )
-                            : ["Sample items loading..."]
-                          ).map((item, idx) => (
-                            <li
-                              key={idx}
-                              className="flex items-center gap-2 text-[12px] text-muted-foreground"
-                            >
-                              <span className="h-1 w-1 rounded-full bg-accent/60"></span>
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-
-                    {/* Price Display */}
-                    <div className="mb-5 flex flex-col items-start">
-                      {hasPrice && startingTotal !== null ? (
-                        <>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-bold text-accent">
-                              ₱{formatMoney(startingTotal)}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              starting
-                            </span>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            ₱{formatMoney(perGuest)} / guest · {guestMin}–
-                            {guestMax} guests
-                          </div>
-                        </>
-                      ) : hasPrice ? (
-                        <>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-bold text-accent">
-                              ₱{formatMoney(perGuest)}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              / guest
-                            </span>
-                          </div>
-                          {guestMin > 0 && guestMax > 0 && (
-                            <div className="text-sm text-muted-foreground">
-                              {guestMin}–{guestMax} guests
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Contact for pricing
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/packages/${p._id}`);
-                        }}
-                      >
-                        View Details
-                      </Button>
-
-                      <Button
-                        className={cn(
-                          isSelected ? "bg-accent text-accent-foreground" : "",
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation();
-
-                          if (!isSelected) {
-                            setSelectedPackageId(p._id);
-                            return;
-                          }
-
-                          navigate("/customer/book", {
-                            state: {
-                              eventType: getEventType(p),
-                              packageId: p._id,
-                              packagePrice: hasPrice ? perGuest : 0,
-                              packageName: p.name,
-                              guestMin: p.guest_min || 1,
-                              guestMax: p.guest_max || 100,
-                              initialStep: 0,
-                              resetWizard: true,
-                            },
-                          });
-                        }}
-                      >
-                        {isSelected ? "Continue" : "Select"}
-                      </Button>
-                    </div>
-                    <p className="mt-3 text-center text-xs text-muted-foreground">
-                      Want to see the complete menu, gallery, and package
-                      details?
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Custom Package CTA */}
-        <div className="flex flex-col items-center justify-center pb-20 pt-8">
-          <p className="mb-4 text-[14px] text-muted-foreground">
-            Need a fully tailored experience?
-          </p>
-          <Button
-            variant="outline"
-            className="flex items-center gap-2 rounded-xl border-border bg-card px-6 py-6 font-medium text-foreground hover:bg-accent/5"
-            onClick={() =>
-              navigate("/customer/book", {
-                state: { resetWizard: true }, // <-- add this
-              })
-            }
-          >
-            <Settings size={18} className="text-muted-foreground" />
-            Build a Custom Package
-          </Button>
         </div>
       </div>
+
+      {packages.status === "ready" && available.length > 0 && (
+        <div className="ls-filterbar">
+          <div className="ls-inner ls-filterbar-inner">
+            {serviceOptions.length > 1 && (
+              <div className="ls-chips" role="group" aria-label="Filter by what's included">
+                <button
+                  type="button"
+                  className="ls-chip"
+                  aria-pressed={selectedService === "all"}
+                  onClick={() => setService("all")}
+                >
+                  All packages
+                </button>
+                {serviceOptions.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className="ls-chip"
+                    aria-pressed={selectedService === type}
+                    onClick={() => setService(type)}
+                  >
+                    {SERVICE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="ls-filters">
+              {eventOptions.length > 0 && (
+                <div className="ls-field">
+                  <label htmlFor="package-event">Event</label>
+                  <select
+                    id="package-event"
+                    value={selectedEvent}
+                    onChange={(event) => setEventType(event.target.value)}
+                  >
+                    <option value="all">Any event</option>
+                    {eventOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="ls-field">
+                <label htmlFor="price-min">Price per guest</label>
+                <div className="ls-field-pair">
+                  <input
+                    id="price-min"
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    placeholder="Min"
+                    value={priceMin}
+                    onChange={(event) => setPriceMin(event.target.value)}
+                    aria-describedby="price-help"
+                  />
+                  <span aria-hidden="true">–</span>
+                  <input
+                    id="price-max"
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    placeholder="Max"
+                    value={priceMax}
+                    onChange={(event) => setPriceMax(event.target.value)}
+                    aria-label="Maximum price per guest"
+                    aria-describedby="price-help"
+                  />
+                </div>
+                <p className="ls-field-help" id="price-help">
+                  Only applies to packages priced per guest.
+                </p>
+              </div>
+
+              {hasAnyFilter && (
+                <button
+                  type="button"
+                  className="ls-btn ls-btn--sm ls-btn--ghost"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section className="ls-band ls-band--page" aria-label="Catering packages">
+        <div className="ls-inner">
+          {packages.status === "loading" && (
+            <div className="ls-card-grid" aria-hidden="true">
+              {[0, 1, 2, 3, 4, 5].map((key) => (
+                <div className="ls-pkg" key={key}>
+                  <div className="ls-skel ls-skel-media" />
+                  <div className="ls-pkg-body">
+                    <div className="ls-skel ls-skel-line" style={{ width: "60%", height: 18 }} />
+                    <div className="ls-skel ls-skel-line" />
+                    <div className="ls-skel ls-skel-line" style={{ width: "75%" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {packages.status === "error" && (
+            <div className="ls-state" role="status">
+              <p className="ls-state-title">We couldn't load our packages</p>
+              <p>
+                Something went wrong on our side. Try again in a moment, or call
+                us and we'll walk you through the options for your event.
+              </p>
+              <div className="ls-state-actions">
+                <button type="button" className="ls-btn ls-btn--sm ls-btn--ghost" onClick={retry}>
+                  Try again
+                </button>
+                <a
+                  className="ls-btn ls-btn--sm ls-btn--ghost"
+                  href={`tel:${contactNumber.replace(/\s+/g, "")}`}
+                >
+                  Call {contactNumber}
+                </a>
+              </div>
+            </div>
+          )}
+
+          {packages.status === "ready" && available.length === 0 && (
+            <div className="ls-state">
+              <p className="ls-state-title">No packages are published right now</p>
+              <p>
+                We can still cater your event. Start a booking with your date and
+                guest count and we'll build something around it.
+              </p>
+              <div className="ls-state-actions">
+                <button
+                  type="button"
+                  className="ls-btn ls-btn--sm ls-btn--primary"
+                  onClick={() =>
+                    navigate("/customer/book", { state: { resetWizard: true } })
+                  }
+                >
+                  Book an Event
+                </button>
+              </div>
+            </div>
+          )}
+
+          {packages.status === "ready" && available.length > 0 && (
+            <>
+              <div className="ls-menu-section-head">
+                <h2>
+                  {filtered.length} {filtered.length === 1 ? "package" : "packages"}
+                  {hasAnyFilter ? " match your filters" : " available"}
+                </h2>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div className="ls-state">
+                  <p className="ls-state-title">No packages match those filters</p>
+                  <p>
+                    Try widening them — or start a booking and we'll build a
+                    package around your event instead.
+                  </p>
+                  <div className="ls-state-actions">
+                    <button
+                      type="button"
+                      className="ls-btn ls-btn--sm ls-btn--ghost"
+                      onClick={clearFilters}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="ls-card-grid">
+                  {filtered.map((pkg) => {
+                    const capacity = capacityLabel(pkg);
+                    const service = serviceLabel(pkg);
+                    const event = eventTypeForPackage(pkg);
+                    const inclusionCount = Array.isArray(pkg.inclusions)
+                      ? pkg.inclusions.length
+                      : 0;
+
+                    return (
+                      <article className="ls-pkg" key={pkg._id || pkg.name}>
+                        <div className="ls-pkg-media">
+                          {pkg.image_url ? (
+                            <img
+                              src={pkg.image_url}
+                              alt={`${pkg.name} package`}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="ls-pkg-media-empty">{pkg.name}</div>
+                          )}
+                          {event && <span className="ls-pkg-tag">{event}</span>}
+                        </div>
+
+                        <div className="ls-pkg-body">
+                          <h3>{pkg.name}</h3>
+                          {service && <p className="ls-pkg-service">{service}</p>}
+                          {pkg.description && (
+                            <p className="ls-pkg-desc">{pkg.description}</p>
+                          )}
+
+                          <dl className="ls-pkg-facts">
+                            <div className="ls-pkg-fact">
+                              <dt>Price</dt>
+                              <dd>
+                                <strong>{priceLabel(pkg)}</strong>
+                              </dd>
+                            </div>
+                            {capacity && (
+                              <div className="ls-pkg-fact">
+                                <dt>Guests</dt>
+                                <dd>
+                                  <strong>{capacity}</strong>
+                                </dd>
+                              </div>
+                            )}
+                            {inclusionCount > 0 && (
+                              <div className="ls-pkg-fact">
+                                <dt>Includes</dt>
+                                <dd>
+                                  <strong>
+                                    {inclusionCount}{" "}
+                                    {inclusionCount === 1 ? "item" : "items"}
+                                  </strong>
+                                </dd>
+                              </div>
+                            )}
+                          </dl>
+
+                          <div className="ls-pkg-actions">
+                            <button
+                              type="button"
+                              className="ls-btn ls-btn--primary ls-btn--block"
+                              onClick={() => navigate(`/packages/${pkg._id}`)}
+                            >
+                              View package
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="ls-band ls-band--ink" aria-labelledby="packages-bridge-title">
+        <div className="ls-inner ls-bridge">
+          <div>
+            <span className="ls-rule" aria-hidden="true" />
+            <h2 className="ls-title" id="packages-bridge-title">
+              Need something the packages don't cover?
+            </h2>
+            <p className="ls-lede">
+              Start a booking and build it yourself — choose your own dishes,
+              setup, and add-ons — or send us the details and we'll quote for it.
+            </p>
+          </div>
+          <div className="ls-bridge-actions">
+            <button
+              type="button"
+              className="ls-btn ls-btn--onink"
+              onClick={() =>
+                navigate("/customer/book", { state: { resetWizard: true } })
+              }
+            >
+              Build your own
+            </button>
+            <button
+              type="button"
+              className="ls-btn ls-btn--light"
+              onClick={() => navigate("/menu")}
+            >
+              Browse the menu
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <CustomerFooter businessInfo={businessInfo} />
     </CustomerLayout>
   );
 }

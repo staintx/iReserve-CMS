@@ -126,6 +126,21 @@
     letter-spacing: -0.01em;
   }
 
+  /* Booking flow: same reasoning as the admin dashboard. It is transactional
+     UI that gets scanned, not read, and its headings include uppercase micro
+     labels ("ESTIMATED COST", "MAIN DISHES") that a display serif renders
+     poorly. The Playfair rule above is what the marketing pages want; this
+     opts the wizard out of it. */
+  body.booking-flow h1,
+  body.booking-flow h2,
+  body.booking-flow h3,
+  body.booking-flow h4,
+  body.booking-flow h5,
+  body.booking-flow h6 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+  }
+
   a {
     color: inherit;
     text-decoration: none;
@@ -181,6 +196,22 @@
 
   body.booking-flow {
     --chat-fab-bottom: 5.75rem;
+  }
+
+  /* The booking flow's motion is all decorative — hover lifts, tile presses,
+     the progress bar fill. Removing it costs nothing and keeps every state
+     change visible. Scoped to the wizard so it cannot alter the rest of the
+     app. Step-to-step scrolling honours the same preference in JS, via
+     `scrollBehavior` in BookingWizard.jsx. */
+  @media (prefers-reduced-motion: reduce) {
+    body.booking-flow *,
+    body.booking-flow *::before,
+    body.booking-flow *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   /* ── Surface ────────────────────────────────────────────── */

@@ -12,6 +12,10 @@ import {
   positiveNumbers,
   priceLabel,
 } from "../../lib/packageDisplay";
+import {
+  SERVICE_PATHS,
+  WHAT_HAPPENS_NEXT,
+} from "./booking/lib/bookingRules";
 
 // One large tile plus four small ones tiles the feature grid exactly.
 const GALLERY_PREVIEW_COUNT = 5;
@@ -45,8 +49,8 @@ const BOOKING_STEPS = [
 
 // Booking-wizard vocabulary. `service_type` (used by the wizard) and
 // `package_type` (stored on the package) differ for the combined option —
-// see StepPackageSelection's PACKAGE_TYPE_BY_SERVICE_TYPE map.
-const SERVICE_PATHS = [
+// see PACKAGE_TYPE_BY_SERVICE_TYPE in the booking flow's bookingRules module.
+const SERVICE_CARDS = [
   {
     serviceType: "Food Only",
     packageType: "Food Only",
@@ -80,60 +84,10 @@ const SERVICE_PATHS = [
  * the customer will be asked for, and what happens after — without becoming a
  * tutorial.
  *
- * `steps` are the real wizard steps for each path, taken from `wizardSteps` in
- * BookingWizard.jsx. If that step list changes, this list should follow.
+ * Both this modal and the wizard's Service Type step render SERVICE_PATHS, so
+ * the promise made here and the flow that follows cannot drift apart.
  */
-const SERVICE_MODAL_CONTENT = {
-  "Food Only": {
-    title: "Food only",
-    description:
-      "We cook and deliver to your venue, or you collect from us. No tables, styling, or setup.",
-    steps: [
-      "Your date and time",
-      "Delivery address or pickup",
-      "The dishes you want",
-      "Any dietary needs",
-      "Contact details",
-    ],
-    pricing: "Priced by the dishes you pick and how many guests you're feeding.",
-  },
-  "Event Setup Only": {
-    title: "Event setup only",
-    description:
-      "Scaffolding, tables, styling, and teardown at your venue. No food.",
-    steps: [
-      "Your date and time — we check it's free",
-      "A setup package and the size you need",
-      "Event type, location, and guest count",
-      "Any add-ons",
-      "Contact details",
-    ],
-    pricing: "Setup is priced by the size you choose, not per guest.",
-  },
-  "Food and Event Setup": {
-    title: "Food and setup",
-    description:
-      "One booking covering the catering and the full event setup, start to finish.",
-    steps: [
-      "Your date and time — we check it's free",
-      "A package to start from, if you want one",
-      "Event type, location, and guest count",
-      "Your dishes and any dietary needs",
-      "Any add-ons",
-      "Contact details",
-    ],
-    pricing: "Priced per guest when you start from one of our packages.",
-  },
-};
-
-// Identical for all three paths, because the backend flow is identical: the
-// wizard submits an inquiry, an admin returns a quotation, and the date is
-// only held once that quote is accepted and the deposit is paid.
-const WHAT_HAPPENS_NEXT = [
-  "You send us the details — nothing is charged yet.",
-  "We price it and send you a quotation to review.",
-  "Accept it and pay the deposit, and your date is held.",
-];
+const SERVICE_MODAL_CONTENT = SERVICE_PATHS;
 
 function TrayIcon() {
   return (
@@ -475,7 +429,7 @@ export default function Landing() {
           </div>
 
           <div className="ls-paths ls-reveal ls-stagger">
-            {SERVICE_PATHS.map((path) => {
+            {SERVICE_CARDS.map((path) => {
               const { serviceType, title, description } = path;
               const Icon = path.Icon;
               const count = packageCountByType[path.packageType] || 0;

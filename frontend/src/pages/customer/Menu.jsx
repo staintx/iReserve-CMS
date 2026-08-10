@@ -5,56 +5,7 @@ import CustomerFooter from "../../components/layout/CustomerFooter";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
 import { Search } from "lucide-react";
-
-/**
- * `MenuItem.category` is an unconstrained string with no dropdown behind it in
- * the admin form, so the same idea arrives spelled several ways ("Main Course"
- * vs "Main Dishes", "Beverage" vs "Drinks", "Dessert" vs "Desserts"). These
- * groups fold those variants into one customer-facing label.
- *
- * This is display-only — nothing is written back, no data is migrated, and the
- * raw category is still what search matches against. Anything that doesn't map
- * keeps its own name and is listed after the known groups, so a new category
- * can never go missing from the page.
- *
- * Order is the order a menu reads in, and the order sections render.
- */
-const CATEGORY_GROUPS = [
-  { id: "appetizers", label: "Appetizers", match: ["appetizer", "starter", "salad", "finger food", "pica"] },
-  { id: "soups", label: "Soups", match: ["soup", "sabaw"] },
-  { id: "mains", label: "Main Dishes", match: ["main", "entree", "viand", "ulam", "chicken", "pork", "beef", "seafood", "fish"] },
-  { id: "noodles", label: "Noodles & Pasta", match: ["pasta", "noodle", "pancit"] },
-  { id: "rice", label: "Rice", match: ["rice", "kanin"] },
-  { id: "vegetables", label: "Vegetables", match: ["vegetable", "veggie", "gulay"] },
-  { id: "desserts", label: "Desserts", match: ["dessert", "cake", "sweet", "pastry", "panghimagas"] },
-  { id: "drinks", label: "Drinks", match: ["drink", "beverage", "juice", "shake", "inumin"] },
-];
-
-const OTHER_GROUP_PREFIX = "other:";
-
-const titleCase = (value) =>
-  value
-    .toLowerCase()
-    .split(/\s+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-
-/**
- * Resolves a raw category string to a group. Unknown values become their own
- * group rather than being dropped or lumped into a vague "Other".
- */
-function resolveGroup(rawCategory) {
-  const raw = String(rawCategory || "").trim();
-  if (!raw) return { id: "uncategorised", label: "More Dishes" };
-
-  const normalised = raw.toLowerCase();
-  const group = CATEGORY_GROUPS.find((candidate) =>
-    candidate.match.some((keyword) => normalised.includes(keyword)),
-  );
-
-  if (group) return { id: group.id, label: group.label };
-  return { id: `${OTHER_GROUP_PREFIX}${normalised}`, label: titleCase(raw) };
-}
+import { CATEGORY_GROUPS, resolveGroup } from "../../lib/menuCategories";
 
 const peso = (amount) => {
   const value = Number(amount);

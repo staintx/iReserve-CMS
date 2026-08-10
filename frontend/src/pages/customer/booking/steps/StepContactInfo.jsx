@@ -1,192 +1,130 @@
-import { useEffect, useState } from "react";
-import { User, Phone, Info } from "lucide-react";
+import { useState } from "react";
+import { User, Phone } from "lucide-react";
 import {
   Card,
   SH,
   Field,
   TInput,
   SectionTitle,
-  InfoNote,
   StepShell,
 } from "../components/BookingSharedUI";
+import { contactFieldError } from "../lib/bookingRules";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_DIGITS_REGEX = /^(?:63|0)?9\d{9}$/;
+export default function StepContactInfo({ form, setForm, errors = {} }) {
+  const [touched, setTouched] = useState({});
 
-const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
-const isValidEmail = (value) => EMAIL_REGEX.test(String(value || "").trim());
-const isValidPhone = (value) => PHONE_DIGITS_REGEX.test(normalizePhone(value));
+  const errorFor = (field) =>
+    errors[field] || (touched[field] ? contactFieldError(field, form[field]) : "");
 
-const getFieldError = (field, value) => {
-  const trimmed = String(value || "").trim();
-
-  switch (field) {
-    case "contact_first_name":
-      return trimmed ? "" : "First name is required.";
-    case "contact_last_name":
-      return trimmed ? "" : "Last name is required.";
-    case "contact_email":
-      if (!trimmed) return "Email address is required.";
-      return isValidEmail(trimmed) ? "" : "Enter a valid email address.";
-    case "contact_phone":
-      if (!trimmed) return "Primary phone is required.";
-      return isValidPhone(trimmed)
-        ? ""
-        : "Enter a valid Philippine mobile number.";
-    case "contact_alt_phone":
-      if (!trimmed) return "";
-      return isValidPhone(trimmed)
-        ? ""
-        : "Enter a valid Philippine mobile number.";
-    default:
-      return "";
-  }
-};
-
-export default function StepContactInfo({ form, setForm }) {
-  const [errors, setErrors] = useState({});
-
-  useEffect(() => {
-    if (!form.contact_phone?.trim() && form.contact_alt_phone) {
-      setForm((prev) => ({ ...prev, contact_alt_phone: "" }));
-      setErrors((prev) => ({ ...prev, contact_alt_phone: "" }));
-    }
-  }, [form.contact_phone, form.contact_alt_phone, setForm]);
-
-  const handleFieldChange = (field, value) => {
+  const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: getFieldError(field, value) }));
-    }
-
-    if (field === "contact_phone" && !value.trim()) {
-      setForm((prev) => ({ ...prev, contact_alt_phone: "" }));
-      setErrors((prev) => ({ ...prev, contact_alt_phone: "" }));
-    }
   };
 
-  const handleFieldBlur = (field) => {
-    setErrors((prev) => ({
-      ...prev,
-      [field]: getFieldError(field, form[field]),
-    }));
-  };
-
-  const primaryPhoneFilled = !!form.contact_phone?.trim();
+  const handleBlur = (field) =>
+    setTouched((prev) => ({ ...prev, [field]: true }));
 
   return (
     <StepShell width="medium">
       <SH
-        title="Contact Information"
-        sub="How can we reach you about this booking?"
+        title="How We Reach You"
+        sub="Your quotation and event updates go to these details."
       />
 
-      <Card className="p-4 sm:p-5">
+      <Card className="p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Who to contact */}
           <div>
             <SectionTitle icon={User}>Contact person</SectionTitle>
-            <div className="space-y-3.5">
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field
-                  label="First Name"
+                  label="First name"
                   required
-                  error={errors.contact_first_name}
+                  error={errorFor("contact_first_name")}
                 >
                   <TInput
-                    placeholder="Juan"
+                    placeholder="e.g. Maria"
                     value={form.contact_first_name || ""}
-                    onChange={(val) =>
-                      handleFieldChange("contact_first_name", val)
-                    }
-                    onBlur={() => handleFieldBlur("contact_first_name")}
-                    required
-                    hasError={!!errors.contact_first_name}
+                    onChange={(val) => handleChange("contact_first_name", val)}
+                    onBlur={() => handleBlur("contact_first_name")}
+                    autoComplete="given-name"
+                    hasError={!!errorFor("contact_first_name")}
                   />
                 </Field>
                 <Field
-                  label="Last Name"
+                  label="Last name"
                   required
-                  error={errors.contact_last_name}
+                  error={errorFor("contact_last_name")}
                 >
                   <TInput
-                    placeholder="Dela Cruz"
+                    placeholder="e.g. Santos"
                     value={form.contact_last_name || ""}
-                    onChange={(val) =>
-                      handleFieldChange("contact_last_name", val)
-                    }
-                    onBlur={() => handleFieldBlur("contact_last_name")}
-                    required
-                    hasError={!!errors.contact_last_name}
+                    onChange={(val) => handleChange("contact_last_name", val)}
+                    onBlur={() => handleBlur("contact_last_name")}
+                    autoComplete="family-name"
+                    hasError={!!errorFor("contact_last_name")}
                   />
                 </Field>
               </div>
 
               <Field
-                label="Email Address"
+                label="Email address"
                 required
-                error={errors.contact_email}
-                hint="Your quotation and updates are sent here."
+                error={errorFor("contact_email")}
+                hint="We send your quotation here."
               >
                 <TInput
                   type="email"
-                  placeholder="juan@example.com"
+                  placeholder="e.g. maria.santos@gmail.com"
                   value={form.contact_email || ""}
-                  onChange={(val) => handleFieldChange("contact_email", val)}
-                  onBlur={() => handleFieldBlur("contact_email")}
-                  required
-                  hasError={!!errors.contact_email}
+                  onChange={(val) => handleChange("contact_email", val)}
+                  onBlur={() => handleBlur("contact_email")}
+                  autoComplete="email"
+                  hasError={!!errorFor("contact_email")}
                 />
               </Field>
             </div>
           </div>
 
-          {/* Phone numbers */}
           <div>
             <SectionTitle icon={Phone}>Phone numbers</SectionTitle>
-            <div className="space-y-3.5">
+            <div className="space-y-3">
               <Field
-                label="Primary Phone"
+                label="Mobile number"
                 required
-                error={errors.contact_phone}
-                hint="Philippine mobile number, e.g. 0917 123 4567."
+                error={errorFor("contact_phone")}
+                hint="Philippine mobile number. Our coordinator calls this one."
               >
                 <TInput
-                  placeholder="(+63) 900 000 0000"
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="e.g. 0917 123 4567"
                   value={form.contact_phone || ""}
-                  onChange={(val) => handleFieldChange("contact_phone", val)}
-                  onBlur={() => handleFieldBlur("contact_phone")}
-                  required
-                  hasError={!!errors.contact_phone}
+                  onChange={(val) => handleChange("contact_phone", val)}
+                  onBlur={() => handleBlur("contact_phone")}
+                  autoComplete="tel"
+                  hasError={!!errorFor("contact_phone")}
                 />
               </Field>
 
               <Field
-                label="Alternative Phone"
-                error={errors.contact_alt_phone}
-                hint={
-                  primaryPhoneFilled
-                    ? "Optional backup contact number."
-                    : undefined
-                }
+                label="Backup number"
+                error={errorFor("contact_alt_phone")}
+                hint="Optional. Someone else we can reach on the event day."
               >
                 <TInput
-                  placeholder={
-                    primaryPhoneFilled ? "Optional" : "Enter primary phone first"
-                  }
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="e.g. 0922 987 6543"
                   value={form.contact_alt_phone || ""}
-                  onChange={(val) => handleFieldChange("contact_alt_phone", val)}
-                  onBlur={() => handleFieldBlur("contact_alt_phone")}
-                  disabled={!primaryPhoneFilled}
-                  hasError={!!errors.contact_alt_phone}
+                  onChange={(val) => handleChange("contact_alt_phone", val)}
+                  onBlur={() => handleBlur("contact_alt_phone")}
+                  hasError={!!errorFor("contact_alt_phone")}
                 />
               </Field>
 
-              <InfoNote icon={Info}>
-                Fields marked <span className="font-semibold text-red-500">*</span>{" "}
-                are required. We only use these details to coordinate your event.
-              </InfoNote>
+              <p className="text-xs text-[#94A3B8]">
+                We use these details only to coordinate your event.
+              </p>
             </div>
           </div>
         </div>

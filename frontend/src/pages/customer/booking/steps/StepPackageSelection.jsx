@@ -1,14 +1,154 @@
-import { Card, SH, SectionTitle, StepShell, focusRing, formatPeso } from "../components/BookingSharedUI";
-import { CheckCircle2, Package2, Users, Ruler } from "lucide-react";
+import { useState } from "react";
+import {
+  Check,
+  CheckCircle2,
+  Package2,
+  Users,
+  Ruler,
+  ChevronDown,
+} from "lucide-react";
+import {
+  Card,
+  SH,
+  SectionTitle,
+  InfoNote,
+  StepShell,
+} from "../components/BookingSharedUI";
+import { focusRing, formatPeso } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
+import EstimateSummary from "../components/EstimateSummary";
+import {
+  PACKAGE_TYPE_BY_SERVICE_TYPE,
+  SERVICE_TYPES,
+} from "../lib/bookingRules";
 
-// The wizard's `service_type` strings don't match the Package model's
-// `package_type` enum 1:1 (e.g. "Food and Event Setup" vs "Food + Event Setup"),
-// so map explicitly instead of comparing the raw strings.
-const PACKAGE_TYPE_BY_SERVICE_TYPE = {
-  "Event Setup Only": "Event Setup Only",
-  "Food and Event Setup": "Food + Event Setup",
-};
+/**
+ * Everything a package brings with it, in one list: the admin's own
+ * `inclusions` copy first, then the equipment rows from `setup_equipment` so a
+ * customer can see the actual tables and chairs rather than guessing.
+ */
+function packageInclusions(pkg) {
+  const written = (pkg?.inclusions || []).filter(Boolean);
+  const equipment = (pkg?.setup_equipment || [])
+    .map((item) => {
+      const name = item?.name || item?.item_name;
+      if (!name) return null;
+      const qty = Number(item?.quantity) || 0;
+      return qty > 1 ? `${name} × ${qty}` : name;
+    })
+    .filter(Boolean);
+  return { written, equipment };
+}
+
+function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
+  const [expanded, setExpanded] = useState(false);
+  const { written, equipment } = packageInclusions(pkg);
+  const all = [...written, ...equipment];
+  // A few inclusions stay visible on every card so packages can be compared
+  // side by side. Hiding all of them behind an accordion meant opening each one
+  // in turn just to see how they differ.
+  const PREVIEW = 3;
+  const preview = expanded ? all : all.slice(0, PREVIEW);
+  const hiddenCount = all.length - preview.length;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col rounded-xl border transition-colors",
+        isSelected
+          ? "border-[#4C81E0] bg-[#4C81E0]/5"
+          : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50",
+      )}
+    >
+      <button
+        type="button"
+        aria-pressed={isSelected}
+        onClick={onSelect}
+        className={cn("flex gap-3 rounded-t-xl p-3.5 text-left", focusRing)}
+      >
+        <span className="block h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F8FAFC]">
+          {pkg.image_url ? (
+            <img src={pkg.image_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-[#CBD5E1]">
+              <Package2 size={20} />
+            </span>
+          )}
+        </span>
+
+        <span className="block min-w-0 flex-1">
+          <span className="flex items-start justify-between gap-2">
+            <span className="truncate text-base font-semibold text-[#1E293B]">
+              {pkg.name}
+            </span>
+            {isSelected && (
+              <CheckCircle2 size={16} className="shrink-0 text-[#4C81E0]" />
+            )}
+          </span>
+          <span className="mt-0.5 block text-[13px] text-[#64748B]">
+            {showPerGuestPrice && pkg.price_per_guest > 0
+              ? `${formatPeso(pkg.price_per_guest)} per guest`
+              : pkg.setup_price > 0
+                ? `${formatPeso(pkg.setup_price)} for the setup`
+                : "Priced on your quotation"}
+          </span>
+          {pkg.description && (
+            <span className="mt-1 line-clamp-2 block text-xs leading-snug text-[#64748B]">
+              {pkg.description}
+            </span>
+          )}
+        </span>
+      </button>
+
+      {all.length > 0 && (
+        <div className="border-t border-[#E2E8F0] px-3.5 py-3">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+            Includes
+          </p>
+          <ul className="space-y-1 text-[13px] text-[#64748B]">
+            {preview.map((line) => (
+              <li key={line} className="flex gap-2">
+                <Check size={13} className="mt-0.5 shrink-0 text-[#4C81E0]" />
+                {line}
+              </li>
+            ))}
+          </ul>
+          {(hiddenCount > 0 || expanded) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((open) => !open)}
+              aria-expanded={expanded}
+              className={cn(
+                "mt-2 inline-flex items-center gap-1 rounded text-[13px] font-medium text-[#4C81E0]",
+                focusRing,
+              )}
+            >
+              {expanded ? "Show less" : `Show ${hiddenCount} more`}
+              <ChevronDown
+                size={14}
+                className={cn("transition-transform", expanded && "rotate-180")}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          "m-3.5 mt-auto rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors",
+          isSelected
+            ? "bg-[#4C81E0] text-white"
+            : "border border-[#E2E8F0] bg-white text-[#1E293B] hover:border-[#4C81E0]",
+          focusRing,
+        )}
+      >
+        {isSelected ? "Selected" : "Choose this package"}
+      </button>
+    </div>
+  );
+}
 
 export default function StepPackageSelection({
   packages = [],
@@ -17,176 +157,116 @@ export default function StepPackageSelection({
   form = {},
   setForm = () => {},
   packageDetails = null,
+  estimate,
+  errors = {},
+  setupCapacity = null,
 }) {
   const targetPackageType =
-    PACKAGE_TYPE_BY_SERVICE_TYPE[form.service_type] || "Event Setup Only";
-  const isOptional = form.service_type === "Food and Event Setup";
+    PACKAGE_TYPE_BY_SERVICE_TYPE[form.service_type] ||
+    PACKAGE_TYPE_BY_SERVICE_TYPE[SERVICE_TYPES.SETUP_ONLY];
+  const isOptional = form.service_type === SERVICE_TYPES.FULL_SERVICE;
 
   const matchingPackages = (packages || []).filter(
     (pkg) => pkg?.package_type === targetPackageType,
   );
 
   const selectedPackage =
-    (packages || []).find((p) => p._id === selectedPackageId) || packageDetails;
-
-  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
-
-  const selectedOptionId = form.selected_scaffold_option_id;
+    (packages || []).find((pkg) => pkg._id === selectedPackageId) ||
+    packageDetails;
 
   const scaffoldOptions = Array.isArray(selectedPackage?.scaffold_size_options)
     ? selectedPackage.scaffold_size_options
     : [];
 
+  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+
   return (
-    <StepShell>
+    <StepShell aside={<EstimateSummary estimate={estimate} />}>
       <SH
-        title={
-          isOptional
-            ? "Start from a Package (Optional)"
-            : "Choose an Event Setup Package"
-        }
+        title={isOptional ? "Start From a Package" : "Choose Your Setup Package"}
         sub={
           isOptional
-            ? "Base your booking on one of our Food + Event Setup packages, or skip ahead and build everything yourself."
-            : "Each package includes setup equipment managed by our team."
+            ? "Optional. A package fixes your per-guest price and the setup we bring. Skip it and we will price your event from scratch."
+            : "Each package sets the price and the equipment we bring. Open one to see what is included."
         }
       />
 
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-4",
-          scaffoldOptions.length > 0 && "lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]",
+      {errors.package_id && (
+        <InfoNote tone="danger" className="mb-4">
+          {errors.package_id}
+        </InfoNote>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {matchingPackages.length > 0 ? (
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-3",
+              matchingPackages.length > 1 && "xl:grid-cols-2",
+            )}
+          >
+            {matchingPackages.map((pkg) => (
+              <PackageCard
+                key={pkg._id}
+                pkg={pkg}
+                isSelected={selectedPackageId === pkg._id}
+                showPerGuestPrice={isOptional}
+                onSelect={() => onSelectPackage(pkg._id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <Card className="p-6 text-center text-sm text-[#64748B]">
+            {isOptional
+              ? "No ready-made packages are available right now. Continue and we will build your event from scratch."
+              : "No setup packages are available right now. Contact us and we will arrange something."}
+          </Card>
         )}
-      >
-        {/* Packages */}
-        <div>
-          {matchingPackages.length > 0 ? (
-            <div className="grid max-h-[56vh] grid-cols-1 gap-3 overflow-y-auto pr-0.5 xl:grid-cols-2">
-              {matchingPackages.map((pkg) => {
-                const isSelected = selectedPackageId === pkg._id;
-                return (
-                  <button
-                    key={pkg._id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => onSelectPackage(pkg._id)}
-                    className={cn(
-                      "flex flex-col rounded-2xl border-2 p-3.5 text-left transition-all",
-                      isSelected
-                        ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm"
-                        : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50 hover:shadow-sm",
-                      focusRing,
-                    )}
-                  >
-                    <span className="flex gap-3">
-                      <span className="block h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#F8FAFC]">
-                        {pkg.image_url ? (
-                          <img
-                            src={pkg.image_url}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex h-full w-full items-center justify-center text-[#CBD5E1]">
-                            <Package2 size={24} />
-                          </span>
-                        )}
-                      </span>
 
-                      <span className="block min-w-0 flex-1">
-                        <span className="flex items-start justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-[#1E293B]">
-                            {pkg.name}
-                          </span>
-                          {isSelected && (
-                            <CheckCircle2
-                              size={17}
-                              className="shrink-0 text-[#4C81E0]"
-                            />
-                          )}
-                        </span>
-                        <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-[#64748B]">
-                          {pkg.description}
-                        </span>
-
-                        {pkg.inclusions?.length > 0 && (
-                          <span className="mt-2 flex flex-wrap gap-1.5">
-                            {pkg.inclusions.slice(0, 4).map((inc, idx) => (
-                              <span
-                                key={idx}
-                                className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] text-[#64748B]"
-                              >
-                                {inc}
-                              </span>
-                            ))}
-                            {pkg.inclusions.length > 4 && (
-                              <span className="px-1 text-[11px] text-[#94A3B8]">
-                                +{pkg.inclusions.length - 4} more
-                              </span>
-                            )}
-                          </span>
-                        )}
-
-                        {isOptional && pkg.price_per_guest > 0 && (
-                          <span className="mt-2 block text-[13px] font-semibold text-[#4C81E0]">
-                            {formatPeso(pkg.price_per_guest)}/pax
-                          </span>
-                        )}
-                      </span>
-                    </span>
-
-                    <span
-                      className={cn(
-                        "mt-3 self-end rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
-                        isSelected
-                          ? "bg-[#4C81E0] text-white"
-                          : "border border-[#E2E8F0] bg-white text-[#64748B]",
-                      )}
-                    >
-                      {isSelected ? "Selected" : "Select package"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <Card className="p-6 text-center text-sm text-[#64748B]">
-              {isOptional
-                ? "No ready-made packages are available right now — continue to build your booking from scratch."
-                : "No event setup packages are available right now. Please check back later."}
-            </Card>
-          )}
-        </div>
-
-        {/* Scaffold size */}
         {selectedPackage && scaffoldOptions.length > 0 && (
-          <Card className="p-4 sm:p-5">
-            <SectionTitle icon={Ruler}>Scaffold size</SectionTitle>
+          <Card className="p-4">
+            <SectionTitle icon={Ruler}>Setup size</SectionTitle>
+            <p className="mb-3 text-[13px] text-[#64748B]">
+              Pick the footprint your venue needs. This sets the setup price.
+            </p>
 
-            <div className="grid max-h-[52vh] grid-cols-1 gap-2.5 overflow-y-auto pr-0.5">
-              {scaffoldOptions.map((opt) => {
-                const isActive = String(opt._id) === String(selectedOptionId);
-                const dimensions = `${opt.width_ft}ft × ${opt.length_ft}ft`;
-                const hasGuestRange = opt.guest_min || opt.guest_max;
+            {/* Capacity is a property of the structure; the guest count stays
+                the customer's own number. This says how the two line up rather
+                than forcing one to match the other. */}
+            {setupCapacity && (
+              <InfoNote
+                tone={setupCapacity.status === "over" ? "danger" : setupCapacity.status === "under" ? "warn" : "success"}
+                className="mb-3"
+              >
+                {setupCapacity.message}
+              </InfoNote>
+            )}
+
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {scaffoldOptions.map((option) => {
+                const isActive =
+                  String(option._id) === String(form.selected_scaffold_option_id);
+                const dimensions = `${option.width_ft}ft × ${option.length_ft}ft`;
+                const hasGuestRange = option.guest_min || option.guest_max;
 
                 return (
                   <button
-                    key={opt._id}
+                    key={option._id}
                     type="button"
                     aria-pressed={isActive}
                     onClick={() =>
                       updateForm({
-                        selected_scaffold_option_id: String(opt._id),
-                        scaffold_width: opt.width_ft || undefined,
-                        scaffold_length: opt.length_ft || undefined,
+                        selected_scaffold_option_id: String(option._id),
+                        scaffold_width: option.width_ft || undefined,
+                        scaffold_length: option.length_ft || undefined,
                         scaffold_base_area:
-                          opt.area_ft2 ||
-                          (opt.width_ft && opt.length_ft
-                            ? opt.width_ft * opt.length_ft
+                          option.area_ft2 ||
+                          (option.width_ft && option.length_ft
+                            ? option.width_ft * option.length_ft
                             : undefined),
-                        scaffold_price: opt.price || undefined,
-                        scaffold_guest_min: opt.guest_min || undefined,
-                        scaffold_guest_max: opt.guest_max || undefined,
+                        scaffold_price: option.price || undefined,
+                        scaffold_guest_min: option.guest_min || undefined,
+                        scaffold_guest_max: option.guest_max || undefined,
                       })
                     }
                     className={cn(
@@ -207,11 +287,11 @@ export default function StepPackageSelection({
                               : "bg-[#F1F5F9] text-[#64748B]",
                           )}
                         >
-                          {opt.width_ft}×{opt.length_ft}
+                          {option.width_ft}×{option.length_ft}
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-[#1E293B]">
-                            {opt.label || dimensions}
+                            {option.label || dimensions}
                           </span>
                           <span className="block text-xs text-[#64748B]">
                             {dimensions}
@@ -224,7 +304,7 @@ export default function StepPackageSelection({
                           Price
                         </span>
                         <span className="block text-sm font-bold tabular-nums text-[#1E293B]">
-                          {formatPeso(opt.price)}
+                          {formatPeso(option.price)}
                         </span>
                       </span>
                     </span>
@@ -239,11 +319,11 @@ export default function StepPackageSelection({
                           )}
                         />
                         <span className="text-xs text-[#64748B]">
-                          {opt.guest_min && opt.guest_max
-                            ? `${opt.guest_min} – ${opt.guest_max} guests`
-                            : opt.guest_min
-                              ? `Min ${opt.guest_min} guests`
-                              : `Up to ${opt.guest_max} guests`}
+                          {option.guest_min && option.guest_max
+                            ? `${option.guest_min}–${option.guest_max} guests`
+                            : option.guest_min
+                              ? `From ${option.guest_min} guests`
+                              : `Up to ${option.guest_max} guests`}
                         </span>
                       </span>
                     )}

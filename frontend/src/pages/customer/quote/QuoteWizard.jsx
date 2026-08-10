@@ -13,6 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Info, ArrowLeft, ArrowRight, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import useBusinessInfo from "../../../hooks/useBusinessInfo";
+import {
+  TermsContent,
+  PrivacyContent,
+} from "../../../components/policy/PolicyDocs";
 
 const stepsByService = {
   food: ["Event Information", "Delivery Address", "Menu Selection", "Dietary Needs", "Contact"],
@@ -84,6 +89,10 @@ export default function QuoteWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // The deposit the Terms quote is the one the backend actually charges
+  // (BusinessInfo.deposit_percentage) rather than a hardcoded 20.
+  const businessInfo = useBusinessInfo();
+  const depositPercentage = businessInfo?.deposit_percentage ?? 20;
   const today = new Date().toISOString().split("T")[0];
   const minDateObj = new Date();
   minDateObj.setDate(minDateObj.getDate() + 3);
@@ -469,30 +478,8 @@ export default function QuoteWizard() {
             <DialogHeader>
               <DialogTitle className="text-xl font-serif">Terms and Conditions</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6 py-4 text-sm text-muted-foreground">
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Booking & Reservation</h4>
-                <p>All bookings are subject to availability. A reservation is only considered confirmed once the client has provided the necessary event details and paid the required deposit.</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Payment Terms</h4>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li><strong>Deposit:</strong> A 20% down payment is required to reserve the date.</li>
-                  <li><strong>Final Payment:</strong> The remaining balance must be paid a day before the event date.</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Cancellation & Refund Policy</h4>
-                <p className="text-destructive font-medium">IMPORTANT: All deposits made are non-refundable and non-transferable. If a booking is canceled by the client for any reason, the deposit will be forfeited to cover administrative costs and lost business opportunities.</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Lost or Damaged Equipment</h4>
-                <p>The client is responsible for the safekeeping of all catering equipment and materials provided during the event. The client will be billed and held financially responsible for the replacement cost of any items that are lost, missing, or damaged during the event.</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Liability</h4>
-                <p>Caezelle's Catering Service is not responsible for any delays or failures in performance due to circumstances beyond our control (e.g., natural disasters, extreme weather, or government restrictions).</p>
-              </div>
+            <div className="py-4">
+              <TermsContent depositPercentage={depositPercentage} />
             </div>
             <DialogFooter>
               <Button onClick={() => setShowTerms(false)}>Close</Button>
@@ -505,23 +492,8 @@ export default function QuoteWizard() {
             <DialogHeader>
               <DialogTitle className="text-xl font-serif">Privacy Policy</DialogTitle>
             </DialogHeader>
-            <div className="space-y-6 py-4 text-sm text-muted-foreground">
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Data Collection</h4>
-                <p>We collect personal information such as your name, contact number, email address, and event details to facilitate your booking and provide our services.</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Use of Information</h4>
-                <p>Your data is used strictly for: processing your catering orders and payments, communicating regarding event logistics, and improving our system's user experience.</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Data Security</h4>
-                <p>We implement secure protocols to protect your information from unauthorized access. We do not sell or share your personal data with third-party marketers.</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-foreground mb-2 text-base">Consent</h4>
-                <p>By using this system and paying the deposit, you agree to the collection of your data and acknowledge the No-Refund Policy stated in our Terms and Conditions.</p>
-              </div>
+            <div className="py-4">
+              <PrivacyContent />
             </div>
             <DialogFooter>
               <Button onClick={() => setShowPrivacy(false)}>Close</Button>

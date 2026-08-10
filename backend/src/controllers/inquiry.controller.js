@@ -1,7 +1,52 @@
 const Inquiry = require("../models/Inquiry");
+const MenuItem = require("../models/MenuItem");
 const asyncHandler = require("../utils/asyncHandler");
+const { resolveGroupId, COURSE_RULES } = require("../utils/menuCategories");
 const { checkInventoryAvailability } = require("./booking.controller"); // Will reuse some inventory checking logic if needed
 
+const FULL_SERVICE = "Food and Event Setup";
+
+/**
+ * Enforces the fixed-count courses for "Food and Event Setup": three main
+ * courses, one vegetable, two desserts.
+ *
+ * The client enforces the same rule while selecting, but the client is not the
+ * authority — a crafted payload must not be able to book a menu that the
+ * kitchen cannot cook. Categories are resolved here from the menu documents
+ * themselves rather than trusting anything the request says about them.
+ *
+ * The requirement for each course is capped by what is actually on the menu
+ * today, so an under-stocked category cannot make submission impossible.
+ * Returns an array of human-readable problems; empty means valid.
+ */
+async function validateCourseSelection(payload) {
+  if (payload.service_type !== FULL_SERVICE) return [];
+
+  const selectedIds = Array.isArray(payload.selected_menu)
+    ? payload.selected_menu.map(String)
+    : [];
+
+  const [selectedItems, availableItems] = await Promise.all([
+    selectedIds.length ? MenuItem.find({ _id: { $in: selectedIds } }, "category") : [],
+    MenuItem.find({ available: { $ne: false } }, "category"),
+  ]);
+
+  const countIn = (items, groupId) =>
+    items.filter((item) => resolveGroupId(item.category) === groupId).length;
+
+  return COURSE_RULES.reduce((problems, rule) => {
+    const offered = countIn(availableItems, rule.groupId);
+    const required = Math.min(rule.required, offered);
+    const chosen = countIn(selectedItems, rule.groupId);
+
+    if (required > 0 && chosen !== required) {
+      problems.push(
+        `Select exactly ${required} ${rule.label} — you selected ${chosen}.`,
+      );
+    }
+    return problems;
+  }, []);
+}
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -18,14 +63,16 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   });
 
   if (recentInquiry) {
-    return res.status(429).json({ 
-      message: "You are submitting inquiries too quickly. Please wait a moment before trying again." 
+    return res.status(429).json({
+      message: "You are submitting inquiries too quickly. Please wait a moment before trying again."
     });
   }
-  
-  // Here we could perform initial availability checks without reserving
-  // e.g., if we know a date is completely blocked
-  
+
+  const courseProblems = await validateCourseSelection(payload);
+  if (courseProblems.length > 0) {
+    return res.status(400).json({ message: courseProblems.join(" ") });
+  }
+
   const inquiry = await Inquiry.create(payload);
   
   const { notifyAdmins } = require("../utils/notify");

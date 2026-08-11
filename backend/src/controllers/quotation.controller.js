@@ -17,6 +17,7 @@ exports.createQuotation = asyncHandler(async (req, res) => {
 
   // Validate numeric fields to prevent negative values
   const numericCheck = [
+    { field: "package_price", label: "Package price" },
     { field: "transportation_fee", label: "Transportation fee" },
     { field: "equipment_fee", label: "Equipment fee" },
     { field: "decoration_fee", label: "Decoration fee" },

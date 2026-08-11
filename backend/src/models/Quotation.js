@@ -9,6 +9,8 @@ const QuotationSchema = new mongoose.Schema(
     // Details cloned from Inquiry/Package to lock in the quote
     package_id: { type: mongoose.Schema.Types.ObjectId, ref: "Package" },
     package_name: String,
+    package_price: { type: Number, default: 0 },
+    package_inclusions: [String],
     guest_count: Number,
     
     menu_items: [
@@ -24,6 +26,7 @@ const QuotationSchema = new mongoose.Schema(
         name: String,
         quantity: Number,
         price: Number,
+        pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
       },
     ],
     

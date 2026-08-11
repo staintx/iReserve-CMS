@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit3, Trash2, Check, XCircle } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, XCircle, Tag } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -17,7 +17,13 @@ export default function AdminAddons() {
   
   const [showModal, setShowModal] = useState(false);
   const [activeAddon, setActiveAddon] = useState(null);
-  const [formData, setFormData] = useState({ name: "", price: 0, description: "", available: true });
+  const [formData, setFormData] = useState({
+    name: "",
+    price: 0,
+    description: "",
+    pricing_type: "fixed",
+    available: true
+  });
   
   const [cancelTarget, setCancelTarget] = useState(null);
 
@@ -42,11 +48,18 @@ export default function AdminAddons() {
         name: addon.name,
         price: addon.price,
         description: addon.description || "",
+        pricing_type: addon.pricing_type || "fixed",
         available: addon.available
       });
     } else {
       setActiveAddon(null);
-      setFormData({ name: "", price: 0, description: "", available: true });
+      setFormData({
+        name: "",
+        price: 0,
+        description: "",
+        pricing_type: "fixed",
+        available: true
+      });
     }
     setShowModal(true);
   };
@@ -96,7 +109,7 @@ export default function AdminAddons() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground" style={{ fontFamily: "Playfair Display, serif" }}>Global Addons</h2>
-            <p className="text-sm text-muted-foreground mt-1">Manage addons available for custom bookings</p>
+            <p className="text-sm text-muted-foreground mt-1">Manage fixed and quantity-based addons available for custom bookings</p>
           </div>
           <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
             <Plus size={13} /> New Addon
@@ -114,6 +127,7 @@ export default function AdminAddons() {
                 <thead className="bg-background border-b border-gray-100 text-muted-foreground">
                   <tr>
                     <th className="px-6 py-4 font-medium">Addon Name</th>
+                    <th className="px-6 py-4 font-medium">Pricing Type</th>
                     <th className="px-6 py-4 font-medium">Description</th>
                     <th className="px-6 py-4 font-medium">Price</th>
                     <th className="px-6 py-4 font-medium">Status</th>
@@ -125,6 +139,17 @@ export default function AdminAddons() {
                     <tr key={addon._id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-medium text-foreground">{addon.name}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {addon.pricing_type === "quantity" ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            <Tag size={12} /> Quantity-Based
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            <Tag size={12} /> Fixed / One-Time
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">
                         {addon.description || "—"}
@@ -177,8 +202,20 @@ export default function AdminAddons() {
                 className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Standee, Candy Corner"
+                placeholder="e.g. Entourage Setup, Extra Chairs"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pricing / Quantity Type *</label>
+              <select
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-white"
+                value={formData.pricing_type || "fixed"}
+                onChange={(e) => setFormData({ ...formData, pricing_type: e.target.value })}
+              >
+                <option value="fixed">Fixed / One-Time (Single fee, e.g. Entourage Setup, Lights & Sound)</option>
+                <option value="quantity">Quantity-Based (Price × Quantity, e.g. Extra Chairs, Extra Tables)</option>
+              </select>
             </div>
             
             <div>

@@ -50,6 +50,7 @@ const PackageSchema = new mongoose.Schema(
       {
         name: String,
         price: Number,
+        pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
       },
     ],
     image_url: String,

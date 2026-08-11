@@ -74,6 +74,7 @@ const BookingSchema = new mongoose.Schema(
         name: String,
         quantity: Number,
         price: Number,
+        pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
       },
     ],
 
@@ -244,7 +245,7 @@ const BookingSchema = new mongoose.Schema(
         enum: ["pending", "requested", "scheduled", "completed", "skipped"],
         default: "pending",
       },
-      outcome: { type: String, enum: ["proceed", "cancel", "reschedule"] },
+      outcome: { type: String, enum: ["proceed", "cancel", "reschedule", "revise"] },
       notes: String,
       completed_at: Date,
     },

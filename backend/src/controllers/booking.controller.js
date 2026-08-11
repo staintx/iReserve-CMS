@@ -1442,11 +1442,11 @@ exports.completeOcular = asyncHandler(async (req, res) => {
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
   const { outcome, notes } = req.body;
-  if (!outcome || !["proceed", "cancel", "reschedule"].includes(outcome)) {
+  if (!outcome || !["proceed", "cancel", "reschedule", "revise"].includes(outcome)) {
     return res
       .status(400)
       .json({
-        message: "Outcome must be 'proceed', 'cancel', or 'reschedule'",
+        message: "Outcome must be 'proceed', 'cancel', 'reschedule', or 'revise'",
       });
   }
 
@@ -1457,6 +1457,12 @@ exports.completeOcular = asyncHandler(async (req, res) => {
     notes: notes || booking.ocular_visit?.notes || "",
     completed_at: new Date(),
   };
+
+  if (outcome === "cancel") {
+    booking.status = "cancelled";
+    booking.payment_status = "refund_requested";
+  }
+
   await booking.save();
 
   const io = req.app.get("io");
@@ -1474,6 +1480,10 @@ exports.completeOcular = asyncHandler(async (req, res) => {
       title = "Ocular Visit — Reschedule Needed";
       body =
         "Based on the ocular visit, a reschedule is recommended. We will contact you shortly.";
+    } else if (outcome === "revise") {
+      title = "Ocular Visit — Booking Revision Requested";
+      body =
+        "Based on the site inspection measurements and layout review, a booking revision has been requested. Please review the updated setup details under your booking.";
     }
     await createNotification(
       {
@@ -1488,14 +1498,16 @@ exports.completeOcular = asyncHandler(async (req, res) => {
     );
   }
 
-  await logAction({
-    user_id: req.user._id,
-    action: "ocular_completed",
-    entity_type: "booking",
-    entity_id: booking._id,
-    details: `Ocular visit completed with outcome: ${outcome}`,
-    ip_address: req.ip,
-  });
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "ocular_completed",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Ocular visit completed with outcome: ${outcome}`,
+      ip_address: req.ip,
+    });
+  }
 
   res.json(booking);
 });
@@ -1715,36 +1727,7 @@ exports.scheduleOcular = asyncHandler(async (req, res) => {
   res.json(booking);
 });
 
-exports.completeOcular = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id);
-  if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-  if (!booking.ocular_visit) booking.ocular_visit = {};
-  booking.ocular_visit.status = "completed";
-  booking.ocular_visit.outcome = req.body.outcome; // 'proceed', 'cancel', 'revise'
-  booking.ocular_visit.notes = req.body.notes;
-  booking.ocular_visit.completed_at = new Date();
-
-  if (req.body.outcome === 'cancel') {
-    booking.status = 'cancelled';
-    booking.payment_status = 'refund_requested';
-  }
-
-  await booking.save();
-
-  if (req.user) {
-    await logAction({
-      user_id: req.user._id,
-      action: "ocular_completed",
-      entity_type: "booking",
-      entity_id: booking._id,
-      details: `Ocular visit completed with outcome: ${req.body.outcome}`,
-      ip_address: req.ip,
-    });
-  }
-
-  res.json(booking);
-});
 
 exports.requestOcular = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id });

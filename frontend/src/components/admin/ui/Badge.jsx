@@ -2,10 +2,10 @@ export default function Badge({ status }) {
   const map = {
     confirmed: "bg-emerald-100 text-emerald-700",
     pending: "bg-amber-100 text-amber-700",
-    completed: "bg-blue-100 text-blue-700",
-    cancelled: "bg-red-100 text-red-600",
+    completed: "bg-emerald-100 text-emerald-700",
+    cancelled: "bg-rose-100 text-rose-600",
     refunded: "bg-purple-100 text-purple-700",
-    "ocular-pending": "bg-cyan-100 text-cyan-700",
+    "ocular-pending": "bg-amber-100 text-amber-700",
     Paid: "bg-emerald-100 text-emerald-700",
     Pending: "bg-amber-100 text-amber-700",
     ok: "bg-emerald-100 text-emerald-700",
@@ -16,7 +16,7 @@ export default function Badge({ status }) {
     off: "bg-gray-100 text-gray-500",
     approved: "bg-emerald-100 text-emerald-700",
     rejected: "bg-red-100 text-red-600",
-    scheduled: "bg-cyan-100 text-cyan-700",
+    scheduled: "bg-blue-100 text-blue-800 border border-blue-200",
     VIP: "bg-amber-100 text-amber-700",
     Corporate: "bg-blue-100 text-blue-700",
     Regular: "bg-gray-100 text-gray-600",
@@ -30,6 +30,9 @@ export default function Badge({ status }) {
     "Under Review": "bg-blue-100 text-blue-800 border border-blue-200",
     "Quotation Sent": "bg-blue-100 text-blue-800 border border-blue-200",
     "Revision Requested": "bg-orange-100 text-orange-800 border border-orange-200",
+    "Revision Needed": "bg-orange-100 text-orange-800 border border-orange-200",
+    "Needs Revision": "bg-orange-100 text-orange-800 border border-orange-200",
+    "Requires Revision": "bg-orange-100 text-orange-800 border border-orange-200",
     "Quote Accepted": "bg-emerald-100 text-emerald-800 border border-emerald-200",
     "Awaiting Final Confirmation": "bg-purple-100 text-purple-800 border border-purple-200",
     "change requests": "bg-indigo-100 text-indigo-800 border border-indigo-200",
@@ -38,14 +41,22 @@ export default function Badge({ status }) {
     "Deposit Pending": "bg-amber-100 text-amber-800 border border-amber-200",
     "Confirmed": "bg-emerald-100 text-emerald-800 border border-emerald-200",
     "Converted to Booking": "bg-emerald-100 text-emerald-800 border border-emerald-200",
-    "Cancelled": "bg-red-100 text-red-700 border border-red-200",
+    "Cancelled": "bg-rose-100 text-rose-700 border border-rose-200",
     "Quote Rejected": "bg-red-100 text-red-700 border border-red-200",
     "Expired": "bg-gray-100 text-gray-700 border border-gray-200",
     "Ocular Scheduled": "bg-blue-100 text-blue-800 border border-blue-200",
+    "Requested": "bg-amber-100 text-amber-800 border border-amber-200",
+    "requested": "bg-amber-100 text-amber-800 border border-amber-200",
+    "Scheduled": "bg-blue-100 text-blue-800 border border-blue-200",
+    "Completed": "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    "Inspection Passed": "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    "Pending Inspection": "bg-slate-100 text-slate-700 border border-slate-200",
+    "Reschedule Needed": "bg-purple-100 text-purple-800 border border-purple-200",
+    "reschedule": "bg-purple-100 text-purple-800 border border-purple-200",
   };
-  const cls = map[status] || "bg-gray-100 text-gray-600";
+  const cls = map[status] || map[String(status).toLowerCase()] || "bg-gray-100 text-gray-600";
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${cls}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
       {status}
     </span>
   );

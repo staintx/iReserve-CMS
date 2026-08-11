@@ -26,6 +26,7 @@ export const CustomerAPI = {
   getAvailableTimes: (params) => api.get("/bookings/available-times", { params }),
   suggestDates: (params) => api.get("/bookings/availability/suggestions", { params }),
   getBookedDates: (month, year) => api.get(`/bookings/booked-dates?month=${month}&year=${year}`),
+  getBlockedDates: () => api.get("/blocked-dates"),
   getInquiries: () => api.get("/inquiries"),
   cancelInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "cancelled" }),
   acceptInquiry: (id) => api.patch(`/inquiries/me/${id}/status`, { status: "confirmed" }),

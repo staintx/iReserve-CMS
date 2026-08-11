@@ -1,4 +1,5 @@
 const Inquiry = require("../models/Inquiry");
+const BlockedDate = require("../models/BlockedDate");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkInventoryAvailability } = require("./booking.controller"); // Will reuse some inventory checking logic if needed
 
@@ -9,6 +10,27 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     ...req.body,
     customer_id: req.user?._id || req.body.customer_id
   };
+
+  // Check if requested date is blocked by admin
+  if (payload.event_date) {
+    const parsedDate = new Date(payload.event_date);
+    if (!isNaN(parsedDate.getTime())) {
+      const startOfDay = new Date(parsedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(parsedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const blocked = await BlockedDate.findOne({
+        date: { $gte: startOfDay, $lte: endOfDay }
+      });
+
+      if (blocked) {
+        return res.status(400).json({
+          message: `The selected date (${payload.event_date}) is blocked for inquiries and bookings (${blocked.reason || 'Blocked by administration'}). Please select a different date.`
+        });
+      }
+    }
+  }
 
   // Anti-spam check: prevent duplicate submissions within 60 seconds
   const oneMinuteAgo = new Date(Date.now() - 60 * 1000);

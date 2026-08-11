@@ -3551,3 +3551,62 @@
   background: #FEF2F2;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   PRINT STYLES (Printable Invoice & Receipts)
+   ═══════════════════════════════════════════════════════════════ */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
+
+  /* Hide UI components not part of the printed document */
+  nav,
+  aside,
+  header,
+  .admin-sidebar,
+  .admin-header,
+  .admin-shell > header,
+  .admin-shell > aside,
+  .no-print,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset main container layout to fit single print document */
+  main,
+  .admin-shell,
+  .admin-main,
+  .admin-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    width: 100% !important;
+  }
+
+  /* Make printable invoice full-width on paper */
+  .printable-invoice {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+}
+
+

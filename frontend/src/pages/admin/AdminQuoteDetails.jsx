@@ -5,14 +5,17 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import Modal from "../../components/common/Modal";
 import QuotationBuilderModal from "../../components/admin/quotation/QuotationBuilderModal";
+import ConvertBookingModal from "../../components/admin/quotation/ConvertBookingModal";
 import { 
   User, Mail, Phone, Calendar, Clock, MapPin, 
   DollarSign, Info, List, ArrowLeft, CheckCircle2,
-  FileText, Activity, Utensils, Send, RefreshCw
+  FileText, Activity, Utensils, Send, RefreshCw,
+  Package as PackageIcon, Users, AlertTriangle, Layers
 } from "lucide-react";
 import Badge from "../../components/admin/ui/Badge";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { pendingChangeRequestOf } from "../../utils/quotationDiff";
+import { priceLabel, capacityLabel } from "../../lib/packageDisplay";
 
 const DetailCard = ({ title, icon: Icon, children }) => (
   <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow duration-300">
@@ -278,10 +281,117 @@ export default function AdminQuoteDetails() {
           
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Selected Package Card */}
+            <DetailCard title="Selected Package" icon={PackageIcon}>
+              {quote.package_id && typeof quote.package_id === "object" ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {quote.package_id.image_url ? (
+                        <img
+                          src={quote.package_id.image_url}
+                          alt={quote.package_id.name}
+                          className="w-16 h-16 rounded-lg object-cover border border-slate-200 shadow-sm shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 border border-primary/20">
+                          <PackageIcon size={28} />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-900 text-lg leading-snug truncate">
+                          {quote.package_id.name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          {quote.package_id.package_type && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                              {quote.package_id.package_type}
+                            </span>
+                          )}
+                          {quote.package_id.event_type && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-700 text-xs font-medium">
+                              {quote.package_id.event_type}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200 shrink-0">
+                      <span className="text-[0.7rem] uppercase tracking-wider text-slate-400 font-bold block">
+                        Base Pricing
+                      </span>
+                      <span className="text-base font-bold text-slate-900">
+                        {priceLabel(quote.package_id)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    {capacityLabel(quote.package_id) && (
+                      <div className="flex items-center gap-2.5 text-slate-700 bg-white p-3 rounded-lg border border-slate-100">
+                        <Users size={16} className="text-slate-400 shrink-0" />
+                        <div>
+                          <span className="text-[0.7rem] uppercase tracking-wider text-slate-400 font-bold block">Guest Capacity</span>
+                          <span className="font-semibold text-slate-800">{capacityLabel(quote.package_id)}</span>
+                        </div>
+                      </div>
+                    )}
+                    {quote.package_id.description && (
+                      <div className="flex items-start gap-2.5 text-slate-700 bg-white p-3 rounded-lg border border-slate-100 sm:col-span-2">
+                        <Info size={16} className="text-slate-400 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="text-[0.7rem] uppercase tracking-wider text-slate-400 font-bold block">Package Summary</span>
+                          <span className="text-slate-700">{quote.package_id.description}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {Array.isArray(quote.package_id.inclusions) && quote.package_id.inclusions.length > 0 && (
+                    <div className="pt-2">
+                      <span className="text-[0.7rem] uppercase tracking-wider font-bold text-slate-400 block mb-2">
+                        Included Services &amp; Inclusions ({quote.package_id.inclusions.length})
+                      </span>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {quote.package_id.inclusions.map((inc, i) => (
+                          <li key={i} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-md text-slate-700 border border-slate-100 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="truncate">{inc}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : quote.had_package_selection ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                  <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                  <div>
+                    <h4 className="font-bold text-amber-900 text-sm">Selected Package Unavailable</h4>
+                    <p className="text-xs text-amber-700 mt-1">
+                      The customer originally selected a package for this inquiry, but the package details are no longer available in the database (it may have been deleted or removed).
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-3 text-slate-600">
+                  <PackageIcon className="text-slate-400 shrink-0" size={20} />
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">Custom Inquiry (No Package Selected)</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      No preset package was chosen. The customer submitted event requirements to build a custom quote from scratch.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </DetailCard>
             
             {/* Event Specifics Card */}
             <DetailCard title="Event Specifics" icon={Calendar}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+                <DetailRow icon={Layers} label="Service Type" value={quote.service_type || (quote.include_food === false ? "Event Setup Only" : "Food and Event Setup")} />
                 <DetailRow icon={Utensils} label="Event Type" value={quote.event_type} />
                 <DetailRow icon={User} label="Guest Count" value={quote.guest_count ? `${quote.guest_count} Pax` : null} />
                 <DetailRow icon={Calendar} label="Event Date">
@@ -304,42 +414,56 @@ export default function AdminQuoteDetails() {
               </div>
             </DetailCard>
 
-            {/* Food & Service Details Card */}
-            {(quote.selected_menu?.length > 0 || quote.service_items?.length > 0) && (
-              <DetailCard title="Food & Service Order" icon={Utensils}>
-                {quote.selected_menu?.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Menu</h4>
-                    <div className="space-y-2">
-                      {quote.selected_menu.map((menu, i) => (
-                        <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
-                          <span className="font-medium text-slate-700">{menu.name || (typeof menu === 'string' ? menu : "Menu Item")}</span>
-                          {menu.price > 0 && <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>}
-                        </div>
-                      ))}
-                    </div>
+            {/* Food & Service / Add-ons Details Card */}
+            <DetailCard title={quote.service_type === "Event Setup Only" ? "Add-ons & Equipment Services" : "Food & Service Order"} icon={quote.service_type === "Event Setup Only" ? Layers : Utensils}>
+              {quote.service_type !== "Event Setup Only" && quote.selected_menu?.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Menu</h4>
+                  <div className="space-y-2">
+                    {quote.selected_menu.map((menu, i) => (
+                      <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
+                        <span className="font-medium text-slate-700">{menu.name || (typeof menu === 'string' ? menu : "Menu Item")}</span>
+                        {menu.price > 0 && <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>}
+                      </div>
+                    ))}
                   </div>
-                )}
-                {quote.service_items?.length > 0 && (
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Add-ons / Services</h4>
-                    <div className="space-y-2">
-                      {quote.service_items.map((svc, i) => (
-                        <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
-                          <div>
-                            <span className="font-medium text-slate-700 block">{svc.name}</span>
-                            {svc.description && <span className="text-xs text-slate-400">{svc.description}</span>}
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-semibold text-slate-500">₱{svc.price} <span className="text-xs font-normal">x{svc.quantity}</span></span>
-                          </div>
+                </div>
+              )}
+              {(quote.service_items?.length > 0 || quote.additional_services?.length > 0) ? (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Add-ons &amp; Additional Services</h4>
+                  <div className="space-y-2">
+                    {quote.service_items?.map((svc, i) => (
+                      <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
+                        <div>
+                          <span className="font-medium text-slate-700 block">{svc.name || "Add-on"}</span>
+                          {svc.description && <span className="text-xs text-slate-400">{svc.description}</span>}
                         </div>
-                      ))}
-                    </div>
+                        <div className="text-right">
+                          <span className="text-sm font-semibold text-slate-500">
+                            {svc.price > 0 ? `₱${svc.price}` : "Selected"} {svc.quantity > 1 ? <span className="text-xs font-normal">x{svc.quantity}</span> : null}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {Array.isArray(quote.additional_services) && quote.additional_services.map((svcName, i) => (
+                      <div key={`add-${i}`} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
+                        <span className="font-medium text-slate-700">{svcName}</span>
+                        <span className="text-xs font-semibold text-slate-500 px-2.5 py-1 bg-white rounded border border-slate-200">Selected Service</span>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </DetailCard>
-            )}
+                </div>
+              ) : quote.service_type === "Event Setup Only" ? (
+                <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500">
+                  No custom add-ons requested beyond package setup inclusions.
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500">
+                  No specific menu items or add-ons selected.
+                </div>
+              )}
+            </DetailCard>
 
             {/* Preferences & Requests Card */}
             <DetailCard title="Preferences & Special Requests" icon={List}>
@@ -441,10 +565,10 @@ export default function AdminQuoteDetails() {
       )}
 
       {showConfirmConvert && (
-        <ConfirmDialog
-          title="Convert Quotation to Confirmed Booking"
-          message={`Are you sure you want to finalize and convert this accepted quotation into an active Reservation for ${quote.contact_first_name || 'the customer'} (${quote.event_type || 'Event'} on ${quote.event_date ? new Date(quote.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"})? This will lock the reservation date and reserve package inventory.`}
-          confirmText={submitting ? "Converting..." : "Yes, Convert to Booking"}
+        <ConvertBookingModal
+          quote={quote}
+          submitting={submitting}
+          onClose={() => setShowConfirmConvert(false)}
           onConfirm={() => {
             setSubmitting(true);
             AdminAPI.createBookingFromInquiry(quote._id, {})
@@ -458,7 +582,6 @@ export default function AdminQuoteDetails() {
               })
               .finally(() => setSubmitting(false));
           }}
-          onCancel={() => setShowConfirmConvert(false)}
         />
       )}
 

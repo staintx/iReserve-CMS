@@ -103,12 +103,14 @@ export default function QuoteWizard() {
   const [bookingRef, setBookingRef] = useState("");
 
   const initialEventType = location.state?.eventType || "";
+  const initialPackageId = location.state?.packageId || location.state?.package_id || null;
   const validEventTypes = ["Birthday", "Wedding", "Corporate"];
   const matchedType = validEventTypes.find(t => t.toLowerCase() === initialEventType.toLowerCase());
   const isOther = initialEventType && !matchedType;
 
   const [form, setForm] = useState({
     customer_id: user?._id || "",
+    package_id: initialPackageId || "",
     service_type: "food",
     event_type: matchedType || (isOther ? "Other" : ""),
     event_type_other: isOther ? initialEventType : "",
@@ -328,12 +330,13 @@ export default function QuoteWizard() {
       allergies: form.allergies,
       special_requests: specialNotes || undefined,
       additional_services: uniqueAdditionalServices,
+      package_id: form.package_id || initialPackageId || undefined,
       contact_first_name: contactFirstName,
       contact_last_name: contactLastName,
       contact_email: form.email,
       contact_phone: form.phone,
       contact_method: contactMethods.join(", ") || undefined,
-      status: "new"
+      status: "Pending Review"
     };
   };
 
@@ -734,7 +737,6 @@ export default function QuoteWizard() {
                                 event_type: e.target.value,
                                 event_type_other: e.target.value === "Other" ? form.event_type_other : ""
                               })}
-                              disabled={!!initialEventType}
                             >
                               <option value="">Select event type</option>
                               <option value="Birthday">Birthday</option>
@@ -752,7 +754,6 @@ export default function QuoteWizard() {
                                 placeholder="Anniversary, Christening, etc."
                                 value={form.event_type_other}
                                 onChange={(e) => setForm({ ...form, event_type_other: e.target.value })}
-                                disabled={!!initialEventType}
                               />
                               {errors.event_type_other && <p className="text-xs text-destructive mt-1">{errors.event_type_other}</p>}
                             </div>

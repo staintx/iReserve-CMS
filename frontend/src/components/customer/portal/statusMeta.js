@@ -177,12 +177,19 @@ export const inquiryStatusMeta = (inquiry) => {
       };
 
     case "Pending Review":
-    case "Under Review":
       return {
         tone: "warning",
+        label: "Pending Review",
+        icon: Clock,
+        notice: { tone: "warning", title: "Inquiry Received — Pending Review", text: "Your inquiry has been submitted and is awaiting initial review by our team." },
+      };
+
+    case "Under Review":
+      return {
+        tone: "info",
         label: "Under Review",
         icon: Clock,
-        notice: { tone: "warning", title: "We're reviewing your request.", text: "We're checking availability and preparing your quote. Nothing is needed from you right now." },
+        notice: { tone: "info", title: "Under Review by Admin", text: "Our team is currently reviewing your event requirements, checking availability, and preparing your quotation." },
       };
 
     case "Waiting for Customer":

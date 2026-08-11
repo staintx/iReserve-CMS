@@ -33,6 +33,7 @@ import Badge from "../../components/admin/ui/Badge";
 import AssignEquipmentModal from "../../components/admin/ui/AssignEquipmentModal";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
+import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -255,13 +256,69 @@ export default function AdminBookingDetails() {
       .catch((err) => notify(err.response?.data?.message || "Failed to resolve change request.", "error"));
   };
 
+  const handleOpenEditModal = () => {
+    if (booking) {
+      let dateVal = "";
+      if (booking.event_date) {
+        try {
+          dateVal = new Date(booking.event_date).toISOString().split("T")[0];
+        } catch {
+          dateVal = "";
+        }
+      }
+      setEditForm({
+        event_date: dateVal,
+        start_time: booking.start_time || "",
+        guest_count: booking.guest_count || "",
+        total_price: booking.total_price || "",
+        venue_type: booking.venue_type || "",
+        status: booking.status || "confirmed"
+      });
+      setRevisionNote("");
+      setProposeToCustomer(true);
+    }
+    setShowEditModal(true);
+  };
+
   const handleUpdateDetails = (e) => {
     e.preventDefault();
+
+    if (!editForm.event_date) {
+      notify("Please select a valid target event date.", "error");
+      return;
+    }
+
+    if (!editForm.start_time || !String(editForm.start_time).trim()) {
+      notify("Please specify the event start time.", "error");
+      return;
+    }
+
+    if (editForm.guest_count === "" || Number(editForm.guest_count) <= 0) {
+      notify("Please enter a valid guest count greater than 0.", "error");
+      return;
+    }
+
+    if (editForm.total_price === "" || editForm.total_price === null || Number(editForm.total_price) < 0) {
+      notify("Please enter a valid total price (cannot be negative).", "error");
+      return;
+    }
+
+    if (!editForm.venue_type || !String(editForm.venue_type).trim()) {
+      notify("Please specify the venue type or location.", "error");
+      return;
+    }
+
+    if (proposeToCustomer && (!revisionNote || !revisionNote.trim())) {
+      notify("Please provide a revision note / reason for this proposal so the customer understands the changes.", "error");
+      return;
+    }
 
     if (proposeToCustomer) {
       AdminAPI.proposeRevision(booking._id, {
         ...editForm,
-        message: revisionNote || "Admin proposed booking revisions"
+        guest_count: Number(editForm.guest_count),
+        total_price: Number(editForm.total_price),
+        message: revisionNote.trim()
       })
       .then(() => {
         notify("Revised booking proposal sent to customer for confirmation!", "success");
@@ -271,7 +328,12 @@ export default function AdminBookingDetails() {
       })
       .catch((err) => notify(err.response?.data?.message || "Failed to propose revision.", "error"));
     } else {
-      AdminAPI.updateBooking(booking._id, { ...editForm, revision_note: revisionNote })
+      AdminAPI.updateBooking(booking._id, { 
+        ...editForm, 
+        guest_count: Number(editForm.guest_count),
+        total_price: Number(editForm.total_price),
+        revision_note: revisionNote ? revisionNote.trim() : undefined 
+      })
         .then(() => {
           notify("Booking details updated successfully.", "success");
           setShowEditModal(false);
@@ -367,7 +429,7 @@ export default function AdminBookingDetails() {
             )}
 
             {!["cancelled", "completed"].includes(rawStatus) && (
-              <Btn size="sm" variant="secondary" onClick={() => setShowEditModal(true)}>
+              <Btn size="sm" variant="secondary" onClick={handleOpenEditModal}>
                 <Edit size={13} /> Propose / Edit Details
               </Btn>
             )}
@@ -860,6 +922,9 @@ export default function AdminBookingDetails() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Printable Invoice / Official Receipt for window.print() */}
+        <PrintableInvoice booking={booking} payments={payments} />
 
       </div>
     </AdminLayout>

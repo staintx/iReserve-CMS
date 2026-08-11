@@ -1852,6 +1852,21 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
 
   const { proposed_changes, message, total_price, event_date, start_time, guest_count, venue_type, service_type, menu_items, service_items, additional_charges, special_requests } = req.body;
 
+  if (proposedBy === "admin") {
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ message: "A revision note / reason for the proposal is required." });
+    }
+    if (guest_count !== undefined && (guest_count === "" || Number(guest_count) <= 0)) {
+      return res.status(400).json({ message: "Guest count must be a valid number greater than 0." });
+    }
+    if (total_price !== undefined && (total_price === "" || Number(total_price) < 0)) {
+      return res.status(400).json({ message: "Total price cannot be negative." });
+    }
+    if (event_date !== undefined && !event_date) {
+      return res.status(400).json({ message: "Target event date is required." });
+    }
+  }
+
   const currentPrice = Number(booking.total_price) || 0;
   const newPrice = total_price !== undefined ? Number(total_price) : currentPrice;
   const priceDifference = newPrice - currentPrice;

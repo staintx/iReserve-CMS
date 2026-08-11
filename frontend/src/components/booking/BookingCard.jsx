@@ -4,6 +4,7 @@ import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import OcularDatePickerModal from "../customer/OcularDatePickerModal";
 import RecordCard from "../customer/portal/RecordCard";
 import DetailGrid from "../customer/portal/DetailGrid";
 import StateNotice from "../customer/portal/StateNotice";
@@ -69,16 +70,16 @@ export default function BookingCard({
   const status = bookingStatusMeta(booking, { balance });
 
   // Ocular Visit Request Handler
-  const handleOcularRequest = async () => {
-    if (!ocularDate) {
+  const handleOcularRequest = async (selectedDate, selectedTime) => {
+    if (!selectedDate) {
       notify("Please select a date for the ocular visit.", "error");
       return;
     }
     try {
       setIsRequestingOcular(true);
       await CustomerAPI.requestOcular(booking._id, {
-        scheduled_date: ocularDate,
-        scheduled_time: ocularTime
+        scheduled_date: selectedDate,
+        scheduled_time: selectedTime
       });
       notify("Ocular visit schedule requested.", "success");
       setShowOcularForm(false);
@@ -196,42 +197,22 @@ export default function BookingCard({
                 {formatShortDate(booking.ocular_visit.scheduled_date)} {booking.ocular_visit.scheduled_time || ""}
               </span>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => setShowOcularForm(!showOcularForm)}>
-                {showOcularForm ? "Cancel" : "Request a date"}
+              <Button variant="outline" size="sm" onClick={() => setShowOcularForm(true)}>
+                Request a date
               </Button>
             )}
           </div>
 
           {showOcularForm && (
-            <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-4">
-              <div className="space-y-1.5">
-                <label htmlFor={`ocular-date-${booking._id}`} className="block text-xs font-medium text-muted-foreground">
-                  Preferred date
-                </label>
-                <input
-                  id={`ocular-date-${booking._id}`}
-                  type="date"
-                  value={ocularDate}
-                  onChange={(e) => setOcularDate(e.target.value)}
-                  className="h-9 rounded-lg border border-border bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor={`ocular-time-${booking._id}`} className="block text-xs font-medium text-muted-foreground">
-                  Preferred time
-                </label>
-                <input
-                  id={`ocular-time-${booking._id}`}
-                  type="time"
-                  value={ocularTime}
-                  onChange={(e) => setOcularTime(e.target.value)}
-                  className="h-9 rounded-lg border border-border bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-              </div>
-              <Button onClick={handleOcularRequest} disabled={isRequestingOcular}>
-                {isRequestingOcular ? "Submitting…" : "Request visit"}
-              </Button>
-            </div>
+            <OcularDatePickerModal
+              open={showOcularForm}
+              onClose={() => setShowOcularForm(false)}
+              onSubmit={(date, time) => handleOcularRequest(date, time)}
+              initialDate={ocularDate}
+              initialTime={ocularTime}
+              submitting={isRequestingOcular}
+              eventTitle={recordTitle(booking)}
+            />
           )}
         </div>
       )}

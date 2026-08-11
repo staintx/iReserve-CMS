@@ -87,7 +87,6 @@ export default function StepEventDetails({
                 }
                 options={["Birthday", "Wedding", "Corporate", "Other"]}
                 placeholder="Select event type"
-                disabled={!!initialEventType}
               />
             </Field>
 
@@ -97,7 +96,6 @@ export default function StepEventDetails({
                   placeholder="Anniversary, Christening, etc."
                   value={form.event_type_other}
                   onChange={(val) => setForm({ ...form, event_type_other: val })}
-                  disabled={!!initialEventType}
                 />
               </Field>
             )}

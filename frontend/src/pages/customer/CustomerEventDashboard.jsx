@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
+import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
 import { 
@@ -371,9 +372,8 @@ export default function CustomerEventDashboard() {
   };
 
 
-  const submitOcularRequest = async (event) => {
-    event.preventDefault();
-    if (!ocularDate) {
+  const submitOcularRequest = async (selectedDate, selectedTime) => {
+    if (!selectedDate) {
       notify("Please select a date for the ocular visit.", "error");
       return;
     }
@@ -381,8 +381,8 @@ export default function CustomerEventDashboard() {
     try {
       setIsSubmittingOcular(true);
       await CustomerAPI.requestOcular(booking._id, {
-        scheduled_date: ocularDate,
-        scheduled_time: ocularTime
+        scheduled_date: selectedDate,
+        scheduled_time: selectedTime
       });
       notify("Ocular visit requested successfully.", "success");
       setRequestingOcular(false);
@@ -1535,47 +1535,18 @@ export default function CustomerEventDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Request Ocular Dialog */}
-      <Dialog open={requestingOcular} onOpenChange={setRequestingOcular}>
-        <DialogContent className="sm:max-w-[425px]">
-          <form onSubmit={submitOcularRequest}>
-            <DialogHeader>
-              <DialogTitle>Schedule Ocular Visit</DialogTitle>
-              <DialogDescription className="pt-2">
-                Pick a date and time to physically inspect the venue layout with our team.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Date</label>
-                <Input 
-                  type="date" 
-                  value={ocularDate} 
-                  onChange={(e) => setOcularDate(e.target.value)} 
-                  required 
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium leading-none">Time (Optional)</label>
-                <Input 
-                  type="time" 
-                  value={ocularTime} 
-                  onChange={(e) => setOcularTime(e.target.value)} 
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRequestingOcular(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmittingOcular}>
-                {isSubmittingOcular ? "Submitting..." : "Submit Request"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Request Ocular Date & Time Picker Modal */}
+      {requestingOcular && (
+        <OcularDatePickerModal
+          open={requestingOcular}
+          onClose={() => setRequestingOcular(false)}
+          onSubmit={(date, time) => submitOcularRequest(date, time)}
+          initialDate={ocularDate}
+          initialTime={ocularTime}
+          submitting={isSubmittingOcular}
+          eventTitle={booking?.event_type || "Event Venue Inspection"}
+        />
+      )}
 
     </CustomerDashboardLayout>
   );

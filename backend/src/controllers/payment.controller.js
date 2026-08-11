@@ -35,7 +35,7 @@ async function convertInquiryToBooking(inquiryId, payment) {
 			if (payment) {
 				payment.booking_id = existingBooking._id;
 				await payment.save();
-				await syncBookingStatus(existingBooking._id);
+				await exports.syncBookingStatus(existingBooking._id);
 			}
 			return existingBooking;
 		}
@@ -53,7 +53,7 @@ async function convertInquiryToBooking(inquiryId, payment) {
 	return null;
 }
 
-const syncPaymentFromGateway = async (payment) => {
+exports.syncPaymentFromGateway = async (payment) => {
 	if (!payment || payment.status === "approved") return payment;
 
 	if (payment.gateway_payment_intent_id) {
@@ -85,7 +85,7 @@ const syncPaymentFromGateway = async (payment) => {
 
 	if (payment.status === "approved") {
 		await payment.save();
-		if (payment.booking_id) await syncBookingStatus(payment.booking_id);
+		if (payment.booking_id) await exports.syncBookingStatus(payment.booking_id);
 		if (payment.inquiry_id) { 
 			await convertInquiryToBooking(payment.inquiry_id, payment);
 		}
@@ -96,7 +96,7 @@ const syncPaymentFromGateway = async (payment) => {
 	return payment;
 };
 
-async function syncBookingStatus(bookingId) {
+exports.syncBookingStatus = async function (bookingId) {
 	const booking = await Booking.findById(bookingId);
 	if (!booking) return;
 
@@ -154,7 +154,7 @@ exports.create = asyncHandler(async (req, res) => {
 	}
 	const payment = await Payment.create(req.body);
 	if (payment.status === "approved" && payment.booking_id) {
-		await syncBookingStatus(payment.booking_id);
+		await exports.syncBookingStatus(payment.booking_id);
 	}
 	
 	const io = req.app.get("io");
@@ -171,7 +171,7 @@ exports.getMine = asyncHandler(async (req, res) => {
 	}).limit(20);
 
 	await Promise.allSettled(
-		pendingGatewayPayments.map((payment) => syncPaymentFromGateway(payment)),
+		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
 	);
 
 	res.json(
@@ -194,7 +194,7 @@ exports.getById = asyncHandler(async (req, res) => {
 exports.update = asyncHandler(async (req, res) => {
 	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
 	if (req.body.status && payment && payment.booking_id) {
-		await syncBookingStatus(payment.booking_id);
+		await exports.syncBookingStatus(payment.booking_id);
 		
 		const io = req.app.get("io");
 		if (payment.customer_id && io) {
@@ -511,7 +511,7 @@ exports.processIntent = asyncHandler(async (req, res) => {
 		localPayment.status = "approved";
 		localPayment.paid_at = new Date();
 		await localPayment.save();
-		if (localPayment.booking_id) await syncBookingStatus(localPayment.booking_id);
+		if (localPayment.booking_id) await exports.syncBookingStatus(localPayment.booking_id);
 	}
 
 	const io = req.app.get("io");
@@ -536,7 +536,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Not allowed to verify this payment" });
 	}
 
-	await syncPaymentFromGateway(payment);
+	await exports.syncPaymentFromGateway(payment);
 	res.json({ payment });
 });
 
@@ -585,7 +585,7 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 	await payment.save();
 
 	if (payment.status === "approved") {
-		if (payment.booking_id) await syncBookingStatus(payment.booking_id);
+		if (payment.booking_id) await exports.syncBookingStatus(payment.booking_id);
 		if (payment.inquiry_id) { 
 			await convertInquiryToBooking(payment.inquiry_id, payment);
 		}

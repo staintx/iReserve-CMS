@@ -2362,8 +2362,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     contact_method: inquiry.contact_method || "Email",
     
     total_price: totalPrice,
-    payment_status: "deposit_paid",
-    status: "Confirmed",
+    payment_status: "pending",
+    status: "pending deposit",
   };
 
   const newBooking = await Booking.create(payload);
@@ -2379,6 +2379,11 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
 
   const Payment = require("../models/Payment");
   await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
+
+  const { syncBookingStatus } = require("./payment.controller");
+  if (syncBookingStatus) {
+    await syncBookingStatus(newBooking._id);
+  }
 
   if (inventoryItems.length > 0) {
     const InventoryReservation = require("../models/InventoryReservation");

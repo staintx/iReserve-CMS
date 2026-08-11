@@ -488,9 +488,15 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                         <li key={idx} className="flex items-baseline justify-between gap-4">
                           <div className="min-w-0">
                             <span className="text-sm text-foreground">{item.name}</span>
-                            <span className="mt-0.5 block text-xs text-muted-foreground">
-                              {item.quantity || 1} × {formatCurrency(item.price)}
-                            </span>
+                            {item.pricing_type === "quantity" || (item.quantity && item.quantity > 1) ? (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                {item.quantity} × {formatCurrency(item.price)}
+                              </span>
+                            ) : (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                One-time service
+                              </span>
+                            )}
                           </div>
                           <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
                             {formatCurrency(itemTotal)}

@@ -93,7 +93,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     name: "",
     qty: "",
   });
-  const [newAddOn, setNewAddOn] = useState({ name: "", price: "" });
+  const [newAddOn, setNewAddOn] = useState({ name: "", price: "", pricing_type: "fixed" });
   const [newSetupEquip, setNewSetupEquip] = useState({
     inventory_id: "",
     quantity: "",
@@ -798,6 +798,16 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                       setNewAddOn({ ...newAddOn, price: e.target.value })
                     }
                   />
+                  <select
+                    className="w-28 border border-gray-200 rounded-lg px-2 py-2 text-xs bg-white text-gray-700 font-medium"
+                    value={newAddOn.pricing_type || "fixed"}
+                    onChange={(e) =>
+                      setNewAddOn({ ...newAddOn, pricing_type: e.target.value })
+                    }
+                  >
+                    <option value="fixed">Fixed</option>
+                    <option value="quantity">Qty-Based</option>
+                  </select>
                   <Btn variant="primary" size="sm" onClick={handleAddAddOn}>
                     <Plus size={12} />
                   </Btn>
@@ -814,6 +824,9 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                         <span className="flex items-center gap-2">
                           <span className="w-1.5 h-1.5 bg-purple-400 rounded-full" />
                           {add.name} <span className="text-gray-500 font-medium ml-1">₱{Number(add.price).toLocaleString()}</span>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                            {add.pricing_type === "quantity" ? "Qty-Based" : "Fixed"}
+                          </span>
                         </span>
                         <button
                           onClick={() => handleRemoveAddOn(i)}

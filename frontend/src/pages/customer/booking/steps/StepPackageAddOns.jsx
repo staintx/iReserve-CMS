@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, CheckCircle2 } from "lucide-react";
 import {
   Card,
   SH,
@@ -39,6 +39,27 @@ export default function StepPackageAddOns({ form, setForm, packageDetails }) {
           name: addOn.name,
           price: addOn.price || 0,
           quantity: delta,
+          pricing_type: addOn.pricing_type || "quantity"
+        });
+      }
+
+      return { ...prev, selected_package_addons: existing };
+    });
+  };
+
+  const toggleFixedPackageAddon = (addOn) => {
+    setForm((prev) => {
+      const existing = [...(prev.selected_package_addons || [])];
+      const index = existing.findIndex((s) => s.name === addOn.name);
+
+      if (index >= 0) {
+        existing.splice(index, 1);
+      } else {
+        existing.push({
+          name: addOn.name,
+          price: addOn.price || 0,
+          quantity: 1,
+          pricing_type: "fixed"
         });
       }
 
@@ -70,6 +91,7 @@ export default function StepPackageAddOns({ form, setForm, packageDetails }) {
           <div className="grid max-h-[52vh] grid-cols-1 gap-3 overflow-y-auto pr-0.5 sm:grid-cols-2 lg:grid-cols-3">
             {addOns.map((addOn, idx) => {
               const qty = getSelectedQuantity(addOn.name);
+              const isFixed = addOn.pricing_type !== "quantity";
               return (
                 <div
                   key={idx}
@@ -82,11 +104,18 @@ export default function StepPackageAddOns({ form, setForm, packageDetails }) {
                 >
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h4 className="text-sm font-semibold leading-snug text-[#1E293B]">
-                        {addOn.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-sm font-semibold leading-snug text-[#1E293B]">
+                          {addOn.name}
+                        </h4>
+                        {isFixed && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">
+                            Fixed
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-0.5 text-[13px] text-[#64748B]">
-                        {formatPeso(addOn.price)}
+                        {formatPeso(addOn.price)} {isFixed ? "(One-Time)" : ""}
                       </p>
                     </div>
                     <Sparkles
@@ -98,16 +127,39 @@ export default function StepPackageAddOns({ form, setForm, packageDetails }) {
                     />
                   </div>
 
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className="text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
-                      Qty
-                    </span>
-                    <QtyStepper
-                      value={qty}
-                      label={addOn.name}
-                      onDecrease={() => handleQuantityChange(addOn, -1)}
-                      onIncrease={() => handleQuantityChange(addOn, 1)}
-                    />
+                  <div className="mt-auto">
+                    {isFixed ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleFixedPackageAddon(addOn)}
+                        className={cn(
+                          "w-full px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5",
+                          qty > 0
+                            ? "bg-[#4C81E0] text-white shadow-xs hover:bg-[#3b6ec6]"
+                            : "border border-[#4C81E0] text-[#4C81E0] hover:bg-[#4C81E0]/10"
+                        )}
+                      >
+                        {qty > 0 ? (
+                          <>
+                            <CheckCircle2 size={14} /> Selected
+                          </>
+                        ) : (
+                          "+ Add Service"
+                        )}
+                      </button>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
+                          Qty
+                        </span>
+                        <QtyStepper
+                          value={qty}
+                          label={addOn.name}
+                          onDecrease={() => handleQuantityChange(addOn, -1)}
+                          onIncrease={() => handleQuantityChange(addOn, 1)}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );

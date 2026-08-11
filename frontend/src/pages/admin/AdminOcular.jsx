@@ -8,12 +8,12 @@ import {
   AlertTriangle, 
   Calendar, 
   Clock, 
-  UserCheck, 
   CheckCircle2, 
   MapPin, 
   FileText,
   Search,
-  Filter
+  Sparkles,
+  Sliders
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -22,7 +22,6 @@ import { AdminAPI } from "../../api/admin";
 import { useNavigate } from "react-router-dom";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
-import TableToolbar from "../../components/admin/table/TableToolbar";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
 import DrawerField from "../../components/admin/table/DrawerField";
@@ -48,6 +47,16 @@ export default function AdminOcular() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
+
+  // Ocular Revision Proposal Modal State
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionBooking, setRevisionBooking] = useState(null);
+  const [ocularNotes, setOcularNotes] = useState("");
+  const [revisedGuestCount, setRevisedGuestCount] = useState("");
+  const [revisedSetupNotes, setRevisedSetupNotes] = useState("");
+  const [revisedTotalPrice, setRevisedTotalPrice] = useState("");
+  const [revisionMessage, setRevisionMessage] = useState("");
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,11 +94,31 @@ export default function AdminOcular() {
   const formattedOculars = useMemo(() => {
     return ocularBookings.map((b) => {
       const o = b.ocular_visit || {};
-      const statusLabel = 
-        o.status === "requested" ? "Requested" :
-        o.status === "scheduled" ? "Scheduled" :
-        o.status === "completed" || o.outcome === "proceed" ? "Completed" :
-        o.status || "Pending";
+      const rawOutcome = o.outcome;
+      
+      let statusLabel = "Pending";
+      if (rawOutcome === "revise") {
+        statusLabel = "Revision Needed";
+      } else if (rawOutcome === "proceed" || (o.status === "completed" && !rawOutcome)) {
+        statusLabel = "Completed";
+      } else if (rawOutcome === "cancel" || o.status === "cancelled") {
+        statusLabel = "Cancelled";
+      } else if (rawOutcome === "reschedule") {
+        statusLabel = "Reschedule Needed";
+      } else if (o.status === "requested") {
+        statusLabel = "Requested";
+      } else if (o.status === "scheduled") {
+        statusLabel = "Scheduled";
+      } else if (o.status) {
+        statusLabel = o.status.charAt(0).toUpperCase() + o.status.slice(1);
+      }
+
+      let outcomeBadge = "Pending Inspection";
+      if (rawOutcome === "proceed") outcomeBadge = "Inspection Passed";
+      else if (rawOutcome === "revise") outcomeBadge = "Revision Needed";
+      else if (rawOutcome === "cancel") outcomeBadge = "Cancelled";
+      else if (rawOutcome === "reschedule") outcomeBadge = "Reschedule Needed";
+      else if (o.outcome) outcomeBadge = o.outcome;
 
       return {
         _id: b._id,
@@ -105,7 +134,8 @@ export default function AdminOcular() {
         time: o.scheduled_time || "TBA",
         status: statusLabel,
         rawStatus: o.status,
-        outcome: o.outcome || "Pending Inspection",
+        outcome: o.outcome || "pending",
+        outcomeBadge,
         notes: o.notes || "—",
         rawBooking: b
       };
@@ -117,9 +147,10 @@ export default function AdminOcular() {
     const total = formattedOculars.length;
     const requested = formattedOculars.filter((o) => o.status === "Requested").length;
     const scheduled = formattedOculars.filter((o) => o.status === "Scheduled").length;
-    const completed = formattedOculars.filter((o) => o.status === "Completed").length;
+    const revisionNeeded = formattedOculars.filter((o) => o.outcome === "revise" || o.status === "Revision Needed").length;
+    const completed = formattedOculars.filter((o) => o.status === "Completed" || o.outcome === "proceed").length;
 
-    return { total, requested, scheduled, completed };
+    return { total, requested, scheduled, revisionNeeded, completed };
   }, [formattedOculars]);
 
   // Filtered List
@@ -127,7 +158,8 @@ export default function AdminOcular() {
     return formattedOculars.filter((o) => {
       if (filterTab === "requested" && o.status !== "Requested") return false;
       if (filterTab === "scheduled" && o.status !== "Scheduled") return false;
-      if (filterTab === "completed" && o.status !== "Completed") return false;
+      if (filterTab === "revise" && o.outcome !== "revise" && o.status !== "Revision Needed") return false;
+      if (filterTab === "completed" && o.status !== "Completed" && o.outcome !== "proceed") return false;
 
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -200,6 +232,76 @@ export default function AdminOcular() {
     .finally(() => setIsSubmittingSchedule(false));
   };
 
+  // Open Revision Proposal Modal Handler
+  const openRevisionModal = (item) => {
+    setRevisionBooking(item);
+    setOcularNotes(
+      item.notes !== "—"
+        ? item.notes
+        : `Ocular Inspection & Measurement Notes:\n- Venue area measured for ${item.eventType} setup.\n- Space layout check: scaffold size adjustment required from 20x20 to 30x40 based on place dimensions and ${item.rawBooking?.guest_count || 100} guest count.`
+    );
+    setRevisedGuestCount(item.rawBooking?.guest_count || "");
+    setRevisedSetupNotes(item.rawBooking?.special_requests || "Adjust scaffold size from 20x20 to 30x40 based on venue space measure.");
+    setRevisedTotalPrice(item.rawBooking?.total_price || "");
+    setRevisionMessage(
+      `Based on our ocular site visit and place measurement, a booking revision is required. We recommend expanding the scaffold setup size from 20x20 to 30x40 to safely accommodate your ${item.rawBooking?.guest_count || 100} guests and venue layout.`
+    );
+    setShowRevisionModal(true);
+  };
+
+  // Apply Scaffold Preset Helper
+  const applyScaffoldPreset = () => {
+    if (!revisionBooking) return;
+    const currentGuests = revisionBooking.rawBooking?.guest_count || 150;
+    setOcularNotes(
+      `Ocular place measurement completed for ${revisionBooking.venue}.\n- Measured setup area: 30x40 meters.\n- Current 20x20 scaffold is too small for ${currentGuests} guests on this terrain.\n- Recommendation: Increase scaffold size to 30x40.`
+    );
+    setRevisedGuestCount(currentGuests);
+    setRevisedSetupNotes("Upgraded scaffold structure size from 20x20 to 30x40 with heavy-duty framing.");
+    setRevisionMessage(
+      `Based on the site inspection and venue measurement, your current scaffold size (20x20) needs to be expanded to 30x40 to comfortably fit ${currentGuests} guests and setup equipment.`
+    );
+  };
+
+  // Submit Ocular Revision Proposal Handler
+  const handleConfirmRevision = async (e) => {
+    e.preventDefault();
+    if (!revisionBooking) return;
+    if (!revisionMessage.trim()) {
+      notify("Please enter a revision message for the customer.", "error");
+      return;
+    }
+
+    try {
+      setIsSubmittingRevision(true);
+      const bId = revisionBooking._id;
+
+      // 1. Log ocular outcome as 'revise'
+      await AdminAPI.completeOcular(bId, {
+        outcome: "revise",
+        notes: ocularNotes.trim() || "Ocular inspection complete. Booking revision requested."
+      });
+
+      // 2. Propose booking revision
+      await AdminAPI.proposeRevision(bId, {
+        message: revisionMessage.trim(),
+        guest_count: revisedGuestCount ? Number(revisedGuestCount) : undefined,
+        special_requests: revisedSetupNotes.trim() || undefined,
+        total_price: revisedTotalPrice !== "" ? Number(revisedTotalPrice) : undefined
+      });
+
+      notify("Ocular outcome logged as Revision Needed & proposal sent to customer!", "success");
+      setShowRevisionModal(false);
+      setRevisionBooking(null);
+      if (drawerRow) setDrawerRow(null);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to submit ocular revision proposal.", "error");
+    } finally {
+      setIsSubmittingRevision(false);
+    }
+  };
+
   const isPending = (o) => o.status === "Scheduled" || o.status === "Requested";
 
   const buildRowActions = (o) => [
@@ -215,6 +317,7 @@ export default function AdminOcular() {
     ...(o.status === "Scheduled"
       ? [{ key: "proceed", label: "Mark Inspection Passed", icon: Check, onSelect: () => handleProceed(o._id) }]
       : []),
+    { key: "revise", label: "Request Booking Revision", icon: Edit3, onSelect: () => openRevisionModal(o) },
     { key: "full", label: "Open Full Booking", icon: FileText, onSelect: () => navigate(`/admin/bookings/${o._id}/details`) },
     ...(isPending(o)
       ? [{ key: "cancel", label: "Cancel Visit", icon: XCircle, destructive: true, onSelect: () => handleCancel(o) }]
@@ -256,14 +359,7 @@ export default function AdminOcular() {
     { 
       key: "outcome", 
       header: "Outcome", 
-      render: (o) => (
-        <span className={`text-xs font-semibold ${
-          o.outcome === "proceed" ? "text-emerald-700" :
-          o.outcome === "cancel" ? "text-rose-600" : "text-slate-500"
-        }`}>
-          {o.outcome === "proceed" ? "Proceeding" : o.outcome}
-        </span>
-      )
+      render: (o) => <Badge status={o.outcomeBadge} />
     },
     {
       key: "actions",
@@ -284,7 +380,7 @@ export default function AdminOcular() {
               Ocular Visit Management
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Schedule site inspection visits, confirm customer requested dates, and log venue ocular outcomes.
+              Schedule site inspection visits, log venue place measurements, and request booking revisions based on ocular findings.
             </p>
           </div>
 
@@ -303,44 +399,54 @@ export default function AdminOcular() {
         </div>
 
         {/* Top KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+              <Calendar className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending Approval</span>
-              <h3 className="text-2xl font-bold text-amber-900 mt-0.5">{kpiStats.requested}</h3>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Pending</span>
+              <h3 className="text-xl font-bold text-amber-900 mt-0.5">{kpiStats.requested}</h3>
             </div>
           </div>
 
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Scheduled Visits</span>
-              <h3 className="text-2xl font-bold text-blue-900 mt-0.5">{kpiStats.scheduled}</h3>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Scheduled</span>
+              <h3 className="text-xl font-bold text-blue-900 mt-0.5">{kpiStats.scheduled}</h3>
             </div>
           </div>
 
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0">
+              <Edit3 className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Completed Visits</span>
-              <h3 className="text-2xl font-bold text-emerald-700 mt-0.5">{kpiStats.completed}</h3>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Revisions Needed</span>
+              <h3 className="text-xl font-bold text-orange-900 mt-0.5">{kpiStats.revisionNeeded}</h3>
             </div>
           </div>
 
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-              <MapPin className="w-5 h-5" />
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Oculars</span>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{kpiStats.total}</h3>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Completed</span>
+              <h3 className="text-xl font-bold text-emerald-700 mt-0.5">{kpiStats.completed}</h3>
+            </div>
+          </div>
+
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Total Oculars</span>
+              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.total}</h3>
             </div>
           </div>
         </div>
@@ -372,6 +478,14 @@ export default function AdminOcular() {
                 }`}
               >
                 Scheduled ({kpiStats.scheduled})
+              </button>
+              <button
+                onClick={() => setFilterTab("revise")}
+                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  filterTab === "revise" ? "bg-orange-500 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                Revision Needed ({kpiStats.revisionNeeded})
               </button>
               <button
                 onClick={() => setFilterTab("completed")}
@@ -412,7 +526,7 @@ export default function AdminOcular() {
         </AdminCard>
       </div>
 
-      {/* Quick Drawer Panel */}
+      {/* Quick Detail Drawer Panel */}
       <DetailDrawer
         open={!!drawerRow}
         onOpenChange={(open) => !open && setDrawerRow(null)}
@@ -420,7 +534,7 @@ export default function AdminOcular() {
         description={drawerRow ? `Ocular Date: ${drawerRow.date} @ ${drawerRow.time}` : ""}
         footer={
           drawerRow && (
-            <>
+            <div className="flex flex-wrap gap-2 justify-end w-full">
               {drawerRow.status === "Requested" && (
                 <Btn 
                   variant="primary" 
@@ -442,10 +556,19 @@ export default function AdminOcular() {
                 </Btn>
               )}
 
+              <Btn 
+                variant="outline" 
+                size="sm" 
+                className="border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100" 
+                onClick={() => openRevisionModal(drawerRow)}
+              >
+                <Edit3 size={13} /> Request Revision
+              </Btn>
+
               <Btn variant="secondary" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
                 Open Full Booking
               </Btn>
-            </>
+            </div>
           )
         }
       >
@@ -464,8 +587,8 @@ export default function AdminOcular() {
             <DrawerField label="Visit Time" value={drawerRow.time} />
             <DrawerField label="Venue Location" value={drawerRow.venue} full />
             <DrawerField label="Status" value={<Badge status={drawerRow.status} />} />
-            <DrawerField label="Outcome" value={drawerRow.outcome} />
-            <DrawerField label="Notes" value={drawerRow.notes} full />
+            <DrawerField label="Outcome" value={<Badge status={drawerRow.outcomeBadge} />} />
+            <DrawerField label="Inspection Notes" value={drawerRow.notes} full />
           </div>
         )}
       </DetailDrawer>
@@ -524,6 +647,119 @@ export default function AdminOcular() {
               <Btn type="button" variant="secondary" onClick={() => setShowScheduleModal(false)}>Cancel</Btn>
               <Btn type="submit" variant="primary" disabled={isSubmittingSchedule}>
                 {isSubmittingSchedule ? "Saving..." : "Confirm Schedule"}
+              </Btn>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Ocular Revision Dialog */}
+      <Dialog open={showRevisionModal} onOpenChange={setShowRevisionModal}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <form onSubmit={handleConfirmRevision}>
+            <DialogHeader>
+              <div className="flex items-center gap-2 text-amber-700">
+                <Edit3 className="w-5 h-5" />
+                <DialogTitle>Request Booking Revision from Ocular Review</DialogTitle>
+              </div>
+              <DialogDescription>
+                Log inspection findings and propose booking adjustments (e.g. scaffold sizing, guest count, place dimensions) to the customer.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3">
+              {revisionBooking && (
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1">
+                  <div className="flex justify-between font-bold text-amber-900">
+                    <span>Booking: {revisionBooking.id} ({revisionBooking.customer})</span>
+                    <span>{revisionBooking.eventType}</span>
+                  </div>
+                  <div className="text-slate-600">
+                    Venue: <strong>{revisionBooking.venue}</strong> | Current Guests: <strong>{revisionBooking.rawBooking?.guest_count || "—"}</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Preset Helper Button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 gap-2">
+                <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                  <Sparkles size={13} className="text-amber-500 shrink-0" /> Fast preset helper for site measurements:
+                </span>
+                <button
+                  type="button"
+                  onClick={applyScaffoldPreset}
+                  className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 shrink-0"
+                >
+                  ⚡ Scaffold Resize Example (20x20 → 30x40)
+                </button>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Ocular Inspection & Place Measurement Notes <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={ocularNotes}
+                  onChange={(e) => setOcularNotes(e.target.value)}
+                  placeholder="Record venue dimensions, terrain checks, scaffold size requirements (e.g. 20x20 needs to be 30x40)..."
+                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Adjusted Guest Count</label>
+                  <Input
+                    type="number"
+                    value={revisedGuestCount}
+                    onChange={(e) => setRevisedGuestCount(e.target.value)}
+                    placeholder="e.g. 150"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Adjusted Total Price (₱)</label>
+                  <Input
+                    type="number"
+                    value={revisedTotalPrice}
+                    onChange={(e) => setRevisedTotalPrice(e.target.value)}
+                    placeholder="Leave blank to keep current price"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Setup & Equipment Adjustments</label>
+                <textarea
+                  rows={2}
+                  value={revisedSetupNotes}
+                  onChange={(e) => setRevisedSetupNotes(e.target.value)}
+                  placeholder="e.g. Upgraded scaffold structure size from 20x20 to 30x40 to fit venue area"
+                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Revision Reason / Message to Customer <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={revisionMessage}
+                  onChange={(e) => setRevisionMessage(e.target.value)}
+                  placeholder="Explain why this revision is required based on the ocular site inspection..."
+                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Btn type="button" variant="secondary" onClick={() => setShowRevisionModal(false)}>Cancel</Btn>
+              <Btn type="submit" variant="primary" disabled={isSubmittingRevision}>
+                {isSubmittingRevision ? "Submitting Revision..." : "Log Outcome & Request Revision"}
               </Btn>
             </DialogFooter>
           </form>

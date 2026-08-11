@@ -135,6 +135,15 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
     };
   }
 
+  if (booking?.ocular_visit?.outcome === "revise") {
+    return {
+      tone: "warning",
+      label: "Revision Requested (Ocular)",
+      icon: CalendarCheck,
+      notice: { tone: "warning", title: "Site visit complete — Revision requested.", text: "Based on our site inspection and venue measurement, an updated setup proposal is awaiting your review." },
+    };
+  }
+
   if (booking?.ocular_visit?.status === "requested") {
     return {
       tone: "info",

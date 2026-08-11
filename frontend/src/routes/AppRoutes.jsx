@@ -20,6 +20,7 @@ import CustomerMessages from "../pages/customer/CustomerMessages";
 import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
 import CustomerEventDashboard from "../pages/customer/CustomerEventDashboard";
 import CustomerProfile from "../pages/customer/CustomerProfile";
+import CustomerNotifications from "../pages/customer/CustomerNotifications";
 import Packages from "../pages/customer/Packages";
 import PackageDetails from "../pages/customer/PackageDetails";
 import Menu from "../pages/customer/Menu";
@@ -130,6 +131,7 @@ export default function AppRoutes() {
         <Route path="/customer/messages" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessages /></ProtectedRoute>} />
         <Route path="/customer/messages/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessageThread /></ProtectedRoute>} />
         <Route path="/customer/profile" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerProfile /></ProtectedRoute>} />
+        <Route path="/customer/notifications" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerNotifications /></ProtectedRoute>} />
 
         <Route path="/customer/quote" element={<ProtectedRoute allowedRoles={customerOnly}><QuoteWizard /></ProtectedRoute>} />
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import useAuth from "../../hooks/useAuth";
 import { NotificationAPI } from "../../api/notifications";
 import { getSocket } from "../../api/socket";
 import { Bell, Check } from "lucide-react";
@@ -23,6 +24,7 @@ const formatTime = (value) => {
 
 export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSidebar }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -218,7 +220,11 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
             onClick={() => {
               setOpen(false);
               if (onCloseSidebar) onCloseSidebar();
-              navigate("/admin/notifications");
+              if (user?.role === "admin" || user?.role === "manager") {
+                navigate("/admin/notifications");
+              } else {
+                navigate("/customer/notifications");
+              }
             }}
           >
             View All

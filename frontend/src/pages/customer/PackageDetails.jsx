@@ -269,7 +269,7 @@ export default function PackageDetails() {
                       className="ls-btn ls-btn--ghost"
                       onClick={() =>
                         navigate("/customer/quote", {
-                          state: { eventType: event },
+                          state: { eventType: event, packageId: data._id, packageName: data.name },
                         })
                       }
                     >
@@ -459,7 +459,7 @@ export default function PackageDetails() {
                   type="button"
                   className="ls-btn ls-btn--light"
                   onClick={() =>
-                    navigate("/customer/quote", { state: { eventType: event } })
+                    navigate("/customer/quote", { state: { eventType: event, packageId: data._id, packageName: data.name } })
                   }
                 >
                   Request a quote

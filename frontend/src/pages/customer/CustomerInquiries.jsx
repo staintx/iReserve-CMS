@@ -89,8 +89,21 @@ export default function CustomerInquiries() {
 
   useRealTimeRefresh(fetchInquiries);
 
+  const isRecentInquiry = (inq) => {
+    if (!inq.createdAt && !inq.updatedAt) return false;
+    const t = new Date(inq.createdAt || inq.updatedAt).getTime();
+    return (Date.now() - t) <= (7 * 24 * 60 * 60 * 1000); // Created or updated within 7 days
+  };
+
+  const isNewlySubmitted = (inq) => {
+    if (!inq.createdAt) return false;
+    const t = new Date(inq.createdAt).getTime();
+    return (Date.now() - t) <= (48 * 60 * 60 * 1000); // Submitted within last 48 hours
+  };
+
   const counts = useMemo(() => ({
     all: inquiries.length,
+    recent: inquiries.filter(isRecentInquiry).length,
     quote_ready: inquiries.filter((i) => inquiryStatusGroup(i) === "quote_ready").length,
     under_review: inquiries.filter((i) => inquiryStatusGroup(i) === "under_review").length,
     accepted: inquiries.filter((i) => inquiryStatusGroup(i) === "accepted").length,
@@ -99,9 +112,13 @@ export default function CustomerInquiries() {
 
   // Filtered list
   const filteredInquiries = useMemo(() => {
-    return inquiries.filter((inq) => {
-      // 1. Status Filter
-      if (statusTab !== "all" && inquiryStatusGroup(inq) !== statusTab) return false;
+    const list = inquiries.filter((inq) => {
+      // 1. Status / Recent Filter
+      if (statusTab === "recent") {
+        if (!isRecentInquiry(inq)) return false;
+      } else if (statusTab !== "all" && inquiryStatusGroup(inq) !== statusTab) {
+        return false;
+      }
 
       // 2. Service Type Filter
       if (serviceTypeFilter !== "all" && resolveServiceType(inq) !== serviceTypeFilter) return false;
@@ -118,6 +135,13 @@ export default function CustomerInquiries() {
       }
 
       return true;
+    });
+
+    // Always sort newest inquiries first by database creation/update date
+    return list.sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      return timeB - timeA;
     });
   }, [inquiries, statusTab, serviceTypeFilter, searchQuery]);
 
@@ -157,6 +181,17 @@ export default function CustomerInquiries() {
   // Start Inquiry Deposit Checkout
   const startInquiryCheckout = async (inq) => {
     try {
+      const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
+      const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
+
+      if (isConverted || isDepositPaid) {
+        notify("Deposit for this booking is already paid or confirmed.", "info");
+        if (inq.converted_booking_id || inq._id) {
+          navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`);
+        }
+        return;
+      }
+
       notify("Generating checkout session for deposit payment...", "info");
       const qRes = await CustomerAPI.getQuotationsForInquiry(inq._id);
       const quotes = qRes.data || [];
@@ -207,7 +242,10 @@ export default function CustomerInquiries() {
     const serviceType = resolveServiceType(inq);
     const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
     const isQuotationReady = inq.status === "Quotation Sent";
-    const isAccepted = inq.status === "Quote Accepted" || inq.status === "Converted to Booking";
+    const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
+    const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
+    const isAccepted = inq.status === "Quote Accepted" || isConverted;
+    const canPayDeposit = isAccepted && !isConverted && !isDepositPaid;
     const isPending = ["Pending Review", "Under Review"].includes(inq.status);
     const isClosed = group === "closed";
     const location = inq.municipality || inq.province || inq.venue_type || "Location to be confirmed";
@@ -235,8 +273,8 @@ export default function CustomerInquiries() {
     ) : null;
 
     // Paying the deposit matters enough to stay visible, but must not compete
-    // with the primary step.
-    const secondaryAction = isAccepted ? (
+    // with the primary step, and must be hidden once deposit is paid or converted to booking.
+    const secondaryAction = canPayDeposit ? (
       <Button
         variant="outline"
         onClick={() => startInquiryCheckout(inq)}
@@ -307,6 +345,7 @@ export default function CustomerInquiries() {
         icon={serviceIcon(serviceType)}
         title={recordTitle(inq)}
         status={{ tone: status.tone, label: status.label, icon: status.icon }}
+        isNew={isNewlySubmitted(inq)}
         meta={[
           formatEventDateTime(inq.event_date, inq.start_time),
           inq.guest_count ? `${inq.guest_count} guests` : null,
@@ -360,6 +399,7 @@ export default function CustomerInquiries() {
         onSegmentChange={setStatusTab}
         segments={[
           { id: "all", label: "All", count: counts.all },
+          { id: "recent", label: "Recent", count: counts.recent, tone: "info" },
           { id: "quote_ready", label: "Quote ready", count: counts.quote_ready, tone: "info" },
           { id: "under_review", label: "Under review", count: counts.under_review, tone: "warning" },
           { id: "accepted", label: "Accepted", count: counts.accepted, tone: "success" },

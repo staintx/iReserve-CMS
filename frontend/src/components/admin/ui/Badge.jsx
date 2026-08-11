@@ -27,6 +27,7 @@ export default function Badge({ status }) {
     "Reservation Released": "bg-emerald-100 text-emerald-700",
     "Retired": "bg-red-100 text-red-700",
     "Pending Review": "bg-amber-100 text-amber-800 border border-amber-200",
+    "Under Review": "bg-blue-100 text-blue-800 border border-blue-200",
     "Quotation Sent": "bg-blue-100 text-blue-800 border border-blue-200",
     "Revision Requested": "bg-orange-100 text-orange-800 border border-orange-200",
     "Quote Accepted": "bg-emerald-100 text-emerald-800 border border-emerald-200",

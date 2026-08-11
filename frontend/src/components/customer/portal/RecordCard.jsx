@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ChevronDown, CheckCircle2, Clock, XCircle, Info } from "lucide-react";
+import { ChevronDown, CheckCircle2, Clock, XCircle, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import StatusPill from "./StatusPill";
 import { TONE_TEXT, TONE_NOTICE, TONE_ICON, TONE_ACCENT } from "./tones";
@@ -23,6 +23,7 @@ const NOTICE_ICON = {
  *  icon             leading service icon
  *  title            event name — the primary identifier
  *  status           { tone, label, icon } rendered as a StatusPill
+ *  isNew            boolean, highlights recent requests (<=48h)
  *  meta             array of short strings shown as a single dot-separated line
  *  amount           { label, value, tone, hint } financial state
  *  notice           { tone, title, text, icon } plain-language state explanation
@@ -36,6 +37,7 @@ export default function RecordCard({
   icon: Icon,
   title,
   status,
+  isNew = false,
   meta = [],
   amount,
   notice,
@@ -93,6 +95,11 @@ export default function RecordCard({
               >
                 {title}
               </h3>
+              {isNew && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-500/30 uppercase tracking-wider">
+                  <Sparkles className="h-3 w-3 text-amber-600" /> NEW
+                </span>
+              )}
               {status && <StatusPill {...status} />}
             </div>
 

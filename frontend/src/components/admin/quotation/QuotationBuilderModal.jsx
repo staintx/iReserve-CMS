@@ -63,33 +63,55 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       .finally(() => setLoading(false));
   }, [inquiry]);
 
+  const sanitizeNonNegative = (value) => {
+    if (value === "" || value === null || value === undefined) return "";
+    const cleaned = String(value).replace(/-/g, "").replace(/e/gi, "");
+    const num = Number(cleaned);
+    if (isNaN(num)) return 0;
+    return Math.max(0, num);
+  };
+
+  const handleNonNegativeKeyDown = (e) => {
+    if (e.key === "-" || e.key === "e" || e.key === "E") {
+      e.preventDefault();
+    }
+  };
+
+  const cleanNum = (val) => {
+    const n = Number(val);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  };
+
   const guestCount = Number(inquiry.guest_count) || 1;
 
   const handleMenuChange = (index, field, value) => {
     const newItems = [...menuItems];
-    newItems[index][field] = value;
+    const val = field === "price" ? sanitizeNonNegative(value) : value;
+    newItems[index][field] = val;
     setMenuItems(newItems);
   };
 
   const handleAddOnChange = (index, field, value) => {
     const newItems = [...addOns];
-    newItems[index][field] = value;
+    const val = (field === "price" || field === "quantity") ? sanitizeNonNegative(value) : value;
+    newItems[index][field] = val;
     setAddOns(newItems);
   };
 
-  const menuSubtotal = menuItems.reduce((acc, item) => acc + (Number(item.price) * guestCount), 0);
-  const addOnsSubtotal = addOns.reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity)), 0);
+  const menuSubtotal = menuItems.reduce((acc, item) => acc + (cleanNum(item.price) * guestCount), 0);
+  const addOnsSubtotal = addOns.reduce((acc, item) => acc + (cleanNum(item.price) * cleanNum(item.quantity)), 0);
 
   const subtotal = 
-    Number(packagePrice) + 
+    cleanNum(packagePrice) + 
     menuSubtotal +
     addOnsSubtotal +
-    Number(transportationFee) +
-    Number(equipmentFee) +
-    Number(decorationFee);
+    cleanNum(transportationFee) +
+    cleanNum(equipmentFee) +
+    cleanNum(decorationFee);
 
-  const totalCost = subtotal + Number(taxes) - Number(discounts);
-  const remainingBalance = totalCost - Number(depositAmount);
+  const totalCost = Math.max(0, subtotal + cleanNum(taxes) - cleanNum(discounts));
+  const depositVal = cleanNum(depositAmount);
+  const remainingBalance = Math.max(0, totalCost - depositVal);
 
   // The version about to be saved. Used both for the pre-send change summary
   // and as the submit payload, so what the admin reviews is exactly what ships.
@@ -98,16 +120,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     package_id: inquiry.package_id?._id,
     package_name: inquiry.package_id?.name,
     guest_count: inquiry.guest_count,
-    menu_items: menuItems,
-    add_ons: addOns,
-    transportation_fee: Number(transportationFee),
-    equipment_fee: Number(equipmentFee),
-    decoration_fee: Number(decorationFee),
-    taxes: Number(taxes),
-    discounts: Number(discounts),
+    menu_items: menuItems.map(m => ({ ...m, price: cleanNum(m.price) })),
+    add_ons: addOns.map(a => ({ ...a, price: cleanNum(a.price), quantity: cleanNum(a.quantity) })),
+    transportation_fee: cleanNum(transportationFee),
+    equipment_fee: cleanNum(equipmentFee),
+    decoration_fee: cleanNum(decorationFee),
+    taxes: cleanNum(taxes),
+    discounts: cleanNum(discounts),
     subtotal,
     total_cost: totalCost,
-    deposit_amount: Number(depositAmount),
+    deposit_amount: depositVal,
     remaining_balance: remainingBalance,
     admin_notes: adminNotes
   };
@@ -118,6 +140,30 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (
+      Number(packagePrice) < 0 ||
+      Number(transportationFee) < 0 ||
+      Number(equipmentFee) < 0 ||
+      Number(decorationFee) < 0 ||
+      Number(taxes) < 0 ||
+      Number(discounts) < 0 ||
+      Number(depositAmount) < 0
+    ) {
+      notify("Prices, fees, taxes, discounts, and deposit amounts cannot be negative.", "error");
+      return;
+    }
+
+    if (menuItems.some(item => Number(item.price) < 0)) {
+      notify("Menu item prices cannot be negative.", "error");
+      return;
+    }
+
+    if (addOns.some(item => Number(item.price) < 0 || Number(item.quantity) < 0)) {
+      notify("Add-on prices and quantities cannot be negative.", "error");
+      return;
+    }
+
     setSubmitting(true);
 
     const payload = draft;
@@ -161,7 +207,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-600 mb-1.5">Package Price (₱)</label>
-                  <input type="number" value={packagePrice} onChange={(e) => setPackagePrice(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm transition-shadow" />
+                  <input
+                    type="number"
+                    min="0"
+                    onKeyDown={handleNonNegativeKeyDown}
+                    value={packagePrice}
+                    onChange={(e) => setPackagePrice(sanitizeNonNegative(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm transition-shadow"
+                  />
                 </div>
               </div>
             </div>
@@ -177,7 +230,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </div>
               {menuItems.length === 0 && <p className="text-sm text-slate-400 italic">No menu items selected.</p>}
               {menuItems.map((item, idx) => {
-                const itemTotal = (Number(item.price) || 0) * guestCount;
+                const itemTotal = (cleanNum(item.price) || 0) * guestCount;
                 return (
                   <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm">
                     <input 
@@ -192,6 +245,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 text-sm">₱</span>
                         <input 
                           type="number" 
+                          min="0"
+                          onKeyDown={handleNonNegativeKeyDown}
                           value={item.price} 
                           onChange={(e) => handleMenuChange(idx, "price", e.target.value)} 
                           className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" 
@@ -210,18 +265,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           {!isFoodOnly && (
             <div className="space-y-4">
-              <h3 className="font-bold text-slate-800 text-lg border-b pb-2">Add-ons & Services</h3>
+              <h3 className="font-bold text-slate-800 text-lg border-b pb-2">Add-ons &amp; Services</h3>
               {addOns.length === 0 && <p className="text-sm text-slate-400 italic">No add-ons selected.</p>}
               {addOns.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-sm">
                   <input type="text" value={item.name} onChange={(e) => handleAddOnChange(idx, "name", e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Add-on Name" />
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 text-sm">x</span>
-                    <input type="number" value={item.quantity} onChange={(e) => handleAddOnChange(idx, "quantity", e.target.value)} className="w-24 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Qty" />
+                    <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={item.quantity} onChange={(e) => handleAddOnChange(idx, "quantity", e.target.value)} className="w-24 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Qty" />
                   </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 text-sm">₱</span>
-                    <input type="number" value={item.price} onChange={(e) => handleAddOnChange(idx, "price", e.target.value)} className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Price" />
+                    <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={item.price} onChange={(e) => handleAddOnChange(idx, "price", e.target.value)} className="w-32 pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" placeholder="Price" />
                   </div>
                 </div>
               ))}
@@ -233,17 +288,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Transportation (₱)</label>
-                <input type="number" value={transportationFee} onChange={(e) => setTransportationFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
+                <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={transportationFee} onChange={(e) => setTransportationFee(sanitizeNonNegative(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
               {!isFoodOnly && (
                 <>
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">Equipment (₱)</label>
-                    <input type="number" value={equipmentFee} onChange={(e) => setEquipmentFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
+                    <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={equipmentFee} onChange={(e) => setEquipmentFee(sanitizeNonNegative(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-1.5">Decoration (₱)</label>
-                    <input type="number" value={decorationFee} onChange={(e) => setDecorationFee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
+                    <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={decorationFee} onChange={(e) => setDecorationFee(sanitizeNonNegative(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
                   </div>
                 </>
               )}
@@ -255,11 +310,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Taxes (₱)</label>
-                <input type="number" value={taxes} onChange={(e) => setTaxes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
+                <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={taxes} onChange={(e) => setTaxes(sanitizeNonNegative(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Discounts (₱)</label>
-                <input type="number" value={discounts} onChange={(e) => setDiscounts(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
+                <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={discounts} onChange={(e) => setDiscounts(sanitizeNonNegative(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
             </div>
           </div>
@@ -269,7 +324,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-slate-600 mb-1.5">Required Deposit (₱)</label>
-                <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
+                <input type="number" min="0" onKeyDown={handleNonNegativeKeyDown} value={depositAmount} onChange={(e) => setDepositAmount(sanitizeNonNegative(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary sm:text-sm transition-shadow" />
               </div>
             </div>
           </div>

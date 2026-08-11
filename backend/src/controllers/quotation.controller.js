@@ -15,6 +15,45 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   const inquiry = await Inquiry.findById(inquiry_id);
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
+  // Validate numeric fields to prevent negative values
+  const numericCheck = [
+    { field: "transportation_fee", label: "Transportation fee" },
+    { field: "equipment_fee", label: "Equipment fee" },
+    { field: "decoration_fee", label: "Decoration fee" },
+    { field: "taxes", label: "Taxes" },
+    { field: "discounts", label: "Discounts" },
+    { field: "deposit_amount", label: "Required deposit" },
+    { field: "subtotal", label: "Subtotal" },
+    { field: "total_cost", label: "Total cost" },
+    { field: "remaining_balance", label: "Remaining balance" },
+  ];
+
+  for (const item of numericCheck) {
+    const val = req.body[item.field];
+    if (val !== undefined && val !== null && Number(val) < 0) {
+      return res.status(400).json({ message: `${item.label} cannot be a negative number.` });
+    }
+  }
+
+  if (Array.isArray(req.body.menu_items)) {
+    for (const item of req.body.menu_items) {
+      if (item.price !== undefined && Number(item.price) < 0) {
+        return res.status(400).json({ message: `Menu item price cannot be negative.` });
+      }
+    }
+  }
+
+  if (Array.isArray(req.body.add_ons)) {
+    for (const item of req.body.add_ons) {
+      if (item.price !== undefined && Number(item.price) < 0) {
+        return res.status(400).json({ message: `Add-on price cannot be negative.` });
+      }
+      if (item.quantity !== undefined && Number(item.quantity) < 0) {
+        return res.status(400).json({ message: `Add-on quantity cannot be negative.` });
+      }
+    }
+  }
+
   // Get current highest version for this inquiry
   const latestQuote = await Quotation.findOne({ inquiry_id }).sort({ version_number: -1 });
   const nextVersion = latestQuote ? latestQuote.version_number + 1 : 1;

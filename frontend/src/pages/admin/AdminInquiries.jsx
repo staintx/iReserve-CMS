@@ -41,7 +41,7 @@ export default function AdminInquiries() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "Active Leads", "Pending Review", "Quotation Sent", "Awaiting Final Confirmation", "Archived / Concluded", "Converted to Booking", "Cancelled"];
+  const statuses = ["all", "Active Leads", "Pending Review", "Under Review", "Quotation Sent", "Awaiting Final Confirmation", "Archived / Concluded", "Converted to Booking", "Cancelled"];
 
   const loadData = () => {
     setLoading(true);

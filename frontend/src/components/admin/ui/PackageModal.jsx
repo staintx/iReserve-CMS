@@ -242,7 +242,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   const handleAddScaffoldOption = () => {
     const { label, width_ft, length_ft, price, guest_min, guest_max } =
       newScaffoldOption;
-    if (!label || !width_ft || !length_ft || !price) return;
+    if (!label || !width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
     setFormData((prev) => ({
       ...prev,
@@ -253,7 +253,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
           width_ft: Number(width_ft),
           length_ft: Number(length_ft),
           area_ft2: area,
-          price: Number(price),
+          price: Number(price || 0),
           guest_min: guest_min ? Number(guest_min) : undefined,
           guest_max: guest_max ? Number(guest_max) : undefined,
         },
@@ -529,27 +529,50 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 )}
 
                 {formData.package_type === "Food + Event Setup" && (
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Price per Guest (₱){" "}
-                      <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                      placeholder="e.g. 1500"
-                      value={formData.price_per_guest}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) return;
-                        setFormData({
-                          ...formData,
-                          price_per_guest: e.target.value,
-                        });
-                      }}
-                    />
-                    <p className="text-xs text-green-600 mt-1">
-                      ✓ Setup is included for free
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">
+                          Price per Guest (₱){" "}
+                          <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                          placeholder="e.g. 1500"
+                          value={formData.price_per_guest}
+                          onChange={(e) => {
+                            if (Number(e.target.value) < 0) return;
+                            setFormData({
+                              ...formData,
+                              price_per_guest: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">
+                          Base Setup Fee (₱) <span className="text-xs text-gray-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                          placeholder="0 (Free if empty)"
+                          value={formData.setup_price}
+                          onChange={(e) => {
+                            if (Number(e.target.value) < 0) return;
+                            setFormData({
+                              ...formData,
+                              setup_price: e.target.value,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-green-600">
+                      ✓ Setup equipment and scaffold options can be configured below
                     </p>
                   </div>
                 )}
@@ -810,8 +833,9 @@ export default function PackageModal({ pkg, onClose, onSave }) {
             </div>
           </section>
 
-          {/* SECTION 6: Event Setup (Setup packages only) */}
-          {formData.package_type === "Event Setup Only" && (
+          {/* SECTION 6: Event Setup Configuration */}
+          {(formData.package_type === "Event Setup Only" ||
+            formData.package_type === "Food + Event Setup") && (
             <section>
               <h3 className="font-bold text-foreground mb-4">
                 Event Setup Configuration

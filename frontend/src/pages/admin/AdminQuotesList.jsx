@@ -83,7 +83,7 @@ export default function AdminQuotesList() {
   // Compute Metrics using latest version per inquiry
   const metrics = useMemo(() => {
     const totalQuotations = groupedQuotations.length;
-    const pendingInquiries = inquiries.filter(q => q.status === "Pending Review").length;
+    const pendingInquiries = inquiries.filter(q => q.status === "Pending Review" || q.status === "Under Review").length;
     const sentQuotations = groupedQuotations.filter(q => q.status === "Sent" || q.status === "Quotation Sent").length;
     const revisionRequests = groupedQuotations.filter(q => q.status === "Revision Requested").length;
     const acceptedQuotations = groupedQuotations.filter(q => 
@@ -99,7 +99,7 @@ export default function AdminQuotesList() {
     if (activeTab === "pending_inquiries") {
       // Pending inquiries that need a quote created
       items = inquiries
-        .filter(i => i.status === "Pending Review" || i.status === "Revision Requested")
+        .filter(i => i.status === "Pending Review" || i.status === "Under Review" || i.status === "Revision Requested")
         .map(i => ({
           type: "INQUIRY",
           id: i._id,
@@ -167,6 +167,8 @@ export default function AdminQuotesList() {
     switch (status) {
       case "Pending Review":
         return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200/60 flex items-center gap-1.5 w-fit"><Clock size={12} /> Pending Review</span>;
+      case "Under Review":
+        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200/60 flex items-center gap-1.5 w-fit"><Clock size={12} /> Under Review</span>;
       case "Revision Requested":
         return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800 border border-orange-200/60 flex items-center gap-1.5 w-fit"><RefreshCw size={12} /> Revision Requested</span>;
       case "Sent":

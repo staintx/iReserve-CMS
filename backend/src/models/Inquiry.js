@@ -30,6 +30,7 @@ const InquirySchema = new mongoose.Schema(
     budget_range: String,
     special_requests: String,
     dietary_requirements: String,
+    additional_services: [String],
 
     delivery_method: { type: String, enum: ["delivery", "pickup", "setup"] },
     selected_menu: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }],

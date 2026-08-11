@@ -8,7 +8,14 @@ exports.create = async (req, res) => {
     const result = await uploadToCloudinary(req.file.buffer, "gallery");
     image_url = result.secure_url;
   }
-  res.status(201).json(await Gallery.create({ ...req.body, image_url }));
+  const newItem = await Gallery.create({ ...req.body, image_url });
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "gallery", action: "create", gallery_id: newItem._id });
+  }
+
+  res.status(201).json(newItem);
 };
 
 exports.createBulk = async (req, res) => {
@@ -26,6 +33,12 @@ exports.createBulk = async (req, res) => {
   try {
     const galleryData = await Promise.all(uploadPromises);
     const newDocs = await Gallery.insertMany(galleryData);
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("system:refresh", { type: "gallery", action: "bulk_create" });
+    }
+
     res.status(201).json(newDocs);
   } catch (err) {
     res.status(500).json({ message: "Bulk upload failed", error: err.message });
@@ -41,7 +54,14 @@ exports.update = async (req, res) => {
     const result = await uploadToCloudinary(req.file.buffer, "gallery");
     data.image_url = result.secure_url;
   }
-  res.json(await Gallery.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after' }));
+  const updated = await Gallery.findByIdAndUpdate(req.params.id, data, { returnDocument: 'after' });
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "gallery", action: "update", gallery_id: updated?._id });
+  }
+
+  res.json(updated);
 };
 
 exports.remove = async (req, res) => {
@@ -63,5 +83,11 @@ exports.remove = async (req, res) => {
   }
 
   await Gallery.findByIdAndDelete(req.params.id);
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "gallery", action: "delete", gallery_id: req.params.id });
+  }
+
   res.json({ message: "Deleted" });
 };

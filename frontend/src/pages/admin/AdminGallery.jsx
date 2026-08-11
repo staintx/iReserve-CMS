@@ -5,6 +5,7 @@ import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import GalleryModal from "../../components/admin/ui/GalleryModal";
 
@@ -33,6 +34,8 @@ export default function AdminGallery() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const handleOpenModal = (item = null) => {
     setActiveItem(item);

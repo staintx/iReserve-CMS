@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
 const DEFAULT_INFO = {
   business_name: "",
@@ -39,7 +40,7 @@ export default function BusinessInfoPanel() {
   const { notify } = useToast();
   const previewInfo = { ...DEFAULT_INFO, ...form };
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     AdminAPI.getBusinessInfo()
       .then((res) => {
         setForm((prev) => ({ ...prev, ...(res.data || {}) }));
@@ -47,6 +48,12 @@ export default function BusinessInfoPanel() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useRealTimeRefresh(loadData);
 
   const updateField = (key) => (event) => {
     setForm((prev) => ({ ...prev, [key]: event.target.value }));

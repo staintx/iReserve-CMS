@@ -120,6 +120,11 @@ exports.create = async (req, res) => {
 
   const pkg = await Package.create(payload);
 
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "package", action: "create", package_id: pkg._id });
+  }
+
   await logAction({
     user_id: req.user._id,
     action: "package_created",
@@ -300,6 +305,11 @@ exports.update = async (req, res) => {
     ip_address: req.ip,
   });
 
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "package", action: "update", package_id: updated._id });
+  }
+
   res.json(updated);
 };
 
@@ -316,6 +326,11 @@ exports.remove = async (req, res) => {
     details: `Deleted package "${pkgName}"`,
     ip_address: req.ip,
   });
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "package", action: "delete", package_id: req.params.id });
+  }
 
   res.json({ message: "Deleted" });
 };

@@ -7,6 +7,7 @@ import Badge from "../../components/admin/ui/Badge";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import Modal from "../../components/common/Modal";
 
 export default function AdminAddons() {
@@ -31,6 +32,8 @@ export default function AdminAddons() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const handleOpenModal = (addon = null) => {
     if (addon) {

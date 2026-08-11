@@ -99,14 +99,32 @@ export default function AdminDashboard() {
     return date ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBA";
   };
 
+  const greetingTime = (() => {
+    const hr = new Date().getHours();
+    if (hr < 12) return "Good Morning";
+    if (hr < 18) return "Good Afternoon";
+    return "Good Evening";
+  })();
+
+  const currentDateFormatted = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 sm:space-y-5 bg-background min-h-screen">
         {/* Greeting */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-foreground">Good Morning, System Administrator</h1>
-            <p className="text-sm text-muted-foreground mt-1">Monday, July 22, 2025 · Here's what's happening today</p>
+            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
+              {greetingTime}, System Administrator
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              {currentDateFormatted} · Here's your business overview
+            </p>
           </div>
           <div className="flex gap-2">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export Report</Btn>
@@ -121,59 +139,8 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-          <AdminCard className="xl:col-span-2 !p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="font-bold text-foreground">Event Calendar</p>
-                <p className="text-xs text-muted-foreground">View scheduled bookings and quotes</p>
-              </div>
-              <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/bookings/reservations")}>Manage Bookings</Btn>
-            </div>
-            <AdminEventCalendar bookings={bookings} />
-          </AdminCard>
-
-          <div className="space-y-5">
-            <AdminCard className="!p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-foreground">Upcoming Events</p>
-                <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/bookings/reservations")}>All Events</Btn>
-              </div>
-              <div className="space-y-3">
-                {upcomingEvents.length > 0 ? (
-                  upcomingEvents.map((event) => (
-                    <div key={event._id} className="rounded-2xl border border-border bg-card p-4">
-                      <p className="text-sm font-semibold text-foreground truncate">{event.event_type || "Untitled Event"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{formatEventDate(event.event_date)} · {event.venue || "Venue not set"}</p>
-                      <p className="text-xs text-muted-foreground/70 mt-2">{event.customer_id?.full_name || event.customer_name || "Unknown client"}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-muted-foreground">No upcoming events found.</p>
-                )}
-              </div>
-            </AdminCard>
-
-            <AdminCard className="!p-5">
-              <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-foreground">Next Ocular Visits</p>
-                <Btn size="sm" variant="ghost" onClick={() => navigate("/admin/bookings/ocular")}>View Oculars</Btn>
-              </div>
-              <div className="space-y-3">
-                {upcomingOculars.length > 0 ? (
-                  upcomingOculars.map((booking) => (
-                    <div key={booking._id} className="rounded-2xl border border-border bg-card p-4">
-                      <p className="text-sm font-semibold text-foreground truncate">{booking.customer_id?.full_name || booking.customer_name || "Unknown client"}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{formatEventDate(booking.ocular_visit?.scheduled_date || booking.ocular_visit?.date || booking.event_date)}</p>
-                      <p className="text-xs text-muted-foreground/70 mt-2">{booking.ocular_visit?.status === "scheduled" ? "Scheduled" : "Requested"} · {booking.event_type || "Event"}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-muted-foreground">No upcoming ocular visits.</p>
-                )}
-              </div>
-            </AdminCard>
-          </div>
+        <div>
+          <AdminEventCalendar />
         </div>
 
         <AdminCard className="!p-5">

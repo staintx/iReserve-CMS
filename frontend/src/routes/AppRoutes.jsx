@@ -37,6 +37,7 @@ import AdminPayments from "../pages/admin/AdminPayments";
 import AdminRefunds from "../pages/admin/AdminRefunds";
 import AdminCustomers from "../pages/admin/AdminCustomers";
 import AdminReservations from "../pages/admin/AdminReservations";
+import AdminBookingsCalendar from "../pages/admin/AdminBookingsCalendar";
 import AdminInquiries from "../pages/admin/AdminInquiries";
 import AdminBookingsHistory from "../pages/admin/AdminBookingsHistory";
 import AdminBookingWizard from "../pages/admin/AdminBookingWizard";
@@ -142,6 +143,7 @@ export default function AppRoutes() {
         <Route path="/admin/refunds" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRefunds /></ProtectedRoute>} />
         <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCustomers /></ProtectedRoute>} />
         <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminOnly}><AdminReservations /></ProtectedRoute>} />
+        <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsCalendar /></ProtectedRoute>} />
         <Route path="/admin/bookings/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
         <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
         <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingWizard /></ProtectedRoute>} />

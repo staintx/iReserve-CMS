@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, Info, ArrowLeft, ArrowRight, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock } from "lucide-react";
+import { CheckCircle2, Info, ArrowLeft, ArrowRight, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const stepsByService = {
@@ -175,10 +175,25 @@ export default function QuoteWizard() {
     setStep(0);
   }, [form.service_type]);
 
+  const [blockedDates, setBlockedDates] = useState([]);
   useEffect(() => {
     CustomerAPI.getMenu()
       .then((res) => setMenuItems(res.data))
       .catch(() => setMenuItems([]));
+
+    CustomerAPI.getBlockedDates()
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        const formatted = list.map((item) => {
+          const dt = new Date(item.date);
+          const yr = dt.getFullYear();
+          const mo = String(dt.getMonth() + 1).padStart(2, '0');
+          const da = String(dt.getDate()).padStart(2, '0');
+          return `${yr}-${mo}-${da}`;
+        });
+        setBlockedDates(formatted);
+      })
+      .catch(() => setBlockedDates([]));
   }, []);
 
   const filteredMenu = useMemo(() => {
@@ -356,6 +371,10 @@ export default function QuoteWizard() {
     }
     setRequired("event_date", "Event date");
     setRequired("start_time", "Event start time");
+
+    if (form.event_date && blockedDates.includes(form.event_date)) {
+      nextErrors.event_date = "The selected date is blocked by administration and unavailable for inquiries/bookings.";
+    }
 
     if (isEmpty(form.guest_count)) {
       nextErrors.guest_count = "Guest count is required.";
@@ -706,6 +725,11 @@ export default function QuoteWizard() {
                           <div className="space-y-2">
                             <Label>Event Date</Label>
                             <Input type="date" min={minDate} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                            {form.event_date && blockedDates.includes(form.event_date) && (
+                              <p className="text-xs font-semibold text-amber-600 mt-1 flex items-center gap-1">
+                                <AlertTriangle size={13} /> Selected date is blocked by administration and unavailable.
+                              </p>
+                            )}
                             {errors.event_date && <p className="text-xs text-destructive mt-1">{errors.event_date}</p>}
                           </div>
                           
@@ -1144,6 +1168,11 @@ export default function QuoteWizard() {
                           <div className="space-y-2">
                             <Label>Event Date</Label>
                             <Input type="date" min={minDate} value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                            {form.event_date && blockedDates.includes(form.event_date) && (
+                              <p className="text-xs font-semibold text-amber-600 mt-1 flex items-center gap-1">
+                                <AlertTriangle size={13} /> Selected date is blocked by administration and unavailable.
+                              </p>
+                            )}
                             {errors.event_date && <p className="text-xs text-destructive mt-1">{errors.event_date}</p>}
                           </div>
                           

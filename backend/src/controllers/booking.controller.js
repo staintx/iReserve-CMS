@@ -1595,11 +1595,22 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
   const startOfMonth = new Date(year, month - 1, 1);
   const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
 
+  const formatDateKey = (d) => {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return null;
+    const yr = dt.getFullYear();
+    const mo = String(dt.getMonth() + 1).padStart(2, '0');
+    const da = String(dt.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${da}`;
+  };
+
   // 1. Get dates from BlockedDate model
   const blockedDates = await BlockedDate.find({
     date: { $gte: startOfMonth, $lte: endOfMonth }
   });
-  const blockedDatesSet = new Set(blockedDates.map(b => b.date.toISOString().split('T')[0]));
+  const blockedDatesSet = new Set(
+    blockedDates.map(b => formatDateKey(b.date)).filter(Boolean)
+  );
 
   // 2. Get bookings to check against max limit
   const businessInfo = await BusinessInfo.findOne();
@@ -1613,8 +1624,8 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
   const dateCounts = {};
   bookings.forEach(booking => {
     if (booking.event_date) {
-      const d = new Date(booking.event_date).toISOString().split('T')[0];
-      dateCounts[d] = (dateCounts[d] || 0) + 1;
+      const d = formatDateKey(booking.event_date);
+      if (d) dateCounts[d] = (dateCounts[d] || 0) + 1;
     }
   });
 

@@ -1,38 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { AdminAPI } from "../../api/admin";
+import React from "react";
 import AdminLayout from "../../components/layout/AdminLayout";
-import AdminBookingsCalendarTable from "../../components/tables/AdminBookingsCalendarTable";
+import AdminEventCalendar from "../../components/dashboard/AdminEventCalendar";
 
 export default function AdminBookingsCalendar() {
-  const [bookings, setBookings] = useState([]);
-
-  useEffect(() => {
-    AdminAPI.getBookings()
-      .then((res) => setBookings(res.data.filter((booking) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(booking.status))))
-      .catch(() => setBookings([]));
-  }, []);
-
-  const grouped = useMemo(() => {
-    const map = new Map();
-    bookings.forEach((booking) => {
-      const dateKey = booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD";
-      if (!map.has(dateKey)) map.set(dateKey, []);
-      map.get(dateKey).push(booking);
-    });
-    return Array.from(map.entries());
-  }, [bookings]);
-
   return (
     <AdminLayout>
-      <h1>Availability Calendar</h1>
-      <div className="panel">
-        {grouped.length === 0 && <p>No bookings scheduled yet.</p>}
-        {grouped.map(([dateKey, items]) => (
-          <div key={dateKey} className="mb-6">
-            <h3 className="text-sm font-semibold text-ink-900">{dateKey}</h3>
-            <AdminBookingsCalendarTable items={items} />
-          </div>
-        ))}
+      <div className="p-6 bg-background min-h-screen">
+        <AdminEventCalendar />
       </div>
     </AdminLayout>
   );

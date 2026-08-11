@@ -7,32 +7,71 @@ exports.getAll = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const { date, reason } = req.body;
+  const { date, startDate, endDate, reason } = req.body;
   
-  if (!date) {
-    return res.status(400).json({ message: "Date is required" });
+  if (!date && !startDate) {
+    return res.status(400).json({ message: "Date or Date range is required" });
   }
 
-  const parsedDate = new Date(date);
-  if (isNaN(parsedDate.getTime())) {
-    return res.status(400).json({ message: "Invalid date format" });
-  }
-  
-  // Normalize date to start of day to avoid time component issues
-  parsedDate.setHours(0, 0, 0, 0);
+  const createdDates = [];
+  const datesToBlock = [];
 
-  const existing = await BlockedDate.findOne({ date: parsedDate });
-  if (existing) {
-    return res.status(400).json({ message: "This date is already blocked" });
+  if (startDate && endDate) {
+    let current = new Date(startDate);
+    const end = new Date(endDate);
+    current.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    if (current > end) {
+      return res.status(400).json({ message: "Start date cannot be after end date" });
+    }
+
+    while (current <= end) {
+      datesToBlock.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+  } else {
+    const targetDate = date || startDate;
+    const singleDate = new Date(targetDate);
+    if (isNaN(singleDate.getTime())) {
+      return res.status(400).json({ message: "Invalid date format" });
+    }
+    singleDate.setHours(0, 0, 0, 0);
+    datesToBlock.push(singleDate);
   }
 
-  const blockedDate = await BlockedDate.create({
-    date: parsedDate,
-    reason,
-    created_by: req.user._id,
+  for (const d of datesToBlock) {
+    const startOfDay = new Date(d);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(d);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existing = await BlockedDate.findOne({
+      date: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    if (!existing) {
+      const newBlocked = await BlockedDate.create({
+        date: startOfDay,
+        reason: reason || "Admin Blocked",
+        created_by: req.user._id,
+      });
+      createdDates.push(newBlocked);
+    }
+  }
+
+  if (createdDates.length === 0) {
+    return res.status(400).json({ message: "Selected date(s) are already blocked" });
+  }
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "blocked_date", action: "create" });
+
+  res.status(201).json({
+    message: `${createdDates.length} date(s) blocked successfully`,
+    blockedDates: createdDates,
+    ...(createdDates.length === 1 ? createdDates[0]._doc : {})
   });
-
-  res.status(201).json(blockedDate);
 });
 
 exports.remove = asyncHandler(async (req, res) => {
@@ -42,5 +81,9 @@ exports.remove = asyncHandler(async (req, res) => {
   }
 
   await blockedDate.deleteOne();
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "blocked_date", action: "delete" });
+
   res.json({ message: "Date unblocked successfully" });
 });

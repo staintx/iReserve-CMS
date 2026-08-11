@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import useAuth from "../../hooks/useAuth";
 import { User, Mail, Phone, MapPin, Lock, ShieldCheck, CreditCard, Save, Eye, EyeOff } from "lucide-react";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import { describePasswordGap } from "../../components/auth/passwordPolicy";
@@ -11,6 +12,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 
 export default function CustomerProfile() {
+  const { user, updateUser } = useAuth();
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -27,21 +29,34 @@ export default function CustomerProfile() {
 
   useEffect(() => {
     CustomerAPI.getProfile().then((res) => {
-      setForm((prev) => ({ ...prev, ...res.data }));
+      if (res.data) {
+        setForm({
+          full_name: res.data.full_name || "",
+          email: res.data.email || "",
+          username: res.data.username || "",
+          phone: res.data.phone || "",
+          address: res.data.address || "",
+          alt_phone: res.data.alt_phone || ""
+        });
+        updateUser(res.data);
+      }
     });
-  }, []);
+  }, [updateUser]);
 
   const save = async (e) => {
     if (e) e.preventDefault();
     setIsLoading(true);
     try {
-      await CustomerAPI.updateProfile({
+      const res = await CustomerAPI.updateProfile({
         full_name: form.full_name,
         email: form.email,
         username: form.username,
         phone: form.phone,
         address: form.address
       });
+      if (res.data) {
+        updateUser(res.data);
+      }
       notify("Profile updated successfully!", "success");
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update profile", "error");

@@ -241,6 +241,7 @@ const findBookingConflict = async ({
   excludeId,
   location,
   bufferMinutes,
+  ignoreLocation = false,
 }) => {
   if (!eventDate) return null;
   const date = new Date(eventDate);
@@ -265,14 +266,16 @@ const findBookingConflict = async ({
   const newRange = getTimeRange(startTime, durationHours);
   if (!newRange) {
     return (
-      existingBookings.find((booking) => sameLocation(location, booking)) ||
+      existingBookings.find((booking) => ignoreLocation || sameLocation(location, booking)) ||
       null
     );
   }
 
   return (
     existingBookings.find((booking) => {
-      if (!sameLocation(location, booking)) return false;
+      if (!ignoreLocation && location?.municipality && !sameLocation(location, booking)) {
+        return false;
+      }
       const existingRange = getTimeRange(
         booking.start_time,
         booking.duration_hours,
@@ -1630,8 +1633,12 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Event date is required" });
   }
 
+  // 0. Check BlockedDate model
+  const parsedEventDate = new Date(event_date);
+  parsedEventDate.setHours(0, 0, 0, 0);
+  const blocked = await BlockedDate.findOne({ date: parsedEventDate });
+
   // 1. Check max bookings limit for the day first.
-  // If the day is fully booked, all times are full.
   const maxLimitReached = await checkMaxBookingsLimit(event_date);
   
   // Define the standard time slots
@@ -1639,14 +1646,13 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
     "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"
   ];
 
+  if (blocked || maxLimitReached) {
+    return res.json(timeSlots.map((time) => ({ time, status: "full" })));
+  }
+
   const results = [];
 
   for (const time of timeSlots) {
-    if (maxLimitReached) {
-      results.push({ time, status: "full" });
-      continue;
-    }
-
     const conflict = await findBookingConflict({
       eventDate: event_date,
       startTime: time,
@@ -1660,7 +1666,8 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
         delivery_method,
         service_type
       },
-      bufferMinutes: req.query.buffer_minutes || 0
+      bufferMinutes: req.query.buffer_minutes || 0,
+      ignoreLocation: true,
     });
 
     results.push({
@@ -2362,8 +2369,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     contact_method: inquiry.contact_method || "Email",
     
     total_price: totalPrice,
-    payment_status: "deposit_paid",
-    status: "Confirmed",
+    payment_status: "pending",
+    status: "pending deposit",
   };
 
   const newBooking = await Booking.create(payload);
@@ -2379,6 +2386,11 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
 
   const Payment = require("../models/Payment");
   await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
+
+  const { syncBookingStatus } = require("./payment.controller");
+  if (syncBookingStatus) {
+    await syncBookingStatus(newBooking._id);
+  }
 
   if (inventoryItems.length > 0) {
     const InventoryReservation = require("../models/InventoryReservation");

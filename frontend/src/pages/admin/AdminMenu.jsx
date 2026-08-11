@@ -6,6 +6,7 @@ import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import MenuModal from "../../components/admin/ui/MenuModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
@@ -34,6 +35,8 @@ export default function AdminMenu() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const handleOpenModal = (item = null) => {
     setActiveItem(item);

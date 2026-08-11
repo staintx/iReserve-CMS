@@ -20,6 +20,7 @@ import CustomerMessages from "../pages/customer/CustomerMessages";
 import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
 import CustomerEventDashboard from "../pages/customer/CustomerEventDashboard";
 import CustomerProfile from "../pages/customer/CustomerProfile";
+import CustomerNotifications from "../pages/customer/CustomerNotifications";
 import Packages from "../pages/customer/Packages";
 import PackageDetails from "../pages/customer/PackageDetails";
 import Menu from "../pages/customer/Menu";
@@ -68,6 +69,7 @@ const managerRoles = ["manager"];
 const adminOnly = ["admin"];
 const adminManagerOnly = ["admin", "manager"];
 const staffRoles = ["staff"];
+const customerOnly = ["customer"];
 
 export default function AppRoutes() {
   const { user } = useAuth();
@@ -75,29 +77,37 @@ export default function AppRoutes() {
   const isManager = user?.role === "manager";
   const isStaff = user?.role === "staff";
 
+  const staffHome = isAdmin
+    ? "/admin/dashboard"
+    : isManager
+    ? "/manager/dashboard"
+    : isStaff
+    ? "/staff/dashboard"
+    : null;
+
   return (
     <BrowserRouter>
       <Routes>
         {/* Public pages */}
         <Route
           path="/"
-          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Landing />)}
+          element={staffHome ? <Navigate to={staffHome} /> : <Landing />}
         />
         <Route
           path="/packages"
-          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Packages />)}
+          element={staffHome ? <Navigate to={staffHome} /> : <Packages />}
         />
         <Route
           path="/packages/:id"
-          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <PackageDetails />)}
+          element={staffHome ? <Navigate to={staffHome} /> : <PackageDetails />}
         />
         <Route
           path="/menu"
-          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Menu />)}
+          element={staffHome ? <Navigate to={staffHome} /> : <Menu />}
         />
         <Route
           path="/gallery"
-          element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Gallery />)}
+          element={staffHome ? <Navigate to={staffHome} /> : <Gallery />}
         />
 
         {/* Auth */}
@@ -109,20 +119,21 @@ export default function AppRoutes() {
         <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Booking & Quote (protected) */}
-        <Route path="/customer/home" element={<ProtectedRoute><CustomerDashboard /></ProtectedRoute>} />
-        <Route path="/customer/dashboard" element={<ProtectedRoute><CustomerDashboard /></ProtectedRoute>} />
-        <Route path="/customer/book" element={<ProtectedRoute><BookingWizard /></ProtectedRoute>} />
-        <Route path="/customer/booking-success" element={<ProtectedRoute><BookingSuccess /></ProtectedRoute>} />
+        <Route path="/customer/home" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
+        <Route path="/customer/dashboard" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
+        <Route path="/customer/book" element={<ProtectedRoute allowedRoles={customerOnly}><BookingWizard /></ProtectedRoute>} />
+        <Route path="/customer/booking-success" element={<ProtectedRoute allowedRoles={customerOnly}><BookingSuccess /></ProtectedRoute>} />
 
-        <Route path="/customer/bookings" element={<ProtectedRoute><CustomerBookings /></ProtectedRoute>} />
-        <Route path="/customer/inquiries" element={<ProtectedRoute><CustomerInquiries /></ProtectedRoute>} />
-        <Route path="/customer/bookings/:id" element={<ProtectedRoute><CustomerEventDashboard /></ProtectedRoute>} />
-        <Route path="/customer/checkout" element={<ProtectedRoute><CustomCheckout /></ProtectedRoute>} />
-        <Route path="/customer/messages" element={<ProtectedRoute><CustomerMessages /></ProtectedRoute>} />
-        <Route path="/customer/messages/:id" element={<ProtectedRoute><CustomerMessageThread /></ProtectedRoute>} />
-        <Route path="/customer/profile" element={<ProtectedRoute><CustomerProfile /></ProtectedRoute>} />
+        <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
+        <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+        <Route path="/customer/bookings/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+        <Route path="/customer/checkout" element={<ProtectedRoute allowedRoles={customerOnly}><CustomCheckout /></ProtectedRoute>} />
+        <Route path="/customer/messages" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessages /></ProtectedRoute>} />
+        <Route path="/customer/messages/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessageThread /></ProtectedRoute>} />
+        <Route path="/customer/profile" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerProfile /></ProtectedRoute>} />
+        <Route path="/customer/notifications" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerNotifications /></ProtectedRoute>} />
 
-        <Route path="/customer/quote" element={<ProtectedRoute><QuoteWizard /></ProtectedRoute>} />
+        <Route path="/customer/quote" element={<ProtectedRoute allowedRoles={customerOnly}><QuoteWizard /></ProtectedRoute>} />
 
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />
@@ -162,7 +173,7 @@ export default function AppRoutes() {
         {/* Staff (protected by role) */}
         <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={staffRoles}><StaffDashboard /></ProtectedRoute>} />
 
-        <Route path="*" element={isAdmin ? <Navigate to={isManager ? "/manager/dashboard" : "/admin/dashboard"} /> : (isStaff ? <Navigate to="/staff/dashboard" /> : <Landing />)} />
+        <Route path="*" element={staffHome ? <Navigate to={staffHome} /> : <Landing />} />
       </Routes>
     </BrowserRouter>
   );

@@ -88,10 +88,19 @@ export default function AuthProvider({ children }) {
     return () => window.removeEventListener("session-expired", handleSessionExpired);
   }, [logout]);
 
+  const updateUser = useCallback((updatedUserData) => {
+    if (!updatedUserData) return;
+    setUser((prev) => {
+      const nextUser = { ...prev, ...updatedUserData };
+      localStorage.setItem("user", JSON.stringify(nextUser));
+      return nextUser;
+    });
+  }, []);
+
   const clearSessionExpired = () => setSessionExpired(false);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isReady, sessionExpired, clearSessionExpired }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, isReady, sessionExpired, clearSessionExpired }}>
       {children}
     </AuthContext.Provider>
   );

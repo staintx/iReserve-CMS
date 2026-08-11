@@ -15,6 +15,7 @@ import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import { useNavigate } from "react-router-dom";
 import useToast from "../../hooks/useToast";
+import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import PackageModal from "../../components/admin/ui/PackageModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
@@ -60,6 +61,8 @@ export default function AdminPackages() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useRealTimeRefresh(loadData);
 
   const handleOpenModal = (pkg = null) => {
     setActivePkg(pkg);

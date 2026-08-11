@@ -39,5 +39,10 @@ exports.update = asyncHandler(async (req, res) => {
     { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
   );
 
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "businessInfo", action: "update" });
+  }
+
   res.json(updated);
 });

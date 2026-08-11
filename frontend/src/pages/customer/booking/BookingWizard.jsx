@@ -50,10 +50,17 @@ const isValidEmail = (value) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
-const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
 const isValidPhone = (value) => {
   const digits = normalizePhone(value);
-  return /^(?:63|0)?9\d{9}$/.test(digits);
+  return /^09\d{9}$/.test(digits);
+};
+
+const parseName = (fullName) => {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 };
 
 const determineEventTypeFromPackage = (pkg) => {
@@ -375,14 +382,38 @@ export default function BookingWizard() {
     return () => document.body.classList.remove("booking-flow");
   }, []);
 
-  // --- Auto-fill user data ---
+  // --- Auto-fill user data from profile ---
   useEffect(() => {
     if (!user) return;
-    setForm((prev) => ({
-      ...prev,
-      customer_id: prev.customer_id || user._id,
-      contact_email: prev.contact_email || user.email || "",
-    }));
+
+    const applyProfileData = (profileData) => {
+      const { firstName, lastName } = parseName(profileData.full_name || user.full_name || "");
+      const email = profileData.email || user.email || "";
+      const phone = normalizePhone(profileData.phone || user.phone || "");
+      const altPhone = normalizePhone(profileData.alt_phone || user.alt_phone || "");
+
+      setForm((prev) => ({
+        ...prev,
+        customer_id: prev.customer_id || profileData._id || user._id,
+        contact_first_name: prev.contact_first_name || firstName,
+        contact_last_name: prev.contact_last_name || lastName,
+        contact_email: prev.contact_email || email,
+        contact_phone: prev.contact_phone || phone,
+        contact_alt_phone: prev.contact_alt_phone || altPhone,
+      }));
+    };
+
+    CustomerAPI.getProfile()
+      .then((res) => {
+        if (res.data) {
+          applyProfileData(res.data);
+        } else {
+          applyProfileData(user);
+        }
+      })
+      .catch(() => {
+        applyProfileData(user);
+      });
   }, [user]);
 
   // --- Fetch data ---
@@ -606,17 +637,17 @@ export default function BookingWizard() {
         businessInfo?.custom_food_and_event_price || 800;
 
       if (form.service_type === "Event Setup Only") {
-        const selectedPackageId = form.package_id || initialPackageId;
+        const activePkgId = form.package_id === "none" ? "" : (form.package_id || initialPackageId);
         const packagePrice = Number(packageDetails?.setup_price || 0);
         sum +=
-          selectedPackageId && packagePrice > 0
+          activePkgId && packagePrice > 0
             ? packagePrice
             : customEventSetupPrice;
       } else if (form.service_type === "Food and Event Setup") {
-        const selectedPackageId = form.package_id || initialPackageId;
+        const activePkgId = form.package_id === "none" ? "" : (form.package_id || initialPackageId);
         const packagePricePerGuest = Number(packageDetails?.price_per_guest || 0);
         const pricePerPax =
-          selectedPackageId && packagePricePerGuest > 0
+          activePkgId && packagePricePerGuest > 0
             ? packagePricePerGuest
             : customFoodEventPricePerPax;
         sum += pricePerPax * pax;
@@ -680,6 +711,15 @@ export default function BookingWizard() {
           return;
         }
       }
+    }
+
+    if (currentStepId === "ContactInfo") {
+      const fullName = `${form.contact_first_name || ""} ${form.contact_last_name || ""}`.trim();
+      CustomerAPI.updateProfile({
+        full_name: fullName,
+        email: form.contact_email,
+        phone: form.contact_phone,
+      }).catch(() => {});
     }
 
     setStep((s) => Math.min(s + 1, wizardSteps.length - 1));
@@ -825,14 +865,36 @@ export default function BookingWizard() {
           />
         );
       case "PackageSelection":
+        const currentActivePackageId =
+          form.package_id === "none"
+            ? ""
+            : form.package_id || initialPackageId || "";
+
         return (
           <StepPackageSelection
             packages={packages}
             form={form}
             setForm={setForm}
             packageDetails={packageDetails}
-            selectedPackageId={form.package_id || initialPackageId}
+            selectedPackageId={currentActivePackageId}
             onSelectPackage={(pkgId) => {
+              if (currentActivePackageId === pkgId) {
+                // Unselect current package
+                setForm((prev) => ({
+                  ...prev,
+                  package_id: "none",
+                  selected_scaffold_option_id: "",
+                  scaffold_width: undefined,
+                  scaffold_length: undefined,
+                  scaffold_base_area: undefined,
+                  scaffold_price: undefined,
+                  scaffold_guest_min: undefined,
+                  scaffold_guest_max: undefined,
+                  selected_package_addons: [],
+                }));
+                return;
+              }
+
               const pkg =
                 packages.find((p) => p._id === pkgId) || packageDetails;
               let selectedOptionId = pkg?.default_scaffold_option_id || null;
@@ -865,10 +927,10 @@ export default function BookingWizard() {
                 package_id: pkgId,
                 ...(autoType ? { event_type: autoType, event_type_other: autoOther || "" } : {}),
                 selected_scaffold_option_id:
-                  selectedOptionId || prev.selected_scaffold_option_id,
-                scaffold_width: width || prev.scaffold_width,
-                scaffold_length: length || prev.scaffold_length,
-                scaffold_base_area: area || prev.scaffold_base_area,
+                  selectedOptionId || "",
+                scaffold_width: width || undefined,
+                scaffold_length: length || undefined,
+                scaffold_base_area: area || undefined,
               }));
             }}
           />

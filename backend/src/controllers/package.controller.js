@@ -24,20 +24,32 @@ exports.create = async (req, res) => {
   let gallery = [];
 
   if (req.files) {
+    const uploadTasks = [];
+    let imageTaskIndex = -1;
+    const galleryTaskIndices = [];
+
     if (req.files.image && req.files.image[0]) {
-      const result = await uploadToCloudinary(
-        req.files.image[0].buffer,
-        "packages",
+      imageTaskIndex = uploadTasks.length;
+      uploadTasks.push(
+        uploadToCloudinary(req.files.image[0].buffer, "packages")
       );
-      image_url = result.secure_url;
     }
 
     if (req.files.gallery && req.files.gallery.length > 0) {
-      const uploadPromises = req.files.gallery.map((file) =>
-        uploadToCloudinary(file.buffer, "packages"),
-      );
-      const results = await Promise.all(uploadPromises);
-      gallery = results.map((r) => r.secure_url);
+      req.files.gallery.forEach((file) => {
+        galleryTaskIndices.push(uploadTasks.length);
+        uploadTasks.push(uploadToCloudinary(file.buffer, "packages"));
+      });
+    }
+
+    if (uploadTasks.length > 0) {
+      const results = await Promise.all(uploadTasks);
+      if (imageTaskIndex !== -1) {
+        image_url = results[imageTaskIndex].secure_url;
+      }
+      if (galleryTaskIndices.length > 0) {
+        gallery = galleryTaskIndices.map((idx) => results[idx].secure_url);
+      }
     }
   }
 
@@ -125,14 +137,14 @@ exports.create = async (req, res) => {
     io.emit("system:refresh", { type: "package", action: "create", package_id: pkg._id });
   }
 
-  await logAction({
+  logAction({
     user_id: req.user._id,
     action: "package_created",
     entity_type: "package",
     entity_id: pkg._id,
     details: `Created package "${pkg.name}"`,
     ip_address: req.ip,
-  });
+  }).catch((err) => console.error("logAction error:", err));
 
   res.status(201).json(pkg);
 };
@@ -219,20 +231,34 @@ exports.update = async (req, res) => {
     delete data.scaffold_size_options;
 
   if (req.files) {
+    const uploadTasks = [];
+    let imageTaskIndex = -1;
+    const galleryTaskIndices = [];
+
     if (req.files.image && req.files.image[0]) {
-      const result = await uploadToCloudinary(
-        req.files.image[0].buffer,
-        "packages",
+      imageTaskIndex = uploadTasks.length;
+      uploadTasks.push(
+        uploadToCloudinary(req.files.image[0].buffer, "packages")
       );
-      data.image_url = result.secure_url;
     }
 
     if (req.files.gallery && req.files.gallery.length > 0) {
-      const uploadPromises = req.files.gallery.map((file) =>
-        uploadToCloudinary(file.buffer, "packages"),
-      );
-      const results = await Promise.all(uploadPromises);
-      data.$push = { gallery: { $each: results.map((r) => r.secure_url) } };
+      req.files.gallery.forEach((file) => {
+        galleryTaskIndices.push(uploadTasks.length);
+        uploadTasks.push(uploadToCloudinary(file.buffer, "packages"));
+      });
+    }
+
+    if (uploadTasks.length > 0) {
+      const results = await Promise.all(uploadTasks);
+      if (imageTaskIndex !== -1) {
+        data.image_url = results[imageTaskIndex].secure_url;
+      }
+      if (galleryTaskIndices.length > 0) {
+        data.$push = {
+          gallery: { $each: galleryTaskIndices.map((idx) => results[idx].secure_url) },
+        };
+      }
     }
   }
 
@@ -295,7 +321,7 @@ exports.update = async (req, res) => {
       ? changedFieldNames.join(", ")
       : Object.keys(req.body).join(", ");
 
-  await logAction({
+  logAction({
     user_id: req.user._id,
     action: "package_updated",
     entity_type: "package",
@@ -303,7 +329,7 @@ exports.update = async (req, res) => {
     details: `Updated package "${updated.name}" — Fields: ${detailParts}`,
     changes: Object.keys(changes).length > 0 ? changes : undefined,
     ip_address: req.ip,
-  });
+  }).catch((err) => console.error("logAction error:", err));
 
   const io = req.app.get("io");
   if (io) {

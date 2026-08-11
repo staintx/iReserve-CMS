@@ -377,7 +377,7 @@ export default function StepDateTime({
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div
                     key={i}
-                    className="h-10 animate-pulse rounded-xl bg-[#F1F5F9]"
+                    className="h-11 animate-pulse rounded-xl bg-[#F1F5F9]"
                   />
                 ))}
               </div>
@@ -395,19 +395,19 @@ export default function StepDateTime({
                       aria-pressed={isSelected}
                       onClick={() => handleTimeSelect(time)}
                       className={cn(
-                        "h-10 rounded-xl border-2 text-[13px] font-medium leading-none transition-all duration-200",
+                        "h-11 rounded-xl border-2 text-[13px] font-medium transition-all duration-200",
                         isSelected
                           ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#1E293B]"
                           : isFull
-                            ? "cursor-not-allowed border-[#E2E8F0]/60 bg-[#F8FAFC] text-[#94A3B8] opacity-75"
+                            ? "cursor-not-allowed border-[#E2E8F0]/80 bg-[#F8FAFC] text-[#94A3B8]"
                             : "border-[#E2E8F0] text-[#1E293B] hover:border-[#4C81E0]/50 hover:bg-[#F8FAFC]",
                         focusRing,
                       )}
                     >
                       {isFull ? (
-                        <span className="flex flex-col items-center gap-0.5">
-                          <span className="line-through text-[#94A3B8]">{time}</span>
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Full</span>
+                        <span className="flex flex-col items-center justify-center leading-tight">
+                          <span className="text-[12px] font-medium text-[#94A3B8]">{time}</span>
+                          <span className="text-[10px] text-[#CBD5E1]">Full</span>
                         </span>
                       ) : (
                         time

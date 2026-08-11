@@ -56,6 +56,42 @@ const isValidPhone = (value) => {
   return /^(?:63|0)?9\d{9}$/.test(digits);
 };
 
+const determineEventTypeFromPackage = (pkg) => {
+  if (!pkg) return { event_type: "", event_type_other: "" };
+
+  const validTypes = ["Birthday", "Wedding", "Corporate"];
+
+  if (pkg.event_type && typeof pkg.event_type === "string" && pkg.event_type.trim()) {
+    const trimmed = pkg.event_type.trim();
+    const matched = validTypes.find(
+      (t) => t.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (matched) return { event_type: matched, event_type_other: "" };
+    return { event_type: "Other", event_type_other: trimmed };
+  }
+
+  const textToSearch = [
+    pkg.name,
+    pkg.description,
+    pkg.badge_text,
+    Array.isArray(pkg.inclusions) ? pkg.inclusions.join(" ") : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (/\b(birthday|bday|debut)\b/i.test(textToSearch)) {
+    return { event_type: "Birthday", event_type_other: "" };
+  }
+  if (/\b(wedding|nuptial|bride|bridal)\b/i.test(textToSearch)) {
+    return { event_type: "Wedding", event_type_other: "" };
+  }
+  if (/\b(corporate|company|business|seminar|conference|gala)\b/i.test(textToSearch)) {
+    return { event_type: "Corporate", event_type_other: "" };
+  }
+
+  return { event_type: "", event_type_other: "" };
+};
+
 // -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
@@ -398,6 +434,21 @@ export default function BookingWizard() {
       .then((res) => setPackageDetails(res.data))
       .catch(() => setPackageDetails(null));
   }, [form.package_id, initialPackageId]);
+
+  // Auto-determine event_type when packageDetails is loaded
+  useEffect(() => {
+    if (!packageDetails) return;
+    const { event_type: autoType, event_type_other: autoOther } =
+      determineEventTypeFromPackage(packageDetails);
+    if (autoType) {
+      setForm((prev) => ({
+        ...prev,
+        event_type: autoType,
+        event_type_other:
+          autoOther !== undefined ? autoOther : prev.event_type_other,
+      }));
+    }
+  }, [packageDetails]);
 
   // Populate inventory_items from package setup_equipment for packages with setup items
   useEffect(() => {
@@ -806,9 +857,13 @@ export default function BookingWizard() {
                 }
               }
 
+              const { event_type: autoType, event_type_other: autoOther } =
+                determineEventTypeFromPackage(pkg);
+
               setForm((prev) => ({
                 ...prev,
                 package_id: pkgId,
+                ...(autoType ? { event_type: autoType, event_type_other: autoOther || "" } : {}),
                 selected_scaffold_option_id:
                   selectedOptionId || prev.selected_scaffold_option_id,
                 scaffold_width: width || prev.scaffold_width,

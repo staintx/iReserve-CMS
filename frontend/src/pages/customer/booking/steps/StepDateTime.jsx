@@ -149,6 +149,15 @@ export default function StepDateTime({
             };
           });
           setTimeSlots(updatedSlots);
+
+          // Clear selected start_time if it's now full in updated slots
+          if (form.start_time) {
+            const currentDisplay = getDisplayTime(form.start_time);
+            const selectedSlot = updatedSlots.find((s) => s.time === currentDisplay);
+            if (selectedSlot && (selectedSlot.status === "full" || selectedSlot.status === "unavailable")) {
+              setForm((prev) => ({ ...prev, start_time: "" }));
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to fetch available times", err);
@@ -376,7 +385,7 @@ export default function StepDateTime({
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {timeSlots.map(({ time, status }) => {
                   const isSelected = selectedDisplayTime === time;
-                  const isFull = status === "full";
+                  const isFull = status === "full" || status === "unavailable";
 
                   return (
                     <button
@@ -390,15 +399,15 @@ export default function StepDateTime({
                         isSelected
                           ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#1E293B]"
                           : isFull
-                            ? "cursor-not-allowed border-[#F1F5F9] bg-[#F8FAFC] text-[#CBD5E1]"
+                            ? "cursor-not-allowed border-[#E2E8F0]/60 bg-[#F8FAFC] text-[#94A3B8] opacity-75"
                             : "border-[#E2E8F0] text-[#1E293B] hover:border-[#4C81E0]/50 hover:bg-[#F8FAFC]",
                         focusRing,
                       )}
                     >
                       {isFull ? (
                         <span className="flex flex-col items-center gap-0.5">
-                          <span>{time}</span>
-                          <span className="text-[10px] uppercase">Full</span>
+                          <span className="line-through text-[#94A3B8]">{time}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-rose-500">Full</span>
                         </span>
                       ) : (
                         time

@@ -2,8 +2,8 @@ const Joi = require("joi");
 const { passwordRule } = require("./password.rule");
 
 exports.updateUserSchema = Joi.object({
-  full_name: Joi.string().required(),
-  email: Joi.string().email().required(),
+  full_name: Joi.string().trim().required(),
+  email: Joi.string().trim().email().required(),
   phone: Joi.string().allow("").optional(),
   address: Joi.string().allow("").optional(),
   username: Joi.string().allow("").optional()

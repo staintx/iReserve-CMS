@@ -16,27 +16,29 @@ exports.getMe = asyncHandler(async (req, res) => {
 
 exports.updateMe = asyncHandler(async (req, res) => {
   if (req.body.email) {
-    const existing = await User.findOne({ email: req.body.email, _id: { $ne: req.user._id } });
+    const emailToTest = req.body.email.trim().toLowerCase();
+    const existing = await User.findOne({ email: emailToTest, _id: { $ne: req.user._id } });
     if (existing) {
       return res.status(409).json({ message: "Email already in use" });
     }
   }
 
   if (req.body.username) {
-    const existingUser = await User.findOne({ username: req.body.username, _id: { $ne: req.user._id } });
+    const usernameToTest = req.body.username.trim();
+    const existingUser = await User.findOne({ username: usernameToTest, _id: { $ne: req.user._id } });
     if (existingUser) {
       return res.status(409).json({ message: "Username already in use" });
     }
   }
 
   const updates = {
-    full_name: req.body.full_name,
-    email: req.body.email,
-    phone: req.body.phone,
-    address: req.body.address,
-    ...(req.body.username && { username: req.body.username })
+    ...(req.body.full_name && { full_name: req.body.full_name.trim() }),
+    ...(req.body.email && { email: req.body.email.trim().toLowerCase() }),
+    phone: req.body.phone ? req.body.phone.trim() : "",
+    address: req.body.address ? req.body.address.trim() : "",
+    ...(req.body.username !== undefined && { username: req.body.username ? req.body.username.trim() : undefined })
   };
-  const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
+  const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true }).select("-password");
   res.json(user);
 });
 

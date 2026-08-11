@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
+import useAuth from "../../hooks/useAuth";
 import { User, Lock, Save, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import { describePasswordGap } from "../../components/auth/passwordPolicy";
 
 export default function AdminProfile() {
+  const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState("profile");
   const [form, setForm] = useState({
     full_name: "",
@@ -22,21 +24,33 @@ export default function AdminProfile() {
 
   useEffect(() => {
     AdminAPI.getProfile().then((res) => {
-      setForm((prev) => ({ ...prev, ...res.data }));
+      if (res.data) {
+        setForm({
+          full_name: res.data.full_name || "",
+          email: res.data.email || "",
+          username: res.data.username || "",
+          phone: res.data.phone || "",
+          address: res.data.address || ""
+        });
+        updateUser(res.data);
+      }
     });
-  }, []);
+  }, [updateUser]);
 
   const saveProfile = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await AdminAPI.updateProfile({
+      const res = await AdminAPI.updateProfile({
         full_name: form.full_name,
         email: form.email,
         username: form.username,
         phone: form.phone || "",
         address: form.address || ""
       });
+      if (res.data) {
+        updateUser(res.data);
+      }
       notify("Profile updated successfully!", "success");
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update profile", "error");

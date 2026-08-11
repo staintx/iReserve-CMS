@@ -4,6 +4,52 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+const compressImage = async (file, maxDimension = 1600, quality = 0.85) => {
+  if (!file || !file.type?.startsWith("image/") || file.size < 300 * 1024) {
+    return file;
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return resolve(file);
+          const compressedFile = new File(
+            [blob],
+            file.name.replace(/\.[^/.]+$/, "") + ".jpg",
+            {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            }
+          );
+          resolve(compressedFile);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+};
+
 export default function PackageModal({ pkg, onClose, onSave }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
@@ -72,21 +118,25 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
   // ============ EFFECTS ============
   useEffect(() => {
-    AdminAPI.getInventory()
-      .then((res) =>
-        setInventoryList(
-          res.data.filter((i) =>
-            ["Equipment", "Furniture", "Decorations", "Tableware"].includes(
-              i.category,
-            ),
+    Promise.all([
+      AdminAPI.getInventory().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+      AdminAPI.getMenu().catch((err) => {
+        console.error(err);
+        return { data: [] };
+      }),
+    ]).then(([invRes, menuRes]) => {
+      setInventoryList(
+        (invRes.data || []).filter((i) =>
+          ["Equipment", "Furniture", "Decorations", "Tableware"].includes(
+            i.category,
           ),
         ),
-      )
-      .catch((err) => console.error(err));
-
-    AdminAPI.getMenu()
-      .then((res) => setFullMenuList(res.data))
-      .catch((err) => console.error(err));
+      );
+      setFullMenuList(menuRes.data || []);
+    });
 
     if (pkg) {
       setFormData({
@@ -250,11 +300,18 @@ export default function PackageModal({ pkg, onClose, onSave }) {
         }
       });
 
-      if (imageFile) data.append("image", imageFile);
+      if (imageFile) {
+        const compressedMain = await compressImage(imageFile);
+        data.append("image", compressedMain);
+      }
+
       if (galleryFiles.length > 0) {
-        for (let i = 0; i < galleryFiles.length; i++) {
-          data.append("gallery", galleryFiles[i]);
-        }
+        const compressedGallery = await Promise.all(
+          galleryFiles.map((file) => compressImage(file))
+        );
+        compressedGallery.forEach((file) => {
+          data.append("gallery", file);
+        });
       }
 
       if (pkg && pkg._id) {

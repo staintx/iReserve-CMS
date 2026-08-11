@@ -1,5 +1,5 @@
 import { Card, SH, SectionTitle, StepShell, focusRing, formatPeso } from "../components/BookingSharedUI";
-import { CheckCircle2, Package2, Users, Ruler } from "lucide-react";
+import { CheckCircle2, Package2, Users, Ruler, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // The wizard's `service_type` strings don't match the Package model's
@@ -26,8 +26,9 @@ export default function StepPackageSelection({
     (pkg) => pkg?.package_type === targetPackageType,
   );
 
-  const selectedPackage =
-    (packages || []).find((p) => p._id === selectedPackageId) || packageDetails;
+  const selectedPackage = selectedPackageId
+    ? (packages || []).find((p) => p._id === selectedPackageId) || packageDetails
+    : null;
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
@@ -52,6 +53,26 @@ export default function StepPackageSelection({
         }
       />
 
+      {selectedPackage && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-[#4C81E0]/30 bg-[#4C81E0]/5 p-3 text-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 size={18} className="shrink-0 text-[#4C81E0]" />
+            <span className="truncate text-[#1E293B]">
+              <span className="font-semibold">Selected Package:</span>{" "}
+              <span className="font-bold">{selectedPackage.name}</span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectPackage(selectedPackage._id)}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-95 cursor-pointer"
+          >
+            <X size={14} />
+            Unselect Package
+          </button>
+        </div>
+      )}
+
       <div
         className={cn(
           "grid grid-cols-1 gap-4",
@@ -71,7 +92,7 @@ export default function StepPackageSelection({
                     aria-pressed={isSelected}
                     onClick={() => onSelectPackage(pkg._id)}
                     className={cn(
-                      "flex flex-col rounded-2xl border-2 p-3.5 text-left transition-all",
+                      "flex flex-col rounded-2xl border-2 p-3.5 text-left transition-all cursor-pointer",
                       isSelected
                         ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm"
                         : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50 hover:shadow-sm",
@@ -137,13 +158,20 @@ export default function StepPackageSelection({
 
                     <span
                       className={cn(
-                        "mt-3 self-end rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                        "mt-3 self-end rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors flex items-center gap-1.5",
                         isSelected
-                          ? "bg-[#4C81E0] text-white"
+                          ? "bg-[#4C81E0] text-white hover:bg-red-600"
                           : "border border-[#E2E8F0] bg-white text-[#64748B]",
                       )}
                     >
-                      {isSelected ? "Selected" : "Select package"}
+                      {isSelected ? (
+                        <>
+                          <X size={14} />
+                          Unselect Package
+                        </>
+                      ) : (
+                        "Select package"
+                      )}
                     </span>
                   </button>
                 );

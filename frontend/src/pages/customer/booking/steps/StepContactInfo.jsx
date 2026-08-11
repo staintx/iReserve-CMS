@@ -11,11 +11,10 @@ import {
 } from "../components/BookingSharedUI";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_DIGITS_REGEX = /^(?:63|0)?9\d{9}$/;
 
-const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+const sanitizePhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
 const isValidEmail = (value) => EMAIL_REGEX.test(String(value || "").trim());
-const isValidPhone = (value) => PHONE_DIGITS_REGEX.test(normalizePhone(value));
+const isValidPhone = (value) => /^09\d{9}$/.test(sanitizePhone(value));
 
 const getFieldError = (field, value) => {
   const trimmed = String(value || "").trim();
@@ -28,16 +27,32 @@ const getFieldError = (field, value) => {
     case "contact_email":
       if (!trimmed) return "Email address is required.";
       return isValidEmail(trimmed) ? "" : "Enter a valid email address.";
-    case "contact_phone":
-      if (!trimmed) return "Primary phone is required.";
-      return isValidPhone(trimmed)
+    case "contact_phone": {
+      if (!trimmed) return "Primary phone number is required.";
+      const digits = sanitizePhone(trimmed);
+      if (digits.length < 11) {
+        return "Phone number must be exactly 11 digits (e.g. 09123456789).";
+      }
+      if (!digits.startsWith("09")) {
+        return "Phone number must start with 09 (e.g. 09123456789).";
+      }
+      return /^09\d{9}$/.test(digits)
         ? ""
-        : "Enter a valid Philippine mobile number.";
-    case "contact_alt_phone":
+        : "Enter a valid 11-digit Philippine mobile number starting with 09.";
+    }
+    case "contact_alt_phone": {
       if (!trimmed) return "";
-      return isValidPhone(trimmed)
+      const digits = sanitizePhone(trimmed);
+      if (digits.length < 11) {
+        return "Alternative phone number must be exactly 11 digits (e.g. 09123456789).";
+      }
+      if (!digits.startsWith("09")) {
+        return "Alternative phone number must start with 09 (e.g. 09123456789).";
+      }
+      return /^09\d{9}$/.test(digits)
         ? ""
-        : "Enter a valid Philippine mobile number.";
+        : "Enter a valid 11-digit Philippine mobile number starting with 09.";
+    }
     default:
       return "";
   }
@@ -64,6 +79,31 @@ export default function StepContactInfo({ form, setForm }) {
       setForm((prev) => ({ ...prev, contact_alt_phone: "" }));
       setErrors((prev) => ({ ...prev, contact_alt_phone: "" }));
     }
+  };
+
+  const handlePhoneChange = (field, rawValue) => {
+    const sanitized = sanitizePhone(rawValue);
+    handleFieldChange(field, sanitized);
+  };
+
+  const handlePhoneKeyDown = (e) => {
+    if (
+      ["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key) ||
+      e.ctrlKey ||
+      e.metaKey
+    ) {
+      return;
+    }
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handlePhonePaste = (e, field) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData?.getData("text") || "";
+    const sanitized = sanitizePhone(pasteData);
+    handlePhoneChange(field, sanitized);
   };
 
   const handleFieldBlur = (field) => {
@@ -150,12 +190,18 @@ export default function StepContactInfo({ form, setForm }) {
                 label="Primary Phone"
                 required
                 error={errors.contact_phone}
-                hint="Philippine mobile number, e.g. 0917 123 4567."
+                hint="Philippine mobile number, e.g. 09123456789."
               >
                 <TInput
-                  placeholder="(+63) 900 000 0000"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={11}
+                  placeholder="09123456789"
                   value={form.contact_phone || ""}
-                  onChange={(val) => handleFieldChange("contact_phone", val)}
+                  onChange={(val) => handlePhoneChange("contact_phone", val)}
+                  onKeyDown={handlePhoneKeyDown}
+                  onPaste={(e) => handlePhonePaste(e, "contact_phone")}
                   onBlur={() => handleFieldBlur("contact_phone")}
                   required
                   hasError={!!errors.contact_phone}
@@ -167,16 +213,22 @@ export default function StepContactInfo({ form, setForm }) {
                 error={errors.contact_alt_phone}
                 hint={
                   primaryPhoneFilled
-                    ? "Optional backup contact number."
+                    ? "Optional backup contact number, e.g. 09123456789."
                     : undefined
                 }
               >
                 <TInput
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={11}
                   placeholder={
-                    primaryPhoneFilled ? "Optional" : "Enter primary phone first"
+                    primaryPhoneFilled ? "09123456789 (Optional)" : "Enter primary phone first"
                   }
                   value={form.contact_alt_phone || ""}
-                  onChange={(val) => handleFieldChange("contact_alt_phone", val)}
+                  onChange={(val) => handlePhoneChange("contact_alt_phone", val)}
+                  onKeyDown={handlePhoneKeyDown}
+                  onPaste={(e) => handlePhonePaste(e, "contact_alt_phone")}
                   onBlur={() => handleFieldBlur("contact_alt_phone")}
                   disabled={!primaryPhoneFilled}
                   hasError={!!errors.contact_alt_phone}

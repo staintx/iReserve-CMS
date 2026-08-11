@@ -196,6 +196,30 @@ export default function QuoteWizard() {
       .catch(() => setBlockedDates([]));
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    CustomerAPI.getProfile()
+      .then((res) => {
+        const profile = res.data || user;
+        setForm((prev) => ({
+          ...prev,
+          customer_id: prev.customer_id || profile._id || user._id,
+          full_name: prev.full_name || profile.full_name || user.full_name || "",
+          email: prev.email || profile.email || user.email || "",
+          phone: prev.phone || (profile.phone || user.phone || "").replace(/\D/g, "").slice(0, 11),
+        }));
+      })
+      .catch(() => {
+        setForm((prev) => ({
+          ...prev,
+          customer_id: prev.customer_id || user._id,
+          full_name: prev.full_name || user.full_name || "",
+          email: prev.email || user.email || "",
+          phone: prev.phone || (user.phone || "").replace(/\D/g, "").slice(0, 11),
+        }));
+      });
+  }, [user]);
+
   const filteredMenu = useMemo(() => {
     if (!menuFilter) return menuItems;
     const filtered = menuItems.filter((item) =>
@@ -406,7 +430,17 @@ export default function QuoteWizard() {
 
     setRequired("full_name", "Full name");
     setRequired("email", "Email address");
-    setRequired("phone", "Phone number");
+
+    const phoneDigits = String(form.phone || "").replace(/\D/g, "").slice(0, 11);
+    if (isEmpty(form.phone)) {
+      nextErrors.phone = "Phone number is required.";
+    } else if (phoneDigits.length < 11) {
+      nextErrors.phone = "Phone number must be exactly 11 digits (e.g. 09123456789).";
+    } else if (!phoneDigits.startsWith("09")) {
+      nextErrors.phone = "Phone number must start with 09 (e.g. 09123456789).";
+    } else if (!/^09\d{9}$/.test(phoneDigits)) {
+      nextErrors.phone = "Enter a valid 11-digit Philippine mobile number starting with 09.";
+    }
 
     if (!isEmpty(form.email) && !/\S+@\S+\.\S+/.test(form.email)) {
       nextErrors.email = "Enter a valid email address.";
@@ -424,6 +458,13 @@ export default function QuoteWizard() {
 
   const submit = async () => {
     setError("");
+    if (form.full_name && form.email && form.phone) {
+      CustomerAPI.updateProfile({
+        full_name: form.full_name,
+        email: form.email,
+        phone: form.phone,
+      }).catch(() => {});
+    }
     const nextErrors = validateRequired();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -1020,7 +1061,36 @@ export default function QuoteWizard() {
                           
                           <div className="space-y-2">
                             <Label>Phone Number</Label>
-                            <Input placeholder="0900 000 0000" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={11}
+                              placeholder="09123456789"
+                              value={form.phone}
+                              onKeyDown={(e) => {
+                                if (
+                                  ["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key) ||
+                                  e.ctrlKey ||
+                                  e.metaKey
+                                ) {
+                                  return;
+                                }
+                                if (!/^\d$/.test(e.key)) {
+                                  e.preventDefault();
+                                }
+                              }}
+                              onPaste={(e) => {
+                                e.preventDefault();
+                                const pasteData = e.clipboardData?.getData("text") || "";
+                                const sanitized = pasteData.replace(/\D/g, "").slice(0, 11);
+                                setForm({ ...form, phone: sanitized });
+                              }}
+                              onChange={(e) => {
+                                const sanitized = e.target.value.replace(/\D/g, "").slice(0, 11);
+                                setForm({ ...form, phone: sanitized });
+                              }}
+                            />
                             {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
                           </div>
                           

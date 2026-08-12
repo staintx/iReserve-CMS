@@ -96,13 +96,21 @@ export default function MenuModal({ item, onClose, onSave }) {
               value={formData.category} 
               onChange={e => setFormData({...formData, category: e.target.value})}
             >
+              {/* These values feed the customer booking flow's course rules
+                  (3 main courses, 1 vegetable, 2 desserts) and the "water is
+                  included" note — see frontend/src/lib/menuCategories.js and
+                  backend/src/utils/menuCategories.js. Vegetable and Drinking
+                  Water were missing, so those courses could not be stocked. */}
               <option value="Appetizer">Appetizer</option>
               <option value="Soup">Soup</option>
               <option value="Salad">Salad</option>
               <option value="Main Course">Main Course</option>
+              <option value="Vegetable">Vegetable</option>
               <option value="Pasta">Pasta</option>
+              <option value="Rice">Rice</option>
               <option value="Dessert">Dessert</option>
               <option value="Beverage">Beverage</option>
+              <option value="Drinking Water">Drinking Water</option>
             </select>
           </div>
 

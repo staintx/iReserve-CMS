@@ -22,7 +22,9 @@ export default function AdminMenu() {
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
-  const categories = ["all", "Appetizer", "Soup", "Salad", "Main Course", "Pasta", "Dessert", "Beverage"];
+  // Keep in step with the category options in MenuModal.jsx — a category that
+  // can be saved but not filtered on makes those items look missing here.
+  const categories = ["all", "Appetizer", "Soup", "Salad", "Main Course", "Vegetable", "Pasta", "Rice", "Dessert", "Beverage", "Drinking Water"];
 
   const loadData = () => {
     setLoading(true);

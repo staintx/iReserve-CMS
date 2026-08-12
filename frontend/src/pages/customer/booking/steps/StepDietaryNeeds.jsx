@@ -1,77 +1,57 @@
-import React from "react";
-import { ShieldAlert, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import {
   Card,
   SH,
   Field,
   TTextarea,
-  SectionTitle,
   InfoNote,
   StepShell,
 } from "../components/BookingSharedUI";
-import LiveEstimate from "../components/LiveEstimate";
 
-export default function StepDietaryNeeds({
-  form,
-  setForm,
-  totalPrice,
-  depositAmount,
-  depositPercentage,
-  selectedPaymentOption,
-  setSelectedPaymentOption,
-}) {
+/**
+ * No estimate panel here on purpose: nothing on this step changes the price,
+ * and a cost summary next to an allergy question is noise that trains people to
+ * stop reading it.
+ */
+export default function StepDietaryNeeds({ form, setForm }) {
   return (
-    <StepShell
-      aside={
-        <LiveEstimate
-          form={form}
-          totalPrice={totalPrice}
-          depositAmount={depositAmount}
-          depositPercentage={depositPercentage}
-          selectedPaymentOption={selectedPaymentOption}
-          setSelectedPaymentOption={setSelectedPaymentOption}
-        />
-      }
-    >
+    <StepShell width="medium">
       <SH
-        title="Dietary Needs"
-        sub="Let us know about allergies or restrictions so our kitchen can plan safely."
+        title="Allergies & Dietary Needs"
+        sub="Both are optional. Anything you write here goes to our kitchen."
       />
 
-      <Card className="p-4 sm:p-5">
-        <SectionTitle icon={ShieldAlert}>Allergies &amp; restrictions</SectionTitle>
-
+      <Card className="p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field
-            label="Allergies and Intolerances (Optional)"
-            hint="Nut, seafood, dairy, gluten — anything we should avoid."
+            label="Allergies"
+            hint="Ingredients that must not touch the food at all."
           >
             <TTextarea
-              placeholder="Nut allergies, seafood allergies, lactose intolerance, etc."
+              placeholder="e.g. Two guests have a severe peanut allergy"
               value={form.allergies || ""}
               onChange={(val) => setForm({ ...form, allergies: val })}
-              rows={5}
+              rows={4}
             />
           </Field>
 
           <Field
-            label="Dietary Restrictions (Optional)"
-            hint="Vegetarian, halal, low-sodium, or religious requirements."
+            label="Dietary restrictions"
+            hint="Preferences, and religious or medical requirements."
           >
             <TTextarea
-              placeholder="Vegetarian guests, halal preparation, no pork, etc."
+              placeholder="e.g. 5 vegetarian guests, no pork, halal preparation"
               value={form.dietary_restrictions || ""}
-              onChange={(val) =>
-                setForm({ ...form, dietary_restrictions: val })
-              }
-              rows={5}
+              onChange={(val) => setForm({ ...form, dietary_restrictions: val })}
+              rows={4}
             />
           </Field>
         </div>
 
-        <InfoNote icon={Info} className="mt-4">
-          We cannot guarantee an allergen-free kitchen, but our team will take
-          every reasonable precaution for the needs you list here.
+        <InfoNote icon={Info} tone="warn" className="mt-4">
+          Our kitchen is not allergen free and we cannot guarantee no cross
+          contact, but we take every reasonable precaution for what you list
+          here.
         </InfoNote>
       </Card>
     </StepShell>

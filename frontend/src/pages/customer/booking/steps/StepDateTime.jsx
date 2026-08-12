@@ -13,8 +13,8 @@ import {
   SH,
   SectionTitle,
   StepShell,
-  focusRing,
 } from "../components/BookingSharedUI";
+import { focusRing } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import { CustomerAPI } from "../../../../api/customer";
 
@@ -62,6 +62,8 @@ export default function StepDateTime({
   availability = { status: "idle", message: "" },
   suggestedDates = [],
   requireAvailabilityCheck = false,
+  onRetryAvailability,
+  leadTimeDays,
 }) {
   // Simple calendar logic
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -212,6 +214,10 @@ export default function StepDateTime({
   }, [form.event_date]);
 
   // --- Availability banner (mirrors the wizard's availability state) ---
+  // "error" is a check that never completed. The wizard treats it the same as
+  // unavailable — you cannot continue past a schedule we could not verify — so
+  // it has to be visible and recoverable here rather than only inside the
+  // confirm dialog, which is where it used to surface for the first time.
   const availabilityView = useMemo(() => {
     if (!requireAvailabilityCheck) return null;
     if (!form.event_date || !form.start_time) return null;
@@ -222,14 +228,14 @@ export default function StepDateTime({
           tone: "border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B]",
           icon: Loader2,
           iconClass: "text-[#4C81E0] animate-spin",
-          message: availability.message || "Checking availability…",
+          message: availability.message || "Checking whether this slot is free",
         };
       case "available":
         return {
           tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
           icon: CheckCircle2,
           iconClass: "text-emerald-500",
-          message: availability.message || "Selected time is available.",
+          message: availability.message || "This slot is free.",
         };
       case "blocked":
       case "unavailable":
@@ -238,7 +244,17 @@ export default function StepDateTime({
           icon: AlertTriangle,
           iconClass: "text-amber-500",
           message:
-            availability.message || "This schedule is currently unavailable.",
+            availability.message ||
+            "We already have an event booked then. Pick another slot.",
+        };
+      case "error":
+        return {
+          tone: "border-red-200 bg-red-50 text-red-700",
+          icon: AlertTriangle,
+          iconClass: "text-red-500",
+          canRetry: true,
+          message:
+            "We couldn't check whether this slot is free. Nothing you entered is lost. Check your connection and try again.",
         };
       default:
         return null;
@@ -251,7 +267,14 @@ export default function StepDateTime({
 
   return (
     <StepShell>
-      <SH title="Date & Time" sub="Choose when your event should take place." />
+      <SH
+        title="Date & Time"
+        sub={
+          leadTimeDays
+            ? `Pick when your event starts. We need at least ${leadTimeDays} days' notice. Crossed-out dates are fully booked.`
+            : "Pick when your event starts. Crossed-out dates are already fully booked."
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         {/* Calendar */}
@@ -272,10 +295,7 @@ export default function StepDateTime({
             >
               <ChevronLeft size={17} />
             </button>
-            <h3
-              style={{ fontFamily: "Playfair Display, serif" }}
-              className="text-base font-semibold text-[#1E293B]"
-            >
+            <h3 className="text-sm font-semibold text-[#1E293B]">
               {currentMonth.toLocaleString("default", {
                 month: "long",
                 year: "numeric",
@@ -435,7 +455,9 @@ export default function StepDateTime({
                     : "No schedule selected yet"}
                 </p>
                 <p className="mt-0.5 text-xs text-[#64748B]">
-                  Confirm your date and time to continue.
+                  {form.event_date && form.start_time
+                    ? "Picking a slot does not hold it. Your date is reserved once you accept your quotation and pay the deposit."
+                    : "Choose a date, then a start time."}
                 </p>
               </div>
             </div>
@@ -452,7 +474,21 @@ export default function StepDateTime({
                   size={15}
                   className={cn("mt-0.5 shrink-0", availabilityView.iconClass)}
                 />
-                <span>{availabilityView.message}</span>
+                <div className="min-w-0">
+                  <span>{availabilityView.message}</span>
+                  {availabilityView.canRetry && onRetryAvailability && (
+                    <button
+                      type="button"
+                      onClick={onRetryAvailability}
+                      className={cn(
+                        "ml-1 rounded font-semibold underline",
+                        focusRing,
+                      )}
+                    >
+                      Try again
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

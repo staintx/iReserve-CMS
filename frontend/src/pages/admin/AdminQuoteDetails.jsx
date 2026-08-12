@@ -401,7 +401,41 @@ export default function AdminQuoteDetails() {
                     </span>
                   ) : null}
                 </DetailRow>
-                <DetailRow icon={Clock} label="Time / Duration" value={quote.start_time ? `${quote.start_time}` : null} />
+                <DetailRow
+                  icon={Clock}
+                  label="Time / Duration"
+                  value={
+                    quote.start_time
+                      ? `${quote.start_time}${quote.duration_hours ? ` · ${quote.duration_hours} hrs` : ""}`
+                      : null
+                  }
+                />
+                <DetailRow icon={Calendar} label="Theme / Motif">
+                  {quote.event_theme ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-slate-800">{quote.event_theme}</span>
+                      {/* Colour names come from the curated palettes in the
+                          booking flow, so they are consistent and actionable. */}
+                      {(quote.event_palette || []).map((colour) => (
+                        <span key={colour} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
+                          {colour}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                </DetailRow>
+                {/* What the customer saw in the wizard. Informational only —
+                    the quotation you build below is the authoritative price. */}
+                <DetailRow icon={DollarSign} label="Customer's on-screen estimate">
+                  {quote.estimated_total > 0 ? (
+                    <span className="text-slate-700 text-sm">
+                      ₱{Number(quote.estimated_total).toLocaleString("en-PH")}
+                      <span className="ml-2 text-xs text-slate-400">
+                        estimate shown at submission
+                      </span>
+                    </span>
+                  ) : null}
+                </DetailRow>
                 <DetailRow icon={MapPin} label="Venue Type" value={quote.venue_type} />
                 <DetailRow icon={MapPin} label="Full Address">
                   {quote.street || quote.barangay || quote.municipality || quote.province ? (
@@ -475,13 +509,30 @@ export default function AdminQuoteDetails() {
                     </span>
                   ) : null}
                 </DetailRow>
-                <DetailRow icon={Info} label="Dietary Restrictions">
-                  {quote.dietary_requirements ? (
-                    <span className="text-amber-600 font-medium bg-amber-50 px-3 py-1 rounded-md border border-amber-100 text-sm">
-                      {quote.dietary_requirements}
+                {/* `allergies` and `dietary_restrictions` come from the booking
+                    wizard; `dietary_requirements` is the older single field
+                    kept for inquiries submitted before the split. */}
+                <DetailRow icon={Info} label="Allergies">
+                  {quote.allergies ? (
+                    <span className="text-red-600 font-medium bg-red-50 px-3 py-1 rounded-md border border-red-100 text-sm">
+                      {quote.allergies}
                     </span>
                   ) : null}
                 </DetailRow>
+                <DetailRow icon={Info} label="Dietary Restrictions">
+                  {quote.dietary_restrictions || quote.dietary_requirements ? (
+                    <span className="text-amber-600 font-medium bg-amber-50 px-3 py-1 rounded-md border border-amber-100 text-sm">
+                      {quote.dietary_restrictions || quote.dietary_requirements}
+                    </span>
+                  ) : null}
+                </DetailRow>
+                {quote.delivery_instructions ? (
+                  <DetailRow icon={FileText} label="Delivery Instructions">
+                    <span className="text-slate-700 text-sm">
+                      {quote.delivery_instructions}
+                    </span>
+                  </DetailRow>
+                ) : null}
               </div>
               <div className="pt-4 border-t border-slate-100">
                 <DetailRow icon={FileText} label="Additional Notes & Requests">

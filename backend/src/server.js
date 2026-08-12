@@ -145,11 +145,12 @@ io.on("connection", (socket) => {
 		const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
 		const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
 
-		io.to(`conversation:${conversation._id}`).emit("message:new", payload);
-		if (customerId) io.to(`user:${customerId}`).emit("message:new", payload);
-		if (managerId) io.to(`user:${managerId}`).emit("message:new", payload);
-		io.to("role:admin").emit("message:new", payload);
-		io.to("role:manager").emit("message:new", payload);
+		const targetRooms = [`conversation:${conversation._id}`];
+		if (customerId) targetRooms.push(`user:${customerId}`);
+		if (managerId) targetRooms.push(`user:${managerId}`);
+		targetRooms.push("role:admin", "role:manager");
+
+		io.to(targetRooms).emit("message:new", payload);
 	};
 
 	const persistSocketMessage = async ({ conversationId, body, attachments = [], client_message_id: clientMessageId, token }) => {
@@ -189,6 +190,7 @@ io.on("connection", (socket) => {
 		const message = await Message.create({
 			conversation_id: conversation._id,
 			sender_id: socket.data.user._id,
+			client_message_id: clientMessageId || null,
 			body: cleanBody,
 			attachments: cleanAttachments,
 			read_by: [{ user_id: socket.data.user._id, read_at: new Date() }]

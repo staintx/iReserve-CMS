@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const MessageSchema = new mongoose.Schema({
   conversation_id: { type: mongoose.Schema.Types.ObjectId, ref: "Conversation", required: true },
   sender_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  client_message_id: { type: String, default: null },
   body: { type: String, default: "" },
   attachments: [{
     url: String,

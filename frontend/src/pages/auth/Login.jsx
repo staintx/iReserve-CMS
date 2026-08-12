@@ -57,11 +57,11 @@ export default function Login() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, user, navigate, redirectTo]);
 
-  const submit = async ({ identifier, password }) => {
+  const submit = async ({ identifier, password, "cf-turnstile-response": turnstileToken }) => {
     setFormError(null);
     setLoading(true);
     try {
-      const loggedInUser = await login(identifier, password);
+      const loggedInUser = await login(identifier, password, turnstileToken);
       const destination = destinationFor(loggedInUser?.role);
       navigate(destination.path, { replace: true, state: destination.state });
     } catch (err) {

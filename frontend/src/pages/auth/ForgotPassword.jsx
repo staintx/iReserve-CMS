@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Turnstile } from '@marsidev/react-turnstile';
 import { MailCheck } from "lucide-react";
 import { CustomerAPI } from "../../api/customer";
 import AuthLayout from "../../components/auth/AuthLayout";
@@ -23,15 +24,17 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState(null);
   const [resendState, setResendState] = useState(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const { notify } = useToast();
   const cooldown = useCooldown(RESEND_COOLDOWN_SECONDS);
 
-  const request = async (email, { isResend = false } = {}) => {
+  const request = async (email, { isResend = false, "cf-turnstile-response": tokenFromForm } = {}) => {
     setFormError(null);
     setResendState(null);
     setLoading(true);
     try {
-      await CustomerAPI.forgotPassword({ email });
+      const token = isResend ? turnstileToken : tokenFromForm;
+      await CustomerAPI.forgotPassword({ email, "cf-turnstile-response": token });
       setSentTo(email);
       cooldown.start();
       if (isResend) {
@@ -76,6 +79,14 @@ export default function ForgotPassword() {
           }
           actions={
             <>
+              {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+                <div className="flex justify-center w-full mb-4">
+                  <Turnstile
+                    siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                  />
+                </div>
+              )}
               <AuthButton
                 variant="outline"
                 className="w-full"

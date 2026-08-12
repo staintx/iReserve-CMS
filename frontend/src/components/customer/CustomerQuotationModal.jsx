@@ -53,32 +53,12 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     try {
       setIsSubmitting(true);
       await CustomerAPI.acceptQuotation(quotation._id);
-      notify("Quotation accepted! Generating deposit payment checkout...", "success");
-
-      const depositVal = Number(quotation.deposit_amount) > 0
-        ? Number(quotation.deposit_amount)
-        : Number(quotation.total_cost || 0);
-
-      const targetInquiryId = inquiry?._id || quotation.inquiry_id?._id || quotation.inquiry_id;
-
-      if (depositVal > 0 && targetInquiryId) {
-        const checkoutRes = await CustomerAPI.createPaymentCheckout({
-          inquiry_id: targetInquiryId,
-          amount: depositVal,
-          payment_type: "deposit"
-        });
-
-        if (checkoutRes.data?.checkout_url) {
-          notify("Redirecting to payment checkout...", "success");
-          window.location.assign(checkoutRes.data.checkout_url);
-          return;
-        }
-      }
+      notify("Quotation accepted! Our team will now convert this to an official booking.", "success");
 
       if (onUpdated) onUpdated();
       onClose();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to accept quotation or start checkout.", "error");
+      notify(err.response?.data?.message || "Failed to accept quotation.", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -144,18 +124,16 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   const versionLabel = `${Number(quotation.version_number) || 1}.0`;
 
   /**
-   * What accepting will actually charge. handleAccept falls back to the full
-   * total when deposit_amount is 0, so a ₱0 deposit does NOT mean "pay later" —
-   * it means the whole amount is due on acceptance. The wording has to match
-   * that, or the summary contradicts the checkout the customer lands on.
+   * We show the required deposit, but it is not charged immediately.
+   * The customer pays this from their dashboard once the admin converts the inquiry to a booking.
    */
   const dueOnAcceptance = deposit > 0 ? deposit : total;
   const headline = {
-    label: deposit > 0 ? "Due now to reserve your date" : "Due on acceptance",
+    label: deposit > 0 ? "Deposit required to confirm booking" : "Amount due to confirm booking",
     value: formatCurrency(dueOnAcceptance),
     hint: deposit > 0
-      ? `The remaining ${formatCurrency(remaining)} is due before your event.`
-      : "No separate deposit for this quote — the full amount is payable when you accept.",
+      ? `This deposit will be payable from your dashboard after the admin confirms your booking.`
+      : "The full amount will be payable from your dashboard after the admin confirms your booking.",
     tone: "warning",
   };
 

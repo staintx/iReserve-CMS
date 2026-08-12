@@ -3,11 +3,12 @@ const router = express.Router();
 const inquiryController = require("../controllers/inquiry.controller");
 const { protect } = require("../middleware/auth.middleware");
 const { authorize } = require("../middleware/role.middleware");
+const { turnstileMiddleware } = require("../middleware/turnstile.middleware");
 
 // All routes require authentication
 router.use(protect);
 
-router.post("/", inquiryController.createInquiry);
+router.post("/", turnstileMiddleware, inquiryController.createInquiry);
 router.get("/", inquiryController.getInquiries);
 router.get("/:id", inquiryController.getInquiryById);
 router.delete("/:id", inquiryController.deleteInquiry);

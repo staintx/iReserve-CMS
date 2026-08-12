@@ -1,4 +1,5 @@
 import { Pencil } from "lucide-react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { Card, SH, InfoNote, StepShell } from "../components/BookingSharedUI";
 import { focusRing } from "../lib/bookingUI";
 import EstimateSummary from "../components/EstimateSummary";
@@ -98,6 +99,7 @@ export default function StepReviewBooking({
   onEditStep,
   editTargets = {},
   errors = {},
+  setTurnstileToken,
 }) {
   const isFoodOnly = form.service_type === SERVICE_TYPES.FOOD_ONLY;
   const isFullService = form.service_type === SERVICE_TYPES.FULL_SERVICE;
@@ -388,6 +390,17 @@ export default function StepReviewBooking({
                 </span>
               </label>
             </div>
+
+            {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+              <div className="mt-4 flex justify-center border-t border-[#E2E8F0] pt-4">
+                <Turnstile
+                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                  onSuccess={(token) => setTurnstileToken && setTurnstileToken(token)}
+                  onExpire={() => setTurnstileToken && setTurnstileToken("")}
+                  onError={() => setTurnstileToken && setTurnstileToken("")}
+                />
+              </div>
+            )}
           </Card>
         </div>
       </div>

@@ -1,54 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { X, Upload, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2 } from "lucide-react";
 import Btn from "./Btn";
+import SingleImageField from "./SingleImageField";
+import MultiImageField from "./MultiImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
-
-const compressImage = async (file, maxDimension = 1600, quality = 0.85) => {
-  if (!file || !file.type?.startsWith("image/") || file.size < 300 * 1024) {
-    return file;
-  }
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      let { width, height } = img;
-      if (width > maxDimension || height > maxDimension) {
-        if (width > height) {
-          height = Math.round((height * maxDimension) / width);
-          width = maxDimension;
-        } else {
-          width = Math.round((width * maxDimension) / height);
-          height = maxDimension;
-        }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return resolve(file);
-          const compressedFile = new File(
-            [blob],
-            file.name.replace(/\.[^/.]+$/, "") + ".jpg",
-            {
-              type: "image/jpeg",
-              lastModified: Date.now(),
-            }
-          );
-          resolve(compressedFile);
-        },
-        "image/jpeg",
-        quality
-      );
-    };
-    img.onerror = () => resolve(file);
-    img.src = url;
-  });
-};
 
 export default function PackageModal({ pkg, onClose, onSave }) {
   const { notify } = useToast();
@@ -111,6 +67,8 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   // ============ MEDIA STATE ============
   const [imageFile, setImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
+  // Saved gallery URLs the admin marked for deletion — only sent on submit.
+  const [galleryToRemove, setGalleryToRemove] = useState([]);
 
   // ============ REFERENCE DATA ============
   const [inventoryList, setInventoryList] = useState([]);
@@ -137,6 +95,8 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       );
       setFullMenuList(menuRes.data || []);
     });
+
+    setGalleryToRemove([]);
 
     if (pkg) {
       setFormData({
@@ -300,19 +260,18 @@ export default function PackageModal({ pkg, onClose, onSave }) {
         }
       });
 
+      // Files arrive already validated and downscaled from the image fields.
       if (imageFile) {
-        const compressedMain = await compressImage(imageFile);
-        data.append("image", compressedMain);
+        data.append("image", imageFile);
       }
 
-      if (galleryFiles.length > 0) {
-        const compressedGallery = await Promise.all(
-          galleryFiles.map((file) => compressImage(file))
-        );
-        compressedGallery.forEach((file) => {
-          data.append("gallery", file);
-        });
-      }
+      galleryFiles.forEach((file) => {
+        data.append("gallery", file);
+      });
+
+      galleryToRemove.forEach((url) => {
+        data.append("gallery_to_remove[]", url);
+      });
 
       if (pkg && pkg._id) {
         await AdminAPI.updatePackage(pkg._id, data);
@@ -1125,71 +1084,36 @@ export default function PackageModal({ pkg, onClose, onSave }) {
           {/* SECTION 7: Media Upload */}
           <section>
             <h3 className="font-bold text-foreground mb-4">Media</h3>
-            <div className="space-y-4">
-              {/* Cover Image */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Cover Image
-                </label>
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={(e) => setImageFile(e.target.files[0])}
-                  />
-                  <Upload className="text-gray-400 mb-2" size={24} />
-                  <p className="text-sm font-medium text-gray-700">
-                    Drag and drop or click to upload
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Landscape banner recommended (PNG, JPG up to 10MB)
-                  </p>
-                  {imageFile ? (
-                    <p className="text-sm text-emerald-600 font-bold mt-2">
-                      ✓ {imageFile.name}
-                    </p>
-                  ) : pkg?.image_url ? (
-                    <p className="text-sm text-blue-500 font-medium mt-2">
-                      Current image saved
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+            <div className="space-y-6">
+              {/* Cover image — 16:9 is how package cards and detail pages crop it */}
+              <SingleImageField
+                label="Cover image"
+                hint="Landscape works best · JPG, PNG, GIF or WEBP · up to 5MB"
+                aspect="16 / 9"
+                previewWidth="13rem"
+                emptyLabel="Add a cover image"
+                existingUrl={pkg?.image_url}
+                file={imageFile}
+                onFileChange={setImageFile}
+                disabled={loading}
+              />
 
-              {/* Gallery Images */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">
-                  Gallery Images
-                </label>
-                <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={(e) =>
-                      setGalleryFiles(Array.from(e.target.files))
-                    }
-                  />
-                  <Upload className="text-gray-400 mb-2" size={24} />
-                  <p className="text-sm font-medium text-gray-700">
-                    Upload gallery images
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Select multiple images to showcase your package
-                  </p>
-                  {galleryFiles.length > 0 ? (
-                    <p className="text-sm text-emerald-600 font-bold mt-2">
-                      ✓ {galleryFiles.length} file(s) selected
-                    </p>
-                  ) : pkg?.gallery?.length > 0 ? (
-                    <p className="text-sm text-blue-500 font-medium mt-2">
-                      {pkg.gallery.length} current image(s) saved
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+              <MultiImageField
+                label="Gallery photos"
+                existing={pkg?.gallery || []}
+                removedExisting={galleryToRemove}
+                onToggleExisting={(url) =>
+                  setGalleryToRemove((prev) =>
+                    prev.includes(url)
+                      ? prev.filter((u) => u !== url)
+                      : [...prev, url],
+                  )
+                }
+                files={galleryFiles}
+                onFilesChange={setGalleryFiles}
+                maxNew={10}
+                disabled={loading}
+              />
             </div>
           </section>
         </div>

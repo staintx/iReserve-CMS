@@ -262,9 +262,16 @@ exports.update = async (req, res) => {
     }
   }
 
-  // Handle gallery removals
+  // Handle gallery removals. MongoDB rejects $pull and $push on the same array
+  // path in one update, so when the admin removes and adds photos in the same
+  // save the removals are applied as their own update first.
   if (data.gallery_to_remove.length > 0) {
-    data.$pull = { gallery: { $in: data.gallery_to_remove } };
+    const pull = { gallery: { $in: data.gallery_to_remove } };
+    if (data.$push && data.$push.gallery) {
+      await Package.updateOne({ _id: req.params.id }, { $pull: pull });
+    } else {
+      data.$pull = pull;
+    }
   }
   delete data.gallery_to_remove;
 

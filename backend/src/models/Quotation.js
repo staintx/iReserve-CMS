@@ -67,6 +67,11 @@ const QuotationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// --- Performance indexes ---
+QuotationSchema.index({ inquiry_id: 1, status: 1 });
+QuotationSchema.index({ inquiry_id: 1, version_number: -1 });
+QuotationSchema.index({ quotation_number: -1 });
+
 QuotationSchema.pre("save", async function () {
   if (!this.quotation_number) {
     const lastQuote = await mongoose.model("Quotation").findOne({}, "quotation_number").sort({ quotation_number: -1 });

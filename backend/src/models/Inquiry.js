@@ -113,6 +113,11 @@ const InquirySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// --- Performance indexes ---
+InquirySchema.index({ customer_id: 1 });
+InquirySchema.index({ status: 1 });
+InquirySchema.index({ reference: -1 });
+
 InquirySchema.pre("save", async function () {
   if (!this.reference) {
     const lastInquiry = await mongoose.model("Inquiry").findOne({}, "reference").sort({ reference: -1 });

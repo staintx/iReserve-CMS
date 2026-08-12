@@ -9,6 +9,7 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const cookie = require("cookie");
+const compression = require("compression");
 
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/error.middleware");
@@ -69,7 +70,8 @@ app.use(express.json({
 	}
 }));
 app.use(cookieParser());
-app.use(morgan("dev"));
+app.use(compression());
+app.use(morgan(process.env.NODE_ENV === "production" ? "tiny" : "dev"));
 
 app.get("/", (req, res) => res.send("iReserve API Running ✅"));
 
@@ -112,11 +114,9 @@ io.use(async (socket, next) => {
 	try {
 		const cookies = cookie.parse(socket.handshake.headers.cookie || "");
 		let token = cookies.token || socket.handshake.auth?.token || socket.handshake.query?.token;
-		require("fs").appendFileSync("socket-debug.log", `[${new Date().toISOString()}] USE ${socket.id} - token present: ${!!token}, auth token: ${!!socket.handshake.auth?.token}, cookies token: ${!!cookies.token}\n`);
 		if (!token) {
 			// Allow anonymous sockets to connect (they won't join private rooms).
 			socket.data.user = null;
-			require("fs").appendFileSync("socket-debug.log", `[${new Date().toISOString()}] USE ${socket.id} - No token, allowing anonymous\n`);
 			return next();
 		}
 		const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -139,8 +139,24 @@ io.use(async (socket, next) => {
 	}
 });
 
+const resolveSocketUser = async (socket, token) => {
+	if (token && !socket.data.user) {
+		try {
+			const decoded = jwt.verify(token, process.env.JWT_SECRET);
+			const user = await User.findById(decoded.id).select("-password");
+			if (user) {
+				socket.data.user = user;
+				socket.join(`user:${user._id}`);
+				if (user.role === "admin" || user.role === "manager") {
+					socket.join("role:admin");
+					socket.join("role:manager");
+				}
+			}
+		} catch (e) {}
+	}
+};
+
 io.on("connection", (socket) => {
-	require("fs").appendFileSync("socket-debug.log", `[${new Date().toISOString()}] CONNECT ${socket.id} - User: ${socket.data.user ? socket.data.user.email : 'Anonymous'}\n`);
 	const emitMessageToRooms = (conversation, payload) => {
 		const customerId = conversation.customer_id ? String(conversation.customer_id) : null;
 		const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
@@ -154,20 +170,7 @@ io.on("connection", (socket) => {
 	};
 
 	const persistSocketMessage = async ({ conversationId, body, attachments = [], client_message_id: clientMessageId, token }) => {
-		if (!socket.data.user && token) {
-			try {
-				const decoded = jwt.verify(token, process.env.JWT_SECRET);
-				const user = await User.findById(decoded.id).select("-password");
-				if (user) {
-					socket.data.user = user;
-					socket.join(`user:${user._id}`);
-					if (user.role === "admin" || user.role === "manager") {
-						socket.join("role:admin");
-						socket.join("role:manager");
-					}
-				}
-			} catch (e) {}
-		}
+		await resolveSocketUser(socket, token);
 
 		if (!socket.data.user) {
 			throw new Error("Unauthorized");
@@ -284,20 +287,7 @@ io.on("connection", (socket) => {
 
 	socket.on("message:send", async (payload, ack) => {
 		try {
-			if (payload?.token && !socket.data.user) {
-				try {
-					const decoded = jwt.verify(payload.token, process.env.JWT_SECRET);
-					const user = await User.findById(decoded.id).select("-password");
-					if (user) {
-						socket.data.user = user;
-						socket.join(`user:${user._id}`);
-						if (user.role === "admin" || user.role === "manager") {
-							socket.join("role:admin");
-							socket.join("role:manager");
-						}
-					}
-				} catch (e) {}
-			}
+			await resolveSocketUser(socket, payload?.token);
 			const message = await persistSocketMessage(payload || {});
 			if (ack) ack({ ok: true, message });
 		} catch (err) {
@@ -310,20 +300,7 @@ io.on("connection", (socket) => {
 			const conversationId = typeof data === "object" ? data?.conversationId : data;
 			const token = typeof data === "object" ? data?.token : (socket.handshake.auth?.token || null);
 
-			if (token && !socket.data.user) {
-				try {
-					const decoded = jwt.verify(token, process.env.JWT_SECRET);
-					const user = await User.findById(decoded.id).select("-password");
-					if (user) {
-						socket.data.user = user;
-						socket.join(`user:${user._id}`);
-						if (user.role === "admin" || user.role === "manager") {
-							socket.join("role:admin");
-							socket.join("role:manager");
-						}
-					}
-				} catch (e) {}
-			}
+			await resolveSocketUser(socket, token);
 
 			const conversation = await Conversation.findById(conversationId);
 			if (!conversation) {

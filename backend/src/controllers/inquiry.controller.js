@@ -128,7 +128,8 @@ exports.getInquiries = asyncHandler(async (req, res) => {
   }
   const inquiries = await Inquiry.find(query)
     .sort({ createdAt: -1 })
-    .populate("customer_id", "first_name last_name email phone");
+    .populate("customer_id", "first_name last_name email phone")
+    .lean();
   res.json(inquiries);
 });
 

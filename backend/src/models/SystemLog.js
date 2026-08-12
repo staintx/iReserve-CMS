@@ -4,23 +4,10 @@ const SystemLogSchema = new mongoose.Schema({
   user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   action: {
     type: String,
-    required: true,
-    enum: [
-      // Package actions
-      "package_created",
-      "package_updated",
-      "package_deleted",
-
-      // Booking actions
-      "booking_created",
-
-      "booking_updated",
-      "booking_deleted"
-    ]
+    required: true
   },
   entity_type: {
-    type: String,
-    enum: ["package", "booking"]
+    type: String
   },
   entity_id: String,
   details: String,

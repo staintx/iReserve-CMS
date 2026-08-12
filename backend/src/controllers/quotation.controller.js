@@ -84,7 +84,8 @@ exports.getAllQuotations = asyncHandler(async (req, res) => {
       path: "inquiry_id",
       populate: { path: "customer_id", select: "first_name last_name email phone" }
     })
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
   res.json(quotations);
 });
 
@@ -97,7 +98,7 @@ exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "Forbidden: You do not have access to this quotation" });
   }
 
-  const quotations = await Quotation.find({ inquiry_id: req.params.inquiryId }).sort({ version_number: -1 });
+  const quotations = await Quotation.find({ inquiry_id: req.params.inquiryId }).sort({ version_number: -1 }).lean();
   res.json(quotations);
 });
 

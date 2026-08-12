@@ -7,6 +7,7 @@ const Package = require("../models/Package");
 const BusinessInfo = require("../models/BusinessInfo");
 const BlockedDate = require("../models/BlockedDate");
 
+// --- Perf: batch inventory check (2 queries instead of 2N) ---
 const checkInventoryAvailability = async (
   eventDate,
   inventoryItems,
@@ -20,26 +21,35 @@ const checkInventoryAvailability = async (
   const dayEnd = new Date(eventDate);
   dayEnd.setHours(23, 59, 59, 999);
 
+  const inventoryIds = inventoryItems.filter(i => i.inventory_id).map(i => i.inventory_id);
+  if (inventoryIds.length === 0) return { available: true };
+
+  const reservationQuery = {
+    inventory_id: { $in: inventoryIds },
+    event_date: { $gte: dayStart, $lte: dayEnd },
+  };
+  if (excludeBookingId) {
+    reservationQuery.booking_id = { $ne: excludeBookingId };
+  }
+
+  const [inventories, reservations] = await Promise.all([
+    Inventory.find({ _id: { $in: inventoryIds } }).lean(),
+    InventoryReservation.find(reservationQuery).lean(),
+  ]);
+
+  const invMap = new Map(inventories.map(inv => [String(inv._id), inv]));
+  const reservedMap = new Map();
+  for (const res of reservations) {
+    const key = String(res.inventory_id);
+    reservedMap.set(key, (reservedMap.get(key) || 0) + res.quantity);
+  }
+
   for (const item of inventoryItems) {
     if (!item.inventory_id) continue;
-    const inv = await Inventory.findById(item.inventory_id);
+    const inv = invMap.get(String(item.inventory_id));
     if (!inv) continue;
-
-    const query = {
-      inventory_id: item.inventory_id,
-      event_date: { $gte: dayStart, $lte: dayEnd },
-    };
-    if (excludeBookingId) {
-      query.booking_id = { $ne: excludeBookingId };
-    }
-
-    const reservations = await InventoryReservation.find(query);
-    const reservedQuantity = reservations.reduce(
-      (sum, res) => sum + res.quantity,
-      0,
-    );
-
-    if (reservedQuantity + Number(item.quantity || 0) > inv.quantity) {
+    const reserved = reservedMap.get(String(item.inventory_id)) || 0;
+    if (reserved + Number(item.quantity || 0) > inv.quantity) {
       return { available: false, itemName: inv.item_name };
     }
   }
@@ -291,6 +301,20 @@ const findBookingConflict = async ({
   );
 };
 
+// --- Perf: cache BusinessInfo (60s TTL) for rarely-changing settings ---
+let _businessInfoCache = null;
+let _businessInfoCacheTime = 0;
+const BUSINESS_INFO_TTL = 60000;
+const getCachedBusinessInfo = async () => {
+  const now = Date.now();
+  if (_businessInfoCache && now - _businessInfoCacheTime < BUSINESS_INFO_TTL) {
+    return _businessInfoCache;
+  }
+  _businessInfoCache = await BusinessInfo.findOne().lean();
+  _businessInfoCacheTime = now;
+  return _businessInfoCache;
+};
+
 const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
   if (!eventDate) return false;
   const date = new Date(eventDate);
@@ -307,8 +331,10 @@ const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
   };
   if (excludeId) query._id = { $ne: excludeId };
 
-  const count = await Booking.countDocuments(query);
-  const businessInfo = await BusinessInfo.findOne();
+  const [count, businessInfo] = await Promise.all([
+    Booking.countDocuments(query),
+    getCachedBusinessInfo(),
+  ]);
   const limit = businessInfo?.max_bookings_per_day || 2;
   
   return count >= limit;
@@ -479,14 +505,14 @@ exports.create = asyncHandler(async (req, res) => {
 
 exports.getAll = asyncHandler(async (req, res) => {
   res.json(
-    await Booking.find().populate("customer_id package_id event_manager_id"),
+    await Booking.find().populate("customer_id package_id event_manager_id").lean(),
   );
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
   const bookings = await Booking.find({ customer_id: req.user._id }).populate(
     "customer_id package_id event_manager_id",
-  );
+  ).lean();
   res.json(bookings);
 });
 
@@ -495,7 +521,7 @@ exports.getById = asyncHandler(async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       customer_id: req.user._id,
-    }).populate("customer_id package_id event_manager_id staff_ids");
+    }).populate("customer_id package_id event_manager_id staff_ids").lean();
     if (!booking) return res.status(404).json({ message: "Booking not found" });
     return res.json(booking);
   }
@@ -503,7 +529,7 @@ exports.getById = asyncHandler(async (req, res) => {
   res.json(
     await Booking.findById(req.params.id).populate(
       "customer_id package_id event_manager_id staff_ids",
-    ),
+    ).lean(),
   );
 });
 
@@ -727,7 +753,8 @@ exports.update = asyncHandler(async (req, res) => {
       : Object.keys(req.body).join(", ");
 
   if (req.user) {
-    await logAction({
+    // --- Perf: fire-and-forget logging ---
+    logAction({
       user_id: req.user._id,
       action: "booking_updated",
       entity_type: "booking",
@@ -735,7 +762,7 @@ exports.update = asyncHandler(async (req, res) => {
       details: `Updated booking #${updated._id} — Fields: ${detailParts}`,
       changes: Object.keys(changes).length > 0 ? changes : undefined,
       ip_address: req.ip,
-    });
+    }).catch(console.error);
   }
 
   if (updated?.customer_id && req.user?.role !== "customer") {
@@ -757,7 +784,8 @@ exports.update = asyncHandler(async (req, res) => {
       }
 
       const io = req.app.get("io");
-      await createNotification(
+      // --- Perf: fire-and-forget notification ---
+      createNotification(
         {
           userId: updated.customer_id,
           title: label,
@@ -766,7 +794,7 @@ exports.update = asyncHandler(async (req, res) => {
           link: "/customer/bookings",
         },
         io,
-      );
+      ).catch(console.error);
 
       // Send email on status change
       if (statusChanged) {
@@ -1005,14 +1033,14 @@ exports.upgradeBooking = asyncHandler(async (req, res) => {
   payment.checkout_url = checkout.data.attributes.checkout_url;
   await payment.save();
 
-  await logAction({
+  logAction({
     user_id: req.user._id,
     action: "booking_upgraded",
     entity_type: "booking",
     entity_id: booking._id,
     details: `Customer self-service upgrade: ${upgradeDescription.trim()}`,
     ip_address: req.ip,
-  });
+  }).catch(console.error);
 
   res.json({ booking, checkout_url: payment.checkout_url });
 });
@@ -1046,9 +1074,7 @@ exports.requestChange = asyncHandler(async (req, res) => {
     requested_at: new Date(),
     resolved_at: null,
   };
-  await booking.save();
-
-  await logAction({
+  await booking.save();  logAction({
     user_id: req.user._id,
     action: "booking_change_requested",
     entity_type: "booking",
@@ -1056,10 +1082,10 @@ exports.requestChange = asyncHandler(async (req, res) => {
     details: `Requested booking change for ${booking.event_type || "event"} on ${booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "N/A"}`,
     changes: { change_request: { to: requestMessage } },
     ip_address: req.ip,
-  });
+  }).catch(console.error);
 
   const io = req.app.get("io");
-  await notifyAdmins(
+  notifyAdmins(
     {
       title: isUpdate
         ? "Booking change request updated"
@@ -1074,8 +1100,8 @@ exports.requestChange = asyncHandler(async (req, res) => {
         message: requestMessage,
       },
     },
-    io,
-  );
+    io
+  ).catch(console.error);
 
   res.json(booking);
 });
@@ -1351,15 +1377,25 @@ exports.suggestDates = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Invalid date" });
 
   const location = { venue_type, province, municipality, barangay, street, delivery_method, service_type };
-  
-  // Get all blocked dates in the range
-  const blockedDates = await BlockedDate.find({
-    date: {
-      $gte: new Date(new Date(event_date).setDate(new Date(event_date).getDate() - range)),
-      $lte: new Date(new Date(event_date).setDate(new Date(event_date).getDate() + range))
-    }
-  });
+
+  // --- Perf: batch-fetch all data for the entire range in 2 queries instead of N ---
+  const rangeStart = new Date(baseDate);
+  rangeStart.setDate(rangeStart.getDate() - range);
+  rangeStart.setHours(0, 0, 0, 0);
+  const rangeEnd = new Date(baseDate);
+  rangeEnd.setDate(rangeEnd.getDate() + range);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  const [blockedDates, rangeBookings] = await Promise.all([
+    BlockedDate.find({ date: { $gte: rangeStart, $lte: rangeEnd } }).lean(),
+    Booking.find({
+      status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+      event_date: { $gte: rangeStart, $lte: rangeEnd },
+    }).lean(),
+  ]);
   const blockedTimestamps = new Set(blockedDates.map(b => new Date(b.date).setHours(0,0,0,0)));
+
+  const newRange = getTimeRange(start_time, duration_hours);
 
   const suggestions = [];
 
@@ -1372,18 +1408,37 @@ exports.suggestDates = asyncHandler(async (req, res) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (candidate < today) continue;
-      
+
       // Skip blocked dates
       if (blockedTimestamps.has(new Date(candidate).setHours(0,0,0,0))) {
         continue;
       }
 
-      const conflict = await findBookingConflict({
-        eventDate: candidate,
-        startTime: start_time,
-        durationHours: duration_hours,
-        location,
+      // --- In-memory conflict check against pre-fetched bookings ---
+      const candStart = new Date(candidate);
+      candStart.setHours(0, 0, 0, 0);
+      const candEnd = new Date(candidate);
+      candEnd.setHours(23, 59, 59, 999);
+
+      const dayBookings = rangeBookings.filter(b => {
+        const bd = new Date(b.event_date);
+        return bd >= candStart && bd <= candEnd;
       });
+
+      let conflict = null;
+      if (dayBookings.length > 0) {
+        if (!newRange) {
+          conflict = dayBookings.find(booking => sameLocation(location, booking)) || null;
+        } else {
+          conflict = dayBookings.find(booking => {
+            if (location?.municipality && !sameLocation(location, booking)) return false;
+            const existingRange = getTimeRange(booking.start_time, booking.duration_hours);
+            if (!existingRange) return true;
+            return newRange.startMinutes < existingRange.endMinutes && newRange.endMinutes > existingRange.startMinutes;
+          }) || null;
+        }
+      }
+
       if (!conflict) {
         suggestions.push(candidate.toISOString().split("T")[0]);
       }
@@ -1625,7 +1680,7 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
   );
 
   // 2. Get bookings to check against max limit
-  const businessInfo = await BusinessInfo.findOne();
+  const businessInfo = await getCachedBusinessInfo();
   const limit = businessInfo?.max_bookings_per_day || 2;
 
   const bookings = await Booking.find({
@@ -1649,6 +1704,7 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+// --- Perf: 1 query instead of 11 (one per time slot) ---
 exports.getAvailableTimes = asyncHandler(async (req, res) => {
   const { event_date, duration_hours, venue_type, province, municipality, barangay, street, delivery_method, service_type } = req.query;
 
@@ -1673,31 +1729,37 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
     return res.json(timeSlots.map((time) => ({ time, status: "full" })));
   }
 
-  const results = [];
+  // Fetch all day's bookings ONCE instead of per-slot
+  const dayStart = new Date(event_date);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(event_date);
+  dayEnd.setHours(23, 59, 59, 999);
+  const buffer = Number(req.query.buffer_minutes) || 0;
 
-  for (const time of timeSlots) {
-    const conflict = await findBookingConflict({
-      eventDate: event_date,
-      startTime: time,
-      durationHours: duration_hours || 4,
-      location: {
-        venue_type,
-        province,
-        municipality,
-        barangay,
-        street,
-        delivery_method,
-        service_type
-      },
-      bufferMinutes: req.query.buffer_minutes || 0,
-      ignoreLocation: true,
+  const existingBookings = await Booking.find({
+    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    event_date: { $gte: dayStart, $lte: dayEnd },
+  }).lean();
+
+  const results = timeSlots.map(time => {
+    const newRange = getTimeRange(time, duration_hours || 4);
+    if (!newRange) {
+      // Can't parse time — check if any booking exists at all (same as ignoreLocation=true path)
+      const conflict = existingBookings.length > 0 ? existingBookings[0] : null;
+      return { time, status: conflict ? "full" : "available" };
+    }
+
+    // In-memory conflict check (ignoreLocation=true means skip location check)
+    const conflict = existingBookings.find(booking => {
+      const existingRange = getTimeRange(booking.start_time, booking.duration_hours);
+      if (!existingRange) return true; // Can't parse existing → treat as conflict
+      const existingStart = existingRange.startMinutes - buffer;
+      const existingEnd = existingRange.endMinutes + buffer;
+      return newRange.startMinutes < existingEnd && newRange.endMinutes > existingStart;
     });
 
-    results.push({
-      time: time,
-      status: conflict ? "full" : "available"
-    });
-  }
+    return { time, status: conflict ? "full" : "available" };
+  });
 
   res.json(results);
 });

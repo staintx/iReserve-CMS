@@ -19,4 +19,11 @@ const PaymentSchema = new mongoose.Schema({
   metadata: mongoose.Schema.Types.Mixed
 }, { timestamps: true });
 
+// --- Performance indexes ---
+PaymentSchema.index({ booking_id: 1, status: 1 });
+PaymentSchema.index({ inquiry_id: 1, status: 1 });
+PaymentSchema.index({ customer_id: 1, status: 1 });
+PaymentSchema.index({ gateway_checkout_id: 1 });
+PaymentSchema.index({ gateway_payment_intent_id: 1 });
+
 module.exports = mongoose.model("Payment", PaymentSchema);

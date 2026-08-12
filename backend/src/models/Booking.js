@@ -255,6 +255,16 @@ const BookingSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// --- Performance indexes ---
+// Conflict detection: every create/update/availability query filters by status + event_date
+BookingSchema.index({ status: 1, event_date: 1 });
+// Customer booking list (getMine)
+BookingSchema.index({ customer_id: 1 });
+// Staff conflict detection (filterAvailableStaff)
+BookingSchema.index({ event_manager_id: 1, event_date: 1 });
+// Sequential reference generation (pre-save sort)
+BookingSchema.index({ reference: -1 });
+
 BookingSchema.pre("save", async function () {
   if (!this.reference) {
     const lastBooking = await mongoose.model("Booking").findOne({}, "reference").sort({ reference: -1 });

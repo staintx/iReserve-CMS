@@ -2396,6 +2396,28 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const Payment = require("../models/Payment");
   await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
 
+  const existingPayment = await Payment.findOne({ booking_id: newBooking._id });
+  let depositAmount = quotation?.deposit_amount;
+  if (!depositAmount || depositAmount <= 0) {
+    const BusinessInfo = require("../models/BusinessInfo");
+    let businessInfo;
+    try { businessInfo = await BusinessInfo.findOne(); } catch(e) {}
+    const depositPercentage = businessInfo?.deposit_percentage ?? 20;
+    depositAmount = (newBooking.total_price * depositPercentage) / 100;
+  }
+  
+  if (!existingPayment && depositAmount > 0) {
+    await Payment.create({
+      booking_id: newBooking._id,
+      customer_id: newBooking.customer_id,
+      amount: depositAmount,
+      currency: "PHP",
+      payment_type: "deposit",
+      status: "pending",
+      gateway: "paymongo"
+    });
+  }
+
   const { syncBookingStatus } = require("./payment.controller");
   if (syncBookingStatus) {
     await syncBookingStatus(newBooking._id);

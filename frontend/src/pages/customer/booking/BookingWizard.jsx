@@ -198,6 +198,7 @@ export default function BookingWizard() {
 
   const [form, setForm] = useState(() => restoredDraft?.form || buildInitialForm());
   const [step, setStep] = useState(() => restoredDraft?.step ?? 0);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [draftNoticeVisible, setDraftNoticeVisible] = useState(
     Boolean(restoredDraft),
   );
@@ -929,6 +930,14 @@ export default function BookingWizard() {
       return;
     }
 
+    if (import.meta.env.VITE_TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Please complete the security check.");
+      document
+        .getElementById("booking-agreements")
+        ?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      return;
+    }
+
     setError("");
     setIsSubmitting(true);
 
@@ -940,6 +949,7 @@ export default function BookingWizard() {
 
     const payload = {
       ...form,
+      "cf-turnstile-response": turnstileToken,
       // " " is the picker's "Something else" sentinel, not a real theme.
       event_theme: String(form.event_theme || "").trim(),
       event_palette: Array.isArray(form.event_palette) ? form.event_palette : [],
@@ -1160,6 +1170,7 @@ export default function BookingWizard() {
             onEditStep={editStep}
             editTargets={editTargets}
             errors={fieldErrors}
+            setTurnstileToken={setTurnstileToken}
           />
         );
 

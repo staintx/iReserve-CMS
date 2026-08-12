@@ -1,4 +1,12 @@
 const turnstileMiddleware = async (req, res, next) => {
+  if (process.env.SKIP_TURNSTILE === 'true') {
+    if (req.body) {
+      delete req.body['cf-turnstile-response'];
+      delete req.body['cfTurnstileResponse'];
+    }
+    return next();
+  }
+
   const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
   if (turnstileSecret) {
     const token = req.body['cf-turnstile-response'];

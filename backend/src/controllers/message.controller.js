@@ -152,6 +152,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
   const message = await Message.create({
     conversation_id: conversation._id,
     sender_id: req.user._id,
+    client_message_id: req.body.client_message_id || null,
     body,
     attachments,
     read_by: [{ user_id: req.user._id, read_at: new Date() }]
@@ -181,11 +182,12 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     const senderName = req.user.full_name || req.user.email || "Someone";
 
     // Emit to conversation room, customer, manager, and admin/manager role rooms
-    io.to(`conversation:${conversation._id}`).emit("message:new", responsePayload);
-    if (customerId) io.to(`user:${customerId}`).emit("message:new", responsePayload);
-    if (managerId) io.to(`user:${managerId}`).emit("message:new", responsePayload);
-    io.to("role:admin").emit("message:new", responsePayload);
-    io.to("role:manager").emit("message:new", responsePayload);
+    const targetRooms = [`conversation:${conversation._id}`];
+    if (customerId) targetRooms.push(`user:${customerId}`);
+    if (managerId) targetRooms.push(`user:${managerId}`);
+    targetRooms.push("role:admin", "role:manager");
+
+    io.to(targetRooms).emit("message:new", responsePayload);
 
     if (customerId && senderId !== customerId) {
       await createNotification({

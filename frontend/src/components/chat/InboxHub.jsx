@@ -139,17 +139,30 @@ const mergeMessageIntoList = (list, message) => {
   const clientMessageId = message.client_message_id;
   const messageId = message._id;
   const matchIndex = cleanList.findIndex((item) => {
-    if (clientMessageId && item.client_message_id === clientMessageId) return true;
-    return String(item._id) === String(messageId);
+    if (clientMessageId && (item.client_message_id === clientMessageId || String(item._id) === String(clientMessageId))) return true;
+    if (messageId && (String(item._id) === String(messageId) || item.client_message_id === String(messageId))) return true;
+    return false;
   });
 
+  let next;
   if (matchIndex === -1) {
-    return [...cleanList, { ...message, pending: false }];
+    next = [...cleanList, { ...message, pending: false }];
+  } else {
+    next = [...cleanList];
+    next[matchIndex] = { ...next[matchIndex], ...message, pending: false };
   }
 
-  const next = [...cleanList];
-  next[matchIndex] = { ...message, pending: false };
-  return next;
+  const seenKeys = new Set();
+  const result = [];
+  for (const m of next) {
+    const key = m._id ? String(m._id) : (m.client_message_id ? String(m.client_message_id) : null);
+    if (key) {
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+    }
+    result.push(m);
+  }
+  return result;
 };
 
 const mergeMessageLists = (existingMessages, fetchedMessages, targetConversationId = null) => {
@@ -165,8 +178,9 @@ const mergeMessageLists = (existingMessages, fetchedMessages, targetConversation
     const clientMessageId = message.client_message_id;
     const messageId = message._id;
     const matchIndex = merged.findIndex((item) => {
-      if (clientMessageId && item.client_message_id === clientMessageId) return true;
-      return String(item._id) === String(messageId);
+      if (clientMessageId && (item.client_message_id === clientMessageId || String(item._id) === String(clientMessageId))) return true;
+      if (messageId && (String(item._id) === String(messageId) || item.client_message_id === String(messageId))) return true;
+      return false;
     });
 
     if (matchIndex === -1) {
@@ -176,7 +190,18 @@ const mergeMessageLists = (existingMessages, fetchedMessages, targetConversation
     }
   }
 
-  return merged.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const seenKeys = new Set();
+  const result = [];
+  for (const m of merged) {
+    const key = m._id ? String(m._id) : (m.client_message_id ? String(m.client_message_id) : null);
+    if (key) {
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+    }
+    result.push(m);
+  }
+
+  return result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 };
 
 const sendMessageThroughSocket = (socket, payload) => {

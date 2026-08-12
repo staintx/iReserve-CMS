@@ -174,7 +174,7 @@ export default function AdminInquiries() {
       render: (r) => {
         return (
           <div className="flex items-center gap-2">
-            {r.rawStatus === "Pending Review" && (
+            {["Pending Review", "Under Review", "Waiting for Customer"].includes(r.rawStatus) && (
               <>
                 <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
                   <Plus size={13} /> Create Quote

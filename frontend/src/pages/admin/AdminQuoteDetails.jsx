@@ -141,7 +141,13 @@ export default function AdminQuoteDetails() {
                 onClick={() => setShowConvertModal(true)}
               >
                 <Activity size={16} />
-                {quote.status === "Pending Review" || quote.status === "Revision Requested" ? "Generate Quotation" : "Update Status"}
+                {["Pending Review", "Under Review", "Waiting for Customer"].includes(quote.status)
+                  ? "Create Quotation"
+                  : quote.status === "Revision Requested"
+                  ? "Revise Quotation"
+                  : quote.status === "Quotation Sent"
+                  ? "Edit Quotation"
+                  : "Create Quotation"}
               </button>
             )}
             {quote.converted_booking_id && (
@@ -177,7 +183,7 @@ export default function AdminQuoteDetails() {
           </div>
         )}
 
-        {quote.status === "Pending Review" && (
+        {(quote.status === "Pending Review" || quote.status === "Under Review" || quote.status === "Waiting for Customer") && (
           <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-amber-500 text-white rounded-lg shadow-sm">
@@ -192,7 +198,7 @@ export default function AdminQuoteDetails() {
               onClick={() => setShowConvertModal(true)}
               className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap shrink-0"
             >
-              Build Quotation
+              Create Quotation
             </button>
           </div>
         )}
@@ -221,12 +227,18 @@ export default function AdminQuoteDetails() {
                         : "Requested against the issued quotation"}
                       {/* Falls back to updatedAt for requests submitted before
                           revision_requested_at existed. */}
-                      {(request?.revision_requested_at || request?.updatedAt) && (
-                        <> · Submitted {new Date(request.revision_requested_at || request.updatedAt).toLocaleString(undefined, {
-                          month: "short", day: "numeric", year: "numeric",
-                          hour: "numeric", minute: "2-digit",
-                        })}</>
-                      )}
+                      {(() => {
+                        const dateStr = request?.revision_requested_at || request?.updatedAt;
+                        if (!dateStr) return null;
+                        const d = new Date(dateStr);
+                        if (isNaN(d.getTime())) return null;
+                        return (
+                          <> · Submitted {d.toLocaleString(undefined, {
+                            month: "short", day: "numeric", year: "numeric",
+                            hour: "numeric", minute: "2-digit",
+                          })}</>
+                        );
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -395,11 +407,17 @@ export default function AdminQuoteDetails() {
                 <DetailRow icon={Utensils} label="Event Type" value={quote.event_type} />
                 <DetailRow icon={User} label="Guest Count" value={quote.guest_count ? `${quote.guest_count} Pax` : null} />
                 <DetailRow icon={Calendar} label="Event Date">
-                  {quote.event_date ? (
-                    <span className="font-semibold text-slate-800">
-                      {new Date(quote.event_date).toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </span>
-                  ) : null}
+                  {(() => {
+                    const d = quote.event_date ? new Date(quote.event_date) : null;
+                    if (d && !isNaN(d.getTime())) {
+                      return (
+                        <span className="font-semibold text-slate-800">
+                          {d.toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </DetailRow>
                 <DetailRow
                   icon={Clock}
@@ -416,7 +434,7 @@ export default function AdminQuoteDetails() {
                       <span className="font-medium text-slate-800">{quote.event_theme}</span>
                       {/* Colour names come from the curated palettes in the
                           booking flow, so they are consistent and actionable. */}
-                      {(quote.event_palette || []).map((colour) => (
+                      {(Array.isArray(quote.event_palette) ? quote.event_palette : []).map((colour) => (
                         <span key={colour} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
                           {colour}
                         </span>
@@ -450,32 +468,32 @@ export default function AdminQuoteDetails() {
 
             {/* Food & Service / Add-ons Details Card */}
             <DetailCard title={quote.service_type === "Event Setup Only" ? "Add-ons & Equipment Services" : "Food & Service Order"} icon={quote.service_type === "Event Setup Only" ? Layers : Utensils}>
-              {quote.service_type !== "Event Setup Only" && quote.selected_menu?.length > 0 && (
+              {quote.service_type !== "Event Setup Only" && Array.isArray(quote.selected_menu) && quote.selected_menu.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Selected Menu</h4>
                   <div className="space-y-2">
                     {quote.selected_menu.map((menu, i) => (
                       <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
-                        <span className="font-medium text-slate-700">{menu.name || (typeof menu === 'string' ? menu : "Menu Item")}</span>
-                        {menu.price > 0 && <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>}
+                        <span className="font-medium text-slate-700">{menu?.name || (typeof menu === 'string' ? menu : "Menu Item")}</span>
+                        {menu?.price > 0 && <span className="text-sm font-semibold text-slate-500">₱{menu.price}</span>}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              {(quote.service_items?.length > 0 || quote.additional_services?.length > 0) ? (
+              {(Array.isArray(quote.service_items) && quote.service_items.length > 0) || (Array.isArray(quote.additional_services) && quote.additional_services.length > 0) ? (
                 <div>
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Add-ons &amp; Additional Services</h4>
                   <div className="space-y-2">
-                    {quote.service_items?.map((svc, i) => (
+                    {Array.isArray(quote.service_items) && quote.service_items.map((svc, i) => (
                       <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3">
                         <div>
-                          <span className="font-medium text-slate-700 block">{svc.name || "Add-on"}</span>
-                          {svc.description && <span className="text-xs text-slate-400">{svc.description}</span>}
+                          <span className="font-medium text-slate-700 block">{svc?.name || "Add-on"}</span>
+                          {svc?.description && <span className="text-xs text-slate-400">{svc.description}</span>}
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-semibold text-slate-500">
-                            {svc.price > 0 ? `₱${svc.price}` : "Selected"} {svc.quantity > 1 ? <span className="text-xs font-normal">x{svc.quantity}</span> : null}
+                            {svc?.price > 0 ? `₱${svc.price}` : "Selected"} {svc?.quantity > 1 ? <span className="text-xs font-normal">x{svc.quantity}</span> : null}
                           </span>
                         </div>
                       </div>
@@ -604,7 +622,7 @@ export default function AdminQuoteDetails() {
         </div>
       </div>
 
-      {showConvertModal && (
+      {showConvertModal && quote && (
         <QuotationBuilderModal 
           inquiry={quote} 
           onClose={() => setShowConvertModal(false)}

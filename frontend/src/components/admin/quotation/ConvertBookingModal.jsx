@@ -10,9 +10,11 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
     || "Customer";
 
   const eventType = quote.event_type || "Event";
-  const eventDateStr = quote.event_date 
-    ? new Date(quote.event_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) 
-    : "TBA";
+  const eventDateStr = (() => {
+    if (!quote.event_date) return "TBA";
+    const d = new Date(quote.event_date);
+    return isNaN(d.getTime()) ? "TBA" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  })();
 
   const packageName = quote.package_id?.name 
     || (quote.had_package_selection ? "Package Selected (Unavailable)" : "Custom Quote / No Package");

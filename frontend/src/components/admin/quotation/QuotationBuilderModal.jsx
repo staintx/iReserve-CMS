@@ -57,14 +57,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const [adminNotes, setAdminNotes] = useState("");
 
   // Service Type Conditions
-  const eventTypeStr = inquiry?.event_type?.toLowerCase() || "";
-  const isFoodOnly = eventTypeStr.includes("food delivery") || eventTypeStr === "food only";
-  const isSetupOnly = eventTypeStr.includes("setup only");
+  const eventTypeStr = (inquiry?.event_type || "").toLowerCase();
+  const serviceTypeStr = (inquiry?.service_type || "").toLowerCase();
+  const isFoodOnly = eventTypeStr.includes("food delivery") || eventTypeStr === "food only" || serviceTypeStr === "food only";
+  const isSetupOnly = eventTypeStr.includes("setup only") || serviceTypeStr === "event setup only";
 
   // Load Reference Catalogs & Quotation Data
   useEffect(() => {
+    if (!inquiry?._id) return;
     Promise.all([
-      AdminAPI.getMenuItems().catch(() => ({ data: [] })),
+      AdminAPI.getMenu().catch(() => ({ data: [] })),
       AdminAPI.getAddons().catch(() => ({ data: [] })),
       AdminAPI.getQuotationsByInquiry(inquiry._id).catch(() => ({ data: [] }))
     ])
@@ -77,12 +79,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           // Load latest quotation values
           const latest = quotes[0];
           setQuotation(latest);
-          setGuestCount(latest.guest_count || inquiry.guest_count || 1);
-          setPackageName(latest.package_name || inquiry.package_id?.name || "Custom Package");
-          setPackagePrice(latest.package_price ?? inquiry.package_id?.setup_price ?? inquiry.package_id?.price_per_guest ?? 0);
-          setPackageInclusions(latest.package_inclusions || inquiry.package_id?.inclusions || []);
-          setMenuItems(latest.menu_items || []);
-          setAddOns(latest.add_ons || []);
+          setGuestCount(latest.guest_count || inquiry?.guest_count || 1);
+          setPackageName(latest.package_name || (typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package");
+          setPackagePrice(latest.package_price ?? (typeof inquiry?.package_id === "object" ? (inquiry.package_id?.setup_price ?? inquiry.package_id?.price_per_guest ?? 0) : 0));
+          
+          const rawInc = latest.package_inclusions || (typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : []) || [];
+          setPackageInclusions(
+            Array.isArray(rawInc)
+              ? rawInc.map(inc => typeof inc === "string" ? inc : (inc?.name || String(inc || "")))
+              : []
+          );
+          setMenuItems(Array.isArray(latest.menu_items) ? latest.menu_items : []);
+          setAddOns(Array.isArray(latest.add_ons) ? latest.add_ons : []);
           setTransportationFee(latest.transportation_fee || 0);
           setEquipmentFee(latest.equipment_fee || 0);
           setDecorationFee(latest.decoration_fee || 0);
@@ -92,21 +100,37 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setDepositAmount(latest.deposit_amount || 0);
         } else {
           // Initialize from Inquiry / Package defaults
-          setGuestCount(inquiry.guest_count || 1);
-          setPackageName(inquiry.package_id?.name || "Custom Package");
-          setPackagePrice(inquiry.package_id?.setup_price ?? inquiry.package_id?.price_per_guest ?? 0);
-          setPackageInclusions(inquiry.package_id?.inclusions || []);
+          setGuestCount(inquiry?.guest_count || 1);
+          setPackageName((typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package");
+          setPackagePrice(typeof inquiry?.package_id === "object" ? (inquiry.package_id?.setup_price ?? inquiry.package_id?.price_per_guest ?? 0) : 0);
+          
+          const rawInc = typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : [];
+          setPackageInclusions(
+            Array.isArray(rawInc)
+              ? rawInc.map(inc => typeof inc === "string" ? inc : (inc?.name || String(inc || "")))
+              : []
+          );
 
-          if (inquiry.selected_menu) {
-            setMenuItems(inquiry.selected_menu.map(m => ({ name: m.name || "", price: m.price || 0, note: m.category || "" })));
+          if (Array.isArray(inquiry?.selected_menu)) {
+            setMenuItems(inquiry.selected_menu.map(m => {
+              if (typeof m === "object" && m !== null) {
+                return { name: m.name || "", price: m.price || 0, note: m.category || m.note || "" };
+              }
+              return { name: String(m || ""), price: 0, note: "" };
+            }));
           }
-          if (inquiry.service_items) {
-            setAddOns(inquiry.service_items.map(s => ({
-              name: s.name || "",
-              price: s.price || 0,
-              quantity: s.quantity || 1,
-              pricing_type: s.pricing_type || (s.quantity === 1 ? "fixed" : "quantity")
-            })));
+          if (Array.isArray(inquiry?.service_items)) {
+            setAddOns(inquiry.service_items.map(s => {
+              if (typeof s === "object" && s !== null) {
+                return {
+                  name: s.name || "",
+                  price: s.price || 0,
+                  quantity: s.quantity || 1,
+                  pricing_type: s.pricing_type || (s.quantity === 1 ? "fixed" : "quantity")
+                };
+              }
+              return { name: String(s || ""), price: 0, quantity: 1, pricing_type: "fixed" };
+            }));
           }
         }
       })
@@ -265,18 +289,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   // Version Comparison Draft
   const draft = {
-    inquiry_id: inquiry._id,
-    package_id: inquiry.package_id?._id,
+    inquiry_id: inquiry?._id,
+    package_id: typeof inquiry?.package_id === "object" ? inquiry.package_id?._id : inquiry?.package_id,
     package_name: packageName || "Custom Package",
     package_price: cleanNum(packagePrice),
-    package_inclusions: packageInclusions.filter((inc) => inc.trim() !== ""),
+    package_inclusions: (Array.isArray(packageInclusions) ? packageInclusions : [])
+      .map((inc) => (typeof inc === "string" ? inc.trim() : String(inc || "").trim()))
+      .filter((inc) => inc !== ""),
     guest_count: guestCount,
-    menu_items: menuItems.map((m) => ({ ...m, price: cleanNum(m.price) })),
-    add_ons: addOns.map((a) => ({
-      ...a,
-      price: cleanNum(a.price),
-      quantity: a.pricing_type === "fixed" ? 1 : Math.max(1, cleanNum(a.quantity)),
-      pricing_type: a.pricing_type || "fixed"
+    menu_items: (Array.isArray(menuItems) ? menuItems : []).map((m) => ({
+      name: m?.name || "",
+      note: m?.note || "",
+      price: cleanNum(m?.price)
+    })),
+    add_ons: (Array.isArray(addOns) ? addOns : []).map((a) => ({
+      name: a?.name || "",
+      price: cleanNum(a?.price),
+      quantity: a?.pricing_type === "fixed" ? 1 : Math.max(1, cleanNum(a?.quantity)),
+      pricing_type: a?.pricing_type || "fixed"
     })),
     transportation_fee: cleanNum(transportationFee),
     equipment_fee: cleanNum(equipmentFee),
@@ -333,6 +363,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const fmt = (val) => "₱" + Number(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 });
 
+  if (!inquiry) return null;
+
   if (loading) {
     return (
       <Modal title="Quotation Builder" onClose={onClose} className="max-w-4xl h-[80vh] flex items-center justify-center">
@@ -380,7 +412,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 <span className="block text-xs font-semibold text-slate-400 uppercase">Event Type &amp; Date</span>
                 <span className="font-semibold text-slate-800">{inquiry.event_type || "Event"}</span>
                 <span className="block text-xs text-slate-500">
-                  {inquiry.event_date ? new Date(inquiry.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
+                  {(() => {
+                    const d = inquiry?.event_date ? new Date(inquiry.event_date) : null;
+                    if (d && !isNaN(d.getTime())) {
+                      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    }
+                    return "TBD";
+                  })()}
                   {inquiry.start_time ? ` at ${inquiry.start_time}` : ""}
                 </span>
               </div>

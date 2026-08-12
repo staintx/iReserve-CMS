@@ -41,48 +41,58 @@ const FINANCIAL_FIELDS = [
   { key: "deposit_amount", label: "Deposit required", format: money },
 ];
 
-const nameOf = (item) => String(item?.name || "").trim().toLowerCase();
+const nameOf = (item) =>
+  String(
+    typeof item === "object" && item !== null
+      ? (item.name || "")
+      : (item || "")
+  ).trim().toLowerCase();
 
 /** Diffs a list of line items (menu_items / add_ons) by name. */
 function diffLineItems(previous = [], current = [], { label, withQuantity }) {
   const changes = [];
-  const prevByName = new Map(previous.filter(Boolean).map((i) => [nameOf(i), i]));
-  const currByName = new Map(current.filter(Boolean).map((i) => [nameOf(i), i]));
+  const prevList = Array.isArray(previous) ? previous.filter(Boolean) : [];
+  const currList = Array.isArray(current) ? current.filter(Boolean) : [];
+
+  const prevByName = new Map(prevList.map((i) => [nameOf(i), i]));
+  const currByName = new Map(currList.map((i) => [nameOf(i), i]));
 
   currByName.forEach((item, key) => {
+    if (!key) return;
     const before = prevByName.get(key);
+    const itemName = typeof item === "object" && item !== null ? (item.name || "") : String(item || "");
     if (!before) {
-      const unit = Number(item.price) || 0;
-      const qty = Number(item.quantity) || 1;
+      const unit = Number(item?.price) || 0;
+      const qty = Number(item?.quantity) || 1;
       const amount = withQuantity ? unit * qty : unit;
       changes.push({
         kind: "added",
         label,
-        name: item.name,
+        name: itemName,
         detail: amount > 0 ? `Added · +${money(amount)}` : "Added",
       });
       return;
     }
 
-    const beforeQty = Number(before.quantity) || 1;
-    const afterQty = Number(item.quantity) || 1;
+    const beforeQty = Number(before?.quantity) || 1;
+    const afterQty = Number(item?.quantity) || 1;
     if (withQuantity && beforeQty !== afterQty) {
       changes.push({
         kind: "updated",
         label,
-        name: item.name,
+        name: itemName,
         from: `${beforeQty}`,
         to: `${afterQty}`,
       });
     }
 
-    const beforePrice = Number(before.price) || 0;
-    const afterPrice = Number(item.price) || 0;
+    const beforePrice = Number(before?.price) || 0;
+    const afterPrice = Number(item?.price) || 0;
     if (beforePrice !== afterPrice) {
       changes.push({
         kind: "updated",
         label,
-        name: item.name,
+        name: itemName,
         from: money(beforePrice),
         to: money(afterPrice),
       });
@@ -90,8 +100,10 @@ function diffLineItems(previous = [], current = [], { label, withQuantity }) {
   });
 
   prevByName.forEach((item, key) => {
+    if (!key) return;
     if (!currByName.has(key)) {
-      changes.push({ kind: "removed", label, name: item.name, detail: "Removed" });
+      const itemName = typeof item === "object" && item !== null ? (item.name || "") : String(item || "");
+      changes.push({ kind: "removed", label, name: itemName, detail: "Removed" });
     }
   });
 
@@ -127,11 +139,11 @@ export function diffQuotationVersions(previous, current) {
   // Ordered by what a customer cares about, not by schema order.
   return [
     ...diffScalars(HEADLINE_FIELDS),
-    ...diffLineItems(previous.menu_items, current.menu_items, {
+    ...diffLineItems(previous?.menu_items || [], current?.menu_items || [], {
       label: "Menu item",
       withQuantity: false,
     }),
-    ...diffLineItems(previous.add_ons, current.add_ons, {
+    ...diffLineItems(previous?.add_ons || [], current?.add_ons || [], {
       label: "Add-on",
       withQuantity: true,
     }),

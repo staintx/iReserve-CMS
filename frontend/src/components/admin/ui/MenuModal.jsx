@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, Upload } from "lucide-react";
+import { X } from "lucide-react";
 import Btn from "./Btn";
+import SingleImageField from "./SingleImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
@@ -69,14 +70,17 @@ export default function MenuModal({ item, onClose, onSave }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Image Upload */}
-          <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50 transition-colors relative">
-            <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setImageFile(e.target.files[0])} />
-            <Upload className="text-gray-400 mb-2" size={24} />
-            <p className="text-sm font-medium text-gray-700">Upload item image</p>
-            {imageFile && <p className="text-sm text-emerald-600 font-bold mt-2">{imageFile.name}</p>}
-            {!imageFile && item?.image_url && <p className="text-sm text-blue-500 font-medium mt-2">Current image saved</p>}
-          </div>
+          {/* Dish photo — 3:2 matches the crop used on the menu cards */}
+          <SingleImageField
+            label="Dish photo"
+            aspect="3 / 2"
+            previewWidth="11rem"
+            emptyLabel="Add a dish photo"
+            existingUrl={item?.image_url}
+            file={imageFile}
+            onFileChange={setImageFile}
+            disabled={loading}
+          />
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Item Name</label>

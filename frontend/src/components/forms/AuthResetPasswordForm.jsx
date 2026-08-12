@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Turnstile } from '@marsidev/react-turnstile';
 import { Check, LockKeyhole, X } from "lucide-react";
 import {
   AuthAlert,
@@ -23,6 +24,7 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const validate = (field, value, all = values) => {
     if (field === "password") {
@@ -71,7 +73,7 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
       return;
     }
 
-    onSubmit(values.password);
+    onSubmit({ password: values.password, "cf-turnstile-response": turnstileToken });
   };
 
   const fieldError = (field) => (touched[field] ? errors[field] : "");
@@ -155,6 +157,15 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
           <AuthAlert tone={formError.tone} action={formError.action}>
             {formError.message}
           </AuthAlert>
+        )}
+
+        {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+          <div className="flex justify-center my-4">
+            <Turnstile
+              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+              onSuccess={(token) => setTurnstileToken(token)}
+            />
+          </div>
         )}
 
         <AuthButton

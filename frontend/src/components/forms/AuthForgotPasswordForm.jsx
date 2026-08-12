@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Turnstile } from '@marsidev/react-turnstile';
 import { Mail } from "lucide-react";
 import {
   AuthAlert,
@@ -24,6 +25,7 @@ export default function AuthForgotPasswordForm({
   const [email, setEmail] = useState(initialEmail);
   const [error, setError] = useState("");
   const [touched, setTouched] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const validate = (value) => {
     if (!value.trim()) return "Enter the email address on your account.";
@@ -43,7 +45,7 @@ export default function AuthForgotPasswordForm({
     setError(nextError);
     setTouched(true);
     if (nextError) return;
-    onSubmit(email.trim());
+    onSubmit(email.trim(), { "cf-turnstile-response": turnstileToken });
   };
 
   const visibleError = touched ? error : "";
@@ -83,6 +85,15 @@ export default function AuthForgotPasswordForm({
         </AuthField>
 
         {formError && <AuthAlert tone={formError.tone}>{formError.message}</AuthAlert>}
+
+        {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+          <div className="flex justify-center my-4">
+            <Turnstile
+              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+              onSuccess={(token) => setTurnstileToken(token)}
+            />
+          </div>
+        )}
 
         <AuthButton
           type="submit"

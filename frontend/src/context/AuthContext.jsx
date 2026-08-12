@@ -46,8 +46,12 @@ export default function AuthProvider({ children }) {
       });
   }, []);
 
-  const login = async (email, password) => {
-    const { data } = await api.post("/auth/login", { email, password });
+  const login = async (email, password, turnstileToken) => {
+    const { data } = await api.post("/auth/login", { 
+      email, 
+      password,
+      "cf-turnstile-response": turnstileToken 
+    });
     localStorage.setItem("user", JSON.stringify(data.user));
     // Save returned token (fallback for socket auth) when present
     if (data.token) localStorage.setItem("token", data.token);

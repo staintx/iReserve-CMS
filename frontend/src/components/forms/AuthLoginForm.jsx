@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Turnstile } from '@marsidev/react-turnstile';
 import { AtSign, LockKeyhole } from "lucide-react";
 import {
   AuthAlert,
@@ -28,6 +29,7 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const validate = (field, value) => {
     if (field === "identifier") {
@@ -68,7 +70,11 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
       return;
     }
 
-    onSubmit({ identifier: values.identifier.trim(), password: values.password });
+    onSubmit({ 
+      identifier: values.identifier.trim(), 
+      password: values.password,
+      "cf-turnstile-response": turnstileToken
+    });
   };
 
   const fieldError = (field) => (touched[field] ? errors[field] : "");
@@ -132,6 +138,15 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
           <AuthAlert tone={formError.tone} action={formError.action}>
             {formError.message}
           </AuthAlert>
+        )}
+
+        {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+          <div className="flex justify-center my-4">
+            <Turnstile
+              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+              onSuccess={(token) => setTurnstileToken(token)}
+            />
+          </div>
         )}
 
         <AuthButton

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Info, ArrowLeft, ArrowRight, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
+import { Turnstile } from '@marsidev/react-turnstile';
 import {
   TermsContent,
   PrivacyContent,
@@ -187,6 +188,7 @@ export default function QuoteWizard() {
   }, [form.service_type]);
 
   const [blockedDates, setBlockedDates] = useState([]);
+  const [turnstileToken, setTurnstileToken] = useState("");
   useEffect(() => {
     CustomerAPI.getMenu()
       .then((res) => setMenuItems(res.data))
@@ -345,7 +347,8 @@ export default function QuoteWizard() {
       contact_email: form.email,
       contact_phone: form.phone,
       contact_method: contactMethods.join(", ") || undefined,
-      status: "Pending Review"
+      status: "Pending Review",
+      "cf-turnstile-response": turnstileToken
     };
   };
 
@@ -481,6 +484,10 @@ export default function QuoteWizard() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       setError("Please complete the required fields below.");
+      return;
+    }
+    if (import.meta.env.VITE_TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Please complete the security check.");
       return;
     }
     try {
@@ -1156,6 +1163,15 @@ export default function QuoteWizard() {
                             <p className="text-sm text-foreground">We will review your custom quote request and reach out within 24-48 hours to schedule a consultation.</p>
                           </div>
                         </div>
+
+                        {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+                          <div className="flex justify-center pt-2">
+                            <Turnstile 
+                              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                              onSuccess={(token) => setTurnstileToken(token)}
+                            />
+                          </div>
+                        )}
                       </CardContent>
                       <CardFooter className="bg-muted/20 border-t border-border p-6 flex justify-between">
                         <Button variant="outline" onClick={back} size="lg"><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>

@@ -15,6 +15,7 @@
     "@fullcalendar/react": "^6.1.20",
     "@fullcalendar/timegrid": "^6.1.20",
     "@heroicons/react": "^2.2.0",
+    "@marsidev/react-turnstile": "^1.6.0",
     "@radix-ui/react-alert-dialog": "^1.1.23",
     "@radix-ui/react-checkbox": "^1.1.4",
     "@radix-ui/react-dialog": "^1.1.6",

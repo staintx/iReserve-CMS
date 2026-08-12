@@ -18,13 +18,13 @@ export default function ResetPassword() {
   const [stage, setStage] = useState(token ? "form" : "missing-token");
   const { notify } = useToast();
 
-  const submit = async (password) => {
+  const submit = async ({ password, "cf-turnstile-response": turnstileToken }) => {
     setFormError(null);
     setLoading(true);
     try {
       // The API validates the body strictly — it accepts `token` and `password`
       // only, so the confirmation stays on the client.
-      await CustomerAPI.resetPassword({ token, password });
+      await CustomerAPI.resetPassword({ token, password, "cf-turnstile-response": turnstileToken });
       notify("Password updated. You can sign in now.", "success");
       setStage("done");
     } catch (err) {

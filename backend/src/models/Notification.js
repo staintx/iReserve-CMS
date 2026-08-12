@@ -11,4 +11,8 @@ const NotificationSchema = new mongoose.Schema({
   read_at: Date
 }, { timestamps: true });
 
+// --- Performance indexes ---
+NotificationSchema.index({ user_id: 1, is_read: 1, createdAt: -1 });
+NotificationSchema.index({ user_id: 1, "meta.conversation_id": 1, is_read: 1 });
+
 module.exports = mongoose.model("Notification", NotificationSchema);

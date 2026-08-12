@@ -48,25 +48,33 @@ const createNotification = async ({ userId, title, body, type = "info", link, me
   return notification;
 };
 
+let _adminCache = null;
+let _adminCacheTime = 0;
+const ADMIN_CACHE_TTL = 30000;
+
+const getCachedAdmins = async () => {
+  const now = Date.now();
+  if (_adminCache && now - _adminCacheTime < ADMIN_CACHE_TTL) {
+    return _adminCache;
+  }
+  _adminCache = await User.find({ role: { $in: ["admin", "manager"] } }).lean();
+  _adminCacheTime = now;
+  return _adminCache;
+};
+
 const notifyAdmins = async ({ title, body, type = "info", link, meta }, io) => {
-  // Managers share the admin portal (AdminSidebar/notification bell) and
-  // must receive the same admin-side notifications, not just role "admin".
-  const admins = await User.find({ role: { $in: ["admin", "manager"] } });
-  const notifications = [];
-  for (const admin of admins) {
-    const notification = await createNotification({
+  const admins = await getCachedAdmins();
+  const notifications = await Promise.all(
+    admins.map(admin => createNotification({
       userId: admin._id,
       title,
       body,
       type,
       link,
       meta
-    }, io);
-    if (notification) {
-      notifications.push(notification);
-    }
-  }
-  return notifications;
+    }, io))
+  );
+  return notifications.filter(Boolean);
 };
 
 module.exports = { createNotification, notifyAdmins };

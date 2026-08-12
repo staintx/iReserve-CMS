@@ -14,4 +14,10 @@ const ConversationSchema = new mongoose.Schema({
   unread_admin_count: { type: Number, default: 0 }
 }, { timestamps: true });
 
+// --- Performance indexes ---
+ConversationSchema.index({ customer_id: 1 });
+ConversationSchema.index({ booking_id: 1 });
+ConversationSchema.index({ inquiry_id: 1 });
+ConversationSchema.index({ event_manager_id: 1 });
+
 module.exports = mongoose.model("Conversation", ConversationSchema);

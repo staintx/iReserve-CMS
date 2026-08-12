@@ -162,7 +162,7 @@ exports.create = asyncHandler(async (req, res) => {
 	
 	res.status(201).json(payment);
 });
-exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id")));
+exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id").lean()));
 exports.getMine = asyncHandler(async (req, res) => {
 	const pendingGatewayPayments = await Payment.find({
 		customer_id: req.user._id,
@@ -177,18 +177,19 @@ exports.getMine = asyncHandler(async (req, res) => {
 	res.json(
 		await Payment.find({ customer_id: req.user._id })
 			.sort({ createdAt: -1 })
-			.populate("booking_id customer_id"),
+			.populate("booking_id customer_id")
+			.lean(),
 	);
 });
 exports.getById = asyncHandler(async (req, res) => {
 	if (req.user?.role === "customer") {
 		const payment = await Payment.findOne({ _id: req.params.id, customer_id: req.user._id })
-			.populate("booking_id customer_id");
+			.populate("booking_id customer_id").lean();
 		if (!payment) return res.status(404).json({ message: "Payment not found" });
 		return res.json(payment);
 	}
 
-	res.json(await Payment.findById(req.params.id).populate("booking_id customer_id"));
+	res.json(await Payment.findById(req.params.id).populate("booking_id customer_id").lean());
 });
 
 exports.update = asyncHandler(async (req, res) => {

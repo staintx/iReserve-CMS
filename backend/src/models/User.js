@@ -19,4 +19,7 @@ const UserSchema = new mongoose.Schema({
   reset_password_expires: Date
 }, { timestamps: true });
 
+// --- Performance indexes ---
+UserSchema.index({ role: 1 });
+
 module.exports = mongoose.model("User", UserSchema);

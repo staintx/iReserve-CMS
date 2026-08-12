@@ -60,14 +60,23 @@ const ensureCustomerSupportConversation = async (customerId) => {
 
 exports.listConversations = asyncHandler(async (req, res) => {
   if (req.user.role === "admin") {
-    const [bookings, inquiries] = await Promise.all([
-      Booking.find({}),
-      Inquiry.find({})
+    // --- Perf: only ensure conversations for bookings/inquiries that don't have one yet ---
+    const [existingConvBookingIds, existingConvInquiryIds] = await Promise.all([
+      Conversation.distinct("booking_id", { booking_id: { $exists: true, $ne: null } }),
+      Conversation.distinct("inquiry_id", { inquiry_id: { $exists: true, $ne: null } }),
     ]);
-    await Promise.all([
-      ensureBookingConversations(bookings),
-      ensureInquiryConversations(inquiries)
+
+    const [newBookings, newInquiries] = await Promise.all([
+      Booking.find({ _id: { $nin: existingConvBookingIds } }, "_id customer_id event_manager_id").lean(),
+      Inquiry.find({ _id: { $nin: existingConvInquiryIds } }, "_id customer_id").lean(),
     ]);
+
+    if (newBookings.length > 0 || newInquiries.length > 0) {
+      await Promise.all([
+        ensureBookingConversations(newBookings),
+        ensureInquiryConversations(newInquiries),
+      ]);
+    }
   }
 
   if (req.user.role === "customer") {
@@ -101,7 +110,8 @@ exports.listConversations = asyncHandler(async (req, res) => {
     .populate("event_manager_id", "full_name email")
     .populate("booking_id", "booking_number event_type event_date venue guests total_amount status")
     .populate("inquiry_id", "inquiry_number event_type event_date status")
-    .sort({ last_message_at: -1, updatedAt: -1 });
+    .sort({ last_message_at: -1, updatedAt: -1 })
+    .lean();
 
   res.json(conversations);
 });
@@ -130,7 +140,8 @@ exports.getMessages = asyncHandler(async (req, res) => {
 
   const messages = await Message.find({ conversation_id: conversation._id })
     .populate("sender_id", "full_name role email")
-    .sort({ createdAt: 1 });
+    .sort({ createdAt: 1 })
+    .lean();
 
   res.json(messages);
 });

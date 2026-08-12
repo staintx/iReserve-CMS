@@ -196,18 +196,13 @@ const startCronJobs = (io) => {
             todayEnd.setHours(23, 59, 59, 999);
 
             // Events happening today → ongoing
-            const todayBookings = await Booking.find({
-                event_date: { $gte: todayStart, $lte: todayEnd },
-                status: { $in: ["confirmed", "preparing"] }
-            });
+            const todayResult = await Booking.updateMany(
+                { event_date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ["confirmed", "preparing"] } },
+                { $set: { status: "ongoing" } }
+            );
 
-            for (const booking of todayBookings) {
-                booking.status = "ongoing";
-                await booking.save();
-            }
-
-            if (todayBookings.length > 0) {
-                console.log(`Transitioned ${todayBookings.length} bookings to 'ongoing'.`);
+            if (todayResult.modifiedCount > 0) {
+                console.log(`Transitioned ${todayResult.modifiedCount} bookings to 'ongoing'.`);
             }
 
             // Events from yesterday → completed
@@ -216,19 +211,13 @@ const startCronJobs = (io) => {
             const yesterdayEnd = new Date(yesterdayStart);
             yesterdayEnd.setHours(23, 59, 59, 999);
 
-            const yesterdayBookings = await Booking.find({
-                event_date: { $gte: yesterdayStart, $lte: yesterdayEnd },
-                status: "ongoing"
-            });
+            const yesterdayResult = await Booking.updateMany(
+                { event_date: { $gte: yesterdayStart, $lte: yesterdayEnd }, status: "ongoing" },
+                { $set: { status: "completed", completed_at: new Date() } }
+            );
 
-            for (const booking of yesterdayBookings) {
-                booking.status = "completed";
-                booking.completed_at = new Date();
-                await booking.save();
-            }
-
-            if (yesterdayBookings.length > 0) {
-                console.log(`Transitioned ${yesterdayBookings.length} bookings to 'completed'.`);
+            if (yesterdayResult.modifiedCount > 0) {
+                console.log(`Transitioned ${yesterdayResult.modifiedCount} bookings to 'completed'.`);
             }
         } catch (error) {
             console.error('Error in auto-status transition cron:', error);

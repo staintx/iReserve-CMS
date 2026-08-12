@@ -23,6 +23,13 @@ const turnstileMiddleware = async (req, res, next) => {
       return res.status(500).json({ message: "Unable to verify security check." });
     }
   }
+
+  // Remove Turnstile response from req.body to prevent Joi validation errors in downstream middleware
+  if (req.body) {
+    delete req.body['cf-turnstile-response'];
+    delete req.body['cfTurnstileResponse'];
+  }
+
   next();
 };
 

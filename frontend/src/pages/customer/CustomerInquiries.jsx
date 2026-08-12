@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
@@ -50,6 +50,11 @@ const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
 
 export default function CustomerInquiries() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set by the booking wizard on a successful submit. The flow used to end on
+  // a bare list with only a toast, so a customer who missed it had no
+  // confirmation that anything had been received.
+  const submittedReference = location.state?.submittedReference;
   const { notify } = useToast();
 
   const [inquiries, setInquiries] = useState([]);
@@ -375,6 +380,25 @@ export default function CustomerInquiries() {
         </Button>
       }
     >
+      {submittedReference !== undefined && (
+        <StateNotice
+          tone="success"
+          icon={FileCheck2}
+          title="Request sent — nothing has been charged."
+          className="mb-6"
+        >
+          {submittedReference ? (
+            <>
+              Your reference is{" "}
+              <strong className="font-semibold">{submittedReference}</strong>.{" "}
+            </>
+          ) : null}
+          Our team is pricing your event now. We&apos;ll email your quotation and
+          it will appear here for you to review — accepting it and paying the
+          deposit is what reserves your date.
+        </StateNotice>
+      )}
+
       {/* What needs your attention, in one sentence */}
       {!loading && counts.quote_ready > 0 && (
         <StateNotice tone="info" icon={FileCheck2} title="Your quote is ready." className="mb-6">

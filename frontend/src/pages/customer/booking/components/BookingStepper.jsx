@@ -1,14 +1,17 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Only rendered if a caller passes no steps at all. Mirrors the longest real
+// path built in BookingWizard#wizardSteps so the labels never contradict it.
 const FALLBACK_STEPS = [
+  { label: "Date & time", key: "datetime" },
   { label: "Package", key: "package" },
-  { label: "Date & Time", key: "datetime" },
-  { label: "Event Details", key: "event" },
-  { label: "Cost Summary", key: "summary" },
-  { label: "Contact Information", key: "contact" },
-  { label: "Review Booking", key: "review" },
-  { label: "Payment", key: "payment" },
+  { label: "Event details", key: "event" },
+  { label: "Menu", key: "menu" },
+  { label: "Dietary needs", key: "dietary" },
+  { label: "Extras", key: "addons" },
+  { label: "Contact", key: "contact" },
+  { label: "Review", key: "review" },
 ];
 
 export default function BookingStepper({ currentStepIndex, steps = [] }) {

@@ -152,7 +152,10 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   const query = canViewUnavailable(req.user) ? {} : { available: true };
-  res.json(await Package.find(query));
+  const packages = await Package.find(query)
+    .populate("setup_equipment.inventory_id", "item_name category quantity available")
+    .populate("add_ons.inventory_id", "item_name category quantity available");
+  res.json(packages);
 };
 
 exports.getById = async (req, res) => {
@@ -160,7 +163,9 @@ exports.getById = async (req, res) => {
     ? { _id: req.params.id }
     : { _id: req.params.id, available: true };
 
-  const pkg = await Package.findOne(query);
+  const pkg = await Package.findOne(query)
+    .populate("setup_equipment.inventory_id", "item_name category quantity available")
+    .populate("add_ons.inventory_id", "item_name category quantity available");
   if (!pkg) return res.status(404).json({ message: "Package not found" });
   res.json(pkg);
 };

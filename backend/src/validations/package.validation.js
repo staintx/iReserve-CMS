@@ -18,7 +18,21 @@ exports.packageSchema = Joi.object({
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   add_ons: Joi.alternatives()
-    .try(Joi.array().items(Joi.string()), Joi.string())
+    .try(
+      Joi.array().items(
+        Joi.alternatives().try(
+          Joi.string(),
+          Joi.object({
+            name: Joi.string().required(),
+            price: Joi.number().optional().allow(0),
+            pricing_type: Joi.string().valid("fixed", "quantity").optional(),
+            inventory_id: Joi.string().optional().allow(null, ""),
+            _id: Joi.string().optional(),
+          })
+        )
+      ),
+      Joi.string(),
+    )
     .optional(),
   features: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
@@ -82,7 +96,21 @@ exports.packageUpdateSchema = Joi.object({
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   add_ons: Joi.alternatives()
-    .try(Joi.array().items(Joi.string()), Joi.string())
+    .try(
+      Joi.array().items(
+        Joi.alternatives().try(
+          Joi.string(),
+          Joi.object({
+            name: Joi.string().required(),
+            price: Joi.number().optional().allow(0),
+            pricing_type: Joi.string().valid("fixed", "quantity").optional(),
+            inventory_id: Joi.string().optional().allow(null, ""),
+            _id: Joi.string().optional(),
+          })
+        )
+      ),
+      Joi.string(),
+    )
     .optional(),
   features: Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())

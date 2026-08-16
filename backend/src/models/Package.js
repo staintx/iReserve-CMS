@@ -51,6 +51,11 @@ const PackageSchema = new mongoose.Schema(
         name: String,
         price: Number,
         pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
+        inventory_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Inventory",
+          default: null,
+        },
       },
     ],
     image_url: String,

@@ -150,6 +150,11 @@ export default function BookingWizard() {
       event_type_other: isOtherEventType ? initialEventType : "",
       event_theme: "",
       event_palette: [],
+      is_custom_setup: false,
+      custom_setup_scope: [],
+      inspiration_images: [],
+      custom_setup_notes: "",
+      budget_range: "",
       event_date: "",
       start_time: "",
       duration_hours: "4",
@@ -273,6 +278,10 @@ export default function BookingWizard() {
     isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY;
   const isFoodAndEventSetup =
     isCustomBooking && form.service_type === SERVICE_TYPES.FULL_SERVICE;
+  const selectedPackageId =
+    form.package_id === "none"
+      ? ""
+      : form.package_id || initialPackageId || "";
 
   // Food Only never occupies the venue, so it is not subject to the
   // venue-conflict check that gates the other paths.
@@ -300,10 +309,17 @@ export default function BookingWizard() {
       steps.push({ id: "PackageSelection", label: "Package", key: "package" });
       steps.push({ id: "EventDetails", label: "Event details", key: "event" });
       steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
-      steps.push({ id: "DietaryNeeds", label: "Dietary needs", key: "dietary" });
+      if (form.include_food !== false) {
+        steps.push({ id: "DietaryNeeds", label: "Dietary needs", key: "dietary" });
+      }
       steps.push({ id: "AddonSelection", label: "Extras", key: "addons" });
     } else {
+      // Started from Package page
       steps.push({ id: "EventDetails", label: "Event details", key: "event" });
+      steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
+      if (form.include_food !== false) {
+        steps.push({ id: "DietaryNeeds", label: "Dietary needs", key: "dietary" });
+      }
       steps.push({ id: "PackageAddOns", label: "Extras", key: "addons" });
     }
 
@@ -316,6 +332,7 @@ export default function BookingWizard() {
     isFoodOnly,
     isEventSetupOnly,
     isFoodAndEventSetup,
+    form.include_food,
   ]);
 
   const currentStepId = wizardSteps[step]?.id;
@@ -455,8 +472,6 @@ export default function BookingWizard() {
       )
       .catch(() => {});
   }, []);
-
-  const selectedPackageId = form.package_id || initialPackageId;
 
   useEffect(() => {
     if (!selectedPackageId) {
@@ -665,9 +680,13 @@ export default function BookingWizard() {
         }
 
         case "PackageSelection": {
-          if (isEventSetupOnly && !selectedPackageId) {
-            errors.package_id = "Choose a setup package to continue.";
-            message = "Choose a setup package to continue.";
+          if (!form.is_custom_setup && (!selectedPackageId || selectedPackageId === "none")) {
+            errors.package_id = "Choose a setup package or switch to Design from Scratch.";
+            message = "Choose a setup package or switch to Design from Scratch.";
+          }
+          if (form.is_custom_setup && !String(form.event_theme || "").trim()) {
+            errors.event_theme = "Please choose or describe your event theme.";
+            message = "Please choose or describe your event theme.";
           }
           break;
         }
@@ -711,12 +730,14 @@ export default function BookingWizard() {
         }
 
         case "MenuSelection": {
-          if (isFoodAndEventSetup) {
-            const { valid, issues } = validateCourseSelection(
-              form.selected_menu,
-              menuItems,
-            );
-            if (!valid) message = issues.join(" ");
+          if (form.include_food !== false) {
+            if (isFoodAndEventSetup || !isFoodOnly) {
+              const { valid, issues } = validateCourseSelection(
+                form.selected_menu,
+                menuItems,
+              );
+              if (!valid) message = issues.join(" ");
+            }
           }
           break;
         }
@@ -1021,11 +1042,6 @@ export default function BookingWizard() {
         );
 
       case "PackageSelection":
-        const currentActivePackageId =
-          form.package_id === "none"
-            ? ""
-            : form.package_id || initialPackageId || "";
-
         return (
           <StepPackageSelection
             packages={packages}
@@ -1124,7 +1140,7 @@ export default function BookingWizard() {
             setForm={setForm}
             menuItems={menuItems}
             estimate={estimate}
-            isFullService={isFoodAndEventSetup}
+            isFullService={!isFoodOnly}
           />
         );
 

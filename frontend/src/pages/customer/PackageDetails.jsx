@@ -108,7 +108,7 @@ export default function PackageDetails() {
         serviceType: serviceTypeForPackage(data),
         packageId: data._id,
         packageName: data.name,
-        packagePrice: perGuestPrice(data) || 0,
+        packagePrice: data.setup_price || perGuestPrice(data) || 0,
         guestMin: data.guest_min || null,
         guestMax: data.guest_max || null,
       }
@@ -268,9 +268,7 @@ export default function PackageDetails() {
                       type="button"
                       className="ls-btn ls-btn--ghost"
                       onClick={() =>
-                        navigate("/customer/quote", {
-                          state: { eventType: event, packageId: data._id, packageName: data.name },
-                        })
+                        navigate("/customer/book", { state: bookingState })
                       }
                     >
                       Request a quote
@@ -459,7 +457,7 @@ export default function PackageDetails() {
                   type="button"
                   className="ls-btn ls-btn--light"
                   onClick={() =>
-                    navigate("/customer/quote", { state: { eventType: event, packageId: data._id, packageName: data.name } })
+                    navigate("/customer/book", { state: bookingState })
                   }
                 >
                   Request a quote

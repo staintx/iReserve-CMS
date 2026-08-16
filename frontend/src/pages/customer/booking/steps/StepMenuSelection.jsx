@@ -298,141 +298,226 @@ export default function StepMenuSelection({
   // ---------------------------------------------------------------------------
   if (isFullService) {
     const waterNames = waterItems.map((item) => item.name).join(", ");
+    const isFoodIncluded = form.include_food !== false;
 
     return (
       <StepShell>
         <SH
-          title="Build Your Menu"
-          sub="Every guest is served the same courses. Pick one course at a time."
+          title="Food Catering Menu"
+          sub="Select dishes for your guests (3 Mains, 1 Vegetable, 2 Desserts). Your per-guest price is confirmed on your official quotation, and event setup is included for FREE!"
         />
 
-        {/* Course navigation.
-            Desktop gets the full rail. On a 390px screen that rail overflowed
-            and "Your menu" sat off the right edge, so an important destination
-            was only reachable by guessing it was there. Mobile instead gets the
-            current course, tappable progress dots, and a permanently visible
-            action for the summary, all in two compact rows. */}
-        <nav
-          aria-label="Menu courses"
-          className="-mx-1 mb-4 hidden gap-2 overflow-x-auto px-1 pb-1 sm:flex"
-        >
-          {sections.map((section) => {
-            const isActive = section.id === activeId;
-            const isDone = section.status === "done";
-            return (
-              <button
-                key={section.id}
-                type="button"
-                aria-current={isActive ? "step" : undefined}
-                onClick={() => setActiveSection(section.id)}
-                className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
-                  isActive
-                    ? "border-[#4C81E0] bg-[#4C81E0]/5"
-                    : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
-                  focusRing,
-                )}
-              >
-                {isDone ? (
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
-                    <Check size={10} strokeWidth={3} />
-                  </span>
-                ) : section.id === SUMMARY_SECTION ? (
-                  <ListChecks size={14} className="text-[#94A3B8]" />
-                ) : null}
-                <span>
-                  <span
-                    className={cn(
-                      "block text-[13px] font-medium",
-                      isActive ? "text-[#1E293B]" : "text-[#64748B]",
-                    )}
-                  >
-                    {section.label}
-                  </span>
-                  {section.hint && (
-                    <span
-                      className={cn(
-                        "block text-[11px] tabular-nums",
-                        isDone ? "text-emerald-600" : "text-[#94A3B8]",
-                      )}
-                    >
-                      {section.hint}
-                    </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="mb-3 sm:hidden">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-sm font-medium text-[#1E293B]">{active?.label}</p>
-            {active?.hint && (
-              <p
-                className={cn(
-                  "text-[13px] tabular-nums",
-                  active.status === "done" ? "text-emerald-600" : "text-[#64748B]",
-                )}
-                aria-live="polite"
-              >
-                {active.hint}
-              </p>
+        {/* Catering Toggle: Include Food vs Setup Only */}
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setForm((prev) => ({ ...prev, include_food: true }))}
+            className={cn(
+              "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
+              isFoodIncluded
+                ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm ring-1 ring-[#4C81E0]"
+                : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
+              focusRing,
             )}
-          </div>
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold transition-colors",
+                  isFoodIncluded
+                    ? "bg-[#4C81E0] text-white"
+                    : "border border-[#CBD5E1] bg-white text-transparent",
+                )}
+              >
+                ✓
+              </span>
+              <span className="font-semibold text-[#1E293B] text-sm">
+                Add Catering / Food Menu
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-[#64748B] pl-7">
+              Select 3 Mains, 1 Vegetable, 2 Desserts. Event setup is <strong className="text-emerald-700">FREE</strong> with catering, and price per guest is quoted by our team.
+            </p>
+          </button>
 
-          <div className="mt-2 flex items-center gap-1.5">
-            {courseSections.map((section) => {
-              const isActive = section.id === activeId;
-              const isDone = section.status === "done";
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  aria-current={isActive ? "step" : undefined}
-                  aria-label={`${section.label}${section.hint ? `, ${section.hint}` : ""}`}
-                  className={cn(
-                    "h-1.5 flex-1 rounded-full transition-colors",
-                    isActive
-                      ? "bg-[#4C81E0]"
-                      : isDone
-                        ? "bg-emerald-400"
-                        : "bg-[#E2E8F0]",
-                    focusRing,
-                  )}
-                />
-              );
-            })}
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setForm((prev) => ({
+                ...prev,
+                include_food: false,
+                selected_menu: [],
+              }))
+            }
+            className={cn(
+              "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
+              !isFoodIncluded
+                ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm ring-1 ring-[#4C81E0]"
+                : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
+              focusRing,
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold transition-colors",
+                  !isFoodIncluded
+                    ? "bg-[#4C81E0] text-white"
+                    : "border border-[#CBD5E1] bg-white text-transparent",
+                )}
+              >
+                ✓
+              </span>
+              <span className="font-semibold text-[#1E293B] text-sm">
+                Skip Catering (Event Setup Only)
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-[#64748B] pl-7">
+              No food catering needed. Proceed with Event Setup package only.
+            </p>
+          </button>
         </div>
 
-        {/* The summary is one tap away at all times on mobile, instead of
-            living at the far end of a horizontally scrolling rail. */}
-        <button
-          type="button"
-          onClick={() =>
-            setActiveSection(
-              activeId === SUMMARY_SECTION ? courseSections[0]?.id : SUMMARY_SECTION,
-            )
-          }
-          className={cn(
-            "mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#4C81E0] transition-colors hover:border-[#4C81E0]/50 sm:hidden",
-            focusRing,
-          )}
-        >
-          {activeId === SUMMARY_SECTION ? (
-            "Back to courses"
-          ) : (
-            <>
-              <ListChecks size={15} />
-              Review your menu
-              <span className="font-medium text-[#64748B]">
-                ({chosenCount} of {requiredCount} chosen)
-              </span>
-            </>
-          )}
-        </button>
+        {!isFoodIncluded ? (
+          <Card className="p-6 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-[#4C81E0] mb-3">
+              <Check size={24} />
+            </div>
+            <h3 className="text-base font-semibold text-[#1E293B]">
+              Event Setup Only Selected
+            </h3>
+            <p className="mt-1.5 text-sm text-[#64748B] max-w-md mx-auto">
+              No food catering will be added to this booking. You can click Continue below to proceed to extras and contact details.
+            </p>
+            <div className="mt-6 border-t border-[#E2E8F0] pt-4 text-left">
+              {requestsField(
+                "Optional setup notes or special requests for our team",
+              )}
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Course navigation */}
+            <nav
+              aria-label="Menu courses"
+              className="-mx-1 mb-4 hidden gap-2 overflow-x-auto px-1 pb-1 sm:flex"
+            >
+              {sections.map((section) => {
+                const isActive = section.id === activeId;
+                const isDone = section.status === "done";
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    aria-current={isActive ? "step" : undefined}
+                    onClick={() => setActiveSection(section.id)}
+                    className={cn(
+                      "flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                      isActive
+                        ? "border-[#4C81E0] bg-[#4C81E0]/5"
+                        : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
+                      focusRing,
+                    )}
+                  >
+                    {isDone ? (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white">
+                        <Check size={10} strokeWidth={3} />
+                      </span>
+                    ) : section.id === SUMMARY_SECTION ? (
+                      <ListChecks size={14} className="text-[#94A3B8]" />
+                    ) : null}
+                    <span>
+                      <span
+                        className={cn(
+                          "block text-[13px] font-medium",
+                          isActive ? "text-[#1E293B]" : "text-[#64748B]",
+                        )}
+                      >
+                        {section.label}
+                      </span>
+                      {section.hint && (
+                        <span
+                          className={cn(
+                            "block text-[11px] tabular-nums",
+                            isDone ? "text-emerald-600" : "text-[#94A3B8]",
+                          )}
+                        >
+                          {section.hint}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="mb-3 sm:hidden">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-medium text-[#1E293B]">{active?.label}</p>
+                {active?.hint && (
+                  <p
+                    className={cn(
+                      "text-[13px] tabular-nums",
+                      active.status === "done" ? "text-emerald-600" : "text-[#64748B]",
+                    )}
+                    aria-live="polite"
+                  >
+                    {active.hint}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-2 flex items-center gap-1.5">
+                {courseSections.map((section) => {
+                  const isActive = section.id === activeId;
+                  const isDone = section.status === "done";
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => setActiveSection(section.id)}
+                      aria-current={isActive ? "step" : undefined}
+                      aria-label={`${section.label}${section.hint ? `, ${section.hint}` : ""}`}
+                      className={cn(
+                        "h-1.5 flex-1 rounded-full transition-colors",
+                        isActive
+                          ? "bg-[#4C81E0]"
+                          : isDone
+                            ? "bg-emerald-400"
+                            : "bg-[#E2E8F0]",
+                        focusRing,
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Mobile review button */}
+            <button
+              type="button"
+              onClick={() =>
+                setActiveSection(
+                  activeId === SUMMARY_SECTION ? courseSections[0]?.id : SUMMARY_SECTION,
+                )
+              }
+              className={cn(
+                "mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#4C81E0] transition-colors hover:border-[#4C81E0]/50 sm:hidden",
+                focusRing,
+              )}
+            >
+              {activeId === SUMMARY_SECTION ? (
+                "Back to courses"
+              ) : (
+                <>
+                  <ListChecks size={15} />
+                  Review your menu
+                  <span className="font-medium text-[#64748B]">
+                    ({chosenCount} of {requiredCount} chosen)
+                  </span>
+                </>
+              )}
+            </button>
 
         <Card className="p-4">
           {active?.course && (
@@ -588,14 +673,15 @@ export default function StepMenuSelection({
           )}
         </Card>
 
-        {/* Menu choices do not move the per-guest rate, so the full cost panel
-            would be a distraction here. One line keeps the number in view. */}
+        {/* Menu estimate bar */}
         <EstimateSummary
           estimate={estimate}
           variant="bar"
-          note="Your price is per guest, so these menu choices do not change it."
+          note="Your per-guest price will be confirmed on your official quotation based on your menu choices. Event setup is FREE with catering!"
           className="mt-4"
         />
+        </>
+        )}
       </StepShell>
     );
   }
@@ -607,7 +693,7 @@ export default function StepMenuSelection({
     <StepShell aside={<EstimateSummary estimate={estimate} />}>
       <SH
         title="Choose Your Dishes"
-        sub="Prices are per guest, so your estimate is the dishes you pick times your guest count."
+        sub="Select your dishes for catering. Your per-guest catering rate will be confirmed on your official quotation."
       />
 
       <Card className="p-4">

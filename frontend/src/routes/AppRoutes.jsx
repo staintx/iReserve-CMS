@@ -134,7 +134,7 @@ export default function AppRoutes() {
         <Route path="/customer/profile" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerProfile /></ProtectedRoute>} />
         <Route path="/customer/notifications" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerNotifications /></ProtectedRoute>} />
 
-        <Route path="/customer/quote" element={<ProtectedRoute allowedRoles={customerOnly}><QuoteWizard /></ProtectedRoute>} />
+        <Route path="/customer/quote" element={<ProtectedRoute allowedRoles={customerOnly}><BookingWizard /></ProtectedRoute>} />
 
         {/* Admin (protected by role) */}
         <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={adminOnly}><AdminDashboard /></ProtectedRoute>} />

@@ -28,7 +28,6 @@ const EVENT_TYPES = [
   "Anniversary",
   "Other",
 ];
-const PACKAGE_TYPES = ["Food Only", "Event Setup Only", "Food + Event Setup"];
 
 export default function AdminPackages() {
   const { notify } = useToast();
@@ -38,7 +37,6 @@ export default function AdminPackages() {
   // Filter states
   const [filters, setFilters] = useState({
     event_type: "",
-    package_type: "",
     available: "", // "true", "false", or ""
   });
   const [showFilters, setShowFilters] = useState(false);
@@ -90,11 +88,10 @@ export default function AdminPackages() {
   };
 
   const clearFilters = () => {
-    setFilters({ event_type: "", package_type: "", available: "" });
+    setFilters({ event_type: "", available: "" });
   };
 
-  const hasActiveFilters =
-    filters.event_type || filters.package_type || filters.available;
+  const hasActiveFilters = filters.event_type || filters.available;
 
   // Filter packages
   const filteredPackages = useMemo(() => {
@@ -105,10 +102,6 @@ export default function AdminPackages() {
       }
       // Event type filter
       if (filters.event_type && pkg.event_type !== filters.event_type) {
-        return false;
-      }
-      // Package type filter
-      if (filters.package_type && pkg.package_type !== filters.package_type) {
         return false;
       }
       // Availability filter
@@ -135,10 +128,10 @@ export default function AdminPackages() {
               style={{ fontFamily: "Playfair Display, serif" }}
               className="text-2xl font-bold text-foreground"
             >
-              Service Management
+              Event Setup Packages
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage your standard packages and tier options
+              Manage your event setup packages, equipment, and scaffold options
             </p>
           </div>
           <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
@@ -204,7 +197,7 @@ export default function AdminPackages() {
 
             {/* Filter Panel */}
             {showFilters && (
-              <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
                 {/* Event Type Filter */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
@@ -219,27 +212,6 @@ export default function AdminPackages() {
                   >
                     <option value="">All Event Types</option>
                     {EVENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Package Type Filter */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
-                    Package Type
-                  </label>
-                  <select
-                    value={filters.package_type}
-                    onChange={(e) =>
-                      setFilters({ ...filters, package_type: e.target.value })
-                    }
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
-                  >
-                    <option value="">All Package Types</option>
-                    {PACKAGE_TYPES.map((type) => (
                       <option key={type} value={type}>
                         {type}
                       </option>
@@ -336,54 +308,44 @@ export default function AdminPackages() {
                     )}
 
                     {/* Package Type Badge */}
-                    <div className="mb-3">
-                      <span
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                          pkg.package_type === "Food Only"
-                            ? "bg-orange-50 text-orange-600"
-                            : pkg.package_type === "Event Setup Only"
-                              ? "bg-blue-50 text-blue-600"
-                              : "bg-purple-50 text-purple-600"
-                        }`}
-                      >
-                        {pkg.package_type}
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                        Event Setup
                       </span>
+                      {pkg.event_type && (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-700">
+                          {pkg.event_type}
+                        </span>
+                      )}
                     </div>
 
                     {/* Pricing */}
                     <div className="mb-3">
-                      {pkg.package_type === "Food Only" ? (
+                      <div>
                         <p className="text-lg font-bold text-foreground">
-                          Menu-based pricing
+                          {pkg.scaffold_size_options?.length > 0
+                            ? `${pkg.scaffold_size_options.length} scaffold option${pkg.scaffold_size_options.length > 1 ? "s" : ""}`
+                            : pkg.setup_price
+                              ? fmt(pkg.setup_price)
+                              : "Setup Package"}
                         </p>
-                      ) : pkg.package_type === "Event Setup Only" ? (
-                        <div>
-                          <p className="text-lg font-bold text-foreground">
-                            {pkg.scaffold_size_options?.length > 0
-                              ? `${pkg.scaffold_size_options.length} scaffold options`
-                              : "No pricing set"}
-                          </p>
-                          {pkg.scaffold_size_options?.length > 0 && (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              From{" "}
-                              {fmt(
-                                Math.min(
-                                  ...pkg.scaffold_size_options.map(
-                                    (o) => o.price || 0,
-                                  ),
+                        {pkg.scaffold_size_options?.length > 0 ? (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Starting from{" "}
+                            {fmt(
+                              Math.min(
+                                ...pkg.scaffold_size_options.map(
+                                  (o) => o.price || 0,
                                 ),
-                              )}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-lg font-bold text-foreground">
-                          {fmt(pkg.price_per_guest)}
-                          <span className="text-xs text-gray-500 font-normal">
-                            /pax
-                          </span>
-                        </p>
-                      )}
+                              ),
+                            )}
+                          </p>
+                        ) : pkg.setup_price ? (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Base setup fee
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
 
                     {/* Inclusions */}

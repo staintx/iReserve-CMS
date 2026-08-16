@@ -106,6 +106,7 @@ exports.create = async (req, res) => {
 
   const payload = {
     ...req.body,
+    package_type: req.body.package_type || "Event Setup Only",
     inclusions: normalizeList(req.body.inclusions),
     add_ons,
     features,

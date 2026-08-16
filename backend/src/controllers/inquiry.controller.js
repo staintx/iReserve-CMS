@@ -3,7 +3,8 @@ const BlockedDate = require("../models/BlockedDate");
 const MenuItem = require("../models/MenuItem");
 const asyncHandler = require("../utils/asyncHandler");
 const { resolveGroupId, COURSE_RULES } = require("../utils/menuCategories");
-const { checkInventoryAvailability } = require("./booking.controller"); // Will reuse some inventory checking logic if needed
+const { checkInventoryAvailability } = require("./booking.controller");
+const uploadToCloudinary = require("../utils/cloudinaryUpload");
 
 const FULL_SERVICE = "Food and Event Setup";
 
@@ -195,4 +196,19 @@ exports.deleteInquiry = asyncHandler(async (req, res) => {
   if (io) io.emit("system:refresh", { type: "inquiry", action: "delete" });
 
   res.json({ message: "Inquiry cancelled" });
+});
+
+// Customer uploads inspiration / moodboard photos for custom event setup
+exports.uploadInspirationImages = asyncHandler(async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: "No image files uploaded" });
+  }
+
+  const uploadPromises = req.files.map(async (file) => {
+    const result = await uploadToCloudinary(file.buffer, "inquiries/inspiration");
+    return result.secure_url;
+  });
+
+  const urls = await Promise.all(uploadPromises);
+  res.status(200).json({ urls });
 });

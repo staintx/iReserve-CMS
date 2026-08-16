@@ -22,6 +22,10 @@ export const CustomerAPI = {
 
   // inquiry + bookings
   submitInquiry: (data) => api.post("/inquiries", data),
+  uploadInspirationImages: (formData) =>
+    api.post("/inquiries/upload-inspiration", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
   checkAvailability: (params) => api.get("/bookings/availability", { params }),
   getAvailableTimes: (params) => api.get("/bookings/available-times", { params }),
   suggestDates: (params) => api.get("/bookings/availability/suggestions", { params }),

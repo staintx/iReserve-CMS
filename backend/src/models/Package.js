@@ -59,6 +59,7 @@ const PackageSchema = new mongoose.Schema(
     package_type: {
       type: String,
       enum: ["Food Only", "Event Setup Only", "Food + Event Setup"],
+      default: "Event Setup Only",
     },
   },
   { timestamps: true },

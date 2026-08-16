@@ -14,7 +14,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   const [formData, setFormData] = useState({
     // Basic Info
     name: "",
-    package_type: "Food Only",
+    package_type: "Event Setup Only",
     event_type: "",
     available: true,
 
@@ -22,16 +22,12 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     guest_min: "",
     guest_max: "",
 
-    // Pricing (conditional based on package_type)
-    price_per_guest: "",
+    // Pricing
     setup_price: "",
 
     // Descriptions
     description: "",
     fullDescription: "",
-
-    // Menu (Food packages)
-    menu_items: [],
 
     // Inclusions & Add-ons
     inclusions: [],
@@ -54,7 +50,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     inventory_id: "",
     quantity: "",
   });
-  const [newMenuItem, setNewMenuItem] = useState("");
   const [newScaffoldOption, setNewScaffoldOption] = useState({
     label: "",
     width_ft: "",
@@ -72,45 +67,36 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
   // ============ REFERENCE DATA ============
   const [inventoryList, setInventoryList] = useState([]);
-  const [fullMenuList, setFullMenuList] = useState([]);
 
   // ============ EFFECTS ============
   useEffect(() => {
-    Promise.all([
-      AdminAPI.getInventory().catch((err) => {
-        console.error(err);
-        return { data: [] };
-      }),
-      AdminAPI.getMenu().catch((err) => {
-        console.error(err);
-        return { data: [] };
-      }),
-    ]).then(([invRes, menuRes]) => {
-      setInventoryList(
-        (invRes.data || []).filter((i) =>
-          ["Equipment", "Furniture", "Decorations", "Tableware"].includes(
-            i.category,
+    AdminAPI.getInventory()
+      .then((invRes) => {
+        setInventoryList(
+          (invRes.data || []).filter((i) =>
+            ["Equipment", "Furniture", "Decorations", "Tableware"].includes(
+              i.category,
+            ),
           ),
-        ),
-      );
-      setFullMenuList(menuRes.data || []);
-    });
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to load inventory for package modal", err);
+      });
 
     setGalleryToRemove([]);
 
     if (pkg) {
       setFormData({
         name: pkg.name || "",
-        package_type: pkg.package_type || "Food Only",
+        package_type: "Event Setup Only",
         event_type: pkg.event_type || "",
         available: pkg.available !== false,
         guest_min: pkg.guest_min || "",
         guest_max: pkg.guest_max || "",
-        price_per_guest: pkg.price_per_guest || "",
         setup_price: pkg.setup_price || "",
         description: pkg.description || "",
         fullDescription: pkg.fullDescription || "",
-        menu_items: pkg.menu_items || [],
         inclusions: pkg.inclusions || [],
         add_ons: pkg.add_ons || [],
         setup_equipment: pkg.setup_equipment || [],
@@ -180,24 +166,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     }));
   };
 
-  // ============ HANDLERS - Menu Items ============
-  const handleAddMenuItem = () => {
-    if (!newMenuItem) return;
-    if (formData.menu_items.some((m) => (m._id || m) === newMenuItem)) return;
-    setFormData((prev) => ({
-      ...prev,
-      menu_items: [...prev.menu_items, newMenuItem],
-    }));
-    setNewMenuItem("");
-  };
-
-  const handleRemoveMenuItem = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      menu_items: prev.menu_items.filter((_, i) => i !== index),
-    }));
-  };
-
   // ============ HANDLERS - Scaffold Options ============
   const handleAddScaffoldOption = () => {
     const { label, width_ft, length_ft, price, guest_min, guest_max } =
@@ -251,7 +219,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       Object.keys(formData).forEach((key) => {
         if (key === "inclusions") {
           formData[key].forEach((val) => data.append(`${key}[]`, val));
-        } else if (key === "setup_equipment" || key === "menu_items" || key === "add_ons") {
+        } else if (key === "setup_equipment" || key === "add_ons") {
           data.append(key, JSON.stringify(formData[key]));
         } else if (key === "scaffold_size_options") {
           data.append(key, JSON.stringify(formData[key]));
@@ -301,13 +269,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       : eq.inventory_id.item_name || "Unknown Item";
   };
 
-  // ============ HELPER - Get Menu Item Name ============
-  const getMenuItemName = (mId) => {
-    const idToFind = typeof mId === "object" ? mId._id : mId;
-    const itemData = fullMenuList.find((x) => x._id === idToFind);
-    return itemData ? itemData.name : mId.name || "Unknown Dish";
-  };
-
   // ============ RENDER ============
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
@@ -339,30 +300,12 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 <input
                   type="text"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  placeholder="Birthday Package 1"
+                  placeholder="e.g. Elegant White Wedding Setup"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
                 />
-              </div>
-
-              {/* Package Type */}
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Package Type <span className="text-red-400">*</span>
-                </label>
-                <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  value={formData.package_type}
-                  onChange={(e) =>
-                    setFormData({ ...formData, package_type: e.target.value })
-                  }
-                >
-                  <option value="Food Only">Food Only</option>
-                  <option value="Event Setup Only">Event Setup Only</option>
-                  <option value="Food + Event Setup">Food + Event Setup</option>
-                </select>
               </div>
 
               {/* Event Type */}
@@ -385,6 +328,24 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   <option value="Anniversary">Anniversary</option>
                   <option value="Other">Other</option>
                 </select>
+              </div>
+
+              {/* Base Setup Price (Optional) */}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Base Setup Price (₱) <span className="text-xs text-gray-400">(Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                  placeholder="0 (Or configured per scaffold size)"
+                  value={formData.setup_price}
+                  onChange={(e) => {
+                    if (Number(e.target.value) < 0) return;
+                    setFormData({ ...formData, setup_price: e.target.value });
+                  }}
+                />
               </div>
 
               {/* Availability Toggle */}
@@ -415,131 +376,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
             </div>
           </section>
 
-          {/* SECTION 2: Guest & Pricing */}
-          <section>
-            <h3 className="font-bold text-foreground mb-4">
-              Guest Capacity & Pricing
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Guest Min (Event Setup Only) - Now moved to scaffold options */}
-              {formData.package_type !== "Event Setup Only" && (
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">
-                    Minimum Guests
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                    placeholder="e.g. 50"
-                    value={formData.guest_min}
-                    onChange={(e) =>
-                      setFormData({ ...formData, guest_min: e.target.value })
-                    }
-                  />
-                </div>
-              )}
-
-              {/* Guest Max */}
-              {formData.package_type !== "Event Setup Only" && (
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">
-                    Maximum Guests
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                    placeholder="150"
-                    value={formData.guest_max}
-                    onChange={(e) => {
-                      if (Number(e.target.value) < 0) return;
-                      setFormData({ ...formData, guest_max: e.target.value });
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Pricing - Conditional */}
-              <div className="col-span-2">
-                {formData.package_type === "Food Only" && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Pricing Model
-                    </label>
-                    <p className="text-sm text-blue-700">
-                      💡 Price per plate depends on menu selection. Configure
-                      individual menu item prices separately.
-                    </p>
-                  </div>
-                )}
-
-                {formData.package_type === "Event Setup Only" && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Pricing & Guest Capacity Model
-                    </label>
-                    <p className="text-sm text-amber-700">
-                      💡 Event setup pricing and guest capacity are determined
-                      by the scaffold size options you configure below. Each
-                      scaffold size can have its own price and guest range.
-                    </p>
-                  </div>
-                )}
-
-                {formData.package_type === "Food + Event Setup" && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-600 mb-1">
-                          Price per Guest (₱){" "}
-                          <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                          placeholder="e.g. 1500"
-                          value={formData.price_per_guest}
-                          onChange={(e) => {
-                            if (Number(e.target.value) < 0) return;
-                            setFormData({
-                              ...formData,
-                              price_per_guest: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-gray-600 mb-1">
-                          Base Setup Fee (₱) <span className="text-xs text-gray-400">(Optional)</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                          placeholder="0 (Free if empty)"
-                          value={formData.setup_price}
-                          onChange={(e) => {
-                            if (Number(e.target.value) < 0) return;
-                            setFormData({
-                              ...formData,
-                              setup_price: e.target.value,
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-green-600">
-                      ✓ Setup equipment and scaffold options can be configured below
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* SECTION 3: Descriptions */}
+          {/* SECTION 2: Descriptions */}
           <section>
             <h3 className="font-bold text-foreground mb-4">Descriptions</h3>
             <div className="space-y-4">
@@ -549,7 +386,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 </label>
                 <textarea
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-20"
-                  placeholder="Brief summary for package cards (1-2 sentences)"
+                  placeholder="Brief summary of the setup package (1-2 sentences)"
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
@@ -562,7 +399,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 </label>
                 <textarea
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-32"
-                  placeholder="Detailed description of what this package includes"
+                  placeholder="Detailed description of what this setup package includes"
                   value={formData.fullDescription}
                   onChange={(e) =>
                     setFormData({
@@ -575,70 +412,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
             </div>
           </section>
 
-          {/* SECTION 4: Menu (Food packages only) */}
-          {(formData.package_type === "Food Only" ||
-            formData.package_type === "Food + Event Setup") && (
-            <section>
-              <h3 className="font-bold text-foreground mb-4">Food Menu</h3>
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-                <label className="block text-sm font-semibold text-gray-800 mb-1">
-                  Selected Menu Items
-                </label>
-                <p className="text-xs text-gray-500 mb-3">
-                  Choose dishes from your menu catalog to include in this
-                  package
-                </p>
-
-                {/* Add Menu Item */}
-                <div className="flex gap-2 mb-3">
-                  <select
-                    className="flex-1 border border-gray-200 rounded-lg px-2 text-sm bg-white"
-                    value={newMenuItem}
-                    onChange={(e) => setNewMenuItem(e.target.value)}
-                  >
-                    <option value="">Select Dish...</option>
-                    {fullMenuList.map((item) => (
-                      <option key={item._id} value={item._id}>
-                        {item.name} ({item.category})
-                      </option>
-                    ))}
-                  </select>
-                  <Btn variant="primary" size="sm" onClick={handleAddMenuItem}>
-                    <Plus size={12} className="mr-1" /> Add
-                  </Btn>
-                </div>
-
-                {/* Menu Items List */}
-                {formData.menu_items.length > 0 ? (
-                  <ul className="space-y-1">
-                    {formData.menu_items.map((mId, i) => (
-                      <li
-                        key={i}
-                        className="flex justify-between items-center text-sm bg-white px-3 py-2 rounded border border-gray-100"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 bg-primary rounded-full" />
-                          {getMenuItemName(mId)}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveMenuItem(i)}
-                          className="text-red-400 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-gray-400 italic text-center py-4">
-                    No menu items added yet
-                  </p>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* SECTION 5: Services, Inclusions & Add-ons */}
+          {/* SECTION 3: Services, Inclusions & Add-ons */}
           <section>
             <h3 className="font-bold text-foreground mb-4">
               Services, Inclusions & Add-ons
@@ -805,13 +579,11 @@ export default function PackageModal({ pkg, onClose, onSave }) {
             </div>
           </section>
 
-          {/* SECTION 6: Event Setup Configuration */}
-          {(formData.package_type === "Event Setup Only" ||
-            formData.package_type === "Food + Event Setup") && (
-            <section>
-              <h3 className="font-bold text-foreground mb-4">
-                Event Setup Configuration
-              </h3>
+          {/* SECTION 4: Event Setup Configuration */}
+          <section>
+            <h3 className="font-bold text-foreground mb-4">
+              Event Setup Configuration
+            </h3>
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-6">
                 {/* Setup Equipment */}
                 <div>
@@ -1079,9 +851,8 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                 </div>
               </div>
             </section>
-          )}
 
-          {/* SECTION 7: Media Upload */}
+          {/* SECTION 5: Media Upload */}
           <section>
             <h3 className="font-bold text-foreground mb-4">Media</h3>
             <div className="space-y-6">

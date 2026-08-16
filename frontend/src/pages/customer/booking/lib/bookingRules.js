@@ -18,12 +18,11 @@ export const SERVICE_LABELS = {
   [SERVICE_TYPES.FULL_SERVICE]: "Food and event setup",
 };
 
-// Package.package_type uses a different spelling for the combined service than
-// service_type does, so map explicitly rather than comparing raw strings.
+// Package.package_type maps to Event Setup Only for setup and full-service flows.
 export const PACKAGE_TYPE_BY_SERVICE_TYPE = {
   [SERVICE_TYPES.FOOD_ONLY]: "Food Only",
   [SERVICE_TYPES.SETUP_ONLY]: "Event Setup Only",
-  [SERVICE_TYPES.FULL_SERVICE]: "Food + Event Setup",
+  [SERVICE_TYPES.FULL_SERVICE]: "Event Setup Only",
 };
 
 // -----------------------------------------------------------------------------
@@ -64,17 +63,17 @@ export const SERVICE_PATHS = {
   [SERVICE_TYPES.FULL_SERVICE]: {
     title: "Food and event setup",
     description:
-      "One booking covering the catering and the full event setup, start to finish.",
+      "One booking covering the event setup and catering, start to finish.",
     steps: [
       "Your date and time, which we check is free",
-      "A package to start from, if you want one",
+      "A setup package and scaffold size",
       "Event type, venue, and guest count",
-      "Your courses: 3 mains, 1 vegetable, 2 desserts",
+      "Your courses: 3 mains, 1 vegetable, 2 desserts (or skip food)",
       "Any allergies, extras, or requests",
       "Contact details",
     ],
     pricing:
-      "Priced per guest. Starting from a package fixes that rate up front.",
+      "Setup is priced by the size you choose, plus per-guest catering for your selected dishes.",
   },
 };
 
@@ -294,128 +293,124 @@ export function buildEstimate({
     businessInfo?.deposit_percentage ?? DEFAULT_DEPOSIT_PERCENTAGE;
 
   const packageId = form?.package_id || packageDetails?._id || null;
+  const selectedOption = (packageDetails?.scaffold_size_options || []).find(
+    (option) =>
+      String(option?._id) === String(form?.selected_scaffold_option_id),
+  );
+  const scaffoldPrice =
+    num(form?.scaffold_price) || num(selectedOption?.price);
+  const packagePrice = num(packageDetails?.setup_price);
+  const packageName = packageDetails?.name;
 
-  if (isCustomBooking) {
-    if (serviceType === SERVICE_TYPES.SETUP_ONLY) {
-      // The chosen scaffold footprint is what the Package step tells the
-      // customer sets the setup price, so it takes precedence. Falling straight
-      // through to the package or business-wide price ignored that choice and
-      // showed a total that contradicted the size card they had just selected.
-      // Prefer the price stored on the form, but fall back to looking the
-      // selected option up on the package. That keeps older drafts (saved
-      // before the price was recorded) costing the same as a fresh selection.
-      const selectedOption = (packageDetails?.scaffold_size_options || []).find(
-        (option) =>
-          String(option?._id) === String(form?.selected_scaffold_option_id),
-      );
-      const scaffoldPrice =
-        num(form?.scaffold_price) || num(selectedOption?.price);
-      const packagePrice = num(packageDetails?.setup_price);
-      const packageName = packageDetails?.name;
-
-      let label;
-      let detail;
-      let amount;
-
-      if (scaffoldPrice > 0) {
-        amount = scaffoldPrice;
-        label = packageName || "Event setup";
-        const width = form?.scaffold_width || selectedOption?.width_ft;
-        const length = form?.scaffold_length || selectedOption?.length_ft;
-        const size =
-          width && length
-            ? `${width}ft x ${length}ft setup`
-            : "Selected setup size";
-        detail = `${size}, not charged per guest`;
-      } else if (packageId && packagePrice > 0) {
-        amount = packagePrice;
-        label = packageName || "Event setup package";
-        detail = "Fixed price, not charged per guest";
-      } else {
-        // Nothing priceable: no scaffold option and no package price. Only the
-        // admin's configured custom rate counts, and only if it really exists.
-        const configured = num(businessInfo?.custom_event_setup_price);
-        if (configured > 0) {
-          amount = configured;
-          label = packageName || "Custom event setup";
-          detail = packageName
-            ? "Indicative price, confirmed on your quotation"
-            : "Fixed price, not charged per guest";
-        } else {
-          amount = 0;
-          blockers.push(
-            packageName
-              ? `${packageName} does not have a set price yet. ${QUOTED_LATER}`
-              : QUOTED_LATER,
-          );
-        }
-      }
-
-      if (amount > 0) lines.push({ id: "setup", label, detail, amount });
-    } else if (serviceType === SERVICE_TYPES.FULL_SERVICE) {
-      const packageRate = num(packageDetails?.price_per_guest);
-      const usesPackage = Boolean(packageId) && packageRate > 0;
-      // Only the package rate, or a rate the admin has actually configured, is
-      // real. With neither, this booking is genuinely priced on the quotation.
-      const rate = usesPackage
-        ? packageRate
-        : num(businessInfo?.custom_food_and_event_price);
-
-      if (rate <= 0) {
-        blockers.push(QUOTED_LATER);
-      } else if (guests <= 0) {
-        blockers.push("Add your guest count to see a price.");
-      } else {
-        lines.push({
-          id: "full-service",
-          label: usesPackage
-            ? packageDetails?.name || "Selected package"
-            : "Food and event setup",
-          detail: `${guests} guests x ${rate.toLocaleString("en-PH")} per guest`,
-          amount: rate * guests,
-        });
-      }
-    } else if (serviceType === SERVICE_TYPES.FOOD_ONLY) {
-      const dishes = form?.selected_menu || [];
-      const perGuest = dishes.reduce((sum, item) => sum + num(item?.price), 0);
-      if (dishes.length === 0) {
-        blockers.push("Choose your dishes to see a price.");
-      } else if (guests <= 0) {
-        blockers.push("Add your guest count to see a price.");
-      } else if (perGuest <= 0) {
-        // Every chosen dish has no price on it, so multiplying gives ₱0 rather
-        // than a real total.
-        blockers.push(`Your dishes are not individually priced. ${QUOTED_LATER}`);
-      } else {
-        lines.push({
-          id: "food",
-          label: `${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"}`,
-          detail: `${guests} guests x ${perGuest.toLocaleString("en-PH")} per guest`,
-          amount: perGuest * guests,
-        });
-      }
-    }
-  } else {
-    // Started from a package page. The price passed through router state can be
-    // stale or missing, so the package document wins when it has a figure.
-    const isSetupPackage = packageDetails?.package_type === "Event Setup Only";
-    const base = isSetupPackage
-      ? num(packageDetails?.setup_price) || num(standardPackagePrice)
-      : num(packageDetails?.price_per_guest) || num(standardPackagePrice);
-
-    if (base <= 0) {
-      blockers.push(QUOTED_LATER);
-    } else if (!isSetupPackage && guests <= 0) {
-      blockers.push("Add your guest count to see a price.");
+  if (serviceType === SERVICE_TYPES.FOOD_ONLY) {
+    const dishes = form?.selected_menu || [];
+    if (dishes.length === 0) {
+      blockers.push("Choose your dishes to receive a quotation.");
+    } else if (guests <= 0) {
+      blockers.push("Add your guest count for your catering inquiry.");
     } else {
       lines.push({
-        id: "package",
-        label: packageDetails?.name || "Selected package",
-        detail: isSetupPackage
-          ? "Fixed package price"
-          : `${guests} guests x ${base.toLocaleString("en-PH")} per guest`,
-        amount: isSetupPackage ? base : base * guests,
+        id: "food",
+        label: `Catering menu (${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"})`,
+        detail: `Price to be set on official quotation for ${guests} guests`,
+        amount: 0,
+        isQuotedLater: true,
       });
+      blockers.push(
+        "Your per-guest catering rate will be confirmed by our team on your official quotation.",
+      );
+    }
+  } else {
+    // Setup Only or Food and Event Setup (Full Service)
+    const isFoodIncluded =
+      serviceType === SERVICE_TYPES.FULL_SERVICE ||
+      form?.include_food !== false;
+    const dishes = form?.selected_menu || [];
+    const hasFoodChosen = isFoodIncluded && dishes.length > 0;
+
+    let setupAmount = 0;
+    const isCustom = Boolean(form?.is_custom_setup);
+    let setupLabel = isCustom
+      ? (form?.event_theme ? `Custom Event Setup (${form.event_theme})` : "100% Custom Event Setup")
+      : (packageName || "Event setup");
+    let setupDetail = "Fixed setup price";
+
+    if (!isCustom && scaffoldPrice > 0) {
+      setupAmount = scaffoldPrice;
+      const width = form?.scaffold_width || selectedOption?.width_ft;
+      const length = form?.scaffold_length || selectedOption?.length_ft;
+      const size =
+        width && length
+          ? `${width}ft x ${length}ft setup`
+          : "Selected setup size";
+      setupDetail = `${size}, not charged per guest`;
+    } else if (!isCustom && packageId && packagePrice > 0) {
+      setupAmount = packagePrice;
+      setupDetail = "Fixed setup price, not charged per guest";
+    } else {
+      const configured = num(businessInfo?.custom_event_setup_price);
+      if (configured > 0) {
+        setupAmount = configured;
+        setupLabel = packageName || "Custom event setup";
+        setupDetail = packageName
+          ? "Indicative price, confirmed on your quotation"
+          : "Fixed price, not charged per guest";
+      } else {
+        setupAmount = 0;
+        if (!isCustomBooking && standardPackagePrice > 0) {
+          setupAmount = num(standardPackagePrice);
+        }
+      }
+    }
+
+    if (hasFoodChosen) {
+      // Event Setup is FREE when catering food is ordered
+      lines.push({
+        id: "setup",
+        label: setupLabel,
+        detail: "Included FREE with food catering package (Setup fee waived)",
+        amount: 0,
+        isFree: true,
+      });
+
+      lines.push({
+        id: "food",
+        label: `Catering menu (${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"})`,
+        detail: `Price to be set on official quotation for ${guests > 0 ? `${guests} guests` : "your guests"}`,
+        amount: 0,
+        isQuotedLater: true,
+      });
+
+      blockers.push(
+        "Your per-guest catering rate will be set and confirmed on your official quotation based on your menu selection.",
+      );
+    } else {
+      // Setup Only (No Food)
+      if (isCustom) {
+        lines.push({
+          id: "setup",
+          label: setupLabel,
+          detail: "Custom design & styling to be priced on official quotation",
+          amount: 0,
+          isQuotedLater: true,
+        });
+        blockers.push(
+          "Your bespoke event setup proposal will be prepared and priced by our design team on your official quotation.",
+        );
+      } else if (setupAmount > 0) {
+        lines.push({
+          id: "setup",
+          label: setupLabel,
+          detail: setupDetail,
+          amount: setupAmount,
+        });
+      } else if (!isFoodIncluded) {
+        blockers.push(
+          packageName
+            ? `${packageName} does not have a set price yet. ${QUOTED_LATER}`
+            : QUOTED_LATER,
+        );
+      }
     }
   }
 

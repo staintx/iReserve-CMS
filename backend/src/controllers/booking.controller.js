@@ -373,12 +373,46 @@ exports.create = asyncHandler(async (req, res) => {
 
   if (req.body.package_id && (!Array.isArray(req.body.inventory_items) || req.body.inventory_items.length === 0)) {
     const pkg = await Package.findById(req.body.package_id);
+    const items = [];
     if (pkg && Array.isArray(pkg.setup_equipment) && pkg.setup_equipment.length > 0) {
-      req.body.inventory_items = pkg.setup_equipment.map(eq => ({
-        inventory_id: eq.inventory_id,
-        name: eq.name || eq.item_name || "Equipment Item",
-        quantity: Number(eq.quantity || 1)
-      }));
+      pkg.setup_equipment.forEach((eq) => {
+        if (eq.inventory_id) {
+          items.push({
+            inventory_id: eq.inventory_id._id || eq.inventory_id,
+            name: eq.name || eq.item_name || "Equipment Item",
+            quantity: Number(eq.quantity || 1),
+          });
+        }
+      });
+    }
+
+    // Also check if selected service_items / add_ons link to inventory
+    const selectedAddOns = Array.isArray(req.body.service_items)
+      ? req.body.service_items
+      : Array.isArray(req.body.add_ons)
+      ? req.body.add_ons
+      : [];
+    if (pkg && Array.isArray(pkg.add_ons)) {
+      selectedAddOns.forEach((sel) => {
+        const selName = typeof sel === "string" ? sel : sel.name;
+        const matchedAddOn = pkg.add_ons.find(
+          (a) => a.name?.toLowerCase() === selName?.toLowerCase(),
+        );
+        if (matchedAddOn && matchedAddOn.inventory_id) {
+          const qty = Number(
+            typeof sel === "object" && sel.quantity ? sel.quantity : 1,
+          );
+          items.push({
+            inventory_id: matchedAddOn.inventory_id._id || matchedAddOn.inventory_id,
+            name: matchedAddOn.name,
+            quantity: qty,
+          });
+        }
+      });
+    }
+
+    if (items.length > 0) {
+      req.body.inventory_items = items;
     }
   }
 
@@ -2415,18 +2449,37 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   if (quotation?.equipment_fee > 0) additionalCharges.push({ name: "Equipment Rental Fee", amount: quotation.equipment_fee });
   if (quotation?.decoration_fee > 0) additionalCharges.push({ name: "Styling & Decoration Fee", amount: quotation.decoration_fee });
 
-  // Build inventory items for reservation from Package setup_equipment
+  // Build inventory items for reservation from Package setup_equipment and inventory add-ons
   let inventoryItems = [];
   const pkgId = quotation?.package_id || inquiry.package_id?._id || inquiry.package_id;
   if (pkgId) {
     const Package = require("../models/Package");
     const pkg = await Package.findById(pkgId);
     if (pkg && pkg.setup_equipment && pkg.setup_equipment.length > 0) {
-      inventoryItems = pkg.setup_equipment.map(eq => ({
-        inventory_id: eq.inventory_id,
-        name: eq.name || eq.item_name || "Equipment Item",
-        quantity: eq.quantity || 1
-      }));
+      inventoryItems = pkg.setup_equipment
+        .filter((eq) => eq.inventory_id)
+        .map((eq) => ({
+          inventory_id: eq.inventory_id._id || eq.inventory_id,
+          name: eq.name || eq.item_name || "Equipment Item",
+          quantity: Number(eq.quantity || 1),
+        }));
+    }
+
+    if (pkg && Array.isArray(pkg.add_ons) && Array.isArray(serviceItems)) {
+      serviceItems.forEach((sel) => {
+        const selName = typeof sel === "string" ? sel : sel.name;
+        const matchedAddOn = pkg.add_ons.find(
+          (a) => a.name?.toLowerCase() === selName?.toLowerCase(),
+        );
+        if (matchedAddOn && matchedAddOn.inventory_id) {
+          const qty = Number(typeof sel === "object" && sel.quantity ? sel.quantity : 1);
+          inventoryItems.push({
+            inventory_id: matchedAddOn.inventory_id._id || matchedAddOn.inventory_id,
+            name: matchedAddOn.name,
+            quantity: qty,
+          });
+        }
+      });
     }
   }
 

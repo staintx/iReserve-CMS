@@ -127,21 +127,18 @@ export function groupInclusions(inclusions) {
 
 export const SERVICE_LABELS = {
   "Food Only": "Food only",
-  "Event Setup Only": "Event setup only",
-  "Food + Event Setup": "Food + setup",
+  "Event Setup Only": "Event setup",
+  "Food + Event Setup": "Event setup",
 };
 
-export const serviceLabel = (pkg) => SERVICE_LABELS[pkg?.package_type] || null;
+export const serviceLabel = (pkg) => SERVICE_LABELS[pkg?.package_type] || "Event setup";
 
 /**
- * The booking wizard filters candidate packages by `service_type`, whose
- * vocabulary differs from `package_type` for the combined option — see
- * PACKAGE_TYPE_BY_SERVICE_TYPE in booking/steps/StepPackageSelection.jsx.
+ * The booking wizard filters candidate packages by `service_type`.
  */
 export function serviceTypeForPackage(pkg) {
   if (pkg?.package_type === "Food Only") return "Food Only";
-  if (pkg?.package_type === "Event Setup Only") return "Event Setup Only";
-  return "Food and Event Setup";
+  return "Event Setup Only";
 }
 
 /** Event type as stored, falling back to what the package name implies. */

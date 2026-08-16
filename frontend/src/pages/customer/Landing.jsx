@@ -69,10 +69,10 @@ const SERVICE_CARDS = [
   },
   {
     serviceType: "Food and Event Setup",
-    packageType: "Food + Event Setup",
+    packageType: "Event Setup Only",
     title: "Food and setup",
     description:
-      "One booking covering the catering and the full event setup, at a single per-guest price.",
+      "One booking covering your event setup and food catering, start to finish.",
     Icon: SparkleIcon,
   },
 ];

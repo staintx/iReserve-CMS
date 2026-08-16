@@ -424,10 +424,18 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                   <div className="min-w-0">
                     <span className="text-sm font-semibold text-foreground">{quotation.package_name}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">
-                      Catering package for {guestCount} guests
+                      Event setup package
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-muted-foreground">Included with your package</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {Number(quotation.package_price) > 0 ? (
+                      formatCurrency(quotation.package_price)
+                    ) : quotation.menu_items?.length > 0 ? (
+                      <span className="text-emerald-700 font-semibold">Included FREE with catering</span>
+                    ) : (
+                      "Included"
+                    )}
+                  </span>
                 </div>
               )}
 

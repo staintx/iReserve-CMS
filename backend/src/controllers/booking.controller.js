@@ -4,6 +4,7 @@ const Quotation = require("../models/Quotation");
 const Inventory = require("../models/Inventory");
 const InventoryReservation = require("../models/InventoryReservation");
 const Package = require("../models/Package");
+const MenuItem = require("../models/MenuItem");
 const BusinessInfo = require("../models/BusinessInfo");
 const BlockedDate = require("../models/BlockedDate");
 
@@ -69,10 +70,15 @@ const calculateBookingPrice = async (body) => {
   let sum = 0;
   const guestCount = Number(body.guest_count) || 0;
 
-  if (body.package_id) {
+  const hasFood =
+    body.include_food !== false &&
+    ((Array.isArray(body.menu_items) && body.menu_items.length > 0) ||
+      (Array.isArray(body.selected_menu) && body.selected_menu.length > 0));
+
+  if (body.package_id && !hasFood) {
     const pkg = await Package.findById(body.package_id);
     if (pkg) {
-      const packageType = pkg.package_type || "Food + Event Setup";
+      const packageType = pkg.package_type || "Event Setup Only";
       if (packageType === "Event Setup Only") {
         // Prefer an admin-selected scaffold option price when provided
         let basePrice = Number(pkg.setup_price) || 0;
@@ -89,6 +95,26 @@ const calculateBookingPrice = async (body) => {
       } else {
         const basePrice = Number(pkg.price_per_guest) || 0;
         sum += basePrice * guestCount;
+      }
+    }
+  }
+
+  // Include food menu prices if food is included and dishes are selected (setup is free)
+  if (hasFood && guestCount > 0) {
+    if (Array.isArray(body.menu_items) && body.menu_items.length > 0) {
+      for (const item of body.menu_items) {
+        sum += (Number(item.price) || 0) * guestCount;
+      }
+    } else if (Array.isArray(body.selected_menu) && body.selected_menu.length > 0) {
+      for (const item of body.selected_menu) {
+        if (item && typeof item === "object" && item.price !== undefined) {
+          sum += (Number(item.price) || 0) * guestCount;
+        } else if (item) {
+          const found = await MenuItem.findById(item);
+          if (found && found.price) {
+            sum += (Number(found.price) || 0) * guestCount;
+          }
+        }
       }
     }
   }

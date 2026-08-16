@@ -49,3 +49,10 @@ Thumbs.db
 # Misc
 *.local
 *.tgz
+
+# AI Agent / Impeccable Toolkit
+.agents/
+.claude/
+.codex/
+.gemini/
+

@@ -153,7 +153,7 @@ export default function StepReviewBooking({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start">
         <Card className="divide-y divide-[#E2E8F0] p-0">
           <Section
-            title={showPackageSection ? "Service and package" : "Service"}
+            title={form.is_custom_setup ? "Custom Event Setup & Styling" : (showPackageSection ? "Service and package" : "Service")}
             onEdit={edit(editTargets.packageSetup || editTargets.service)}
           >
             <Row
@@ -164,8 +164,62 @@ export default function StepReviewBooking({
               label="Guests"
               value={guestCount ? `${guestCount} guests` : ""}
             />
-            {showPackageSection && <Row label="Package" value={packageName} />}
-            {setupSize && <Row label="Setup size" value={setupSize} />}
+            {form.is_custom_setup ? (
+              <>
+                <Row
+                  label="Setup Concept"
+                  value={
+                    !isSetupOnly && form.include_food !== false && selectedMenu.length > 0
+                      ? "100% Bespoke Custom Setup (FREE with catering)"
+                      : "100% Bespoke Custom Setup (Priced on quotation)"
+                  }
+                  wide
+                />
+                {form.event_theme && (
+                  <Row label="Theme & Motif" value={form.event_theme} wide />
+                )}
+                {Array.isArray(form.event_palette) && form.event_palette.length > 0 && (
+                  <Row label="Color Palette" value={form.event_palette.join(", ")} wide />
+                )}
+                {Array.isArray(form.custom_setup_scope) && form.custom_setup_scope.length > 0 && (
+                  <Row label="Setup Scope" value={form.custom_setup_scope.join(", ")} wide />
+                )}
+                {form.budget_range && (
+                  <Row label="Target Budget" value={form.budget_range} />
+                )}
+                {Array.isArray(form.inspiration_images) && form.inspiration_images.length > 0 && (
+                  <div className="col-span-full pt-1">
+                    <dt className="text-xs font-semibold text-[#64748B] uppercase mb-1.5">
+                      Inspiration Pegs ({form.inspiration_images.length})
+                    </dt>
+                    <dd className="flex flex-wrap gap-2">
+                      {form.inspiration_images.map((imgUrl, i) => (
+                        <img
+                          key={i}
+                          src={imgUrl}
+                          alt={`Inspiration ${i + 1}`}
+                          className="h-14 w-14 rounded-lg object-cover border border-slate-200 shadow-xs"
+                        />
+                      ))}
+                    </dd>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {showPackageSection && (
+                  <Row
+                    label="Setup Package"
+                    value={
+                      !isSetupOnly && form.include_food !== false && selectedMenu.length > 0
+                        ? `${packageName || "Event Setup"} (FREE with catering)`
+                        : packageName
+                    }
+                  />
+                )}
+                {setupSize && <Row label="Setup size" value={setupSize} />}
+              </>
+            )}
           </Section>
 
           <Section title="Date and time" onEdit={edit(editTargets.schedule)}>
@@ -210,18 +264,46 @@ export default function StepReviewBooking({
           </Section>
 
           {!isSetupOnly && (
-            <Section title="Food" onEdit={edit(editTargets.food)}>
-              {isFullService ? (
+            <Section title="Food & Catering" onEdit={edit(editTargets.food)}>
+              {form.include_food === false || (selectedMenu.length === 0 && !isFoodOnly) ? (
+                <Row
+                  label="Catering"
+                  wide
+                  value="No catering selected (Event Setup Only)"
+                />
+              ) : isFoodOnly ? (
                 <>
-                  {COURSE_RULES.map((rule) => (
-                    <Row
-                      key={rule.key}
-                      label={rule.label}
-                      value={selectedInGroup(selectedMenu, rule.groupId)
-                        .map((item) => item.name)
-                        .join(", ")}
-                    />
-                  ))}
+                  <Row
+                    label="Dishes"
+                    wide
+                    value={
+                      selectedMenu.length > 0
+                        ? selectedMenu.map((item) => item.name).join(", ")
+                        : "None selected. We will suggest options with your quotation."
+                    }
+                  />
+                  <Row
+                    label="Pricing"
+                    wide
+                    value="Per-guest price will be set by caterer on your official quotation"
+                  />
+                </>
+              ) : (
+                <>
+                  {COURSE_RULES.map((rule) => {
+                    const items = selectedInGroup(selectedMenu, rule.groupId);
+                    return (
+                      <Row
+                        key={rule.key}
+                        label={rule.label}
+                        value={
+                          items.length > 0
+                            ? items.map((item) => item.name).join(", ")
+                            : "None selected"
+                        }
+                      />
+                    );
+                  })}
                   <Row
                     label="Drinks"
                     value={
@@ -231,17 +313,12 @@ export default function StepReviewBooking({
                     }
                   />
                   <Row label="Water" value="Included free" />
+                  <Row
+                    label="Pricing"
+                    wide
+                    value="Per-guest catering price will be set on your official quotation"
+                  />
                 </>
-              ) : (
-                <Row
-                  label="Dishes"
-                  wide
-                  value={
-                    selectedMenu.length > 0
-                      ? selectedMenu.map((item) => item.name).join(", ")
-                      : "None selected. We will suggest options with your quotation."
-                  }
-                />
               )}
             </Section>
           )}

@@ -19,7 +19,11 @@ import {
   FileText,
   User,
   Check,
-  Tag
+  Tag,
+  Palette,
+  Layers,
+  Image as ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { diffQuotationVersions } from "../../../utils/quotationDiff";
 
@@ -81,7 +85,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setQuotation(latest);
           setGuestCount(latest.guest_count || inquiry?.guest_count || 1);
           setPackageName(latest.package_name || (typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package");
-          setPackagePrice(latest.package_price ?? (typeof inquiry?.package_id === "object" ? (inquiry.package_id?.setup_price ?? inquiry.package_id?.price_per_guest ?? 0) : 0));
+          setPackagePrice(latest.package_price ?? 0);
           
           const rawInc = latest.package_inclusions || (typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : []) || [];
           setPackageInclusions(
@@ -101,15 +105,41 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         } else {
           // Initialize from Inquiry / Package defaults
           setGuestCount(inquiry?.guest_count || 1);
-          setPackageName((typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package");
-          setPackagePrice(typeof inquiry?.package_id === "object" ? (inquiry.package_id?.setup_price ?? inquiry.package_id?.price_per_guest ?? 0) : 0);
           
-          const rawInc = typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : [];
-          setPackageInclusions(
-            Array.isArray(rawInc)
-              ? rawInc.map(inc => typeof inc === "string" ? inc : (inc?.name || String(inc || "")))
-              : []
-          );
+          if (inquiry?.is_custom_setup) {
+            setPackageName(
+              inquiry.event_theme
+                ? `Custom ${inquiry.event_theme} Event Setup`
+                : "Bespoke Custom Event Setup"
+            );
+            if (Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) {
+              setPackageInclusions(inquiry.custom_setup_scope);
+            } else {
+              setPackageInclusions([]);
+            }
+          } else {
+            setPackageName(
+              (typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package"
+            );
+            const rawInc = typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : [];
+            setPackageInclusions(
+              Array.isArray(rawInc)
+                ? rawInc.map(inc => typeof inc === "string" ? inc : (inc?.name || String(inc || "")))
+                : []
+            );
+          }
+          
+          const hasFood = Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0;
+          if (hasFood) {
+            // Setup fee waived (FREE) when catering is ordered
+            setPackagePrice(0);
+          } else {
+            setPackagePrice(
+              inquiry?.scaffold_price ??
+              (typeof inquiry?.package_id === "object" ? inquiry.package_id?.setup_price : 0) ??
+              0
+            );
+          }
 
           if (Array.isArray(inquiry?.selected_menu)) {
             setMenuItems(inquiry.selected_menu.map(m => {
@@ -440,6 +470,87 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           </div>
 
+          {/* SECTION: Bespoke Custom Setup Brief */}
+          {(inquiry.is_custom_setup || inquiry.event_theme || (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) || (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
+            <div className="bg-gradient-to-br from-indigo-50/60 via-white to-blue-50/40 border border-indigo-200 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+                <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                  <Sparkles size={18} className="text-indigo-600" /> Bespoke Event Setup Brief
+                </h3>
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2.5 py-1 rounded-md">
+                  {inquiry.is_custom_setup ? "100% Custom Request" : "Custom Preferences"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                {inquiry.event_theme && (
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-400 uppercase">Theme / Motif</span>
+                    <span className="font-bold text-slate-800">{inquiry.event_theme}</span>
+                  </div>
+                )}
+
+                {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-400 uppercase">Color Palette</span>
+                    <span className="font-semibold text-slate-800">{inquiry.event_palette.join(", ")}</span>
+                  </div>
+                )}
+
+                {inquiry.budget_range && (
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-400 uppercase">Target Budget Range</span>
+                    <span className="font-semibold text-emerald-700">{inquiry.budget_range}</span>
+                  </div>
+                )}
+              </div>
+
+              {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                <div>
+                  <span className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">
+                    Requested Setup Scope ({inquiry.custom_setup_scope.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {inquiry.custom_setup_scope.map((scope, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 text-xs font-medium bg-white text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                        <Check size={12} className="text-indigo-600" /> {scope}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {inquiry.custom_setup_notes && (
+                <div className="bg-white/80 border border-indigo-100 rounded-xl p-3 text-xs text-slate-700">
+                  <span className="font-bold text-slate-800 block mb-0.5">Customer&apos;s Design Vision &amp; Notes:</span>
+                  <p className="whitespace-pre-line">{inquiry.custom_setup_notes}</p>
+                </div>
+              )}
+
+              {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                <div>
+                  <span className="block text-xs font-semibold text-slate-500 uppercase mb-2">
+                    Inspiration Pegs &amp; Moodboard ({inquiry.inspiration_images.length})
+                  </span>
+                  <div className="flex flex-wrap gap-2.5">
+                    {inquiry.inspiration_images.map((imgUrl, idx) => (
+                      <a
+                        key={idx}
+                        href={imgUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group relative h-20 w-20 rounded-xl overflow-hidden border border-indigo-200 shadow-xs hover:ring-2 hover:ring-indigo-500 transition-all block"
+                        title="Click to view full image in new tab"
+                      >
+                        <img src={imgUrl} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* SECTION 2: Package Details & Inclusions */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -463,7 +574,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
               {!isFoodOnly && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Base Package Price (₱)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      Event Setup Package Price (₱)
+                    </label>
+                    {menuItems.length > 0 && (
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Setup is FREE with catering (₱0)
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
                     <input
@@ -475,6 +595,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       className="w-full pl-7 pr-3.5 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                     />
                   </div>
+                  {menuItems.length > 0 && Number(packagePrice) === 0 && (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Event setup fee is waived because catering is ordered per pax.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

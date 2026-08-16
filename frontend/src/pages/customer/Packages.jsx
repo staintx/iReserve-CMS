@@ -14,7 +14,7 @@ import {
 } from "../../lib/packageDisplay";
 
 // Order the service filters the way the booking flow presents them.
-const SERVICE_ORDER = ["Food Only", "Event Setup Only", "Food + Event Setup"];
+const SERVICE_ORDER = ["Event Setup Only"];
 
 export default function Packages() {
   const navigate = useNavigate();
@@ -120,11 +120,10 @@ export default function Packages() {
         <div className="ls-inner">
           <span className="ls-rule" aria-hidden="true" />
           <p className="ls-eyebrow">Packages</p>
-          <h1>Choose a catering package</h1>
+          <h1>Event Setup Packages</h1>
           <p className="ls-lede">
-            Each package sets what's covered — food, event setup, or both — the
-            guest range it's built for, and how it's priced. Open one to see
-            everything it includes.
+            Each package sets your event styling, equipment, and scaffold size
+            options. Food catering can be optionally added when booking.
           </p>
         </div>
       </div>

@@ -37,6 +37,10 @@ const InquirySchema = new mongoose.Schema(
 
     budget_range: String,
     special_requests: String,
+    is_custom_setup: { type: Boolean, default: false },
+    custom_setup_scope: [String],
+    inspiration_images: [String],
+    custom_setup_notes: String,
     // `dietary_requirements` is the original single free-text field and is kept
     // for inquiries created before the booking flow split the question in two.
     // The wizard now sends `allergies` and `dietary_restrictions` separately —

@@ -1,677 +1,1960 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Modal from "../../common/Modal";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import {
   Calculator,
+  Send,
   Save,
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   RefreshCw,
   Plus,
   Trash2,
+  Undo2,
   Package,
   Utensils,
+  UtensilsCrossed,
   Sparkles,
-  Truck,
   Percent,
   CreditCard,
-  FileText,
   User,
   Check,
-  Tag,
-  Palette,
-  Layers,
-  Image as ImageIcon,
-  ExternalLink,
+  Lock,
+  MapPin,
+  CalendarDays,
+  FileText,
 } from "lucide-react";
 import { diffQuotationVersions } from "../../../utils/quotationDiff";
+import {
+  computeQuotationTotals,
+  derivePackageStartingPrice,
+  addOnQuantityOf,
+  addOnLineTotal,
+  money,
+} from "../../../utils/quotationPricing";
+import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
+import { SERVICE_TYPES } from "../../../pages/customer/booking/lib/bookingRules";
+import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
+import { formatCurrency } from "../../../utils/format";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../ui/alert-dialog";
+
+/* ---------------------------------------------------------------------------
+   Presentation primitives
+   Royal Blue carries action and structure, slate carries everything else.
+   Emerald marks money coming off the quote, red marks a blocking error, and
+   amber marks something the admin should look at but may deliberately keep.
+--------------------------------------------------------------------------- */
+
+const INPUT_BASE =
+  "w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500";
+const inputClass = (hasError) =>
+  `${INPUT_BASE} ${hasError ? "border-red-400 bg-red-50/40" : "border-slate-300"}`;
+
+const LABEL_CLASS =
+  "block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 mb-1.5";
+
+// One labelled remove control for every removable row in the builder. An icon
+// on its own read as a second, different action next to the inclusions list's
+// "Remove" button; saying what it does keeps every section consistent.
+const ROW_ACTION_REST =
+  "inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors";
+const ROW_ACTION_DANGER_HOVER = "hover:border-red-300 hover:text-red-700";
+const ROW_ACTION_NEUTRAL_HOVER = "hover:bg-slate-50";
+
+function RowAction({ onClick, icon: Icon, label, tone = "danger", title }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`${ROW_ACTION_REST} ${
+        tone === "danger" ? ROW_ACTION_DANGER_HOVER : ROW_ACTION_NEUTRAL_HOVER
+      }`}
+    >
+      {Icon ? <Icon size={12} /> : null} {label}
+    </button>
+  );
+}
+
+function Field({ label, required, hint, error, htmlFor, children, className = "" }) {
+  return (
+    <div className={className}>
+      {label && (
+        <label className={LABEL_CLASS} htmlFor={htmlFor}>
+          {label}
+          {required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
+        </label>
+      )}
+      {children}
+      {error ? (
+        <p className="mt-1 flex items-start gap-1 text-[11.5px] font-medium leading-snug text-red-700">
+          <AlertCircle size={12} className="mt-[2px] shrink-0" />
+          <span>{error}</span>
+        </p>
+      ) : hint ? (
+        <p className="mt-1 text-[11.5px] leading-snug text-slate-500">{hint}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** A peso input. Keyboard rules block the characters that produce a negative. */
+function MoneyInput({ id, value, onChange, error, disabled, placeholder, className = "" }) {
+  const block = (e) => {
+    if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") e.preventDefault();
+  };
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-400">
+        ₱
+      </span>
+      <input
+        id={id}
+        type="number"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        disabled={disabled}
+        placeholder={placeholder}
+        onKeyDown={block}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${inputClass(error)} pl-7 font-semibold tabular-nums ${className}`}
+      />
+    </div>
+  );
+}
+
+function SectionCard({ step, title, description, icon: Icon, aside, children, id }) {
+  return (
+    <section
+      id={id}
+      className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
+    >
+      <header className="mb-4 flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            {Icon ? <Icon size={15} /> : null}
+          </span>
+          <div className="min-w-0">
+            <h3 className="flex items-baseline gap-2 text-sm font-bold text-slate-900">
+              {step != null && (
+                <span className="text-[11px] font-semibold tabular-nums text-slate-500">
+                  {String(step).padStart(2, "0")}
+                </span>
+              )}
+              {title}
+            </h3>
+            {description && (
+              <p className="mt-0.5 text-xs leading-snug text-slate-500">{description}</p>
+            )}
+          </div>
+        </div>
+        {aside && <div className="shrink-0 sm:pl-4">{aside}</div>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** One line in the right-hand summary. */
+function SummaryRow({ label, value, detail, tone = "default", strong, indent }) {
+  const toneClass =
+    tone === "deduct"
+      ? "text-emerald-300"
+      : tone === "muted"
+      ? "text-slate-400"
+      : strong
+      ? "text-white"
+      : "text-slate-200";
+  return (
+    <div className={`flex items-baseline justify-between gap-3 ${indent ? "pl-3" : ""}`}>
+      <span className={`min-w-0 text-xs ${strong ? "font-semibold text-white" : "text-slate-400"}`}>
+        {label}
+        {detail && <span className="ml-1 text-[11px] text-slate-500">{detail}</span>}
+      </span>
+      <span className={`shrink-0 text-xs font-semibold tabular-nums ${toneClass}`}>{value}</span>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Helpers
+--------------------------------------------------------------------------- */
+
+const toDateInput = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+};
+
+/** "today at 2:15 PM" for a draft's save time, so it reads as recent work. */
+const formatSavedAt = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+  const isToday = new Date().toDateString() === date.toDateString();
+  if (isToday) return `today at ${time}`;
+  return `${date.toLocaleDateString("en-PH", { month: "short", day: "numeric" })} at ${time}`;
+};
+
+const addDays = (days) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return toDateInput(date);
+};
+
+const nonNegative = (value) => {
+  if (value === "" || value === null || value === undefined) return "";
+  const cleaned = String(value).replace(/[^0-9.]/g, "");
+  return cleaned;
+};
+
+const numberOf = (value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+};
+
+/**
+ * Whether an amount was left untouched.
+ *
+ * Kept separate from "is zero" on purpose: an add-on offered at no charge and
+ * an add-on nobody priced are different states, and only the second one is an
+ * error. A blank field is unanswered, a typed 0 is an answer.
+ */
+const isBlankAmount = (value) => String(value ?? "").trim() === "";
+
+const inclusionText = (inclusion) =>
+  typeof inclusion === "string" ? inclusion : String(inclusion?.name || inclusion || "");
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* ---------------------------------------------------------------------------
+   Quotation Builder
+--------------------------------------------------------------------------- */
 
 export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+  // `quotation` is the newest version the customer has actually been sent. It
+  // drives the version banner and the change list, and is deliberately separate
+  // from `savedDraft`, which is unfinished work nobody outside this modal sees.
   const [quotation, setQuotation] = useState(null);
+  const [savedDraft, setSavedDraft] = useState(null);
 
-  // Reference Catalogs
+  // Reference catalogs
   const [catalogMenuItems, setCatalogMenuItems] = useState([]);
   const [catalogAddons, setCatalogAddons] = useState([]);
   const [selectedCatalogDish, setSelectedCatalogDish] = useState("");
   const [selectedCatalogAddon, setSelectedCatalogAddon] = useState("");
+  const [depositPercentage, setDepositPercentage] = useState(20);
 
-  // Customer & Event Snapshot State
-  const [guestCount, setGuestCount] = useState(1);
+  // Section 1: what the customer submitted, editable so the admin can correct it
+  const [details, setDetails] = useState({
+    contact_first_name: "",
+    contact_last_name: "",
+    contact_email: "",
+    contact_phone: "",
+    event_type: "",
+    event_type_other: "",
+    event_date: "",
+    start_time: "",
+    duration_hours: "",
+    guest_count: 1,
+    service_type: SERVICE_TYPES.FULL_SERVICE,
+    venue_type: "",
+    province: BATANGAS_PROVINCE,
+    municipality: "",
+    barangay: "",
+    street: "",
+    landmark: "",
+    zip_code: "",
+    // The customer's own yes or no to catering, kept as its own answer rather
+    // than inferred from the service type. On a "Food and Event Setup" booking
+    // a customer can still choose "Skip Catering", and reading that decision
+    // off the service type alone would silently reinstate the food they
+    // declined. See StepMenuSelection's catering toggle.
+    include_food: true,
+  });
 
-  // Package State
+  // Section 2 and 3: package baseline and its inclusions
   const [packageName, setPackageName] = useState("");
-  const [packagePrice, setPackagePrice] = useState(0);
-  const [packageInclusions, setPackageInclusions] = useState([]);
+  const [startingPrice, setStartingPrice] = useState("");
+  // One list holds both states. `removed` decides which side of the quote a row
+  // lands on at save time, so restoring an inclusion is a toggle, not a retype.
+  const [inclusions, setInclusions] = useState([]);
+  const [newInclusion, setNewInclusion] = useState("");
 
-  // Menu & Addons State
+  // Sections 4 and 5: line items
   const [menuItems, setMenuItems] = useState([]);
   const [addOns, setAddOns] = useState([]);
 
-  // Fees & Adjustments State
-  const [transportationFee, setTransportationFee] = useState(0);
-  const [equipmentFee, setEquipmentFee] = useState(0);
-  const [decorationFee, setDecorationFee] = useState(0);
-  const [taxes, setTaxes] = useState(0);
-  const [discounts, setDiscounts] = useState(0);
-  const [depositAmount, setDepositAmount] = useState(0);
+  // Section 6: adjustments
+  const [transportationFee, setTransportationFee] = useState("");
+  const [additionalFees, setAdditionalFees] = useState([]);
+  const [taxes, setTaxes] = useState("");
+  const [discounts, setDiscounts] = useState("");
+
+  // Section 7: payment terms
+  const [depositAmount, setDepositAmount] = useState("");
+  const [expirationDate, setExpirationDate] = useState(addDays(7));
   const [adminNotes, setAdminNotes] = useState("");
 
-  // Service Type Conditions
-  const eventTypeStr = (inquiry?.event_type || "").toLowerCase();
-  const serviceTypeStr = (inquiry?.service_type || "").toLowerCase();
-  const isFoodOnly = eventTypeStr.includes("food delivery") || eventTypeStr === "food only" || serviceTypeStr === "food only";
-  const isSetupOnly = eventTypeStr.includes("setup only") || serviceTypeStr === "event setup only";
+  const [errors, setErrors] = useState({});
+  const [showErrorSummary, setShowErrorSummary] = useState(false);
+  const formRef = useRef(null);
 
-  // Load Reference Catalogs & Quotation Data
+  // What the form looked like at the last point it was safe to walk away from:
+  // freshly loaded, or freshly saved. Anything different from this is progress
+  // that closing would throw away.
+  const savedBaseline = useRef(null);
+  // Which close the admin asked for, so the right confirmation is shown:
+  // "leave" for the X and the backdrop, "cancel" for the explicit Cancel.
+  const [closeIntent, setCloseIntent] = useState(null);
+
+  const isFoodOnly = details.service_type === SERVICE_TYPES.FOOD_ONLY;
+  const isSetupOnly = details.service_type === SERVICE_TYPES.SETUP_ONLY;
+  // Whether this quotation carries catering at all. Setup Only never does; on
+  // every other service type it is the customer's own answer, which they can
+  // set to no without changing the service type.
+  const cateringIncluded = !isSetupOnly && details.include_food !== false;
+  const packageRecord =
+    inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+
+  /**
+   * What the customer actually submitted, read straight off the inquiry.
+   *
+   * Held separately from the editable working copy so the admin can always see
+   * the original answer next to whatever they have changed it to. `getInquiryById`
+   * populates selected_menu, so these are real MenuItem records, not ids.
+   */
+  const customerSelection = useMemo(() => {
+    const dishes = (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : [])
+      .filter(Boolean)
+      .map((item) =>
+        item && typeof item === "object"
+          ? { id: String(item._id || ""), name: item.name || "", category: item.category || "", price: Number(item.price) || 0 }
+          : { id: String(item), name: "", category: "", price: 0 }
+      );
+    return {
+      dishes,
+      // The booking flow only clears include_food through its own catering
+      // toggle, so a false here is an explicit "no catering", never a default.
+      wantedFood: inquiry?.service_type !== SERVICE_TYPES.SETUP_ONLY && inquiry?.include_food !== false,
+      serviceType: inquiry?.service_type || "",
+    };
+  }, [inquiry?.selected_menu, inquiry?.include_food, inquiry?.service_type]);
+
+  // A dish whose name never resolved means selected_menu came back unpopulated
+  // or points at a deleted MenuItem. Silently rendering an id as a dish name
+  // would look like a real selection, so it is called out instead.
+  const unresolvedDishes = customerSelection.dishes.filter((dish) => !dish.name).length;
+
+  const municipalities = useMemo(() => getBatangasMunicipalities(), []);
+  const barangays = useMemo(
+    () => getBatangasBarangays(details.municipality),
+    [details.municipality]
+  );
+
+  /* --- Load catalogs, business defaults and any existing quotation --------- */
   useEffect(() => {
     if (!inquiry?._id) return;
+    let active = true;
+
     Promise.all([
       AdminAPI.getMenu().catch(() => ({ data: [] })),
       AdminAPI.getAddons().catch(() => ({ data: [] })),
-      AdminAPI.getQuotationsByInquiry(inquiry._id).catch(() => ({ data: [] }))
+      AdminAPI.getQuotationsByInquiry(inquiry._id).catch(() => ({ data: [] })),
+      AdminAPI.getBusinessInfo().catch(() => ({ data: {} })),
     ])
-      .then(([menuRes, addonRes, quoteRes]) => {
+      .then(([menuRes, addonRes, quoteRes, businessRes]) => {
+        if (!active) return;
         setCatalogMenuItems(menuRes.data || []);
         setCatalogAddons(addonRes.data || []);
-
-        const quotes = quoteRes.data;
-        if (quotes && quotes.length > 0) {
-          // Load latest quotation values
-          const latest = quotes[0];
-          setQuotation(latest);
-          setGuestCount(latest.guest_count || inquiry?.guest_count || 1);
-          setPackageName(latest.package_name || (typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package");
-          setPackagePrice(latest.package_price ?? 0);
-          
-          const rawInc = latest.package_inclusions || (typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : []) || [];
-          setPackageInclusions(
-            Array.isArray(rawInc)
-              ? rawInc.map(inc => typeof inc === "string" ? inc : (inc?.name || String(inc || "")))
-              : []
-          );
-          setMenuItems(Array.isArray(latest.menu_items) ? latest.menu_items : []);
-          setAddOns(Array.isArray(latest.add_ons) ? latest.add_ons : []);
-          setTransportationFee(latest.transportation_fee || 0);
-          setEquipmentFee(latest.equipment_fee || 0);
-          setDecorationFee(latest.decoration_fee || 0);
-          setTaxes(latest.taxes || 0);
-          setDiscounts(latest.discounts || 0);
-          setAdminNotes(latest.admin_notes || "");
-          setDepositAmount(latest.deposit_amount || 0);
-        } else {
-          // Initialize from Inquiry / Package defaults
-          setGuestCount(inquiry?.guest_count || 1);
-          
-          if (inquiry?.is_custom_setup) {
-            setPackageName(
-              inquiry.event_theme
-                ? `Custom ${inquiry.event_theme} Event Setup`
-                : "Bespoke Custom Event Setup"
-            );
-            if (Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0) {
-              setPackageInclusions(inquiry.custom_setup_scope);
-            } else {
-              setPackageInclusions([]);
-            }
-          } else {
-            setPackageName(
-              (typeof inquiry?.package_id === "object" ? inquiry.package_id?.name : "") || "Custom Package"
-            );
-            const rawInc = typeof inquiry?.package_id === "object" ? inquiry.package_id?.inclusions : [];
-            setPackageInclusions(
-              Array.isArray(rawInc)
-                ? rawInc.map(inc => typeof inc === "string" ? inc : (inc?.name || String(inc || "")))
-                : []
-            );
-          }
-          
-          const hasFood = Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0;
-          if (hasFood) {
-            // Setup fee waived (FREE) when catering is ordered
-            setPackagePrice(0);
-          } else {
-            setPackagePrice(
-              inquiry?.scaffold_price ??
-              (typeof inquiry?.package_id === "object" ? inquiry.package_id?.setup_price : 0) ??
-              0
-            );
-          }
-
-          if (Array.isArray(inquiry?.selected_menu)) {
-            setMenuItems(inquiry.selected_menu.map(m => {
-              if (typeof m === "object" && m !== null) {
-                return { name: m.name || "", price: m.price || 0, note: m.category || m.note || "" };
-              }
-              return { name: String(m || ""), price: 0, note: "" };
-            }));
-          }
-          if (Array.isArray(inquiry?.service_items)) {
-            setAddOns(inquiry.service_items.map(s => {
-              if (typeof s === "object" && s !== null) {
-                return {
-                  name: s.name || "",
-                  price: s.price || 0,
-                  quantity: s.quantity || 1,
-                  pricing_type: s.pricing_type || (s.quantity === 1 ? "fixed" : "quantity")
-                };
-              }
-              return { name: String(s || ""), price: 0, quantity: 1, pricing_type: "fixed" };
-            }));
-          }
+        const standardDeposit = Number(businessRes.data?.deposit_percentage);
+        if (Number.isFinite(standardDeposit) && standardDeposit > 0) {
+          setDepositPercentage(standardDeposit);
         }
-      })
-      .catch((err) => {
-        notify("Failed to load quotation details", "error");
-      })
-      .finally(() => setLoading(false));
-  }, [inquiry]);
 
-  // Non-negative Helper & Input Rules
-  const handleNonNegativeKeyDown = (e) => {
-    if (e.key === "-" || e.key === "e" || e.key === "E" || e.key === "+") {
-      e.preventDefault();
+        const storedEventType = inquiry?.event_type || "";
+        // The inquiry is the source of truth for what the event is. Every field
+        // below starts from it, and only an unfinished draft's own saved edits
+        // (applied further down) are allowed to override that starting point.
+        const detailsFromInquiry = {
+          contact_first_name: inquiry?.contact_first_name || inquiry?.customer_id?.first_name || "",
+          contact_last_name: inquiry?.contact_last_name || inquiry?.customer_id?.last_name || "",
+          contact_email: inquiry?.contact_email || inquiry?.customer_id?.email || "",
+          contact_phone: inquiry?.contact_phone || inquiry?.customer_id?.phone || "",
+          event_type: matchEventType(storedEventType) || (storedEventType ? OTHER_EVENT_TYPE : ""),
+          event_type_other: isOtherEventType(storedEventType) ? storedEventType : "",
+          event_date: toDateInput(inquiry?.event_date),
+          start_time: inquiry?.start_time || "",
+          duration_hours: inquiry?.duration_hours ? String(inquiry.duration_hours) : "",
+          guest_count: Number(inquiry?.guest_count) || 1,
+          service_type:
+            inquiry?.service_type ||
+            (inquiry?.include_food === false ? SERVICE_TYPES.SETUP_ONLY : SERVICE_TYPES.FULL_SERVICE),
+          include_food: inquiry?.include_food !== false,
+          venue_type: inquiry?.venue_type || "",
+          province: inquiry?.province || BATANGAS_PROVINCE,
+          municipality: inquiry?.municipality || "",
+          barangay: inquiry?.barangay || "",
+          street: inquiry?.street || "",
+          landmark: inquiry?.landmark || "",
+          zip_code: inquiry?.zip_code || "",
+        };
+        setDetails(detailsFromInquiry);
+
+        const quotes = Array.isArray(quoteRes.data) ? quoteRes.data : [];
+        // At most one draft per inquiry, and it is what the admin was last
+        // working on. The newest issued version is tracked separately: that is
+        // what the customer has seen and what the change list compares against.
+        const pendingDraft = quotes.find((quote) => quote.status === "Draft") || null;
+        const latestIssued = quotes.find((quote) => quote.status !== "Draft") || null;
+        setQuotation(latestIssued);
+        setSavedDraft(pendingDraft);
+        if (pendingDraft) setDraftSavedAt(pendingDraft.updatedAt || pendingDraft.createdAt || null);
+
+        const latest = pendingDraft || latestIssued;
+
+        if (latest) {
+          setDetails((prev) => ({
+            ...prev,
+            guest_count: Number(latest.guest_count) || prev.guest_count,
+            // Unapplied edits from a draft, field by field, so a draft saved
+            // before a field existed still picks up the inquiry's value for it.
+            ...(pendingDraft?.draft_details
+              ? Object.fromEntries(
+                  Object.entries(pendingDraft.draft_details).filter(
+                    ([key, value]) =>
+                      key !== "_id" && value !== undefined && value !== null && value !== ""
+                  )
+                )
+              : {}),
+            ...(pendingDraft?.draft_details?.event_type
+              ? {
+                  event_type:
+                    matchEventType(pendingDraft.draft_details.event_type) || OTHER_EVENT_TYPE,
+                  event_type_other: isOtherEventType(pendingDraft.draft_details.event_type)
+                    ? pendingDraft.draft_details.event_type
+                    : "",
+                }
+              : {}),
+            ...(pendingDraft?.draft_details &&
+            typeof pendingDraft.draft_details.include_food === "boolean"
+              ? { include_food: pendingDraft.draft_details.include_food }
+              : {}),
+          }));
+          setPackageName(latest.package_name || packageRecord?.name || "Custom Package");
+          // Quotations saved before the starting price existed only recorded the
+          // adjusted package price, which was the starting price back then.
+          setStartingPrice(
+            String(latest.package_starting_price ?? latest.package_price ?? 0)
+          );
+          setInclusions([
+            ...(Array.isArray(latest.package_inclusions) ? latest.package_inclusions : []).map(
+              (entry) => ({ name: inclusionText(entry), removed: false, deduction: "", fromPackage: true })
+            ),
+            ...(Array.isArray(latest.removed_inclusions) ? latest.removed_inclusions : []).map(
+              (entry) => ({
+                name: inclusionText(entry),
+                removed: true,
+                deduction: entry?.deduction ? String(entry.deduction) : "",
+                fromPackage: true,
+              })
+            ),
+          ]);
+          setMenuItems(Array.isArray(latest.menu_items) ? latest.menu_items.map((m) => ({
+            name: m?.name || "",
+            note: m?.note || "",
+            price: m?.price ? String(m.price) : "",
+          })) : []);
+          setAddOns(Array.isArray(latest.add_ons) ? latest.add_ons.map((a) => ({
+            name: a?.name || "",
+            price: a?.price ? String(a.price) : "",
+            quantity: a?.quantity || 1,
+            pricing_type: a?.pricing_type || "fixed",
+          })) : []);
+          setTransportationFee(latest.transportation_fee ? String(latest.transportation_fee) : "");
+          setAdditionalFees(
+            (Array.isArray(latest.additional_fees) ? latest.additional_fees : []).map((fee) => ({
+              name: fee?.name || "",
+              amount: fee?.amount ? String(fee.amount) : "",
+            }))
+          );
+          setTaxes(latest.taxes ? String(latest.taxes) : "");
+          setDiscounts(latest.discounts ? String(latest.discounts) : "");
+          setDepositAmount(latest.deposit_amount ? String(latest.deposit_amount) : "");
+          setExpirationDate(toDateInput(latest.expiration_date) || addDays(7));
+          setAdminNotes(latest.admin_notes || "");
+          return;
+        }
+
+        /* --- First quotation for this inquiry: start from the booking ------ */
+        const guests = Number(inquiry?.guest_count) || 1;
+
+        if (inquiry?.is_custom_setup) {
+          setPackageName(
+            inquiry.event_theme
+              ? `Custom ${inquiry.event_theme} Event Setup`
+              : "Bespoke Custom Event Setup"
+          );
+          setInclusions(
+            (Array.isArray(inquiry.custom_setup_scope) ? inquiry.custom_setup_scope : []).map(
+              (scope) => ({ name: inclusionText(scope), removed: false, deduction: "", fromPackage: true })
+            )
+          );
+          // A bespoke setup has no catalog price to start from: the admin
+          // prices the design, so the baseline is left for them to enter.
+          setStartingPrice("");
+        } else {
+          setPackageName(packageRecord?.name || "Custom Package");
+          setInclusions(
+            (Array.isArray(packageRecord?.inclusions) ? packageRecord.inclusions : []).map(
+              (entry) => ({ name: inclusionText(entry), removed: false, deduction: "", fromPackage: true })
+            )
+          );
+          const derived = derivePackageStartingPrice(inquiry, guests);
+          setStartingPrice(derived ? String(derived) : "");
+        }
+
+        // The dishes the customer actually chose, seeded with the catalog rate
+        // so the admin adjusts a real number rather than typing one from
+        // nothing. A customer who declined catering gets no food lines at all,
+        // so no food charge can reach a booking that did not ask for it.
+        setMenuItems(
+          detailsFromInquiry.include_food === false ||
+            detailsFromInquiry.service_type === SERVICE_TYPES.SETUP_ONLY
+            ? []
+            : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
+                if (item && typeof item === "object") {
+                  return {
+                    name: item.name || "",
+                    note: item.category || item.note || "",
+                    price: item.price ? String(item.price) : "",
+                  };
+                }
+                return { name: String(item || ""), note: "", price: "" };
+              })
+        );
+
+        setAddOns(
+          (Array.isArray(inquiry?.service_items) ? inquiry.service_items : []).map((item) => {
+            if (item && typeof item === "object") {
+              return {
+                name: item.name || "",
+                price: item.price ? String(item.price) : "",
+                quantity: item.quantity || 1,
+                pricing_type: item.pricing_type || (Number(item.quantity) > 1 ? "quantity" : "fixed"),
+              };
+            }
+            return { name: String(item || ""), price: "", quantity: 1, pricing_type: "fixed" };
+          })
+        );
+      })
+      .catch(() => {
+        if (active) notify("Failed to load quotation details", "error");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inquiry?._id]);
+
+  /* --- Derived pricing ---------------------------------------------------- */
+
+  const removedInclusions = useMemo(
+    () =>
+      inclusions
+        .filter((entry) => entry.removed)
+        .map((entry) => ({ name: String(entry.name || "").trim(), deduction: numberOf(entry.deduction) })),
+    [inclusions]
+  );
+
+  const keptInclusions = useMemo(
+    () =>
+      inclusions
+        .filter((entry) => !entry.removed)
+        .map((entry) => String(entry.name || "").trim())
+        .filter(Boolean),
+    [inclusions]
+  );
+
+  // Food lines only count when this quotation actually carries catering, so
+  // toggling catering off cannot leave a priced dish in the total.
+  const chargeableMenuItems = useMemo(
+    () => (cateringIncluded ? menuItems : []),
+    [cateringIncluded, menuItems]
+  );
+
+  const pricingInput = useMemo(
+    () => ({
+      package_starting_price: startingPrice,
+      removed_inclusions: removedInclusions,
+      guest_count: details.guest_count,
+      menu_items: chargeableMenuItems,
+      add_ons: addOns,
+      transportation_fee: transportationFee,
+      additional_fees: additionalFees,
+      taxes,
+      discounts,
+      deposit_amount: depositAmount,
+    }),
+    [
+      startingPrice,
+      removedInclusions,
+      details.guest_count,
+      chargeableMenuItems,
+      addOns,
+      transportationFee,
+      additionalFees,
+      taxes,
+      discounts,
+      depositAmount,
+    ]
+  );
+
+  const totals = useMemo(() => computeQuotationTotals(pricingInput), [pricingInput]);
+
+  const resolvedEventType =
+    details.event_type === OTHER_EVENT_TYPE
+      ? String(details.event_type_other || "").trim()
+      : details.event_type;
+
+  const quotationPayload = useMemo(
+    () => ({
+      inquiry_id: inquiry?._id,
+      package_id: packageRecord?._id || inquiry?.package_id || undefined,
+      package_name: packageName || "Custom Package",
+      package_starting_price: totals.startingPrice,
+      package_price: totals.packagePrice,
+      package_inclusions: keptInclusions,
+      removed_inclusions: removedInclusions.filter((entry) => entry.name),
+      guest_count: totals.guestCount,
+      menu_items: chargeableMenuItems.map((item) => ({
+        name: String(item.name || "").trim(),
+        note: String(item.note || "").trim(),
+        price: money(item.price),
+      })),
+      add_ons: addOns.map((item) => ({
+        name: String(item.name || "").trim(),
+        price: money(item.price),
+        quantity: addOnQuantityOf(item),
+        pricing_type: item.pricing_type || "fixed",
+      })),
+      transportation_fee: money(transportationFee),
+      additional_fees: additionalFees
+        .filter((fee) => String(fee.name || "").trim() || numberOf(fee.amount))
+        .map((fee) => ({ name: String(fee.name || "").trim(), amount: money(fee.amount) })),
+      taxes: totals.taxes,
+      discounts: totals.discounts,
+      subtotal: totals.subtotal,
+      total_cost: totals.totalCost,
+      deposit_amount: totals.depositAmount,
+      remaining_balance: totals.remainingBalance,
+      expiration_date: expirationDate || undefined,
+      admin_notes: adminNotes,
+    }),
+    [
+      inquiry?._id,
+      inquiry?.package_id,
+      packageRecord?._id,
+      packageName,
+      totals,
+      keptInclusions,
+      removedInclusions,
+      chargeableMenuItems,
+      addOns,
+      transportationFee,
+      additionalFees,
+      expirationDate,
+      adminNotes,
+    ]
+  );
+
+  // Compared against the newest version the customer has been sent, never
+  // against a draft: a draft is not something they have seen change.
+  const pendingChanges = quotation ? diffQuotationVersions(quotation, quotationPayload) : [];
+
+  /* --- Unsaved work ------------------------------------------------------- */
+
+  // Everything the admin can change, in one comparable string. The pricing
+  // payload already carries the whole quotation; `details` carries section one.
+  const formFingerprint = useMemo(
+    () => JSON.stringify({ quotation: quotationPayload, details, catering: cateringIncluded }),
+    [quotationPayload, details, cateringIncluded]
+  );
+
+  // The baseline is taken once the form has finished loading, and reset on
+  // every successful save, so "unsaved" always means "different from the last
+  // version that is safely stored somewhere".
+  useEffect(() => {
+    if (loading) return;
+    if (savedBaseline.current === null) savedBaseline.current = formFingerprint;
+  }, [loading, formFingerprint]);
+
+  const isDirty =
+    !loading && savedBaseline.current !== null && savedBaseline.current !== formFingerprint;
+
+  /* --- Warnings: worth a look, never blocking ----------------------------- */
+  const warnings = useMemo(() => {
+    const notes = [];
+    const depositShare = totals.totalCost > 0 ? (totals.depositAmount / totals.totalCost) * 100 : 0;
+
+    if (!totals.startingPrice && !inquiry?.is_custom_setup && packageRecord) {
+      notes.push(
+        `${packageRecord.name || "This package"} has no price on record, so the starting price begins at zero. Enter the baseline this quotation should start from.`
+      );
     }
+    if (totals.startingPrice > 0 && totals.inclusionDeductions > totals.startingPrice * 0.5) {
+      notes.push(
+        `Removed inclusions take off ${formatCurrency(totals.inclusionDeductions)}, more than half the starting price. Check that the package is still worth quoting as itself.`
+      );
+    }
+    if (totals.discounts > 0 && totals.discounts > totals.subtotal * 0.3) {
+      notes.push(
+        `The discount of ${formatCurrency(totals.discounts)} is over 30 percent of the subtotal. Confirm this is intended before sending.`
+      );
+    }
+    if (totals.depositAmount > 0 && depositShare < 10) {
+      notes.push(
+        `The deposit is only ${depositShare.toFixed(0)} percent of the total. The standard is ${depositPercentage} percent.`
+      );
+    }
+    if (totals.depositAmount > 0 && depositShare > 80) {
+      notes.push(
+        `The deposit covers ${depositShare.toFixed(0)} percent of the total, leaving little on the balance.`
+      );
+    }
+    if (cateringIncluded && menuItems.length === 0) {
+      notes.push(
+        customerSelection.dishes.length > 0
+          ? `The customer picked ${customerSelection.dishes.length} dish${
+              customerSelection.dishes.length === 1 ? "" : "es"
+            }, but none are on this quotation. Add them back or confirm the catering is being dropped.`
+          : "This booking includes catering, but no dishes are quoted yet."
+      );
+    }
+    if (unresolvedDishes > 0) {
+      notes.push(
+        `${unresolvedDishes} of the customer's chosen dishes could not be loaded from the menu catalog, most likely because they were deleted. Check the booking before quoting.`
+      );
+    }
+    const capacityMax = Number(packageRecord?.guest_max) || 0;
+    const capacityMin = Number(packageRecord?.guest_min) || 0;
+    if (capacityMax && totals.guestCount > capacityMax) {
+      notes.push(
+        `${totals.guestCount} guests is above this package's capacity of ${capacityMax}. Price the extra coverage or move to a larger package.`
+      );
+    } else if (capacityMin && totals.guestCount < capacityMin) {
+      notes.push(
+        `${totals.guestCount} guests is below this package's minimum of ${capacityMin}.`
+      );
+    }
+    return notes;
+  }, [
+    totals,
+    inquiry?.is_custom_setup,
+    packageRecord,
+    depositPercentage,
+    cateringIncluded,
+    menuItems.length,
+    customerSelection.dishes.length,
+    unresolvedDishes,
+  ]);
+
+  /* --- Validation --------------------------------------------------------- */
+
+  const validate = () => {
+    const found = {};
+
+    if (!String(details.contact_first_name || "").trim())
+      found.contact_first_name = "Enter the customer's first name.";
+    if (!String(details.contact_last_name || "").trim())
+      found.contact_last_name = "Enter the customer's last name.";
+    if (!String(details.contact_email || "").trim())
+      found.contact_email = "Enter an email address so the quotation can reach the customer.";
+    else if (!EMAIL_PATTERN.test(String(details.contact_email).trim()))
+      found.contact_email = "This email address is not in a valid format.";
+    if (!String(details.contact_phone || "").trim())
+      found.contact_phone = "Enter a contact number for this booking.";
+
+    if (!details.event_type) found.event_type = "Choose the event type this quotation is for.";
+    else if (details.event_type === OTHER_EVENT_TYPE && !resolvedEventType)
+      found.event_type_other = "Describe the event type.";
+
+    if (!details.event_date) found.event_date = "Set the event date this quotation covers.";
+    if (!details.start_time) found.start_time = "Set the start time.";
+    if (!Number(details.guest_count) || Number(details.guest_count) < 1)
+      found.guest_count = "Enter the number of guests. Menu pricing is calculated per guest.";
+    if (!details.municipality) found.municipality = "Choose the municipality of the venue.";
+    if (!details.barangay) found.barangay = "Choose the barangay of the venue.";
+
+    if (!String(packageName || "").trim())
+      found.package_name = "This quotation has no package name.";
+
+    inclusions.forEach((entry, index) => {
+      if (!String(entry.name || "").trim())
+        found[`inclusions.${index}.name`] = "Name this inclusion or delete the line.";
+      if (entry.removed && isBlankAmount(entry.deduction))
+        found[`inclusions.${index}.deduction`] =
+          "Enter how much removing this takes off the starting price. Enter 0 if it does not change the price.";
+    });
+
+    if (totals.inclusionDeductions > totals.startingPrice) {
+      found.removed_inclusions = `Deductions of ${formatCurrency(
+        totals.inclusionDeductions
+      )} are more than the starting price of ${formatCurrency(
+        totals.startingPrice
+      )}. Lower the deductions or raise the starting price.`;
+    }
+
+    // Only the dishes actually being quoted. With catering switched off the
+    // menu section is hidden, so validating rows behind it would block the
+    // send on fields the admin cannot see or fix.
+    chargeableMenuItems.forEach((item, index) => {
+      if (!String(item.name || "").trim())
+        found[`menu_items.${index}.name`] = "Name this dish or remove the line.";
+      // A blank price here is multiplied by the guest count, so it is the most
+      // expensive field in the form to leave unanswered.
+      if (isBlankAmount(item.price))
+        found[`menu_items.${index}.price`] =
+          "Set the per guest price for this dish. Enter 0 to include it at no charge.";
+    });
+
+    addOns.forEach((item, index) => {
+      if (!String(item.name || "").trim())
+        found[`add_ons.${index}.name`] = "Name this add-on or remove the line.";
+      if (isBlankAmount(item.price))
+        found[`add_ons.${index}.price`] =
+          "Set the price quoted for this add-on. Add-on prices are set per quotation, not in the catalog. Enter 0 to include it at no charge.";
+    });
+
+    additionalFees.forEach((fee, index) => {
+      const named = String(fee.name || "").trim();
+      if (!named)
+        found[`additional_fees.${index}.name`] =
+          "Name this fee so the customer knows what it covers.";
+      if (!numberOf(fee.amount))
+        found[`additional_fees.${index}.amount`] =
+          "Enter an amount above zero, or remove this fee from the quotation.";
+    });
+
+    if (totals.totalCost <= 0)
+      found.total_cost =
+        "This quotation totals zero. Add the pricing before sending it to the customer.";
+
+    if (!numberOf(depositAmount))
+      found.deposit_amount =
+        "A deposit is required. The customer cannot confirm a booking without one.";
+    else if (money(depositAmount) > totals.totalCost)
+      found.deposit_amount = `The deposit cannot be more than the total of ${formatCurrency(
+        totals.totalCost
+      )}.`;
+
+    if (!expirationDate) found.expiration_date = "Set the date this quotation stops being valid.";
+
+    return found;
   };
 
-  const sanitizeNonNegative = (val) => {
-    if (val === "" || val === null || val === undefined) return 0;
-    const cleanStr = String(val).replace(/-/g, "").replace(/e/gi, "");
-    const num = Number(cleanStr);
-    return isNaN(num) ? 0 : Math.max(0, num);
-  };
-
-  const cleanNum = (val) => {
-    const n = Number(val);
-    return Number.isFinite(n) && n >= 0 ? n : 0;
-  };
-
-  // Handlers - Guest Count
-  const handleGuestCountChange = (val) => {
-    const sanitized = Math.max(1, sanitizeNonNegative(val));
-    setGuestCount(sanitized);
-  };
-
-  // Handlers - Package Inclusions
-  const handleAddInclusion = () => {
-    setPackageInclusions((prev) => [...prev, ""]);
-  };
-
-  const handleInclusionChange = (idx, text) => {
-    setPackageInclusions((prev) => {
-      const copy = [...prev];
-      copy[idx] = text;
-      return copy;
+  /** Clears one field's error as soon as the admin edits it. */
+  const clearError = (key) => {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
     });
   };
 
-  const handleRemoveInclusion = (idx) => {
-    setPackageInclusions((prev) => prev.filter((_, i) => i !== idx));
+  const setDetail = (key, value) => {
+    setDetails((prev) => ({ ...prev, [key]: value }));
+    clearError(key);
   };
 
-  // Handlers - Menu Items
+  /* --- Inclusion handlers ------------------------------------------------- */
+
+  const handleAddInclusion = () => {
+    const name = String(newInclusion || "").trim();
+    if (!name) return;
+    setInclusions((prev) => [...prev, { name, removed: false, deduction: "", fromPackage: false }]);
+    setNewInclusion("");
+  };
+
+  const handleInclusionName = (index, name) => {
+    setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, name } : entry)));
+    clearError(`inclusions.${index}.name`);
+  };
+
+  const handleInclusionDeduction = (index, value) => {
+    setInclusions((prev) =>
+      prev.map((entry, i) => (i === index ? { ...entry, deduction: nonNegative(value) } : entry))
+    );
+    clearError(`inclusions.${index}.deduction`);
+    clearError("removed_inclusions");
+  };
+
+  const toggleInclusionRemoved = (index) => {
+    setInclusions((prev) =>
+      prev.map((entry, i) =>
+        i === index ? { ...entry, removed: !entry.removed, deduction: entry.removed ? "" : entry.deduction } : entry
+      )
+    );
+    clearError(`inclusions.${index}.deduction`);
+    clearError("removed_inclusions");
+  };
+
+  const handleDeleteInclusion = (index) => {
+    setInclusions((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        if (!key.startsWith("inclusions.")) next[key] = value;
+      });
+      return next;
+    });
+  };
+
+  /* --- Menu handlers ------------------------------------------------------ */
+
   const handleAddCatalogDish = () => {
-    if (!selectedCatalogDish) return;
-    const found = catalogMenuItems.find((m) => m._id === selectedCatalogDish);
-    if (found) {
-      setMenuItems((prev) => [
-        ...prev,
-        { name: found.name, price: found.price || 0, note: found.category || "" }
-      ]);
-      setSelectedCatalogDish("");
-    }
-  };
-
-  const handleAddCustomDish = () => {
-    setMenuItems((prev) => [...prev, { name: "", price: 0, note: "" }]);
+    const found = catalogMenuItems.find((item) => item._id === selectedCatalogDish);
+    if (!found) return;
+    setMenuItems((prev) => [
+      ...prev,
+      { name: found.name, price: found.price ? String(found.price) : "", note: found.category || "" },
+    ]);
+    setSelectedCatalogDish("");
   };
 
   const handleMenuChange = (index, field, value) => {
-    setMenuItems((prev) => {
-      const copy = [...prev];
-      const val = field === "price" ? sanitizeNonNegative(value) : value;
-      copy[index] = { ...copy[index], [field]: val };
-      return copy;
-    });
+    setMenuItems((prev) =>
+      prev.map((item, i) =>
+        i === index ? { ...item, [field]: field === "price" ? nonNegative(value) : value } : item
+      )
+    );
+    clearError(`menu_items.${index}.${field}`);
   };
 
-  const handleRemoveMenuItem = (index) => {
+  const handleRemoveMenuItem = (index) =>
     setMenuItems((prev) => prev.filter((_, i) => i !== index));
-  };
 
-  // Handlers - Add-ons
+  /* --- Add-on handlers ---------------------------------------------------- */
+
   const handleAddCatalogAddon = () => {
-    if (!selectedCatalogAddon) return;
-    const found = catalogAddons.find((a) => a._id === selectedCatalogAddon);
-    if (found) {
-      setAddOns((prev) => [
-        ...prev,
-        {
-          name: found.name,
-          price: found.price || 0,
-          quantity: 1,
-          pricing_type: found.pricing_type || "fixed"
-        }
-      ]);
-      setSelectedCatalogAddon("");
-    }
-  };
-
-  const handleAddCustomAddon = () => {
+    const found = catalogAddons.find((addon) => addon._id === selectedCatalogAddon);
+    if (!found) return;
+    // The catalog carries the name and how the add-on is charged. The price is
+    // quoted per event, so the admin sets it on this line.
     setAddOns((prev) => [
       ...prev,
-      { name: "", price: 0, quantity: 1, pricing_type: "fixed" }
+      { name: found.name, price: "", quantity: 1, pricing_type: found.pricing_type || "fixed" },
     ]);
+    setSelectedCatalogAddon("");
   };
 
   const handleAddOnChange = (index, field, value) => {
-    setAddOns((prev) => {
-      const copy = [...prev];
-      let val = value;
-      if (field === "price") {
-        val = sanitizeNonNegative(value);
-      } else if (field === "quantity") {
-        val = Math.max(1, sanitizeNonNegative(value));
-      } else if (field === "pricing_type" && value === "fixed") {
-        copy[index].quantity = 1;
-      }
-      copy[index] = { ...copy[index], [field]: val };
-      return copy;
-    });
+    setAddOns((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        if (field === "price") return { ...item, price: nonNegative(value) };
+        if (field === "quantity") return { ...item, quantity: Math.max(1, Number(nonNegative(value)) || 1) };
+        if (field === "pricing_type")
+          return { ...item, pricing_type: value, quantity: value === "fixed" ? 1 : item.quantity || 1 };
+        return { ...item, [field]: value };
+      })
+    );
+    clearError(`add_ons.${index}.${field}`);
   };
 
-  const handleRemoveAddOn = (index) => {
-    setAddOns((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveAddOn = (index) => setAddOns((prev) => prev.filter((_, i) => i !== index));
+
+  /* --- Additional fee handlers -------------------------------------------- */
+
+  const handleFeeChange = (index, field, value) => {
+    setAdditionalFees((prev) =>
+      prev.map((fee, i) =>
+        i === index ? { ...fee, [field]: field === "amount" ? nonNegative(value) : value } : fee
+      )
+    );
+    clearError(`additional_fees.${index}.${field}`);
   };
 
-  // Calculations
-  const menuSubtotal = menuItems.reduce(
-    (acc, item) => acc + cleanNum(item.price) * guestCount,
-    0
-  );
+  const handleRemoveFee = (index) =>
+    setAdditionalFees((prev) => prev.filter((_, i) => i !== index));
 
-  const addOnsSubtotal = addOns.reduce(
-    (acc, item) =>
-      acc +
-      cleanNum(item.price) *
-        (item.pricing_type === "fixed" ? 1 : Math.max(1, cleanNum(item.quantity))),
-    0
-  );
+  /* --- Submit ------------------------------------------------------------- */
 
-  const additionalFees =
-    cleanNum(transportationFee) +
-    cleanNum(equipmentFee) +
-    cleanNum(decorationFee);
-
-  const subtotal =
-    cleanNum(packagePrice) + menuSubtotal + addOnsSubtotal + additionalFees;
-
-  const totalCost = Math.max(
-    0,
-    subtotal + cleanNum(taxes) - cleanNum(discounts)
-  );
-
-  const depositVal = Math.min(totalCost, cleanNum(depositAmount));
-  const remainingBalance = Math.max(0, totalCost - depositVal);
-
-  // Version Comparison Draft
-  const draft = {
-    inquiry_id: inquiry?._id,
-    package_id: typeof inquiry?.package_id === "object" ? inquiry.package_id?._id : inquiry?.package_id,
-    package_name: packageName || "Custom Package",
-    package_price: cleanNum(packagePrice),
-    package_inclusions: (Array.isArray(packageInclusions) ? packageInclusions : [])
-      .map((inc) => (typeof inc === "string" ? inc.trim() : String(inc || "").trim()))
-      .filter((inc) => inc !== ""),
-    guest_count: guestCount,
-    menu_items: (Array.isArray(menuItems) ? menuItems : []).map((m) => ({
-      name: m?.name || "",
-      note: m?.note || "",
-      price: cleanNum(m?.price)
-    })),
-    add_ons: (Array.isArray(addOns) ? addOns : []).map((a) => ({
-      name: a?.name || "",
-      price: cleanNum(a?.price),
-      quantity: a?.pricing_type === "fixed" ? 1 : Math.max(1, cleanNum(a?.quantity)),
-      pricing_type: a?.pricing_type || "fixed"
-    })),
-    transportation_fee: cleanNum(transportationFee),
-    equipment_fee: cleanNum(equipmentFee),
-    decoration_fee: cleanNum(decorationFee),
-    taxes: cleanNum(taxes),
-    discounts: cleanNum(discounts),
-    subtotal,
-    total_cost: totalCost,
-    deposit_amount: depositVal,
-    remaining_balance: remainingBalance,
-    admin_notes: adminNotes
+  const focusFirstError = (found) => {
+    const firstKey = Object.keys(found)[0];
+    if (!firstKey) return;
+    const element = document.getElementById(`qb-${firstKey}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (typeof element.focus === "function") element.focus({ preventScroll: true });
+      return;
+    }
+    formRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
   };
 
-  const pendingChanges = quotation ? diffQuotationVersions(quotation, draft) : [];
+  /**
+   * The admin's unapplied edits to the event details.
+   *
+   * Saved on the draft rather than written to the inquiry, so stopping halfway
+   * never rewrites the customer's booking with a half-finished correction. The
+   * inquiry is only updated when the quotation is actually sent.
+   */
+  const draftDetails = () => ({
+    contact_first_name: details.contact_first_name,
+    contact_last_name: details.contact_last_name,
+    contact_email: details.contact_email,
+    contact_phone: details.contact_phone,
+    event_type: resolvedEventType,
+    event_date: details.event_date,
+    start_time: details.start_time,
+    duration_hours: String(details.duration_hours || ""),
+    guest_count: String(details.guest_count || ""),
+    service_type: details.service_type,
+    include_food: cateringIncluded,
+    venue_type: details.venue_type,
+    province: details.province,
+    municipality: details.municipality,
+    barangay: details.barangay,
+    street: details.street,
+    landmark: details.landmark,
+    zip_code: details.zip_code,
+  });
+
+  /** @returns {Promise<boolean>} whether the draft actually reached the server. */
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    try {
+      const { data } = await AdminAPI.saveQuotationDraft({
+        ...quotationPayload,
+        draft_details: draftDetails(),
+      });
+      setSavedDraft(data);
+      setDraftSavedAt(data?.updatedAt || new Date().toISOString());
+      // This state is now stored, so leaving costs nothing.
+      savedBaseline.current = formFingerprint;
+      // Errors from an earlier send attempt are stale once the work is parked.
+      setErrors({});
+      setShowErrorSummary(false);
+      notify("Draft saved. You can close this and pick it up later.", "success");
+      return true;
+    } catch (err) {
+      notify(err.response?.data?.message || "Could not save the draft. Try again.", "error");
+      return false;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  /* --- Closing ------------------------------------------------------------ */
+
+  // The X, the backdrop and Escape all arrive here through the dialog's own
+  // close handler, so they cannot bypass the check the Cancel button gets.
+  const requestClose = (intent) => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    setCloseIntent(intent);
+  };
+
+  const handleSaveDraftAndClose = async () => {
+    const saved = await handleSaveDraft();
+    if (!saved) {
+      // Stay put: closing now would lose exactly what the admin asked to keep.
+      setCloseIntent(null);
+      return;
+    }
+    setCloseIntent(null);
+    onSuccess();
+  };
+
+  const handleDiscardDraft = async () => {
+    if (!savedDraft) return;
+    if (!window.confirm("Discard this saved draft? Any progress in it is lost.")) return;
+    try {
+      await AdminAPI.discardQuotationDraft(inquiry._id);
+      setSavedDraft(null);
+      setDraftSavedAt(null);
+      notify("Draft discarded.", "info");
+      onSuccess();
+    } catch (err) {
+      notify(err.response?.data?.message || "Could not discard the draft.", "error");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      Number(packagePrice) < 0 ||
-      Number(transportationFee) < 0 ||
-      Number(equipmentFee) < 0 ||
-      Number(decorationFee) < 0 ||
-      Number(taxes) < 0 ||
-      Number(discounts) < 0 ||
-      Number(depositAmount) < 0
-    ) {
-      notify("Prices, fees, taxes, discounts, and deposit amounts cannot be negative.", "error");
+    const found = validate();
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      setShowErrorSummary(true);
+      focusFirstError(found);
+      notify("This quotation cannot be sent yet. Fix the highlighted fields.", "error");
       return;
     }
-
-    if (menuItems.some((item) => Number(item.price) < 0)) {
-      notify("Menu item prices cannot be negative.", "error");
-      return;
-    }
-
-    if (addOns.some((item) => Number(item.price) < 0 || Number(item.quantity) < 0)) {
-      notify("Add-on prices and quantities cannot be negative.", "error");
-      return;
-    }
+    setShowErrorSummary(false);
 
     setSubmitting(true);
+    try {
+      // The inquiry stays the record of the event itself, and the booking is
+      // built from it at conversion time. Corrections made here are saved there
+      // first so the quotation is never issued against details it contradicts.
+      await AdminAPI.updateInquiry(inquiry._id, {
+        contact_first_name: details.contact_first_name.trim(),
+        contact_last_name: details.contact_last_name.trim(),
+        contact_email: details.contact_email.trim(),
+        contact_phone: details.contact_phone.trim(),
+        event_type: resolvedEventType,
+        event_date: details.event_date,
+        start_time: details.start_time,
+        duration_hours: numberOf(details.duration_hours) || undefined,
+        guest_count: totals.guestCount,
+        service_type: details.service_type,
+        // The customer's catering answer, not an assumption from the service
+        // type. A "Food and Event Setup" booking where they chose to skip
+        // catering must stay skipped.
+        include_food: cateringIncluded,
+        venue_type: details.venue_type.trim(),
+        province: details.province,
+        municipality: details.municipality,
+        barangay: details.barangay,
+        street: details.street.trim(),
+        landmark: details.landmark.trim(),
+        zip_code: details.zip_code.trim(),
+      });
+    } catch (err) {
+      setSubmitting(false);
+      notify(
+        err.response?.data?.message ||
+          "The event details could not be saved, so the quotation was not sent. Try again.",
+        "error"
+      );
+      return;
+    }
 
     try {
-      await AdminAPI.createQuotation(draft);
-      notify("Quotation generated successfully!", "success");
+      await AdminAPI.createQuotation(quotationPayload);
+      notify(
+        quotation
+          ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent to the customer.`
+          : "Quotation sent to the customer.",
+        "success"
+      );
       onSuccess();
     } catch (err) {
+      const serverErrors = err.response?.data?.errors;
+      if (serverErrors && typeof serverErrors === "object") {
+        setErrors(serverErrors);
+        setShowErrorSummary(true);
+        focusFirstError(serverErrors);
+      }
       notify(err.response?.data?.message || "Failed to generate quotation.", "error");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const fmt = (val) => "₱" + Number(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 });
-
   if (!inquiry) return null;
 
   if (loading) {
     return (
-      <Modal title="Quotation Builder" onClose={onClose} className="max-w-4xl h-[80vh] flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin"></div>
+      <Modal
+        title="Quotation Builder"
+        onClose={onClose}
+        className="max-w-4xl h-[80vh] flex items-center justify-center"
+      >
+        <div className="flex h-full items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-primary" />
+        </div>
       </Modal>
     );
   }
 
+  const errorCount = Object.keys(errors).length;
+  const menuHeading = cateringIncluded ? "Menu" : null;
+
+  // Section numbers count only the sections this service type actually shows,
+  // so a setup-only quotation never jumps from 03 to 05.
+  const stepNumbers = (() => {
+    let step = 3;
+    const menu = isSetupOnly ? null : ++step;
+    const addOns = isFoodOnly ? null : ++step;
+    return { menu, addOns, adjustments: ++step, payment: ++step };
+  })();
+
   return (
-    <Modal title="Quotation Builder" onClose={onClose} className="max-w-7xl w-[96vw] h-[90vh]">
-      <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
-        
-        {/* Left Side: Form Controls (Scrollable) */}
-        <div className="flex-1 overflow-y-auto pr-2 space-y-6 pb-12">
-          {quotation && (
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-xl flex items-center gap-2.5 text-sm font-medium">
-              <AlertCircle size={18} className="text-blue-600 shrink-0" />
-              <div>
-                Editing existing Quotation. Saving will publish <strong className="font-semibold">Version {quotation.version_number + 1}.0</strong> to the customer.
-              </div>
+    <Modal
+      title="Quotation Builder"
+      onClose={() => requestClose("leave")}
+      className="max-w-7xl w-[96vw] h-[90vh]"
+    >
+      <form onSubmit={handleSubmit} className="flex h-full flex-col gap-4 overflow-hidden lg:flex-row lg:gap-6">
+        {/* ------------------------------------------------------------------
+            Left column: the quotation, in the order it is built
+        ------------------------------------------------------------------ */}
+        <div ref={formRef} className="flex-1 space-y-4 overflow-y-auto pb-10 pr-1 lg:pr-3">
+          {savedDraft && (
+            <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-start gap-2.5">
+                <FileText size={15} className="mt-0.5 shrink-0 text-amber-700" />
+                <span>
+                  <strong className="font-semibold text-amber-950">Draft in progress.</strong> The
+                  customer has not seen any of this.
+                  {draftSavedAt && (
+                    <span className="ml-1 tabular-nums text-amber-800">
+                      Last saved {formatSavedAt(draftSavedAt)}.
+                    </span>
+                  )}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="shrink-0 self-start rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-red-300 hover:text-red-700 sm:self-auto"
+              >
+                Discard draft
+              </button>
             </div>
           )}
 
-          {/* SECTION 1: Customer & Event Details */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                <User size={18} className="text-primary" /> Customer &amp; Event Snapshot
-              </h3>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
-                Reference
+          {quotation && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/5 p-3 text-xs leading-relaxed text-slate-700">
+              <RefreshCw size={15} className="mt-0.5 shrink-0 text-primary" />
+              <span>
+                You are revising an issued quotation. Sending publishes{" "}
+                <strong className="font-semibold text-slate-900">
+                  Version {(Number(quotation.version_number) || 1) + 1}.0
+                </strong>{" "}
+                to the customer and replaces what they are looking at now.
               </span>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="block text-xs font-semibold text-slate-400 uppercase">Customer</span>
-                <span className="font-semibold text-slate-800">
-                  {inquiry.customer_id?.first_name ? `${inquiry.customer_id.first_name} ${inquiry.customer_id.last_name || ""}` : inquiry.contact_first_name ? `${inquiry.contact_first_name} ${inquiry.contact_last_name || ""}` : "Guest Customer"}
-                </span>
-                <span className="block text-xs text-slate-500">{inquiry.contact_email || inquiry.customer_id?.email || "—"}</span>
-              </div>
-
-              <div>
-                <span className="block text-xs font-semibold text-slate-400 uppercase">Event Type &amp; Date</span>
-                <span className="font-semibold text-slate-800">{inquiry.event_type || "Event"}</span>
-                <span className="block text-xs text-slate-500">
-                  {(() => {
-                    const d = inquiry?.event_date ? new Date(inquiry.event_date) : null;
-                    if (d && !isNaN(d.getTime())) {
-                      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                    }
-                    return "TBD";
-                  })()}
-                  {inquiry.start_time ? ` at ${inquiry.start_time}` : ""}
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                  Guest Count (Pax) *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  onKeyDown={handleNonNegativeKeyDown}
-                  value={guestCount}
-                  onChange={(e) => handleGuestCountChange(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                />
-                <span className="text-[11px] text-slate-400 mt-0.5 block">Updates menu totals automatically</span>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION: Bespoke Custom Setup Brief */}
-          {(inquiry.is_custom_setup || inquiry.event_theme || (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) || (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
-            <div className="bg-gradient-to-br from-indigo-50/60 via-white to-blue-50/40 border border-indigo-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
-                <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                  <Sparkles size={18} className="text-indigo-600" /> Bespoke Event Setup Brief
-                </h3>
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2.5 py-1 rounded-md">
-                  {inquiry.is_custom_setup ? "100% Custom Request" : "Custom Preferences"}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                {inquiry.event_theme && (
-                  <div>
-                    <span className="block text-xs font-semibold text-slate-400 uppercase">Theme / Motif</span>
-                    <span className="font-bold text-slate-800">{inquiry.event_theme}</span>
-                  </div>
+          {showErrorSummary && errorCount > 0 && (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-3.5" role="alert">
+              <p className="flex items-center gap-2 text-xs font-bold text-red-800">
+                <AlertCircle size={15} className="shrink-0" />
+                {errorCount === 1
+                  ? "One field needs your attention before this can be sent."
+                  : `${errorCount} fields need your attention before this can be sent.`}
+              </p>
+              <ul className="mt-2 space-y-1 pl-6 text-[11.5px] leading-snug text-red-700">
+                {Object.entries(errors)
+                  .slice(0, 5)
+                  .map(([key, message]) => (
+                    <li key={key} className="list-disc">
+                      {message}
+                    </li>
+                  ))}
+                {errorCount > 5 && (
+                  <li className="list-disc">and {errorCount - 5} more below.</li>
                 )}
-
-                {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
-                  <div>
-                    <span className="block text-xs font-semibold text-slate-400 uppercase">Color Palette</span>
-                    <span className="font-semibold text-slate-800">{inquiry.event_palette.join(", ")}</span>
-                  </div>
-                )}
-
-                {inquiry.budget_range && (
-                  <div>
-                    <span className="block text-xs font-semibold text-slate-400 uppercase">Target Budget Range</span>
-                    <span className="font-semibold text-emerald-700">{inquiry.budget_range}</span>
-                  </div>
-                )}
-              </div>
-
-              {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
-                <div>
-                  <span className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">
-                    Requested Setup Scope ({inquiry.custom_setup_scope.length})
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {inquiry.custom_setup_scope.map((scope, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 text-xs font-medium bg-white text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-lg shadow-2xs">
-                        <Check size={12} className="text-indigo-600" /> {scope}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {inquiry.custom_setup_notes && (
-                <div className="bg-white/80 border border-indigo-100 rounded-xl p-3 text-xs text-slate-700">
-                  <span className="font-bold text-slate-800 block mb-0.5">Customer&apos;s Design Vision &amp; Notes:</span>
-                  <p className="whitespace-pre-line">{inquiry.custom_setup_notes}</p>
-                </div>
-              )}
-
-              {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
-                <div>
-                  <span className="block text-xs font-semibold text-slate-500 uppercase mb-2">
-                    Inspiration Pegs &amp; Moodboard ({inquiry.inspiration_images.length})
-                  </span>
-                  <div className="flex flex-wrap gap-2.5">
-                    {inquiry.inspiration_images.map((imgUrl, idx) => (
-                      <a
-                        key={idx}
-                        href={imgUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group relative h-20 w-20 rounded-xl overflow-hidden border border-indigo-200 shadow-xs hover:ring-2 hover:ring-indigo-500 transition-all block"
-                        title="Click to view full image in new tab"
-                      >
-                        <img src={imgUrl} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+              </ul>
             </div>
           )}
 
-          {/* SECTION 2: Package Details & Inclusions */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                <Package size={18} className="text-primary" /> Package Details
-              </h3>
-              <span className="text-xs text-slate-400">Customizable for this quotation</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Package Name</label>
-                <input
-                  type="text"
-                  value={packageName}
-                  onChange={(e) => setPackageName(e.target.value)}
-                  placeholder="e.g. Standard Wedding Package"
-                  className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                />
+          {/* --- 1. Customer and event information --------------------------- */}
+          <SectionCard
+            step={1}
+            id="qb-section-details"
+            icon={User}
+            title="Customer and event information"
+            description="What the customer submitted when they booked. Correct anything that is wrong before quoting."
+            aside={
+              inquiry.reference ? (
+                <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
+                  {inquiry.reference}
+                </span>
+              ) : null
+            }
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="First name" required error={errors.contact_first_name} htmlFor="qb-contact_first_name">
+                  <input
+                    id="qb-contact_first_name"
+                    type="text"
+                    value={details.contact_first_name}
+                    onChange={(e) => setDetail("contact_first_name", e.target.value)}
+                    className={inputClass(errors.contact_first_name)}
+                  />
+                </Field>
+                <Field label="Last name" required error={errors.contact_last_name} htmlFor="qb-contact_last_name">
+                  <input
+                    id="qb-contact_last_name"
+                    type="text"
+                    value={details.contact_last_name}
+                    onChange={(e) => setDetail("contact_last_name", e.target.value)}
+                    className={inputClass(errors.contact_last_name)}
+                  />
+                </Field>
+                <Field label="Email" required error={errors.contact_email} htmlFor="qb-contact_email">
+                  <input
+                    id="qb-contact_email"
+                    type="email"
+                    value={details.contact_email}
+                    onChange={(e) => setDetail("contact_email", e.target.value)}
+                    className={inputClass(errors.contact_email)}
+                  />
+                </Field>
+                <Field label="Phone" required error={errors.contact_phone} htmlFor="qb-contact_phone">
+                  <input
+                    id="qb-contact_phone"
+                    type="tel"
+                    value={details.contact_phone}
+                    onChange={(e) => setDetail("contact_phone", e.target.value)}
+                    className={inputClass(errors.contact_phone)}
+                  />
+                </Field>
               </div>
 
-              {!isFoodOnly && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-slate-600">
-                      Event Setup Package Price (₱)
-                    </label>
-                    {menuItems.length > 0 && (
-                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        Setup is FREE with catering (₱0)
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Event type" required error={errors.event_type} htmlFor="qb-event_type">
+                  <select
+                    id="qb-event_type"
+                    value={details.event_type}
+                    onChange={(e) => setDetail("event_type", e.target.value)}
+                    className={inputClass(errors.event_type)}
+                  >
+                    <option value="">Select event type</option>
+                    {EVENT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field
+                  label="Service type"
+                  hint="Decides which sections this quotation needs."
+                  htmlFor="qb-service_type"
+                >
+                  <select
+                    id="qb-service_type"
+                    value={details.service_type}
+                    onChange={(e) => setDetail("service_type", e.target.value)}
+                    className={inputClass(false)}
+                  >
+                    {Object.values(SERVICE_TYPES).map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Event date" required error={errors.event_date} htmlFor="qb-event_date">
+                  <input
+                    id="qb-event_date"
+                    type="date"
+                    value={details.event_date}
+                    onChange={(e) => setDetail("event_date", e.target.value)}
+                    className={inputClass(errors.event_date)}
+                  />
+                </Field>
+
+                <Field label="Start time" required error={errors.start_time} htmlFor="qb-start_time">
+                  <input
+                    id="qb-start_time"
+                    type="time"
+                    value={details.start_time}
+                    onChange={(e) => setDetail("start_time", e.target.value)}
+                    className={inputClass(errors.start_time)}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {/* Appears in place rather than swapping with another field, so
+                    choosing "Other" never rearranges the row above it. */}
+                {details.event_type === OTHER_EVENT_TYPE && (
+                  <Field
+                    label="Which kind of event"
+                    required
+                    error={errors.event_type_other}
+                    htmlFor="qb-event_type_other"
+                  >
                     <input
-                      type="number"
-                      min="0"
-                      onKeyDown={handleNonNegativeKeyDown}
-                      value={packagePrice}
-                      onChange={(e) => setPackagePrice(sanitizeNonNegative(e.target.value))}
-                      className="w-full pl-7 pr-3.5 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      id="qb-event_type_other"
+                      type="text"
+                      placeholder="e.g. Reunion"
+                      value={details.event_type_other}
+                      onChange={(e) => setDetail("event_type_other", e.target.value)}
+                      className={inputClass(errors.event_type_other)}
                     />
-                  </div>
-                  {menuItems.length > 0 && Number(packagePrice) === 0 && (
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Event setup fee is waived because catering is ordered per pax.
+                  </Field>
+                )}
+
+                <Field
+                  label="Guest count"
+                  required
+                  error={errors.guest_count}
+                  hint="Menu pricing is charged per guest."
+                  htmlFor="qb-guest_count"
+                >
+                  <input
+                    id="qb-guest_count"
+                    type="number"
+                    min="1"
+                    value={details.guest_count}
+                    onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
+                    className={`${inputClass(errors.guest_count)} font-semibold tabular-nums`}
+                  />
+                </Field>
+
+                <Field label="Duration (hours)" htmlFor="qb-duration_hours">
+                  <input
+                    id="qb-duration_hours"
+                    type="number"
+                    min="0"
+                    value={details.duration_hours}
+                    onChange={(e) => setDetail("duration_hours", nonNegative(e.target.value))}
+                    className={`${inputClass(false)} tabular-nums`}
+                  />
+                </Field>
+
+                <Field label="Venue type" htmlFor="qb-venue_type">
+                  <input
+                    id="qb-venue_type"
+                    type="text"
+                    placeholder="e.g. Function Hall"
+                    value={details.venue_type}
+                    onChange={(e) => setDetail("venue_type", e.target.value)}
+                    className={inputClass(false)}
+                  />
+                </Field>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  <MapPin size={12} /> Venue location
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Municipality" required error={errors.municipality} htmlFor="qb-municipality">
+                    <select
+                      id="qb-municipality"
+                      value={details.municipality}
+                      onChange={(e) => {
+                        setDetail("municipality", e.target.value);
+                        setDetail("barangay", "");
+                      }}
+                      className={inputClass(errors.municipality)}
+                    >
+                      <option value="">Select municipality</option>
+                      {municipalities.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label="Barangay"
+                    required
+                    error={errors.barangay}
+                    hint={!details.municipality ? "Choose a municipality first." : undefined}
+                    htmlFor="qb-barangay"
+                  >
+                    <select
+                      id="qb-barangay"
+                      value={details.barangay}
+                      disabled={!details.municipality}
+                      onChange={(e) => setDetail("barangay", e.target.value)}
+                      className={inputClass(errors.barangay)}
+                    >
+                      <option value="">Select barangay</option>
+                      {barangays.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Street and building" htmlFor="qb-street">
+                    <input
+                      id="qb-street"
+                      type="text"
+                      value={details.street}
+                      onChange={(e) => setDetail("street", e.target.value)}
+                      className={inputClass(false)}
+                    />
+                  </Field>
+                  <Field label="Landmark" htmlFor="qb-landmark">
+                    <input
+                      id="qb-landmark"
+                      type="text"
+                      value={details.landmark}
+                      onChange={(e) => setDetail("landmark", e.target.value)}
+                      className={inputClass(false)}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Read-only context the admin should see but never edit here. */}
+              {(inquiry.allergies ||
+                inquiry.dietary_restrictions ||
+                inquiry.dietary_requirements ||
+                inquiry.special_requests) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                    From the customer
+                  </p>
+                  {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
+                    <p>
+                      <span className="font-semibold text-amber-950">Dietary and allergies: </span>
+                      {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
+                        .filter(Boolean)
+                        .join(". ")}
+                    </p>
+                  )}
+                  {inquiry.special_requests && (
+                    <p className="mt-1 whitespace-pre-line">
+                      <span className="font-semibold text-amber-950">Special requests: </span>
+                      {inquiry.special_requests}
                     </p>
                   )}
                 </div>
               )}
             </div>
+          </SectionCard>
 
-            {/* Package Inclusions List */}
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-slate-600 uppercase">Package Inclusions</label>
-                <button
-                  type="button"
-                  onClick={handleAddInclusion}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-                >
-                  <Plus size={13} /> Add Inclusion
-                </button>
-              </div>
-
-              {packageInclusions.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No custom inclusions listed.</p>
-              ) : (
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {packageInclusions.map((inclusion, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                      <input
-                        type="text"
-                        value={inclusion}
-                        onChange={(e) => handleInclusionChange(idx, e.target.value)}
-                        placeholder="Inclusion item description"
-                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-slate-50/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveInclusion(idx)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Remove inclusion"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+          {/* --- Bespoke setup brief (unchanged source of truth) ------------- */}
+          {(inquiry.is_custom_setup ||
+            inquiry.event_theme ||
+            (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) ||
+            (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
+            <SectionCard
+              icon={Sparkles}
+              title="Bespoke event setup brief"
+              description="The design request as the customer described it. Reference only."
+              aside={
+                <span className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                  {inquiry.is_custom_setup ? "Fully custom request" : "Custom preferences"}
+                </span>
+              }
+            >
+              <div className="space-y-3 text-xs text-slate-700">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {inquiry.event_theme && (
+                    <div>
+                      <span className={LABEL_CLASS}>Theme</span>
+                      <span className="font-semibold text-slate-900">{inquiry.event_theme}</span>
                     </div>
-                  ))}
+                  )}
+                  {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
+                    <div>
+                      <span className={LABEL_CLASS}>Palette</span>
+                      <span className="font-semibold text-slate-900">
+                        {inquiry.event_palette.join(", ")}
+                      </span>
+                    </div>
+                  )}
+                  {inquiry.budget_range && (
+                    <div>
+                      <span className={LABEL_CLASS}>Customer budget</span>
+                      <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* SECTION 3: Menu Items Selection & Customization */}
-          {!isSetupOnly && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                    <Utensils size={18} className="text-primary" /> Menu Items Selection
-                  </h3>
-                  <p className="text-xs text-slate-500">Add from catalog or create custom dishes per pax</p>
+                {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                  <div>
+                    <span className={LABEL_CLASS}>Requested scope</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {inquiry.custom_setup_scope.map((scope, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                        >
+                          <Check size={11} className="text-primary" /> {scope}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {inquiry.custom_setup_notes && (
+                  <p className="whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-2.5 leading-relaxed">
+                    {inquiry.custom_setup_notes}
+                  </p>
+                )}
+
+                {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {inquiry.inspiration_images.map((url, idx) => (
+                      <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block h-16 w-16 overflow-hidden rounded-md border border-slate-200 transition-colors hover:border-primary"
+                        title="Open full image in a new tab"
+                      >
+                        <img src={url} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+          )}
+
+          {/* --- 2. Package and starting price ------------------------------- */}
+          <SectionCard
+            step={2}
+            icon={Package}
+            title="Package and starting price"
+            description="The baseline this quotation is built from, before anything is added or removed."
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field
+                label="Package"
+                hint="The package cannot be changed here. Ask the customer to rebook to move to a different package."
+              >
+                <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <Lock size={13} className="shrink-0 text-slate-400" />
+                  <span className="truncate text-sm font-semibold text-slate-800" title={packageName}>
+                    {packageName || "Custom Package"}
+                  </span>
                 </div>
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 w-fit">
-                  {guestCount} Pax Guest Count
+              </Field>
+
+              <Field
+                label="Starting price"
+                required
+                error={errors.package_starting_price}
+                hint={
+                  totals.startingPrice > 0
+                    ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
+                    : "This package has no price on record. Enter the baseline for this quotation."
+                }
+                htmlFor="qb-package_starting_price"
+              >
+                <MoneyInput
+                  id="qb-package_starting_price"
+                  value={startingPrice}
+                  error={errors.package_starting_price}
+                  onChange={(value) => {
+                    setStartingPrice(nonNegative(value));
+                    clearError("package_starting_price");
+                    clearError("removed_inclusions");
+                  }}
+                />
+              </Field>
+            </div>
+
+            {/* The whole package calculation, in one line the admin can read. */}
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs">
+                <span className="text-slate-500">
+                  Starting price
+                  <strong className="ml-2 tabular-nums text-slate-800">
+                    {formatCurrency(totals.startingPrice)}
+                  </strong>
+                </span>
+                <span className="text-slate-500">
+                  Removed inclusions
+                  <strong
+                    className={`ml-2 tabular-nums ${
+                      totals.inclusionDeductions > 0 ? "text-emerald-700" : "text-slate-800"
+                    }`}
+                  >
+                    {totals.inclusionDeductions > 0
+                      ? `- ${formatCurrency(totals.inclusionDeductions)}`
+                      : formatCurrency(0)}
+                  </strong>
+                </span>
+                <span className="font-semibold text-slate-900">
+                  Adjusted package price
+                  <strong className="ml-2 tabular-nums text-primary">
+                    {formatCurrency(totals.packagePrice)}
+                  </strong>
                 </span>
               </div>
+            </div>
+          </SectionCard>
 
-              {/* Add from Catalog / Custom controls */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          {/* --- 3. Package inclusions --------------------------------------- */}
+          <SectionCard
+            step={3}
+            icon={Check}
+            title="Package inclusions"
+            description="Remove what the customer is not getting and state what each removal takes off the starting price."
+            aside={
+              <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                {keptInclusions.length} kept, {removedInclusions.length} removed
+              </span>
+            }
+          >
+            {errors.removed_inclusions && (
+              <p
+                id="qb-removed_inclusions"
+                className="mb-3 flex items-start gap-1.5 rounded-md border border-red-300 bg-red-50 p-2.5 text-[11.5px] font-medium leading-snug text-red-700"
+              >
+                <AlertCircle size={13} className="mt-[1px] shrink-0" />
+                {errors.removed_inclusions}
+              </p>
+            )}
+
+            {inclusions.length === 0 ? (
+              <p className="py-2 text-xs italic text-slate-400">
+                This package has no inclusions on record. Add the ones this quotation covers.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {inclusions.map((entry, index) => (
+                  <li
+                    key={index}
+                    className={`rounded-lg border p-2.5 transition-colors ${
+                      entry.removed
+                        ? "border-emerald-200 bg-emerald-50/50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            entry.removed ? "bg-emerald-500" : "bg-primary"
+                          }`}
+                        />
+                        <input
+                          id={`qb-inclusions.${index}.name`}
+                          type="text"
+                          value={entry.name}
+                          onChange={(e) => handleInclusionName(index, e.target.value)}
+                          placeholder="Inclusion description"
+                          className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${
+                            entry.removed ? "line-through decoration-slate-400" : ""
+                          }`}
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:shrink-0">
+                        {entry.removed && (
+                          <div className="w-36">
+                            <MoneyInput
+                              id={`qb-inclusions.${index}.deduction`}
+                              value={entry.deduction}
+                              error={errors[`inclusions.${index}.deduction`]}
+                              placeholder="Deduction"
+                              onChange={(value) => handleInclusionDeduction(index, value)}
+                              className="py-1.5 text-xs"
+                            />
+                          </div>
+                        )}
+
+                        {/* One control per row. A line that came with the
+                            package is removed by deducting it from the starting
+                            price; a line the admin typed in here was never in
+                            the package, so there is nothing to deduct and
+                            Remove simply takes it back off the list. */}
+                        {entry.removed ? (
+                          <RowAction
+                            onClick={() => toggleInclusionRemoved(index)}
+                            icon={Undo2}
+                            label="Restore"
+                            tone="neutral"
+                            title="Put this inclusion back into the package"
+                          />
+                        ) : (
+                          <RowAction
+                            onClick={() =>
+                              entry.fromPackage
+                                ? toggleInclusionRemoved(index)
+                                : handleDeleteInclusion(index)
+                            }
+                            icon={Trash2}
+                            label="Remove"
+                            title={
+                              entry.fromPackage
+                                ? "Remove this inclusion and deduct it from the starting price"
+                                : "Remove this inclusion from the list"
+                            }
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {(errors[`inclusions.${index}.name`] || errors[`inclusions.${index}.deduction`]) && (
+                      <p className="mt-1.5 flex items-start gap-1 pl-3.5 text-[11.5px] font-medium leading-snug text-red-700">
+                        <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                        {errors[`inclusions.${index}.name`] || errors[`inclusions.${index}.deduction`]}
+                      </p>
+                    )}
+
+                    {entry.removed && !errors[`inclusions.${index}.deduction`] && (
+                      <p className="mt-1.5 pl-3.5 text-[11.5px] text-emerald-700">
+                        Removed from the package. {formatCurrency(numberOf(entry.deduction))} comes off the
+                        starting price.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={newInclusion}
+                onChange={(e) => setNewInclusion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddInclusion();
+                  }
+                }}
+                placeholder="Add an inclusion this quotation covers"
+                className={`${inputClass(false)} text-xs`}
+              />
+              <button
+                type="button"
+                onClick={handleAddInclusion}
+                disabled={!newInclusion.trim()}
+                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
+              >
+                <Plus size={13} /> Add inclusion
+              </button>
+            </div>
+          </SectionCard>
+
+          {/* --- 4. Menu ----------------------------------------------------- */}
+          {!isSetupOnly && (
+            <SectionCard
+              step={stepNumbers.menu}
+              icon={cateringIncluded ? Utensils : UtensilsCrossed}
+              title="Menu"
+              description={
+                cateringIncluded
+                  ? "Dishes are priced per guest and multiplied by the guest count above."
+                  : "The customer's answer to catering on this booking."
+              }
+              aside={
+                cateringIncluded ? (
+                  <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
+                    {totals.guestCount} pax
+                  </span>
+                ) : null
+              }
+            >
+              {/* What the customer chose, stated plainly. An empty dish list and
+                  a declined catering request look identical otherwise, and one
+                  of them means the admin has lost the customer's selection. */}
+              <div
+                className={`mb-3 flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${
+                  cateringIncluded
+                    ? "border-primary/25 bg-primary/5 text-slate-700"
+                    : "border-slate-300 bg-slate-50 text-slate-700"
+                }`}
+              >
+                {cateringIncluded ? (
+                  <Utensils size={15} className="mt-0.5 shrink-0 text-primary" />
+                ) : (
+                  <UtensilsCrossed size={15} className="mt-0.5 shrink-0 text-slate-500" />
+                )}
+                <div className="min-w-0">
+                  {customerSelection.wantedFood ? (
+                    <>
+                      <p className="font-semibold text-slate-900">
+                        The customer asked for catering and chose{" "}
+                        {customerSelection.dishes.length}{" "}
+                        {customerSelection.dishes.length === 1 ? "dish" : "dishes"}.
+                      </p>
+                      {customerSelection.dishes.length > 0 ? (
+                        <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                          {customerSelection.dishes.map((dish, index) => (
+                            <li
+                              key={dish.id || index}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                            >
+                              <Check size={11} className="text-primary" />
+                              {dish.name || "Dish no longer in the catalog"}
+                              {dish.category && (
+                                <span className="text-slate-500">({dish.category})</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1">
+                          They did not pick specific dishes, so the menu is still open. Agree it with
+                          them before quoting a per guest rate.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-slate-900">
+                        The customer chose to skip catering on this booking.
+                      </p>
+                      <p className="mt-1">
+                        No food is being quoted and no food charges are included in the total. Only add
+                        dishes here if the customer has since asked for catering.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Catering can still be turned on or off here, because customers
+                  change their minds after booking and the quotation is where
+                  that gets settled. */}
+              <label className="mb-3 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={cateringIncluded}
+                  onChange={(e) => setDetail("include_food", e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/40"
+                />
+                <span>
+                  Include catering on this quotation
+                  {customerSelection.wantedFood !== cateringIncluded && (
+                    <span className="ml-1.5 font-semibold text-amber-700">
+                      (changed from what the customer submitted)
+                    </span>
+                  )}
+                </span>
+              </label>
+
+              {cateringIncluded && (
+              <>
+              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
                 <select
                   value={selectedCatalogDish}
                   onChange={(e) => setSelectedCatalogDish(e.target.value)}
-                  className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className={`${inputClass(false)} text-xs`}
                 >
-                  <option value="">-- Pick dish from Menu Catalog --</option>
+                  <option value="">Pick a dish from the menu catalog</option>
                   {catalogMenuItems.map((item) => (
                     <option key={item._id} value={item._id}>
-                      {item.name} ({item.category || "Dish"}) — ₱{item.price || 0}/pax
+                      {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
                     </option>
                   ))}
                 </select>
@@ -679,106 +1962,107 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   type="button"
                   onClick={handleAddCatalogDish}
                   disabled={!selectedCatalogDish}
-                  className="px-3 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-900 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
                 >
-                  <Plus size={13} /> Add Catalog Item
+                  <Plus size={13} /> Add dish
                 </button>
-                <span className="text-slate-300 hidden sm:inline">|</span>
                 <button
                   type="button"
-                  onClick={handleAddCustomDish}
-                  className="px-3 py-2 border border-slate-300 bg-white text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-1"
+                  onClick={() => setMenuItems((prev) => [...prev, { name: "", price: "", note: "" }])}
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  <Plus size={13} /> Add Custom Dish
+                  <Plus size={13} /> Custom dish
                 </button>
               </div>
 
-              {/* Menu Items List */}
               {menuItems.length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-4">No menu items added. Pick from catalog or add a custom dish above.</p>
+                <p className="py-3 text-center text-xs italic text-slate-500">
+                  No dishes on this quotation yet. Add the ones this event covers so they can be
+                  priced per guest.
+                </p>
               ) : (
-                <div className="space-y-3">
-                  {menuItems.map((item, idx) => {
-                    const itemSubtotal = cleanNum(item.price) * guestCount;
-                    return (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50/80 p-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-all">
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <ul className="space-y-2">
+                  {menuItems.map((item, index) => (
+                    <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                        <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
                           <input
+                            id={`qb-menu_items.${index}.name`}
                             type="text"
                             value={item.name}
-                            onChange={(e) => handleMenuChange(idx, "name", e.target.value)}
+                            onChange={(e) => handleMenuChange(index, "name", e.target.value)}
                             placeholder="Dish name"
-                            className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                            className={`${inputClass(errors[`menu_items.${index}.name`])} py-1.5 text-xs font-semibold`}
                           />
                           <input
                             type="text"
                             value={item.note || ""}
-                            onChange={(e) => handleMenuChange(idx, "note", e.target.value)}
-                            placeholder="Note / Category (optional)"
-                            className="px-3 py-2 border border-slate-300 rounded-lg text-xs text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                            onChange={(e) => handleMenuChange(index, "note", e.target.value)}
+                            placeholder="Note or category (optional)"
+                            className={`${inputClass(false)} py-1.5 text-xs`}
                           />
                         </div>
 
-                        <div className="flex items-center justify-between sm:justify-end gap-3">
-                          <div className="relative">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 text-xs">₱</span>
-                            <input
-                              type="number"
-                              min="0"
-                              onKeyDown={handleNonNegativeKeyDown}
+                        <div className="flex items-center gap-3 lg:shrink-0">
+                          <div className="w-32">
+                            <MoneyInput
+                              id={`qb-menu_items.${index}.price`}
                               value={item.price}
-                              onChange={(e) => handleMenuChange(idx, "price", e.target.value)}
-                              className="w-28 pl-6 pr-2.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              placeholder="Price / pax"
+                              placeholder="Per pax"
+                              error={errors[`menu_items.${index}.price`]}
+                              onChange={(value) => handleMenuChange(index, "price", value)}
+                              className="py-1.5 text-xs"
                             />
-                            <span className="text-[10px] text-slate-400 absolute right-2 -bottom-4">per pax</span>
                           </div>
-
-                          <div className="text-right min-w-[110px]">
-                            <span className="text-xs text-slate-400 block font-normal">Subtotal ({guestCount}x)</span>
-                            <span className="text-xs font-bold text-slate-800">{fmt(itemSubtotal)}</span>
+                          <div className="min-w-[104px] text-right">
+                            <span className="block text-[10px] uppercase tracking-wider text-slate-400">
+                              {totals.guestCount} pax
+                            </span>
+                            <span className="text-xs font-bold tabular-nums text-slate-800">
+                              {formatCurrency(money(item.price) * totals.guestCount)}
+                            </span>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMenuItem(idx)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                            title="Remove dish"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+                          <RowAction
+                            onClick={() => handleRemoveMenuItem(index)}
+                            icon={Trash2}
+                            label="Remove"
+                            title="Remove this dish from the quotation"
+                          />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                      {(errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]) && (
+                        <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                          <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                          {errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
-            </div>
+              </>
+              )}
+            </SectionCard>
           )}
 
-          {/* SECTION 4: Add-ons & Services Selection */}
+          {/* --- 5. Add-ons and services ------------------------------------- */}
           {!isFoodOnly && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                    <Sparkles size={18} className="text-primary" /> Add-ons &amp; Services
-                  </h3>
-                  <p className="text-xs text-slate-500">Supports fixed services (e.g. Entourage Setup) and quantity-based items</p>
-                </div>
-              </div>
-
-              {/* Add from Catalog / Custom controls */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <SectionCard
+              step={stepNumbers.addOns}
+              icon={Sparkles}
+              title="Add-ons and services"
+              description="The catalog holds the add-on names. The price is what you quote for this event."
+            >
+              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
                 <select
                   value={selectedCatalogAddon}
                   onChange={(e) => setSelectedCatalogAddon(e.target.value)}
-                  className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className={`${inputClass(false)} text-xs`}
                 >
-                  <option value="">-- Pick add-on from Global Catalog --</option>
+                  <option value="">Pick an add-on from the global catalog</option>
                   {catalogAddons.map((addon) => (
                     <option key={addon._id} value={addon._id}>
-                      {addon.name} ({addon.pricing_type === "quantity" ? "Qty-Based" : "Fixed"}) — ₱{addon.price || 0}
+                      {addon.name} ({addon.pricing_type === "quantity" ? "Quantity based" : "Fixed"})
                     </option>
                   ))}
                 </select>
@@ -786,341 +2070,562 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   type="button"
                   onClick={handleAddCatalogAddon}
                   disabled={!selectedCatalogAddon}
-                  className="px-3 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-900 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
                 >
-                  <Plus size={13} /> Add Catalog Service
+                  <Plus size={13} /> Add service
                 </button>
-                <span className="text-slate-300 hidden sm:inline">|</span>
                 <button
                   type="button"
-                  onClick={handleAddCustomAddon}
-                  className="px-3 py-2 border border-slate-300 bg-white text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-1"
+                  onClick={() =>
+                    setAddOns((prev) => [...prev, { name: "", price: "", quantity: 1, pricing_type: "fixed" }])
+                  }
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                 >
-                  <Plus size={13} /> Add Custom Service
+                  <Plus size={13} /> Custom service
                 </button>
               </div>
 
-              {/* Add-ons List */}
               {addOns.length === 0 ? (
-                <p className="text-xs text-slate-400 italic text-center py-4">No add-ons added. Pick from catalog or add a custom service above.</p>
-              ) : (
-                <div className="space-y-3">
-                  {addOns.map((item, idx) => {
-                    const isFixed = item.pricing_type === "fixed";
-                    const itemQty = isFixed ? 1 : Math.max(1, cleanNum(item.quantity));
-                    const itemSubtotal = cleanNum(item.price) * itemQty;
-                    return (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50/80 p-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-all">
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => handleAddOnChange(idx, "name", e.target.value)}
-                            placeholder="Add-on / Service Name"
-                            className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                          <select
-                            value={item.pricing_type || "fixed"}
-                            onChange={(e) => handleAddOnChange(idx, "pricing_type", e.target.value)}
-                            className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                          >
-                            <option value="fixed">Fixed / One-Time Service</option>
-                            <option value="quantity">Quantity-Based Pricing</option>
-                          </select>
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-3">
-                          {isFixed ? (
-                            <span className="px-2.5 py-2 text-xs font-bold rounded-lg bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
-                              Fixed (1x)
-                            </span>
-                          ) : (
-                            <div className="relative">
-                              <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-slate-400 text-xs">x</span>
-                              <input
-                                type="number"
-                                min="1"
-                                onKeyDown={handleNonNegativeKeyDown}
-                                value={item.quantity}
-                                onChange={(e) => handleAddOnChange(idx, "quantity", e.target.value)}
-                                className="w-20 pl-5 pr-2 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                placeholder="Qty"
-                              />
-                            </div>
-                          )}
-
-                          <div className="relative">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 text-xs">₱</span>
-                            <input
-                              type="number"
-                              min="0"
-                              onKeyDown={handleNonNegativeKeyDown}
-                              value={item.price}
-                              onChange={(e) => handleAddOnChange(idx, "price", e.target.value)}
-                              className="w-28 pl-6 pr-2.5 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              placeholder="Unit Price"
-                            />
-                          </div>
-
-                          <div className="text-right min-w-[90px]">
-                            <span className="text-xs text-slate-400 block font-normal">Subtotal</span>
-                            <span className="text-xs font-bold text-slate-800">{fmt(itemSubtotal)}</span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAddOn(idx)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                            title="Remove add-on"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* SECTION 5: Additional Fees & Logistics */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <h3 className="font-bold text-slate-800 text-base flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Truck size={18} className="text-primary" /> Logistics &amp; Additional Fees
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Transportation Fee (₱)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
-                  <input
-                    type="number"
-                    min="0"
-                    onKeyDown={handleNonNegativeKeyDown}
-                    value={transportationFee}
-                    onChange={(e) => setTransportationFee(sanitizeNonNegative(e.target.value))}
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-              {!isFoodOnly && (
-                <>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Equipment Fee (₱)</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
-                      <input
-                        type="number"
-                        min="0"
-                        onKeyDown={handleNonNegativeKeyDown}
-                        value={equipmentFee}
-                        onChange={(e) => setEquipmentFee(sanitizeNonNegative(e.target.value))}
-                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Decoration Fee (₱)</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
-                      <input
-                        type="number"
-                        min="0"
-                        onKeyDown={handleNonNegativeKeyDown}
-                        value={decorationFee}
-                        onChange={(e) => setDecorationFee(sanitizeNonNegative(e.target.value))}
-                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 6: Adjustments & Payment Terms */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <h3 className="font-bold text-slate-800 text-base flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Percent size={18} className="text-primary" /> Adjustments &amp; Payment Terms
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Taxes (₱)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
-                  <input
-                    type="number"
-                    min="0"
-                    onKeyDown={handleNonNegativeKeyDown}
-                    value={taxes}
-                    onChange={(e) => setTaxes(sanitizeNonNegative(e.target.value))}
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Discounts (₱)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
-                  <input
-                    type="number"
-                    min="0"
-                    onKeyDown={handleNonNegativeKeyDown}
-                    value={discounts}
-                    onChange={(e) => setDiscounts(sanitizeNonNegative(e.target.value))}
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Required Deposit (₱)</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-sm">₱</span>
-                  <input
-                    type="number"
-                    min="0"
-                    onKeyDown={handleNonNegativeKeyDown}
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(sanitizeNonNegative(e.target.value))}
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Notes for Customer</label>
-              <textarea
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                rows="3"
-                placeholder="Include special payment terms, venue guidelines, or quotation instructions for the customer..."
-                className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-              ></textarea>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Sticky Summary Panel */}
-        <div className="w-full lg:w-96 bg-[#0F172A] text-white p-6 rounded-2xl shadow-2xl flex flex-col h-full max-h-full overflow-y-auto shrink-0 border border-slate-800">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-lg mb-4 pb-3 border-b border-white/10">
-            <Calculator size={20} /> Quote Summary
-          </div>
-
-          <div className="space-y-3 flex-1 mb-6 text-sm">
-            {!isFoodOnly && cleanNum(packagePrice) > 0 && (
-              <div className="flex justify-between text-slate-300">
-                <span>Base Package</span>
-                <span>{fmt(packagePrice)}</span>
-              </div>
-            )}
-            {!isSetupOnly && menuItems.length > 0 && (
-              <div className="flex justify-between text-slate-300">
-                <span>Food ({guestCount} pax)</span>
-                <span>{fmt(menuSubtotal)}</span>
-              </div>
-            )}
-            {!isFoodOnly && addOns.length > 0 && (
-              <div className="flex justify-between text-slate-300">
-                <span>Add-ons &amp; Services</span>
-                <span>{fmt(addOnsSubtotal)}</span>
-              </div>
-            )}
-            {additionalFees > 0 && (
-              <div className="flex justify-between text-slate-300">
-                <span>Additional Fees</span>
-                <span>{fmt(additionalFees)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-slate-100 font-semibold border-t border-white/10 pt-2 mt-2">
-              <span>Subtotal</span>
-              <span>{fmt(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-slate-300 text-xs">
-              <span>Taxes</span>
-              <span>+ {fmt(taxes)}</span>
-            </div>
-            <div className="flex justify-between text-slate-300 text-xs">
-              <span>Discounts</span>
-              <span>- {fmt(discounts)}</span>
-            </div>
-
-            <div className="pt-4 mt-4 border-t border-white/10 flex justify-between font-bold text-lg">
-              <span>Total Cost</span>
-              <span className="text-emerald-400">{fmt(totalCost)}</span>
-            </div>
-            <div className="flex justify-between text-slate-400 text-xs mt-2">
-              <span>Required Deposit</span>
-              <span>{fmt(depositVal)}</span>
-            </div>
-            <div className="flex justify-between text-slate-400 text-xs">
-              <span>Remaining Balance</span>
-              <span>{fmt(remainingBalance)}</span>
-            </div>
-          </div>
-
-          {/* Pre-send Version Comparison Box */}
-          {quotation && (
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3.5 mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <RefreshCw size={14} className="text-amber-300 shrink-0" />
-                <span className="text-xs font-bold text-white">
-                  Changes to Version {(Number(quotation.version_number) || 1) + 1}.0
-                </span>
-              </div>
-
-              {pendingChanges.length === 0 ? (
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  No changes detected yet. Modify the quote items above before publishing a new version.
+                <p className="py-3 text-center text-xs italic text-slate-400">
+                  No add-ons on this quotation yet.
                 </p>
               ) : (
-                <ul className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  {pendingChanges.map((change, idx) => (
-                    <li key={idx} className="text-xs text-slate-300 leading-relaxed">
-                      <span className="font-semibold text-white">
-                        {change.name ? `${change.label}: ${change.name}` : change.label}
-                      </span>
-                      {change.detail ? (
-                        <span className="ml-1.5 text-emerald-300">{change.detail}</span>
-                      ) : (
-                        <span className="ml-1.5 inline-flex items-center gap-1 tabular-nums">
-                          <span className="text-slate-500 line-through">{change.from}</span>
-                          <ArrowRight size={10} className="text-slate-500 shrink-0" />
-                          <span className="font-semibold text-white">{change.to}</span>
-                        </span>
-                      )}
-                    </li>
-                  ))}
+                <ul className="space-y-2">
+                  {addOns.map((item, index) => {
+                    const isFixed = item.pricing_type === "fixed";
+                    const rowError =
+                      errors[`add_ons.${index}.name`] ||
+                      errors[`add_ons.${index}.price`] ||
+                      errors[`add_ons.${index}.quantity`];
+                    return (
+                      <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                          <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                            <input
+                              id={`qb-add_ons.${index}.name`}
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
+                              placeholder="Add-on or service name"
+                              className={`${inputClass(errors[`add_ons.${index}.name`])} py-1.5 text-xs font-semibold`}
+                            />
+                            <select
+                              value={item.pricing_type || "fixed"}
+                              onChange={(e) => handleAddOnChange(index, "pricing_type", e.target.value)}
+                              className={`${inputClass(false)} py-1.5 text-xs`}
+                            >
+                              <option value="fixed">Fixed, charged once</option>
+                              <option value="quantity">Quantity based, price per unit</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-3 lg:shrink-0">
+                            {isFixed ? (
+                              <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600">
+                                1x
+                              </span>
+                            ) : (
+                              <input
+                                id={`qb-add_ons.${index}.quantity`}
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
+                                className={`${inputClass(errors[`add_ons.${index}.quantity`])} w-20 py-1.5 text-xs font-semibold tabular-nums`}
+                              />
+                            )}
+
+                            <div className="w-32">
+                              <MoneyInput
+                                id={`qb-add_ons.${index}.price`}
+                                value={item.price}
+                                placeholder={isFixed ? "Quoted price" : "Unit price"}
+                                error={errors[`add_ons.${index}.price`]}
+                                onChange={(value) => handleAddOnChange(index, "price", value)}
+                                className="py-1.5 text-xs"
+                              />
+                            </div>
+
+                            <div className="min-w-[104px] text-right">
+                              <span className="block text-[10px] uppercase tracking-wider text-slate-400">
+                                Line total
+                              </span>
+                              <span className="text-xs font-bold tabular-nums text-slate-800">
+                                {formatCurrency(addOnLineTotal(item))}
+                              </span>
+                            </div>
+
+                            <RowAction
+                              onClick={() => handleRemoveAddOn(index)}
+                              icon={Trash2}
+                              label="Remove"
+                              title="Remove this add-on from the quotation"
+                            />
+                          </div>
+                        </div>
+                        {rowError && (
+                          <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                            <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                            {rowError}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
-            </div>
+            </SectionCard>
           )}
 
-          {/* Sticky Actions Footer */}
-          <div className="mt-auto flex flex-col gap-2.5 pt-3 border-t border-white/10">
+          {/* --- 6. Adjustments ---------------------------------------------- */}
+          <SectionCard
+            step={stepNumbers.adjustments}
+            icon={Percent}
+            title="Adjustments"
+            description="Transportation, any custom fees, then tax and discount applied to the subtotal."
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field
+                  label="Transportation"
+                  hint="Logistics and delivery for this event."
+                  htmlFor="qb-transportation_fee"
+                >
+                  <MoneyInput
+                    id="qb-transportation_fee"
+                    value={transportationFee}
+                    onChange={(value) => setTransportationFee(nonNegative(value))}
+                  />
+                </Field>
+                <Field label="Taxes" hint="Added to the subtotal." htmlFor="qb-taxes">
+                  <MoneyInput id="qb-taxes" value={taxes} onChange={(value) => setTaxes(nonNegative(value))} />
+                </Field>
+                <Field label="Discount" hint="Taken off the subtotal." htmlFor="qb-discounts">
+                  <MoneyInput
+                    id="qb-discounts"
+                    value={discounts}
+                    onChange={(value) => setDiscounts(nonNegative(value))}
+                  />
+                </Field>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Additional fees
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalFees((prev) => [...prev, { name: "", amount: "" }])}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-white/60"
+                  >
+                    <Plus size={12} /> Add fee
+                  </button>
+                </div>
+
+                {additionalFees.length === 0 ? (
+                  <p className="text-[11.5px] leading-snug text-slate-500">
+                    Add named one-off charges such as an overtime service or special equipment. Each one
+                    appears on the customer's quotation and is added to the total.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {additionalFees.map((fee, index) => {
+                      const rowError =
+                        errors[`additional_fees.${index}.name`] ||
+                        errors[`additional_fees.${index}.amount`];
+                      return (
+                        <li key={index}>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <input
+                              id={`qb-additional_fees.${index}.name`}
+                              type="text"
+                              value={fee.name}
+                              onChange={(e) => handleFeeChange(index, "name", e.target.value)}
+                              placeholder="Fee name, e.g. Overtime Service"
+                              className={`${inputClass(errors[`additional_fees.${index}.name`])} py-1.5 text-xs`}
+                            />
+                            <div className="w-full sm:w-40 sm:shrink-0">
+                              <MoneyInput
+                                id={`qb-additional_fees.${index}.amount`}
+                                value={fee.amount}
+                                error={errors[`additional_fees.${index}.amount`]}
+                                onChange={(value) => handleFeeChange(index, "amount", value)}
+                                className="py-1.5 text-xs"
+                              />
+                            </div>
+                            <RowAction
+                              onClick={() => handleRemoveFee(index)}
+                              icon={Trash2}
+                              label="Remove"
+                              title="Remove this fee from the quotation"
+                            />
+                          </div>
+                          {rowError && (
+                            <p className="mt-1 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                              <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                              {rowError}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* --- 7. Payment terms -------------------------------------------- */}
+          <SectionCard
+            step={stepNumbers.payment}
+            icon={CreditCard}
+            title="Payment terms"
+            description="What the customer pays to confirm the date, and how long this quotation stands."
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field
+                label="Required deposit"
+                required
+                error={errors.deposit_amount}
+                hint={`The standard deposit is ${depositPercentage} percent of the total.`}
+                htmlFor="qb-deposit_amount"
+              >
+                <MoneyInput
+                  id="qb-deposit_amount"
+                  value={depositAmount}
+                  error={errors.deposit_amount}
+                  onChange={(value) => {
+                    setDepositAmount(nonNegative(value));
+                    clearError("deposit_amount");
+                  }}
+                />
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {[...new Set([depositPercentage, 50, 100])].map((percent) => (
+                    <button
+                      key={percent}
+                      type="button"
+                      disabled={totals.totalCost <= 0}
+                      onClick={() => {
+                        setDepositAmount(String(money((totals.totalCost * percent) / 100)));
+                        clearError("deposit_amount");
+                      }}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
+                    >
+                      {percent} percent
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field
+                label="Quotation valid until"
+                required
+                error={errors.expiration_date}
+                hint="After this date the customer can no longer accept it."
+                htmlFor="qb-expiration_date"
+              >
+                <input
+                  id="qb-expiration_date"
+                  type="date"
+                  value={expirationDate}
+                  onChange={(e) => {
+                    setExpirationDate(e.target.value);
+                    clearError("expiration_date");
+                  }}
+                  className={inputClass(errors.expiration_date)}
+                />
+              </Field>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  Balance after deposit
+                </span>
+                <span className="mt-1 block text-lg font-bold tabular-nums text-slate-900">
+                  {formatCurrency(totals.remainingBalance)}
+                </span>
+                <span className="mt-0.5 block text-[11px] text-slate-500">
+                  Payable before the event.
+                </span>
+              </div>
+            </div>
+
+            <Field label="Notes for the customer" className="mt-3" htmlFor="qb-admin_notes">
+              <textarea
+                id="qb-admin_notes"
+                rows="3"
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder="Payment terms, venue guidelines, or anything the customer should read before accepting."
+                className={`${inputClass(false)} resize-y`}
+              />
+            </Field>
+          </SectionCard>
+
+          {warnings.length > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5">
+              <p className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                <AlertTriangle size={15} className="shrink-0" />
+                Worth checking before you send
+              </p>
+              <ul className="mt-2 space-y-1 pl-6 text-[11.5px] leading-snug text-amber-800">
+                {warnings.map((warning, index) => (
+                  <li key={index} className="list-disc">
+                    {warning}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* ------------------------------------------------------------------
+            Right column: the running total, always visible
+        ------------------------------------------------------------------ */}
+        <aside className="flex h-full w-full shrink-0 flex-col overflow-hidden rounded-xl bg-[#16264A] text-white lg:w-[360px]">
+          <div className="flex items-center gap-2 border-b border-white/10 px-5 py-4">
+            <Calculator size={17} className="text-primary" />
+            <span className="text-sm font-bold">Quotation summary</span>
+            {savedDraft ? (
+              <span className="ml-auto rounded-md bg-amber-400/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                Draft
+              </span>
+            ) : quotation ? (
+              <span className="ml-auto rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                v{(Number(quotation.version_number) || 1) + 1}.0
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Package
+              </p>
+              <SummaryRow label="Starting price" value={formatCurrency(totals.startingPrice)} />
+              {totals.inclusionDeductions > 0 && (
+                <SummaryRow
+                  label="Removed inclusions"
+                  detail={`(${removedInclusions.length})`}
+                  value={`- ${formatCurrency(totals.inclusionDeductions)}`}
+                  tone="deduct"
+                />
+              )}
+              <SummaryRow
+                label="Adjusted package price"
+                value={formatCurrency(totals.packagePrice)}
+                strong
+              />
+            </div>
+
+            <div className="space-y-2 border-t border-white/10 pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Added to the quote
+              </p>
+              {menuHeading && (
+                <SummaryRow
+                  label={menuHeading}
+                  detail={`(${menuItems.length} at ${totals.guestCount} pax)`}
+                  value={formatCurrency(totals.menuSubtotal)}
+                />
+              )}
+              {!isFoodOnly && (
+                <SummaryRow
+                  label="Add-ons and services"
+                  detail={`(${addOns.length})`}
+                  value={formatCurrency(totals.addOnsSubtotal)}
+                />
+              )}
+              <SummaryRow
+                label="Transportation"
+                value={formatCurrency(money(transportationFee))}
+              />
+              {additionalFees.map((fee, index) => (
+                <SummaryRow
+                  key={index}
+                  indent
+                  label={String(fee.name || "").trim() || "Unnamed fee"}
+                  value={formatCurrency(money(fee.amount))}
+                />
+              ))}
+            </div>
+
+            <div className="space-y-2 border-t border-white/10 pt-3">
+              <SummaryRow label="Subtotal" value={formatCurrency(totals.subtotal)} strong />
+              <SummaryRow label="Taxes" value={`+ ${formatCurrency(totals.taxes)}`} />
+              <SummaryRow
+                label="Discount"
+                value={totals.discounts > 0 ? `- ${formatCurrency(totals.discounts)}` : formatCurrency(0)}
+                tone={totals.discounts > 0 ? "deduct" : "default"}
+              />
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs font-semibold text-slate-300">Total</span>
+                <span className="text-xl font-bold tabular-nums text-white">
+                  {formatCurrency(totals.totalCost)}
+                </span>
+              </div>
+              <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+                <SummaryRow
+                  label="Deposit to confirm"
+                  value={formatCurrency(totals.depositAmount)}
+                  strong
+                />
+                <SummaryRow label="Balance before event" value={formatCurrency(totals.remainingBalance)} />
+              </div>
+              {!numberOf(depositAmount) && (
+                <p className="mt-3 flex items-start gap-1.5 rounded-md bg-red-500/15 p-2 text-[11px] font-medium leading-snug text-red-200">
+                  <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                  A deposit is required before this quotation can be sent.
+                </p>
+              )}
+            </div>
+
+            {quotation && (
+              <div className="rounded-lg border border-white/10 bg-white/5 p-3.5">
+                <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-white">
+                  <RefreshCw size={12} className="shrink-0 text-primary" />
+                  Changes in version {(Number(quotation.version_number) || 1) + 1}.0
+                </p>
+                {pendingChanges.length === 0 ? (
+                  <p className="text-[11px] leading-relaxed text-slate-400">
+                    Nothing has changed yet. Edit the quotation before publishing a new version.
+                  </p>
+                ) : (
+                  <ul className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                    {pendingChanges.map((change, index) => (
+                      <li key={index} className="text-[11px] leading-relaxed text-slate-300">
+                        <span className="font-semibold text-white">
+                          {change.name ? `${change.label}: ${change.name}` : change.label}
+                        </span>
+                        {change.detail ? (
+                          <span
+                            className={`ml-1.5 ${
+                              change.kind === "removed" ? "text-emerald-300" : "text-slate-200"
+                            }`}
+                          >
+                            {change.detail}
+                          </span>
+                        ) : (
+                          <span className="ml-1.5 inline-flex items-center gap-1 tabular-nums">
+                            <span className="text-slate-500 line-through">{change.from}</span>
+                            <ArrowRight size={10} className="shrink-0 text-slate-500" />
+                            <span className="font-semibold text-white">{change.to}</span>
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <p className="flex items-start gap-1.5 text-[11px] leading-snug text-slate-400">
+              <CalendarDays size={12} className="mt-[2px] shrink-0" />
+              Sending publishes this quotation to the customer straight away.
+            </p>
+          </div>
+
+          <div className="mt-auto flex flex-col gap-2 border-t border-white/10 px-5 py-4">
+            <button
+              type="submit"
+              disabled={submitting || savingDraft}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+            >
+              {submitting ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <Send size={15} />
+              )}
+              {submitting
+                ? "Sending"
+                : quotation
+                ? "Send revised quotation"
+                : "Send quotation"}
+            </button>
+            {/* Parks the work as it stands. Required fields are checked when
+                sending, not here, so an admin is never forced to invent a
+                deposit just to step away from a half-built quotation. */}
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-300 bg-white/5 rounded-xl hover:bg-white/10 transition-colors"
+              onClick={handleSaveDraft}
+              disabled={submitting || savingDraft}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-white/20 bg-white/5 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+            >
+              {savingDraft ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <Save size={14} />
+              )}
+              {savingDraft ? "Saving draft" : "Save draft"}
+            </button>
+            <button
+              type="button"
+              onClick={() => requestClose("cancel")}
+              className="rounded-md px-4 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-primary rounded-xl hover:bg-primary-hover transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
-            >
-              {submitting ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              ) : (
-                <Save size={16} />
-              )}
-              {submitting ? "Saving..." : (quotation ? "Send Revised Quotation" : "Send Quotation")}
-            </button>
           </div>
-        </div>
+        </aside>
       </form>
+
+      {/* Closing with work in progress. The X, the backdrop, Escape and Cancel
+          all land here rather than discarding silently. Leaving offers to keep
+          the work; Cancel is a deliberate throw-away, so it just asks once. */}
+      <AlertDialog open={closeIntent !== null} onOpenChange={(open) => !open && setCloseIntent(null)}>
+        <AlertDialogContent className="admin-shell">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-slate-900">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              {closeIntent === "cancel"
+                ? "Discard this quotation?"
+                : "Save this quotation as a draft before leaving?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600">
+              {closeIntent === "cancel"
+                ? "The changes you have made will be lost. The customer has not been sent anything."
+                : "You have changes that have not been saved. Save them as a draft and you can pick this up later."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setCloseIntent(null)}
+              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              Keep editing
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCloseIntent(null);
+                onClose();
+              }}
+              className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+            >
+              {closeIntent === "cancel" ? "Discard" : "Discard changes"}
+            </button>
+            {closeIntent === "leave" && (
+              <button
+                type="button"
+                onClick={handleSaveDraftAndClose}
+                disabled={savingDraft}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+              >
+                {savingDraft ? (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : (
+                  <Save size={14} />
+                )}
+                {savingDraft ? "Saving" : "Save as draft"}
+              </button>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Modal>
   );
 }

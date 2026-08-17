@@ -2,7 +2,9 @@ const mongoose = require("mongoose");
 
 const AddonSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  price: { type: Number, required: true },
+  // Not required: add-on prices are quoted per event by the team, not fixed
+  // at the catalog level.
+  price: { type: Number, default: 0 },
   description: { type: String },
   pricing_type: {
     type: String,

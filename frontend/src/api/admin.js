@@ -110,4 +110,6 @@ export const AdminAPI = {
   getAllQuotations: () => api.get("/quotations"),
   getQuotationsByInquiry: (inquiryId) => api.get(`/quotations/inquiry/${inquiryId}`),
   createQuotation: (data) => api.post("/quotations", data),
+  saveQuotationDraft: (data) => api.post("/quotations/draft", data),
+  discardQuotationDraft: (inquiryId) => api.delete(`/quotations/draft/${inquiryId}`),
 };

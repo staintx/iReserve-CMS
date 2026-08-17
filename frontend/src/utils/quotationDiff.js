@@ -31,7 +31,11 @@ const HEADLINE_FIELDS = [
  * substantive changes above them.
  */
 const FINANCIAL_FIELDS = [
+  { key: "package_starting_price", label: "Package starting price", format: money },
+  { key: "package_price", label: "Package price", format: money },
   { key: "transportation_fee", label: "Transportation", format: money },
+  // Kept so two quotations issued before custom fees existed still compare
+  // honestly. Nothing writes these fields any more.
   { key: "equipment_fee", label: "Equipment rental", format: money },
   { key: "decoration_fee", label: "Venue styling", format: money },
   { key: "discounts", label: "Discount", format: money },
@@ -48,8 +52,26 @@ const nameOf = (item) =>
       : (item || "")
   ).trim().toLowerCase();
 
-/** Diffs a list of line items (menu_items / add_ons) by name. */
-function diffLineItems(previous = [], current = [], { label, withQuantity }) {
+/**
+ * Diffs a list of named lines by name.
+ *
+ * Menu items, add-ons, removed inclusions and custom fees are all the same
+ * shape to this function: a name plus an amount, optionally multiplied by a
+ * quantity. `amountKey` says which field carries the money, and `addedDetail` /
+ * `removedDetail` say how appearing and disappearing should read, because
+ * gaining a fee and gaining a deduction mean opposite things to a customer.
+ */
+function diffLineItems(
+  previous = [],
+  current = [],
+  {
+    label,
+    withQuantity,
+    amountKey = "price",
+    addedDetail = (amount) => (amount > 0 ? `Added · +${money(amount)}` : "Added"),
+    removedDetail = () => "Removed",
+  }
+) {
   const changes = [];
   const prevList = Array.isArray(previous) ? previous.filter(Boolean) : [];
   const currList = Array.isArray(current) ? current.filter(Boolean) : [];
@@ -57,19 +79,20 @@ function diffLineItems(previous = [], current = [], { label, withQuantity }) {
   const prevByName = new Map(prevList.map((i) => [nameOf(i), i]));
   const currByName = new Map(currList.map((i) => [nameOf(i), i]));
 
+  const amountOf = (item) => Number(item?.[amountKey]) || 0;
+
   currByName.forEach((item, key) => {
     if (!key) return;
     const before = prevByName.get(key);
     const itemName = typeof item === "object" && item !== null ? (item.name || "") : String(item || "");
     if (!before) {
-      const unit = Number(item?.price) || 0;
       const qty = Number(item?.quantity) || 1;
-      const amount = withQuantity ? unit * qty : unit;
+      const amount = withQuantity ? amountOf(item) * qty : amountOf(item);
       changes.push({
         kind: "added",
         label,
         name: itemName,
-        detail: amount > 0 ? `Added · +${money(amount)}` : "Added",
+        detail: addedDetail(amount),
       });
       return;
     }
@@ -86,15 +109,15 @@ function diffLineItems(previous = [], current = [], { label, withQuantity }) {
       });
     }
 
-    const beforePrice = Number(before?.price) || 0;
-    const afterPrice = Number(item?.price) || 0;
-    if (beforePrice !== afterPrice) {
+    const beforeAmount = amountOf(before);
+    const afterAmount = amountOf(item);
+    if (beforeAmount !== afterAmount) {
       changes.push({
         kind: "updated",
         label,
         name: itemName,
-        from: money(beforePrice),
-        to: money(afterPrice),
+        from: money(beforeAmount),
+        to: money(afterAmount),
       });
     }
   });
@@ -103,7 +126,7 @@ function diffLineItems(previous = [], current = [], { label, withQuantity }) {
     if (!key) return;
     if (!currByName.has(key)) {
       const itemName = typeof item === "object" && item !== null ? (item.name || "") : String(item || "");
-      changes.push({ kind: "removed", label, name: itemName, detail: "Removed" });
+      changes.push({ kind: "removed", label, name: itemName, detail: removedDetail(amountOf(item)) });
     }
   });
 
@@ -139,6 +162,16 @@ export function diffQuotationVersions(previous, current) {
   // Ordered by what a customer cares about, not by schema order.
   return [
     ...diffScalars(HEADLINE_FIELDS),
+    // An inclusion appearing in removed_inclusions means it left the package,
+    // so "added to this list" has to read as a removal from the quote.
+    ...diffLineItems(previous?.removed_inclusions || [], current?.removed_inclusions || [], {
+      label: "Package inclusion",
+      withQuantity: false,
+      amountKey: "deduction",
+      addedDetail: (amount) =>
+        amount > 0 ? `Removed from package · -${money(amount)}` : "Removed from package",
+      removedDetail: () => "Restored to package",
+    }),
     ...diffLineItems(previous?.menu_items || [], current?.menu_items || [], {
       label: "Menu item",
       withQuantity: false,
@@ -146,6 +179,11 @@ export function diffQuotationVersions(previous, current) {
     ...diffLineItems(previous?.add_ons || [], current?.add_ons || [], {
       label: "Add-on",
       withQuantity: true,
+    }),
+    ...diffLineItems(previous?.additional_fees || [], current?.additional_fees || [], {
+      label: "Fee",
+      withQuantity: false,
+      amountKey: "amount",
     }),
     ...diffScalars(FINANCIAL_FIELDS),
   ];

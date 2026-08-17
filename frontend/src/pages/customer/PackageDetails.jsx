@@ -11,7 +11,6 @@ import {
   groupInclusions,
   guestRange,
   perGuestPrice,
-  peso,
   priceLabel,
   serviceLabel,
   serviceTypeForPackage,
@@ -312,10 +311,10 @@ export default function PackageDetails() {
                       type="button"
                       className="ls-btn ls-btn--ghost"
                       onClick={() =>
-                        navigate("/customer/book", { state: bookingState })
+                        navigate("/customer/book", { state: { resetWizard: true } })
                       }
                     >
-                      Request a quote
+                      Request Custom Booking
                     </button>
                   </div>
                 </div>
@@ -376,11 +375,9 @@ export default function PackageDetails() {
                   <ul className="ls-addon-list">
                     {addOns.map((item, index) => {
                       const name = typeof item === "string" ? item : item.name;
-                      const price = typeof item === "string" ? null : peso(item.price);
                       return (
                         <li key={`${name}-${index}`}>
                           <span>{name}</span>
-                          {price && <strong>{price}</strong>}
                         </li>
                       );
                     })}
@@ -453,10 +450,10 @@ export default function PackageDetails() {
                   type="button"
                   className="ls-btn ls-btn--light"
                   onClick={() =>
-                    navigate("/customer/book", { state: bookingState })
+                    navigate("/customer/book", { state: { resetWizard: true } })
                   }
                 >
-                  Request a quote
+                  Request Custom Booking
                 </button>
               </div>
             </div>

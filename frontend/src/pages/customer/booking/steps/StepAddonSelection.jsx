@@ -120,7 +120,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
                         </p>
                       )}
                       <p className="mt-1 text-[13px] font-semibold text-[#4C81E0]">
-                        {isFixed ? "One-time — priced on your quotation" : "Priced per unit on your quotation"}
+                        {isFixed ? "One-time, priced on your quotation" : "Priced per unit on your quotation"}
                       </p>
                     </div>
 

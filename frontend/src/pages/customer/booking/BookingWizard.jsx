@@ -33,11 +33,11 @@ import {
   buildEstimate,
   contactFieldError,
 } from "./lib/bookingRules";
+import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 
 // -----------------------------------------------------------------------------
 // Constants
 // -----------------------------------------------------------------------------
-const VALID_EVENT_TYPES = ["Birthday", "Wedding", "Corporate"];
 const MIN_DATE_OFFSET_DAYS = 3;
 
 // Drafts are namespaced per account so signing in as someone else in the same
@@ -93,17 +93,6 @@ const clearDraft = (userId) => {
   }
 };
 
-const determineEventTypeFromPackage = (pkg) => {
-  if (!pkg) return "";
-  if (pkg.event_type) return pkg.event_type;
-  const name = String(pkg.name || "").toLowerCase();
-  if (name.includes("wedding")) return "Wedding";
-  if (name.includes("birthday") || name.includes("debut")) return "Birthday / Debut";
-  if (name.includes("corporate")) return "Corporate Event";
-  if (name.includes("fiesta") || name.includes("party")) return "Social Party / Fiesta";
-  return "";
-};
-
 const parseName = (fullName) => {
   const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: "", lastName: "" };
@@ -137,16 +126,16 @@ export default function BookingWizard() {
   );
   const shouldSkipServiceType = Boolean(initialPackageId || matchedServiceType);
 
-  const matchedType = VALID_EVENT_TYPES.find(
-    (type) => type.toLowerCase() === initialEventType.toLowerCase(),
-  );
-  const isOtherEventType = initialEventType && !matchedType;
+  // The entry point suggests an event type; the customer can still change it on
+  // the Event Details step, and an admin can change it again while quoting.
+  const matchedType = matchEventType(initialEventType);
+  const startsAsOtherType = isOtherEventType(initialEventType);
 
   const buildInitialForm = useCallback(
     () => ({
       customer_id: user?._id || "",
-      event_type: matchedType || (isOtherEventType ? "Other" : ""),
-      event_type_other: isOtherEventType ? initialEventType : "",
+      event_type: matchedType || (startsAsOtherType ? OTHER_EVENT_TYPE : ""),
+      event_type_other: startsAsOtherType ? initialEventType : "",
       event_theme: "",
       event_palette: [],
       is_custom_setup: false,
@@ -692,11 +681,11 @@ export default function BookingWizard() {
 
         case "EventDetails": {
           const eventType =
-            form.event_type === "Other"
+            form.event_type === OTHER_EVENT_TYPE
               ? String(form.event_type_other || "").trim()
               : form.event_type;
           if (!eventType) {
-            errors[form.event_type === "Other" ? "event_type_other" : "event_type"] =
+            errors[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
               "Tell us what kind of event this is.";
           }
           if (!form.municipality)
@@ -949,7 +938,7 @@ export default function BookingWizard() {
     setIsSubmitting(true);
 
     const eventType =
-      (form.event_type === "Other"
+      (form.event_type === OTHER_EVENT_TYPE
         ? String(form.event_type_other || "").trim()
         : String(form.event_type || "").trim()) ||
       (isFoodOnly ? "Food Delivery" : "");

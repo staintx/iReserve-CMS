@@ -75,13 +75,17 @@ const calculateBookingPrice = async (body) => {
     ((Array.isArray(body.menu_items) && body.menu_items.length > 0) ||
       (Array.isArray(body.selected_menu) && body.selected_menu.length > 0));
 
-  if (body.package_id && !hasFood) {
+  if (body.package_id) {
     const pkg = await Package.findById(body.package_id);
     if (pkg) {
       const packageType = pkg.package_type || "Event Setup Only";
       if (packageType === "Event Setup Only") {
-        // Prefer an admin-selected scaffold option price when provided
+        // Setup is charged whether or not catering is ordered. Pricing is
+        // Setup Fee + Food Fee, the two are separate lines, and ordering food
+        // does not waive the setup. This matches bookingRules.buildEstimate,
+        // which is what the customer was shown while booking.
         let basePrice = Number(pkg.setup_price) || 0;
+        // Prefer an admin-selected scaffold option price when provided
         if (
           body.selected_scaffold_option_id &&
           Array.isArray(pkg.scaffold_size_options)
@@ -92,14 +96,17 @@ const calculateBookingPrice = async (body) => {
           if (opt) basePrice = Number(opt.price) || basePrice;
         }
         sum += basePrice;
-      } else {
+      } else if (!hasFood) {
+        // A per-guest package rate already covers the food it includes, so it
+        // is charged only when no separate menu is being billed below. Adding
+        // both would charge the customer for their dishes twice.
         const basePrice = Number(pkg.price_per_guest) || 0;
         sum += basePrice * guestCount;
       }
     }
   }
 
-  // Include food menu prices if food is included and dishes are selected (setup is free)
+  // Food menu prices, charged per guest on top of any setup fee above.
   if (hasFood && guestCount > 0) {
     if (Array.isArray(body.menu_items) && body.menu_items.length > 0) {
       for (const item of body.menu_items) {
@@ -2398,11 +2405,17 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     serviceItems = inquiry.service_items;
   }
 
-  // Additional charges from quotation fees
+  // Additional charges from quotation fees. The two named fee fields below are
+  // no longer written by the Quotation Builder, but quotations issued before
+  // custom fees existed still carry them and must not lose the charge here.
   const additionalCharges = [];
   if (quotation?.transportation_fee > 0) additionalCharges.push({ name: "Transportation Fee", amount: quotation.transportation_fee });
   if (quotation?.equipment_fee > 0) additionalCharges.push({ name: "Equipment Rental Fee", amount: quotation.equipment_fee });
   if (quotation?.decoration_fee > 0) additionalCharges.push({ name: "Styling & Decoration Fee", amount: quotation.decoration_fee });
+  (Array.isArray(quotation?.additional_fees) ? quotation.additional_fees : []).forEach((fee) => {
+    const amount = Number(fee?.amount) || 0;
+    if (amount > 0) additionalCharges.push({ name: fee?.name || "Additional Fee", amount });
+  });
 
   // Build inventory items for reservation from Package setup_equipment and inventory add-ons
   let inventoryItems = [];

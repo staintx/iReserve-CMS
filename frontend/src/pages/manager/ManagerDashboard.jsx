@@ -1,28 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
-import Modal from "../../components/common/Modal";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
+import Btn from "../../components/admin/ui/Btn";
+import Badge from "../../components/admin/ui/Badge";
+import ManagerEventCalendar from "../../components/dashboard/ManagerEventCalendar";
 import useToast from "../../hooks/useToast";
-
-const buildCalendar = (year, monthIndex) => {
-  const firstDay = new Date(year, monthIndex, 1);
-  const lastDay = new Date(year, monthIndex + 1, 0);
-  const startOffset = firstDay.getDay();
-  const days = [];
-
-  for (let i = 0; i < startOffset; i += 1) {
-    days.push({ label: "", date: null });
-  }
-
-  for (let day = 1; day <= lastDay.getDate(); day += 1) {
-    days.push({ label: String(day), date: new Date(year, monthIndex, day) });
-  }
-
-  return days;
-};
-
-const toDateKey = (date) => date.toLocaleDateString("en-CA");
+import { 
+  Calendar as CalendarIcon, 
+  Clock, 
+  CheckCircle2, 
+  AlertCircle, 
+  Users, 
+  ArrowRight, 
+  CalendarDays,
+  ShieldCheck,
+  Plus
+} from "lucide-react";
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -32,252 +28,196 @@ export default function ManagerDashboard() {
     quickActions: { pending: [], upcoming: [] },
     calendarEvents: []
   });
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
-  const [availability, setAvailability] = useState({ month: "", unavailable: [] });
-  const [selectedDates, setSelectedDates] = useState(new Set());
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [saving, setSaving] = useState(false);
+
+  const loadSummary = () => {
+    ManagerAPI.getSummary()
+      .then((res) => setSummary(res.data))
+      .catch(() => notify("Failed to load dashboard summary.", "error"));
+  };
 
   useEffect(() => {
-    ManagerAPI.getSummary().then((res) => setSummary(res.data));
+    loadSummary();
   }, []);
 
-  const now = new Date();
-  const calendarDays = useMemo(() => buildCalendar(now.getFullYear(), now.getMonth()), [now]);
-  const monthLabel = now.toLocaleString("default", { month: "long", year: "numeric" });
-
-  const availabilityMonthKey = useMemo(() => {
-    return `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`;
-  }, [calendarMonth]);
-
-  useEffect(() => {
-    if (!showCalendar) return;
-    ManagerAPI.getAvailability(availabilityMonthKey)
-      .then((res) => {
-        setAvailability(res.data);
-        setSelectedDates(new Set(res.data.unavailable || []));
-      })
-      .catch(() => {
-        setAvailability({ month: availabilityMonthKey, unavailable: [] });
-        setSelectedDates(new Set());
-      });
-  }, [availabilityMonthKey, showCalendar]);
-
-  const availabilityDays = useMemo(() => buildCalendar(calendarMonth.getFullYear(), calendarMonth.getMonth()), [calendarMonth]);
-  const availabilityLabel = calendarMonth.toLocaleString("default", { month: "long", year: "numeric" });
-
-  const eventsByDate = useMemo(() => {
-    const map = {};
-    summary.calendarEvents.forEach((event) => {
-      const dateKey = new Date(event.date).toDateString();
-      map[dateKey] = map[dateKey] || [];
-      map[dateKey].push(event);
-    });
-    return map;
-  }, [summary.calendarEvents]);
-
-  const toggleDate = (date) => {
-    if (!date) return;
-    const dateKey = toDateKey(date);
-
-    setSelectedDates((prev) => {
-      const next = new Set(prev);
-      if (next.has(dateKey)) {
-        next.delete(dateKey);
-      } else {
-        next.add(dateKey);
-      }
-      return next;
-    });
-  };
-
-  const saveAvailability = () => {
-    setSaving(true);
-    ManagerAPI.setAvailability(availabilityMonthKey, Array.from(selectedDates))
-      .then(() => notify("Availability updated.", "success"))
-      .catch((err) => notify(err.response?.data?.message || "We could not save your availability.", "error"))
-      .finally(() => setSaving(false));
-  };
+  const KPIS = [
+    { 
+      title: "Pending Staffing", 
+      value: summary.counts.pending || "0", 
+      sub: "Awaiting team dispatch", 
+      trend: "", 
+      up: false, 
+      color: "#F59E0B" 
+    },
+    { 
+      title: "Upcoming Scheduled", 
+      value: summary.counts.upcoming || "0", 
+      sub: "Staff assigned & ready", 
+      trend: "", 
+      up: true, 
+      color: "#4C81E0" 
+    },
+    { 
+      title: "Completed Events", 
+      value: summary.counts.completed || "0", 
+      sub: "This month", 
+      trend: "", 
+      up: true, 
+      color: "#22C55E" 
+    },
+    { 
+      title: "Assigned Roster", 
+      value: summary.calendarEvents?.length || "0", 
+      sub: "Total events under lead", 
+      trend: "", 
+      up: true, 
+      color: "#8B5CF6" 
+    },
+  ];
 
   return (
     <ManagerLayout>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="space-y-6">
+        {/* Page Header */}
+        <div className="flex items-center justify-between flex-wrap gap-4 pb-2 border-b border-border">
+          <div>
+            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
+              Event Logistics &amp; Staffing
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Assigned catering events from Admin — assign staff, coordinate logistics, and oversee schedules
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2.5">
+            <Btn 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => navigate("/manager/staff")}
+              className="border-border shadow-2xs flex items-center gap-1.5"
+            >
+              <Users size={14} className="text-primary" />
+              Staff Roster
+            </Btn>
+            <Btn 
+              variant="primary" 
+              size="sm" 
+              onClick={() => navigate("/manager/bookings")}
+              className="flex items-center gap-1.5"
+            >
+              <CalendarIcon size={14} />
+              Manage Bookings
+            </Btn>
+          </div>
+        </div>
+
+        {/* Top KPI Metrics Cards using KPICard (Same as Admin) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {KPIS.map((k) => (
+            <KPICard key={k.title} {...k} />
+          ))}
+        </div>
+
+        {/* Manager Availability & Event Calendar (Same style & layout as AdminEventCalendar) */}
         <div>
-          <h1 className="text-3xl font-semibold">Event Staffing &amp; Logistics</h1>
-          <p className="mt-2 text-sm text-slate-500">Assigned event from Admin - build your team</p>
+          <ManagerEventCalendar onSelectBooking={(b) => navigate(`/manager/bookings`)} />
         </div>
-        <button className="btn gap-2 uppercase" type="button" onClick={() => setShowCalendar(true)}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <path d="M8 2v4" />
-            <path d="M16 2v4" />
-            <path d="M3 10h18" />
-          </svg>
-          My Calendar
-        </button>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="kpi-card">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pending Events</p>
-          <p className="kpi-value">{summary.counts.pending}</p>
-          <p className="text-xs text-amber-600">Assigned by Admin</p>
-        </div>
-        <div className="kpi-card">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Upcoming Events</p>
-          <p className="kpi-value">{summary.counts.upcoming}</p>
-          <p className="text-xs text-emerald-600">Staff assigned &amp; scheduled</p>
-        </div>
-        <div className="kpi-card">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Completed This Month</p>
-          <p className="kpi-value">{summary.counts.completed}</p>
-          <p className="text-xs text-slate-500">Ready for review</p>
-        </div>
-      </div>
+        {/* Quick Action Panels */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Pending Events (Action Needed) */}
+          <AdminCard className="!p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="text-amber-600" size={17} />
+                <h3 className="text-sm font-bold text-foreground">Action Needed: Pending Staffing</h3>
+              </div>
+              <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                {(summary.quickActions.pending || []).length} Pending
+              </span>
+            </div>
 
-      <div className="section">
-        <div className="panel">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{monthLabel}</h2>
-            <span className="text-xs text-slate-500">Manager calendar</span>
-          </div>
-          <div className="mt-4 grid grid-cols-7 gap-2 text-xs text-slate-500">
-            {"Sun Mon Tue Wed Thu Fri Sat".split(" ").map((label) => (
-              <div key={label} className="text-center font-semibold">{label}</div>
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-7 gap-2">
-            {calendarDays.map((day, index) => {
-              const events = day.date ? eventsByDate[day.date.toDateString()] || [] : [];
-              return (
-                <div key={`${day.label}-${index}`} className="min-h-[70px] rounded-2xl border border-slate-200 bg-white p-2">
-                  <div className="text-xs font-semibold text-slate-500">{day.label}</div>
-                  {events.slice(0, 2).map((event) => (
-                    <div key={event.id} className="mt-1 rounded-xl bg-emerald-100 px-2 py-1 text-[10px] text-emerald-800">
-                      {event.customer}
+            {(summary.quickActions.pending || []).length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-4 text-center">
+                All assigned events have their staff teams dispatched! ✓
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {summary.quickActions.pending.map((booking) => (
+                  <div 
+                    key={booking._id} 
+                    className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-foreground">
+                        {booking.customer_id?.full_name || "Customer"} — {booking.event_type || "Event"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                        <span>Date: {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}</span>
+                        <span>•</span>
+                        <span>{booking.venue_type || "Venue"}</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
 
-      <div className="section grid gap-6 lg:grid-cols-2">
-        <div className="panel">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">Pending Event</h3>
-            <span className="text-xs text-slate-500">Quick action</span>
-          </div>
-          {summary.quickActions.pending.length === 0 && (
-            <p className="mt-4 text-sm text-slate-500">No pending events assigned.</p>
-          )}
-          {summary.quickActions.pending.map((booking) => (
-            <div key={booking._id} className="mt-4 rounded-2xl border border-sand-200 bg-sand-100 p-4 text-sm">
-              <div className="font-semibold text-ink-900">{booking.customer_id?.full_name || "Customer"}</div>
-              <div className="text-xs text-slate-500">Event: {booking.event_type || "Event"}</div>
-              <div className="mt-2 text-xs text-slate-500">
-                Date: {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="panel">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">Upcoming Event</h3>
-            <span className="text-xs text-slate-500">Quick action</span>
-          </div>
-          {summary.quickActions.upcoming.length === 0 && (
-            <p className="mt-4 text-sm text-slate-500">No upcoming events yet.</p>
-          )}
-          {summary.quickActions.upcoming.map((booking) => (
-            <div key={booking._id} className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
-              <div className="font-semibold text-ink-900">{booking.customer_id?.full_name || "Customer"}</div>
-              <div className="text-xs text-slate-500">Event: {booking.event_type || "Event"}</div>
-              <div className="mt-2 text-xs text-slate-500">
-                Date: {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {showCalendar && (
-        <Modal title="Set Availability" onClose={() => setShowCalendar(false)}>
-          <div className="space-y-6 text-sm">
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-xs text-blue-700">
-              <div className="mb-2 text-sm font-semibold text-ink-900">How to mark unavailable dates:</div>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>Click a date to toggle unavailable status</li>
-                <li>Click again to remove the mark</li>
-              </ul>
-            </div>
-
-            <div className="calendar-card">
-              <div className="calendar-head">
-                <div>
-                  <div className="calendar-title">{availabilityLabel}</div>
-                  <div className="text-xs text-slate-500">Tap to mark unavailable</div>
-                </div>
-                <div className="calendar-nav">
-                  <button
-                    className="calendar-nav-btn"
-                    type="button"
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
-                  >
-                    {"<"}
-                  </button>
-                  <button
-                    className="calendar-nav-btn"
-                    type="button"
-                    onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
-                  >
-                    {">"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="calendar-grid">
-                {"Sun Mon Tue Wed Thu Fri Sat".split(" ").map((label) => (
-                  <div key={label} className="calendar-weekday">{label}</div>
-                ))}
-                {availabilityDays.map((day, index) => {
-                  const dateKey = day.date ? toDateKey(day.date) : null;
-                  const isUnavailable = dateKey ? selectedDates.has(dateKey) : false;
-                  const cellClass = [
-                    "calendar-cell",
-                    !day.date ? "is-empty" : "",
-                    isUnavailable ? "bg-red-100 border-red-300" : ""
-                  ].join(" ").trim();
-
-                  return (
                     <button
-                      key={`${day.label}-${index}`}
-                      type="button"
-                      className={cellClass}
-                      onClick={() => toggleDate(day.date)}
-                      disabled={!day.date}
+                      onClick={() => navigate("/manager/bookings")}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
                     >
-                      {day.date ? <div className="calendar-day">{day.label}</div> : null}
-                      {isUnavailable && <div className="calendar-event">Unavailable</div>}
+                      <span>Assign Team</span>
+                      <ArrowRight size={12} />
                     </button>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
+            )}
+          </AdminCard>
+
+          {/* Upcoming Events */}
+          <AdminCard className="!p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="text-blue-600" size={17} />
+                <h3 className="text-sm font-bold text-foreground">Upcoming Scheduled Events</h3>
+              </div>
+              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                {(summary.quickActions.upcoming || []).length} Ready
+              </span>
             </div>
 
-            <div className="actions">
-              <button className="btn" type="button" onClick={saveAvailability} disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-              <button className="btn-outline" type="button" onClick={() => setShowCalendar(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+            {(summary.quickActions.upcoming || []).length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-4 text-center">
+                No upcoming events ready yet.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {summary.quickActions.upcoming.map((booking) => (
+                  <div 
+                    key={booking._id} 
+                    className="p-3.5 rounded-xl border border-slate-200 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-foreground">
+                        {booking.customer_id?.full_name || "Customer"} — {booking.event_type || "Event"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                        <span>Date: {booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}</span>
+                        <span>•</span>
+                        <span>{booking.start_time || "Time TBA"}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => navigate("/manager/bookings")}
+                      className="px-3 py-1.5 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors shrink-0 cursor-pointer"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </AdminCard>
+        </div>
+      </div>
     </ManagerLayout>
   );
 }

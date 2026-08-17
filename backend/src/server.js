@@ -29,6 +29,7 @@ const menuRoutes = require("./routes/menu.routes");
 const inventoryRoutes = require("./routes/inventory.routes");
 const galleryRoutes = require("./routes/gallery.routes");
 const staffRoutes = require("./routes/staff.routes");
+const managerRoutes = require("./routes/manager.routes");
 const reportRoutes = require("./routes/report.routes");
 const ratingRoutes = require("./routes/rating.routes");
 const systemLogRoutes = require("./routes/systemlog.routes");
@@ -84,7 +85,7 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/staff", staffRoutes);
-app.use("/api/manager", staffRoutes); // Alias for legacy manager routes
+app.use("/api/manager", managerRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/systemlogs", systemLogRoutes);

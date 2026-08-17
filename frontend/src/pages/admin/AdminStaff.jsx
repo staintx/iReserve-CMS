@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Eye, Plus, Edit3, Trash2, Calendar } from "lucide-react";
+import { Eye, Plus, Edit3, Trash2, Calendar, ShieldCheck, UserCheck, Users } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -23,12 +23,14 @@ export default function AdminStaff() {
   const { notify } = useToast();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [roleTab, setRoleTab] = useState("all"); // "all" | "manager" | "staff"
+  const [positionFilter, setPositionFilter] = useState("all");
 
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
+  const [modalRole, setModalRole] = useState("staff");
   const [activeStaff, setActiveStaff] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [drawerRow, setDrawerRow] = useState(null);
@@ -40,7 +42,7 @@ export default function AdminStaff() {
     setLoading(true);
     AdminAPI.getStaff()
       .then((res) => setStaff(Array.isArray(res.data) ? res.data : []))
-      .catch(() => notify("Failed to load staff", "error"))
+      .catch(() => notify("Failed to load staff & managers", "error"))
       .finally(() => setLoading(false));
   };
 
@@ -48,24 +50,43 @@ export default function AdminStaff() {
     loadData();
   }, []);
 
-  const positions = useMemo(() => {
-    const distinct = Array.from(new Set(staff.map((s) => s.position).filter(Boolean)));
-    return ["all", ...distinct];
+  const counts = useMemo(() => {
+    const managers = staff.filter((s) => s.role === "manager").length;
+    const staffMembers = staff.filter((s) => s.role === "staff" || !s.role).length;
+    return {
+      all: staff.length,
+      manager: managers,
+      staff: staffMembers
+    };
   }, [staff]);
 
+  const positions = useMemo(() => {
+    const subset = roleTab === "all" ? staff : staff.filter((s) => (s.role || "staff") === roleTab);
+    const distinct = Array.from(new Set(subset.map((s) => s.position).filter(Boolean)));
+    return ["all", ...distinct];
+  }, [staff, roleTab]);
+
   const filtered = staff.filter((s) => {
-    const matchSearch = !search || (s.full_name || "").toLowerCase().includes(search.toLowerCase());
-    const matchPosition = filter === "all" || s.position === filter;
+    const matchSearch = !search || 
+      (s.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (s.email || "").toLowerCase().includes(search.toLowerCase()) ||
+      (s.position || "").toLowerCase().includes(search.toLowerCase());
+    
+    const userRole = s.role || "staff";
+    const matchRole = roleTab === "all" || userRole === roleTab;
+    const matchPosition = positionFilter === "all" || s.position === positionFilter;
     const matchStatus = statusFilter === "all" || (statusFilter === "available" ? s.is_active : !s.is_active);
-    return matchSearch && matchPosition && matchStatus;
+
+    return matchSearch && matchRole && matchPosition && matchStatus;
   });
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
   const initials = (name) => (name || "?").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
-  const handleOpenModal = (member = null) => {
+  const handleOpenModal = (member = null, defaultRole = "staff") => {
     setActiveStaff(member);
+    setModalRole(member?.role || defaultRole);
     setShowModal(true);
   };
 
@@ -77,30 +98,44 @@ export default function AdminStaff() {
   const handleDelete = (id) => {
     AdminAPI.deleteStaff(id)
       .then(() => {
-        notify("Staff member deleted successfully", "success");
+        notify("Account deleted successfully", "success");
         setCancelTarget(null);
         setDrawerRow(null);
         loadData();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to delete staff member", "error"));
+      .catch((err) => notify(err.response?.data?.message || "Failed to delete account", "error"));
   };
 
-  // Staff isn't the busiest workflow, so it keeps 4 columns — the fields
-  // that actually support a quick roster scan — not Reservations' 6.
   const columns = [
     {
       key: "name",
-      header: "Staff Member",
+      header: "Staff / Manager Member",
       render: (s) => (
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-foreground shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+            s.role === "manager" ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-muted text-foreground"
+          }`}>
             {initials(s.full_name)}
           </div>
-          <span className="text-sm font-semibold text-foreground">{s.full_name}</span>
+          <div>
+            <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+              <span>{s.full_name}</span>
+              {s.role === "manager" ? (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold rounded">
+                  <ShieldCheck size={11} className="text-amber-600" /> Manager
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-medium rounded">
+                  Staff
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">{s.email || "No email"}</div>
+          </div>
         </div>
       ),
     },
-    { key: "position", header: "Position", render: (s) => <span className="text-xs text-foreground">{s.position || "—"}</span> },
+    { key: "position", header: "Position / Title", render: (s) => <span className="text-xs text-foreground font-medium">{s.position || (s.role === "manager" ? "Event Coordinator" : "—")}</span> },
     { key: "status", header: "Status", render: (s) => <Badge status={s.is_active ? "available" : "off"} /> },
     { key: "events", header: "Events Handled", className: "text-center", render: (s) => <span className="text-sm font-semibold text-foreground">{s.events_handled || 0}</span> },
     {
@@ -111,8 +146,8 @@ export default function AdminStaff() {
         <RowActionsMenu
           actions={[
             { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(s) },
-            { key: "edit", label: "Edit staff member", icon: Edit3, onSelect: () => handleOpenModal(s) },
-            { key: "delete", label: "Delete staff member", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(s) },
+            { key: "edit", label: "Edit account", icon: Edit3, onSelect: () => handleOpenModal(s) },
+            { key: "delete", label: "Delete account", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(s) },
           ]}
         />
       ),
@@ -123,21 +158,70 @@ export default function AdminStaff() {
     <AdminLayout>
       <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Staff Management</h2>
-          <div className="flex gap-2 flex-wrap">
-            <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}><Calendar size={13} /> View Schedule</Btn>
-            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Staff</Btn>
+          <div>
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+              Staff &amp; Managers
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Create and manage Event Manager and Staff portal accounts
+            </p>
           </div>
+
+          <div className="flex gap-2 flex-wrap items-center">
+            <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}>
+              <Calendar size={13} /> View Schedule
+            </Btn>
+            <Btn 
+              variant="secondary" 
+              size="sm" 
+              className="bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 font-bold"
+              onClick={() => handleOpenModal(null, "manager")}
+            >
+              <Plus size={13} className="text-amber-700" /> Add Manager
+            </Btn>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal(null, "staff")}>
+              <Plus size={13} /> Add Staff
+            </Btn>
+          </div>
+        </div>
+
+        {/* Role Tabs */}
+        <div className="flex items-center gap-2 p-1 bg-muted/60 border border-border rounded-xl w-fit">
+          {[
+            { id: "all", label: "All Accounts", count: counts.all },
+            { id: "manager", label: "Managers", count: counts.manager },
+            { id: "staff", label: "Staff", count: counts.staff }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setRoleTab(tab.id);
+                setPositionFilter("all");
+              }}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                roleTab === tab.id 
+                  ? "bg-card text-foreground shadow-2xs border border-border" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                roleTab === tab.id ? "bg-primary-100 text-primary-900" : "bg-muted text-muted-foreground"
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
 
         <AdminCard className="!p-4">
           <TableToolbar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search staff..."
+            searchPlaceholder="Search by name, email, or position..."
             quickFilters={positions.map((p) => ({ value: p, label: p === "all" ? "All Positions" : p }))}
-            activeQuickFilter={filter}
-            onQuickFilterChange={setFilter}
+            activeQuickFilter={positionFilter}
+            onQuickFilterChange={setPositionFilter}
             right={
               <FilterPopover
                 label="Status"
@@ -177,8 +261,8 @@ export default function AdminStaff() {
             rows={pageRows}
             getRowId={(s) => s._id}
             loading={loading}
-            emptyTitle="No staff found."
-            emptyHint={search || filter !== "all" || statusFilter !== "all" ? "Try adjusting your search or filters." : undefined}
+            emptyTitle="No accounts found."
+            emptyHint={search || positionFilter !== "all" || statusFilter !== "all" || roleTab !== "all" ? "Try adjusting your search or filters." : undefined}
             onRowClick={(s) => setDrawerRow(s)}
             minWidth="700px"
           />
@@ -189,6 +273,7 @@ export default function AdminStaff() {
       {showModal && (
         <StaffModal
           staff={activeStaff}
+          defaultRole={modalRole}
           onClose={handleCloseModal}
           onSave={() => {
             handleCloseModal();
@@ -199,8 +284,8 @@ export default function AdminStaff() {
 
       {cancelTarget && (
         <ConfirmDialog
-          title="Delete Staff Member"
-          message={`Are you sure you want to delete "${cancelTarget.full_name}"? This action cannot be undone.`}
+          title="Delete Account"
+          message={`Are you sure you want to delete "${cancelTarget.full_name}" (${cancelTarget.role === "manager" ? "Manager" : "Staff"})? This action cannot be undone.`}
           onConfirm={() => handleDelete(cancelTarget._id)}
           onCancel={() => setCancelTarget(null)}
           confirmText="Delete"
@@ -212,7 +297,7 @@ export default function AdminStaff() {
         open={!!drawerRow}
         onOpenChange={(open) => !open && setDrawerRow(null)}
         title={drawerRow?.full_name}
-        description={drawerRow?.position || ""}
+        description={drawerRow?.role === "manager" ? "Event Manager" : (drawerRow?.position || "Staff Member")}
         footer={
           drawerRow && (
             <>
@@ -233,10 +318,10 @@ export default function AdminStaff() {
                 onClick={() => {
                   const row = drawerRow;
                   setDrawerRow(null);
-                  handleOpenModal(row);
+                  handleOpenModal(row, row.role || "staff");
                 }}
               >
-                <Edit3 size={13} /> Edit staff member
+                <Edit3 size={13} /> Edit account
               </Btn>
             </>
           )
@@ -244,10 +329,19 @@ export default function AdminStaff() {
       >
         {drawerRow && (
           <div className="grid grid-cols-2 gap-4">
-            <DrawerField label="Phone" value={drawerRow.phone || "—"} />
-            <DrawerField label="Email" value={drawerRow.email || "—"} />
-            <DrawerField label="Position" value={drawerRow.position || "—"} />
+            <DrawerField label="Account Role" value={
+              <span className={`inline-flex items-center gap-1 font-bold text-xs ${
+                drawerRow.role === "manager" ? "text-amber-700" : "text-slate-700"
+              }`}>
+                {drawerRow.role === "manager" ? <ShieldCheck size={14} /> : <UserCheck size={14} />}
+                {drawerRow.role === "manager" ? "Event Manager" : "Staff Member"}
+              </span>
+            } />
             <DrawerField label="Status" value={<Badge status={drawerRow.is_active ? "available" : "off"} />} />
+            <DrawerField label="Position" value={drawerRow.position || "—"} />
+            <DrawerField label="Username" value={drawerRow.username || "—"} />
+            <DrawerField label="Phone" value={drawerRow.phone || "—"} />
+            <DrawerField label="Email" value={drawerRow.email || "—"} full />
             <DrawerField label="Events Handled" value={drawerRow.events_handled || 0} full />
           </div>
         )}

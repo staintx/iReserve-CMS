@@ -76,22 +76,184 @@ exports.removeStaff = asyncHandler(async (req, res) => {
 });
 
 exports.getMyBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ staff_ids: req.user._id })
-    .populate("customer_id")
-    .select("event_type event_date start_time duration_hours venue_type municipality street barangay status staff_assignments");
+  const bookings = await Booking.find({
+    "staff_assignments.user_id": req.user._id,
+    status: { $nin: ["Cancelled", "cancelled", "refunded"] }
+  })
+    .populate("customer_id", "full_name first_name last_name email phone")
+    .populate("event_manager_id", "full_name email phone")
+    .populate("staff_assignments.user_id", "full_name email phone position role")
+    .select("event_type event_date start_time duration_hours venue_type municipality street barangay status staff_assignments customer_id event_manager_id reference")
+    .sort({ event_date: 1 });
 
   const status = String(req.query.status || "").toLowerCase();
   if (!status) return res.json(bookings);
 
   if (status === "active") {
-    return res.json(bookings.filter((b) => ["pending deposit", "confirmed", "preparing", "ongoing"].includes(b.status)));
+    return res.json(
+      bookings.filter((b) =>
+        ["pending deposit", "Deposit Pending", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"].includes(b.status)
+      )
+    );
   }
 
   if (status === "completed") {
-    return res.json(bookings.filter((b) => b.status === "completed"));
+    return res.json(bookings.filter((b) => ["Completed", "completed"].includes(b.status)));
   }
 
   return res.json(bookings);
+});
+
+exports.getMyBooking = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    "staff_assignments.user_id": req.user._id
+  })
+    .populate("customer_id", "full_name first_name last_name email phone address")
+    .populate("event_manager_id", "full_name email phone")
+    .populate("staff_assignments.user_id", "full_name email phone position role")
+    .populate("inventory_items.inventory_id")
+    .populate("equipment_returns.inventory_id")
+    .populate("package_id");
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  res.json(booking);
+});
+
+exports.submitReport = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    "staff_assignments.user_id": req.user._id
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  const { note, role } = req.body;
+  if (!note || !note.trim()) {
+    return res.status(400).json({ message: "Report note is required" });
+  }
+
+  if (!Array.isArray(booking.staff_reports)) {
+    booking.staff_reports = [];
+  }
+
+  booking.staff_reports.push({
+    staff_id: req.user._id,
+    role: role || "Staff",
+    note: note.trim(),
+    created_at: new Date()
+  });
+
+  await booking.save();
+  res.json({ message: "Report submitted successfully", staff_reports: booking.staff_reports });
+});
+
+exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    "staff_assignments.user_id": req.user._id
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  const { returns, note } = req.body;
+
+  if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
+    booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
+      inventory_id: item.inventory_id,
+      name: item.name,
+      quantity_booked: item.quantity || 1,
+      quantity_returned: item.quantity || 1,
+      verified_at: new Date(),
+      verified_by: req.user._id
+    }));
+  }
+
+  if (Array.isArray(returns)) {
+    returns.forEach((ret) => {
+      const item = booking.equipment_returns.find(
+        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
+      );
+      if (item) {
+        item.quantity_returned = Math.max(0, Number(ret.quantity_returned || 0));
+        item.verified_at = new Date();
+        item.verified_by = req.user._id;
+      }
+    });
+  }
+
+  if (note && note.trim()) {
+    if (!Array.isArray(booking.staff_reports)) booking.staff_reports = [];
+    booking.staff_reports.push({
+      staff_id: req.user._id,
+      role: "Equipment Verification",
+      note: note.trim(),
+      created_at: new Date()
+    });
+  }
+
+  await booking.save();
+
+  const updated = await Booking.findById(booking._id).populate("equipment_returns.inventory_id");
+  res.json({ message: "Equipment returns updated successfully", equipment_returns: updated.equipment_returns });
+});
+
+exports.completeEvent = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    "staff_assignments.user_id": req.user._id
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Assigned event not found" });
+  }
+
+  if (req.body.note && req.body.note.trim()) {
+    if (!Array.isArray(booking.staff_reports)) booking.staff_reports = [];
+    booking.staff_reports.push({
+      staff_id: req.user._id,
+      role: req.body.role || "Staff",
+      note: req.body.note.trim(),
+      created_at: new Date()
+    });
+  }
+
+  if (Array.isArray(req.body.returns)) {
+    if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
+      booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
+        inventory_id: item.inventory_id,
+        name: item.name,
+        quantity_booked: item.quantity || 1,
+        quantity_returned: item.quantity || 1,
+        verified_at: new Date(),
+        verified_by: req.user._id
+      }));
+    }
+
+    req.body.returns.forEach((ret) => {
+      const item = booking.equipment_returns.find(
+        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
+      );
+      if (item) {
+        item.quantity_returned = Math.max(0, Number(ret.quantity_returned || 0));
+        item.verified_at = new Date();
+        item.verified_by = req.user._id;
+      }
+    });
+  }
+
+  booking.status = "Completed";
+  booking.completed_at = new Date();
+  await booking.save();
+
+  res.json({ message: "Event completed successfully", booking });
 });
 
 exports.getMyAvailability = asyncHandler(async (req, res) => {
@@ -108,8 +270,9 @@ exports.getMyAvailability = asyncHandler(async (req, res) => {
       date: { $gte: range.start, $lte: range.end }
     }).select("date"),
     Booking.find({
-      staff_ids: req.user._id,
-      event_date: { $gte: range.start, $lte: range.end }
+      "staff_assignments.user_id": req.user._id,
+      event_date: { $gte: range.start, $lte: range.end },
+      status: { $nin: ["Cancelled", "cancelled", "refunded"] }
     }).select("event_date status")
   ]);
 

@@ -782,11 +782,11 @@ export default function AdminQuoteDetails() {
           quote={quote}
           submitting={submitting}
           onClose={() => setShowConfirmConvert(false)}
-          onConfirm={() => {
+          onConfirm={(managerId) => {
             setSubmitting(true);
-            AdminAPI.createBookingFromInquiry(quote._id, {})
+            AdminAPI.createBookingFromInquiry(quote._id, { event_manager_id: managerId })
               .then(() => {
-                notify("Quotation converted to booking successfully!", "success");
+                notify("Quotation converted to booking successfully with assigned manager!", "success");
                 setShowConfirmConvert(false);
                 navigate("/admin/bookings/reservations");
               })

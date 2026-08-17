@@ -19,5 +19,6 @@ router.delete("/:id", inquiryController.deleteInquiry);
 // Admin only routes for updating
 router.use(authorize("admin", "manager"));
 router.put("/:id", inquiryController.updateInquiry);
+router.patch("/:id/archive", inquiryController.setInquiryArchived);
 
 module.exports = router;

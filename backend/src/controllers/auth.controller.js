@@ -26,7 +26,16 @@ const hashToken = (value) => crypto.createHash("sha256").update(value).digest("h
 
 exports.register = async (req, res, next) => {
   try {
-    const { full_name, email, password } = req.body;
+    const { first_name, last_name, full_name, email, password } = req.body;
+
+    // Accepts either shape. New clients send first/last; anything still
+    // posting a single full_name (an older cached bundle, an integration)
+    // keeps working and gets split by the model's pre-save hook.
+    const firstName = (first_name || "").trim();
+    const lastName = (last_name || "").trim();
+    if (!firstName && !String(full_name || "").trim()) {
+      return res.status(400).json({ message: "First name is required." });
+    }
 
     const existing = await User.findOne({ email });
     if (existing) {
@@ -40,6 +49,8 @@ exports.register = async (req, res, next) => {
     const otpHash = hashToken(otp);
 
     const user = await User.create({
+      first_name: firstName || undefined,
+      last_name: lastName || undefined,
       full_name,
       email,
       password: hashed,

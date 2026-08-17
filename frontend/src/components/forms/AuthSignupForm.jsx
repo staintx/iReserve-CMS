@@ -17,7 +17,7 @@ import PasswordRequirements from "../auth/PasswordRequirements";
 import { describePasswordGap } from "../auth/passwordPolicy";
 import { isEmail } from "@/lib/authErrors";
 
-const FIELD_ORDER = ["signup-name", "signup-email", "signup-password", "signup-confirm"];
+const FIELD_ORDER = ["signup-first-name", "signup-last-name", "signup-email", "signup-password", "signup-confirm"];
 
 /**
  * Registration. Two groups — who you are, and how you sign in — paired into
@@ -28,7 +28,7 @@ const FIELD_ORDER = ["signup-name", "signup-email", "signup-password", "signup-c
  * reports a mismatch as soon as both fields have content, never at submit time.
  */
 export default function AuthSignupForm({ onSubmit, loading = false, formError = null }) {
-  const [values, setValues] = useState({ full_name: "", email: "", password: "", confirm: "" });
+  const [values, setValues] = useState({ first_name: "", last_name: "", email: "", password: "", confirm: "" });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -38,9 +38,13 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
 
   const validate = (field, value, all = values) => {
     switch (field) {
-      case "full_name":
-        if (!value.trim()) return "Enter your full name.";
-        if (value.trim().length < 2) return "Enter your full name.";
+      case "first_name":
+        if (!value.trim()) return "Enter your first name.";
+        return "";
+      case "last_name":
+        // Captured separately so the booking flow can prefill a real surname
+        // instead of guessing one out of a single string.
+        if (!value.trim()) return "Enter your last name.";
         return "";
       case "email":
         if (!value.trim()) return "Enter your email address.";
@@ -84,18 +88,20 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
   const handleSubmit = (event) => {
     event.preventDefault();
     const nextErrors = {
-      full_name: validate("full_name", values.full_name),
+      first_name: validate("first_name", values.first_name),
+      last_name: validate("last_name", values.last_name),
       email: validate("email", values.email),
       password: validate("password", values.password),
       confirm: validate("confirm", values.confirm),
     };
     setErrors(nextErrors);
-    setTouched({ full_name: true, email: true, password: true, confirm: true });
+    setTouched({ first_name: true, last_name: true, email: true, password: true, confirm: true });
 
     if (Object.values(nextErrors).some(Boolean)) {
       focusFirstError(
         {
-          "signup-name": nextErrors.full_name,
+          "signup-first-name": nextErrors.first_name,
+          "signup-last-name": nextErrors.last_name,
           "signup-email": nextErrors.email,
           "signup-password": nextErrors.password,
           "signup-confirm": nextErrors.confirm,
@@ -106,7 +112,8 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
     }
 
     onSubmit({
-      full_name: values.full_name.trim(),
+      first_name: values.first_name.trim(),
+      last_name: values.last_name.trim(),
       email: values.email.trim(),
       password: values.password,
       "cf-turnstile-response": turnstileToken
@@ -129,18 +136,33 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
       <form className="space-y-5" onSubmit={handleSubmit} noValidate>
         <AuthSection label="Your details">
           <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-            <AuthField id="signup-name" label="Full name" error={fieldError("full_name")}>
+            <AuthField id="signup-first-name" label="First name" error={fieldError("first_name")}>
               <AuthInput
-                id="signup-name"
+                id="signup-first-name"
                 icon={UserRound}
-                autoComplete="name"
-                placeholder="Juan Dela Cruz"
-                value={values.full_name}
+                autoComplete="given-name"
+                placeholder="Juan"
+                value={values.first_name}
                 disabled={loading}
-                hasError={Boolean(fieldError("full_name"))}
-                describedBy={fieldError("full_name") ? "signup-name-error" : undefined}
-                onChange={handleChange("full_name")}
-                onBlur={handleBlur("full_name")}
+                hasError={Boolean(fieldError("first_name"))}
+                describedBy={fieldError("first_name") ? "signup-first-name-error" : undefined}
+                onChange={handleChange("first_name")}
+                onBlur={handleBlur("first_name")}
+              />
+            </AuthField>
+
+            <AuthField id="signup-last-name" label="Last name" error={fieldError("last_name")}>
+              <AuthInput
+                id="signup-last-name"
+                icon={UserRound}
+                autoComplete="family-name"
+                placeholder="Dela Cruz"
+                value={values.last_name}
+                disabled={loading}
+                hasError={Boolean(fieldError("last_name"))}
+                describedBy={fieldError("last_name") ? "signup-last-name-error" : undefined}
+                onChange={handleChange("last_name")}
+                onBlur={handleBlur("last_name")}
               />
             </AuthField>
 

@@ -63,13 +63,32 @@ export default function AdminReservations() {
   const [priceFilter, setPriceFilter] = useState({ pkgMin: "", pkgMax: "", addonMin: "", addonMax: "" });
   const [draftPriceFilter, setDraftPriceFilter] = useState({ pkgMin: "", pkgMax: "", addonMin: "", addonMax: "" });
 
-  const statuses = ["all", "confirmed", "pending deposit", "revised", "change requests", "completed", "cancelled"];
+  // "pending deposit" is no longer a tab: a quotation-backed booking waiting on
+  // its deposit belongs to Quotations, and the only unpaid bookings that reach
+  // this page are admin-created ones, which are called out on the row instead.
+  const statuses = ["all", "confirmed", "revised", "change requests", "completed", "cancelled"];
+
+  // Bookings the admin created directly have no quotation behind them, so they
+  // have nowhere to wait in Quotations. Inquiries are the only place that
+  // records the link (Inquiry.converted_booking_id), so they are loaded here
+  // purely to tell the two origins apart.
+  const [quotationBackedIds, setQuotationBackedIds] = useState(() => new Set());
 
   const loadData = () => {
     setLoading(true);
-    AdminAPI.getBookings()
-      .then((res) => {
-        setBookings(res.data || []);
+    Promise.all([
+      AdminAPI.getBookings(),
+      AdminAPI.getInquiries().catch(() => ({ data: [] })),
+    ])
+      .then(([bookingRes, inquiryRes]) => {
+        setBookings(bookingRes.data || []);
+        setQuotationBackedIds(
+          new Set(
+            (inquiryRes.data || [])
+              .filter((i) => i.converted_booking_id)
+              .map((i) => String(i.converted_booking_id?._id || i.converted_booking_id)),
+          ),
+        );
       })
       .catch(() => {
         notify("Failed to load bookings", "error");
@@ -134,6 +153,8 @@ export default function AdminReservations() {
           isRevised: Boolean(b.is_revised),
           revisionCount: b.revision_count || 0,
           coordinator: b.event_manager_id?.full_name || "Unassigned",
+          depositPaid: ["deposit_paid", "fully_paid"].includes(b.payment_status),
+          quotationBacked: quotationBackedIds.has(String(b._id)),
           basePackagePrice,
           addOnsPrice,
           discountAmount: Number(b.discount_amount || 0),
@@ -141,20 +162,42 @@ export default function AdminReservations() {
           rawBooking: b
         };
       });
-  }, [bookings]);
+  }, [bookings, quotationBackedIds]);
+
+  /**
+   * Reservations is confirmed bookings only.
+   *
+   * A booking earns its place here once the deposit is in (payment_status
+   * leaves "pending"), or once it is historic (completed/cancelled), which is
+   * what the Completed and Cancelled tabs are for. A quotation-backed booking
+   * still waiting on its deposit is deliberately absent — it is showing in
+   * Quotations, and having it in both was the duplication this pass removes.
+   *
+   * The one exception is a booking the admin created directly. It has no
+   * quotation to wait behind, so it stays visible here and is flagged on the
+   * row rather than disappearing from the panel entirely.
+   */
+  const inScope = useMemo(() => {
+    return formattedBookings.filter((r) => {
+      const historic = ["completed", "cancelled"].includes(r.rawStatus.toLowerCase());
+      return r.depositPaid || historic || !r.quotationBacked;
+    });
+  }, [formattedBookings]);
 
   // Compute Top KPI Metrics
   const kpiStats = useMemo(() => {
-    const total = formattedBookings.length;
-    const confirmed = formattedBookings.filter((r) => ["confirmed", "Confirmed", "Converted to Booking"].includes(r.rawStatus)).length;
-    const depositPending = formattedBookings.filter((r) => ["pending deposit", "Deposit Pending"].includes(r.rawStatus)).length;
-    const changeRequests = formattedBookings.filter((r) => r.hasChangeRequest).length;
+    const total = inScope.length;
+    const confirmed = inScope.filter((r) => ["confirmed", "Confirmed", "Converted to Booking"].includes(r.rawStatus)).length;
+    // Now means "admin-created and not yet paid" — the only unpaid bookings
+    // this section still holds.
+    const depositPending = inScope.filter((r) => !r.depositPaid && !r.quotationBacked).length;
+    const changeRequests = inScope.filter((r) => r.hasChangeRequest).length;
 
     return { total, confirmed, depositPending, changeRequests };
-  }, [formattedBookings]);
+  }, [inScope]);
 
   const filtered = useMemo(() => {
-    return formattedBookings.filter((r) => {
+    return inScope.filter((r) => {
       const matchStatus = filter === "all" || 
         (filter === "revised" && r.isRevised) ||
         r.status.toLowerCase() === filter.toLowerCase() || 
@@ -176,7 +219,7 @@ export default function AdminReservations() {
 
       return matchStatus && matchSearch && matchDateFrom && matchDateTo && matchPkgMin && matchPkgMax && matchAddonMin && matchAddonMax;
     });
-  }, [formattedBookings, filter, search, dateRange, priceFilter]);
+  }, [inScope, filter, search, dateRange, priceFilter]);
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
@@ -291,7 +334,16 @@ export default function AdminReservations() {
     { 
       key: "depositStatus", 
       header: "Deposit", 
-      render: (r) => <Badge status={r.depositStatus} /> 
+      render: (r) => (
+        <div className="flex flex-col items-start gap-1">
+          <Badge status={r.depositStatus} />
+          {/* Only reachable for admin-created bookings now — everything else
+              on this page has already paid. Says why it is here unpaid. */}
+          {!r.depositPaid && !r.quotationBacked && (
+            <span className="text-[10px] font-medium text-slate-500">Created by admin</span>
+          )}
+        </div>
+      ) 
     },
     {
       key: "actions",

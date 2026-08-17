@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Download, Plus, Eye, Check, Edit3, XCircle } from "lucide-react";
+import { Download, Plus, Eye, XCircle, Archive, ArchiveRestore, Inbox, Clock } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -33,6 +33,7 @@ export default function AdminInquiries() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
   const [bulkCancelConfirm, setBulkCancelConfirm] = useState(false);
 
   const [drawerRow, setDrawerRow] = useState(null);
@@ -41,7 +42,30 @@ export default function AdminInquiries() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [draftDateRange, setDraftDateRange] = useState({ from: "", to: "" });
 
-  const statuses = ["all", "Active Leads", "Pending Review", "Under Review", "Quotation Sent", "Awaiting Final Confirmation", "Archived / Concluded", "Converted to Booking", "Cancelled"];
+  /**
+   * Inquiries holds requests that are still pre-quotation.
+   *
+   * Once a quotation exists the record's home is the Quotations section, and
+   * once the deposit lands it is a Reservation. Keeping "Quotation Sent",
+   * "Awaiting Final Confirmation" and "Converted to Booking" here was showing
+   * the same live record in two or three places at once, which is exactly
+   * what this pass removes — the statuses are dropped from the data scope,
+   * not just hidden from the filter bar.
+   */
+  const ACTIVE_STATUSES = ["Pending Review", "Under Review", "Waiting for Customer"];
+
+  /**
+   * Archive is either an explicit admin filing decision (`archived`) or an
+   * end-of-life status the customer/admin already reached. Rejected and
+   * cancelled inquiries land here automatically rather than sitting in the
+   * active queue.
+   */
+  const CONCLUDED_STATUSES = ["Cancelled", "Quote Rejected", "Expired"];
+  const isArchived = (r) => r.archived || CONCLUDED_STATUSES.includes(r.status);
+
+  // "Active Leads" was a synonym for "all" once the non-active statuses left
+  // the page, so it is gone rather than duplicated.
+  const statuses = ["all", "Pending Review", "Under Review", "Waiting for Customer", "Archive"];
 
   const loadData = () => {
     setLoading(true);
@@ -83,25 +107,29 @@ export default function AdminInquiries() {
       finalPayment: b.payment_status === "fully_paid" ? "Paid" : "Pending",
       status: mappedStatus,
       rawStatus: b.status,
+      archived: Boolean(b.archived),
+      archivedAt: b.archived_at || null,
       coordinator: b.event_manager_id?.full_name || "—",
       total: b.total_price || 0,
     };
   });
 
-  const filtered = formattedBookings.filter((r) => {
-    let matchStatus = false;
-    if (filter === "all") {
-      matchStatus = true;
-    } else if (filter === "Active Leads") {
-      matchStatus = ["Pending Review", "Under Review", "Waiting for Customer"].includes(r.status);
-    } else if (filter === "Archived / Concluded") {
-      matchStatus = ["Converted to Booking", "Cancelled", "Quote Rejected", "Expired"].includes(r.status);
-    } else if (filter === "Recent") {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      matchStatus = r.createdAt && new Date(r.createdAt) >= sevenDaysAgo;
+  // Everything this page is allowed to show: pre-quotation work, plus the
+  // archive. Records that have moved on to Quotations or Reservations are not
+  // in scope at all, so no filter can surface them here.
+  const inScope = formattedBookings.filter(
+    (r) => ACTIVE_STATUSES.includes(r.status) || isArchived(r),
+  );
+
+  const filtered = inScope.filter((r) => {
+    const archived = isArchived(r);
+    let matchStatus;
+    if (filter === "Archive") {
+      matchStatus = archived;
+    } else if (filter === "all") {
+      matchStatus = !archived;
     } else {
-      matchStatus = r.status === filter;
+      matchStatus = !archived && r.status === filter;
     }
     const matchSearch = !search || r.customer.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
     const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
@@ -113,29 +141,68 @@ export default function AdminInquiries() {
 
 
 
+  // Counts come from `inScope`, not the filtered rows, so the cards keep
+  // reporting the section's real workload while a filter is applied.
+  const kpiStats = {
+    active: inScope.filter((r) => !isArchived(r)).length,
+    pending: inScope.filter((r) => !isArchived(r) && r.status === "Pending Review").length,
+    underReview: inScope.filter((r) => !isArchived(r) && r.status === "Under Review").length,
+    archived: inScope.filter((r) => isArchived(r)).length,
+  };
+
   const handleCancel = (id) => {
+    // Rejecting sets the lifecycle status; the Archive tab picks "Cancelled"
+    // up on its own, so there is no second write to keep in sync.
     AdminAPI.updateInquiry(id, { status: "Cancelled" })
       .then(() => {
-        notify("Booking cancelled successfully.", "success");
+        notify("Inquiry rejected", "success", { description: "You'll find it under Archive." });
         setCancelTarget(null);
         loadData();
       })
-      .catch((err) => notify(err.response?.data?.message || "Failed to cancel booking", "error"));
+      .catch((err) => notify(err.response?.data?.message || "Failed to reject inquiry", "error"));
+  };
+
+  const handleArchive = async (row, archived = true) => {
+    try {
+      await AdminAPI.setInquiryArchived(row._id, archived);
+      notify(archived ? "Inquiry archived" : "Inquiry restored", "success", {
+        description: archived
+          ? `${row.id} moved out of the active queue.`
+          : `${row.id} is back in the active queue.`,
+      });
+      setDrawerRow(null);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Could not update the archive state.", "error");
+    }
   };
 
   const cancellableSelected = selectedIds.filter((id) => {
     const r = filtered.find((x) => x._id === id);
-    return r && r.rawStatus !== "cancelled" && r.rawStatus !== "completed";
+    return r && !isArchived(r);
   });
 
-  const handleBulkCancel = async () => {
-    const ids = cancellableSelected;
-    const results = await Promise.allSettled(ids.map((id) => AdminAPI.updateInquiry(id, { status: "Cancelled" })));
+  // Selected rows that are already in the archive — the bulk action flips to
+  // "Restore" for those rather than offering to archive them again.
+  const restorableSelected = selectedIds.filter((id) => {
+    const r = filtered.find((x) => x._id === id);
+    return r && r.archived;
+  });
+
+  const handleBulkArchive = async (archived = true) => {
+    const ids = archived ? cancellableSelected : restorableSelected;
+    const results = await Promise.allSettled(
+      ids.map((id) => AdminAPI.setInquiryArchived(id, archived)),
+    );
     const failed = results.filter((r) => r.status === "rejected").length;
+    const verb = archived ? "archived" : "restored";
     if (failed === 0) {
-      notify(`${ids.length} booking${ids.length === 1 ? "" : "s"} cancelled.`, "success");
+      notify(`${ids.length} inquir${ids.length === 1 ? "y" : "ies"} ${verb}`, "success");
     } else {
-      notify(`${ids.length - failed} cancelled, ${failed} failed.`, failed === ids.length ? "error" : "warning");
+      notify(
+        `${ids.length - failed} ${verb}, ${failed} failed`,
+        failed === ids.length ? "error" : "warning",
+      );
     }
     setBulkCancelConfirm(false);
     setSelectedIds([]);
@@ -172,32 +239,34 @@ export default function AdminInquiries() {
       header: "Actions",
       stopRowClick: true,
       render: (r) => {
+        // Archived rows offer restore only. "Edit Quote" is gone because a
+        // quotation-stage record is no longer on this page at all.
+        if (isArchived(r)) {
+          return (
+            <div className="flex items-center gap-2">
+              {r.archived && (
+                <button onClick={() => handleArchive(r, false)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+                  <ArchiveRestore size={13} /> Restore
+                </button>
+              )}
+              <button onClick={() => setDrawerRow(r)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors ml-auto">
+                <Eye size={13} /> View
+              </button>
+            </div>
+          );
+        }
+
         return (
           <div className="flex items-center gap-2">
-            {["Pending Review", "Under Review", "Waiting for Customer"].includes(r.rawStatus) && (
-              <>
-                <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
-                  <Plus size={13} /> Create Quote
-                </button>
-                <button onClick={() => setCancelTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
-                  <XCircle size={13} /> Reject
-                </button>
-              </>
-            )}
-            
-            {(r.rawStatus === "Quotation Sent" || r.rawStatus === "Revision Requested") && (
-              <>
-                <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
-                  <Edit3 size={13} /> Edit Quote
-                </button>
-                <button onClick={() => setCancelTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
-                  <XCircle size={13} /> Reject
-                </button>
-              </>
-            )}
-
-
-
+            <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+              <Plus size={13} /> Create Quote
+            </button>
+            <button onClick={() => setCancelTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
+              <XCircle size={13} /> Reject
+            </button>
+            <button onClick={() => setArchiveTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+              <Archive size={13} /> Archive
+            </button>
             <button onClick={() => setDrawerRow(r)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors ml-auto">
               <Eye size={13} /> View
             </button>
@@ -231,21 +300,81 @@ export default function AdminInquiries() {
           />
         )}
 
+        {archiveTarget && (
+          <ConfirmDialog
+            title={`Archive inquiry ${archiveTarget.id}?`}
+            message="It leaves the active queue and moves to Archive. Nothing is deleted, and you can restore it from there at any time."
+            confirmText="Archive inquiry"
+            cancelText="Keep active"
+            onConfirm={() => handleArchive(archiveTarget)}
+            onCancel={() => setArchiveTarget(null)}
+          />
+        )}
+
         {bulkCancelConfirm && (
           <ConfirmDialog
-            title="Cancel Inquiries"
-            message={`Cancel ${cancellableSelected.length} selected booking${cancellableSelected.length === 1 ? "" : "s"}? This cannot be undone.`}
-            confirmText="Yes, cancel"
-            confirmVariant="danger"
-            onConfirm={handleBulkCancel}
+            title={`Archive ${cancellableSelected.length} inquir${cancellableSelected.length === 1 ? "y" : "ies"}?`}
+            message="They leave the active queue and move to Archive. Nothing is deleted, and you can restore them from there."
+            confirmText="Archive"
+            cancelText="Keep active"
+            onConfirm={() => handleBulkArchive(true)}
             onCancel={() => setBulkCancelConfirm(false)}
           />
         )}
 
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Inquiries</h2>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+              Inquiries
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Review incoming customer requests and prepare their quotation. Records move to Quotations once a quote is issued.
+            </p>
+          </div>
           <div className="flex gap-2 flex-wrap">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
+          </div>
+        </div>
+
+        {/* Top KPI Metric Cards — the same card pattern as Reservations and
+            Ocular Visits, so the section reads as part of the set. Four
+            counts that map to a decision, not metrics for their own sake. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+              <Inbox className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Active Inquiries</span>
+              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.active}</h3>
+            </div>
+          </div>
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Pending Review</span>
+              <h3 className="text-xl font-bold text-amber-900 mt-0.5">{kpiStats.pending}</h3>
+            </div>
+          </div>
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+              <Eye className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Under Review</span>
+              <h3 className="text-xl font-bold text-indigo-900 mt-0.5">{kpiStats.underReview}</h3>
+            </div>
+          </div>
+          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center shrink-0">
+              <Archive className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Archived</span>
+              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.archived}</h3>
+            </div>
           </div>
         </div>
 
@@ -257,11 +386,16 @@ export default function AdminInquiries() {
               onClear={() => setSelectedIds([])}
               actions={[
                 {
-                  key: "cancel",
-                  label: `Cancel${cancellableSelected.length ? ` (${cancellableSelected.length})` : ""}`,
-                  destructive: true,
+                  key: "archive",
+                  label: `Archive${cancellableSelected.length ? ` (${cancellableSelected.length})` : ""}`,
                   disabled: cancellableSelected.length === 0,
                   onSelect: () => setBulkCancelConfirm(true),
+                },
+                {
+                  key: "restore",
+                  label: `Restore${restorableSelected.length ? ` (${restorableSelected.length})` : ""}`,
+                  disabled: restorableSelected.length === 0,
+                  onSelect: () => handleBulkArchive(false),
                 },
               ]}
             />
@@ -349,18 +483,37 @@ export default function AdminInquiries() {
           footer={
             drawerRow && (
               <>
-                {drawerRow.rawStatus !== "cancelled" && drawerRow.rawStatus !== "completed" && (
-                  <Btn
-                    variant="danger"
-                    size="sm"
-                    onClick={() => {
-                      const row = drawerRow;
-                      setDrawerRow(null);
-                      setCancelTarget(row);
-                    }}
-                  >
-                    <XCircle size={13} /> Cancel inquiry
-                  </Btn>
+                {isArchived(drawerRow) ? (
+                  drawerRow.archived && (
+                    <Btn variant="secondary" size="sm" onClick={() => handleArchive(drawerRow, false)}>
+                      <ArchiveRestore size={13} /> Restore
+                    </Btn>
+                  )
+                ) : (
+                  <>
+                    <Btn
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        const row = drawerRow;
+                        setDrawerRow(null);
+                        setCancelTarget(row);
+                      }}
+                    >
+                      <XCircle size={13} /> Reject
+                    </Btn>
+                    <Btn
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        const row = drawerRow;
+                        setDrawerRow(null);
+                        setArchiveTarget(row);
+                      }}
+                    >
+                      <Archive size={13} /> Archive
+                    </Btn>
+                  </>
                 )}
                 <Btn variant="primary" size="sm" onClick={() => navigate(`/admin/quotes/${drawerRow._id}/details`)}>
                   Open full details

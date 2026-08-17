@@ -105,9 +105,26 @@ const InquirySchema = new mongoose.Schema(
         "Quote Rejected",
         "Expired",
         "Converted to Booking",
+        // Both the admin Reject action and the customer's own cancel have
+        // always written this value, but it was missing from the enum. It
+        // survived only because updateInquiry used findByIdAndUpdate without
+        // runValidators; the same write through .save() would have thrown.
+        "Cancelled",
       ],
       default: "Pending Review",
     },
+
+    /**
+     * Archive is an admin filing decision, deliberately separate from status.
+     *
+     * Status says where a request is in the lifecycle; archived says the admin
+     * no longer wants to see it in the active queue. Keeping them apart means
+     * a cancelled inquiry can still be un-archived without inventing a status
+     * to move it back to, and an admin can archive something at any status
+     * without corrupting the lifecycle.
+     */
+    archived: { type: Boolean, default: false },
+    archived_at: { type: Date },
     
     revision_count: { type: Number, default: 0 },
     
@@ -121,6 +138,8 @@ const InquirySchema = new mongoose.Schema(
 InquirySchema.index({ customer_id: 1 });
 InquirySchema.index({ status: 1 });
 InquirySchema.index({ reference: -1 });
+// The admin list is always scoped by archived state, and usually by status too.
+InquirySchema.index({ archived: 1, status: 1 });
 
 InquirySchema.pre("save", async function () {
   if (!this.reference) {

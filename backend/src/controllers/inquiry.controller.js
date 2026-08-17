@@ -3,6 +3,7 @@ const BlockedDate = require("../models/BlockedDate");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
+const { cateringRequested, serviceTypeForRequest } = require("../utils/catering");
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -11,6 +12,15 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     customer_id: req.user?._id || req.body.customer_id,
     status: "Pending Review",
   };
+
+  // The catering answer decides the service type, not the package the customer
+  // started from. Derived here as well as in the wizard so what is stored says
+  // the same thing whatever the client sent: a request that includes food is
+  // "Food and Event Setup" even if it began life on an Event Setup Only
+  // package, and one without food carries no menu.
+  payload.include_food = cateringRequested(payload);
+  payload.service_type = serviceTypeForRequest(payload);
+  if (!payload.include_food) payload.selected_menu = [];
 
   if (Array.isArray(payload.additional_services) && (!payload.service_items || payload.service_items.length === 0)) {
     payload.service_items = payload.additional_services.map(s => ({
@@ -119,9 +129,34 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
 
 // Admin updates inquiry (status, details)
 exports.updateInquiry = asyncHandler(async (req, res) => {
-  const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+  // runValidators: the enum was previously unenforced on this path, which is
+  // how "Cancelled" got written for months without being a legal value.
+  const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, {
+    returnDocument: "after",
+    runValidators: true,
+  });
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
-  
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
+
+  res.json(inquiry);
+});
+
+/**
+ * Archive / restore. Filing only — the lifecycle status is left alone, so an
+ * inquiry can be pulled back out of the archive exactly as it went in.
+ */
+exports.setInquiryArchived = asyncHandler(async (req, res) => {
+  const archived = req.body?.archived !== false;
+
+  const inquiry = await Inquiry.findByIdAndUpdate(
+    req.params.id,
+    { archived, archived_at: archived ? new Date() : null },
+    { returnDocument: "after", runValidators: true },
+  );
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
   const io = req.app.get("io");
   if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
 

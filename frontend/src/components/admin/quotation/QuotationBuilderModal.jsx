@@ -35,7 +35,10 @@ import {
   money,
 } from "../../../utils/quotationPricing";
 import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
-import { SERVICE_TYPES } from "../../../pages/customer/booking/lib/bookingRules";
+import {
+  SERVICE_TYPES,
+  cateringRequested,
+} from "../../../pages/customer/booking/lib/bookingRules";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency } from "../../../utils/format";
 import FeedbackDialog from "../../feedback/FeedbackDialog";
@@ -368,12 +371,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       );
     return {
       dishes,
-      // The booking flow only clears include_food through its own catering
-      // toggle, so a false here is an explicit "no catering", never a default.
-      wantedFood: inquiry?.service_type !== SERVICE_TYPES.SETUP_ONLY && inquiry?.include_food !== false,
+      // The customer's own answer, read from `include_food`. Their service type
+      // is not consulted: a setup package is labelled "Event Setup Only" from
+      // the moment it is opened, long before anyone is asked about food, and
+      // treating that label as the answer marked customers who had chosen
+      // catering — and picked dishes — as having skipped it.
+      wantedFood: cateringRequested(inquiry),
       serviceType: inquiry?.service_type || "",
     };
-  }, [inquiry?.selected_menu, inquiry?.include_food, inquiry?.service_type]);
+  }, [inquiry]);
 
   // A dish whose name never resolved means selected_menu came back unpopulated
   // or points at a deleted MenuItem. Silently rendering an id as a dish name
@@ -420,10 +426,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           event_date: toDateInput(inquiry?.event_date),
           start_time: inquiry?.start_time || "",
           guest_count: Number(inquiry?.guest_count) || 1,
+          // Derived from the catering answer rather than copied across, so a
+          // booking made on a setup package with food added opens as "Food and
+          // Event Setup" with the customer's menu in front of the admin. It
+          // used to open as setup only, hiding the menu behind a service type
+          // the admin had to change by hand before they could see it.
           service_type:
-            inquiry?.service_type ||
-            (inquiry?.include_food === false ? SERVICE_TYPES.SETUP_ONLY : SERVICE_TYPES.FULL_SERVICE),
-          include_food: inquiry?.include_food !== false,
+            inquiry?.service_type === SERVICE_TYPES.FOOD_ONLY
+              ? SERVICE_TYPES.FOOD_ONLY
+              : customerSelection.wantedFood
+                ? SERVICE_TYPES.FULL_SERVICE
+                : SERVICE_TYPES.SETUP_ONLY,
+          include_food: customerSelection.wantedFood,
           venue_type: inquiry?.venue_type || "",
           province: inquiry?.province || BATANGAS_PROVINCE,
           municipality: inquiry?.municipality || "",
@@ -552,8 +566,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         // nothing. A customer who declined catering gets no food lines at all,
         // so no food charge can reach a booking that did not ask for it.
         setMenuItems(
-          detailsFromInquiry.include_food === false ||
-            detailsFromInquiry.service_type === SERVICE_TYPES.SETUP_ONLY
+          !customerSelection.wantedFood
             ? []
             : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
                 if (item && typeof item === "object") {
@@ -918,6 +931,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const setDetail = (key, value) => {
     setDetails((prev) => ({ ...prev, [key]: value }));
     clearError(key);
+  };
+
+  /**
+   * Moving to or away from Event Setup Only carries the catering answer with it.
+   *
+   * The two are one decision on this form: setup only has no food, and either
+   * of the other two does. Left unlinked, switching to Food and Event Setup
+   * revealed a menu section whose own catering checkbox was still off, which
+   * is what made a quotation announce that catering had been skipped while the
+   * admin was looking at the dishes.
+   */
+  const handleServiceTypeChange = (value) => {
+    setDetails((prev) => ({
+      ...prev,
+      service_type: value,
+      include_food: value !== SERVICE_TYPES.SETUP_ONLY,
+    }));
+    clearError("service_type");
   };
 
   /* --- Inclusion handlers ------------------------------------------------- */
@@ -1447,7 +1478,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   <select
                     id="qb-service_type"
                     value={details.service_type}
-                    onChange={(e) => setDetail("service_type", e.target.value)}
+                    onChange={(e) => handleServiceTypeChange(e.target.value)}
                     className={inputClass(false)}
                   >
                     {Object.values(SERVICE_TYPES).map((type) => (

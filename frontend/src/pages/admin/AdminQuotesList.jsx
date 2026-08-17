@@ -22,6 +22,13 @@ import {
   History
 } from "lucide-react";
 
+/** Version pill in the revision history: unsent draft, current, or superseded. */
+function versionBadgeTone(isDraft, isLatestIssued) {
+  if (isDraft) return "bg-amber-100 text-amber-800";
+  if (isLatestIssued) return "bg-emerald-100 text-emerald-800";
+  return "bg-slate-100 text-slate-600";
+}
+
 export default function AdminQuotesList() {
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -66,9 +73,16 @@ export default function AdminQuotesList() {
 
     return Object.values(groups).map(versionList => {
       versionList.sort((a, b) => (b.version_number || 1) - (a.version_number || 1));
-      const latest = versionList[0];
+      // A draft carries the next version number but has never been issued, so
+      // it must not stand in for the version the customer is actually holding.
+      // It would otherwise replace a Sent quotation's status and total here,
+      // and drop that quotation out of the counts above.
+      const issued = versionList.filter(q => q.status !== "Draft");
+      const draft = versionList.find(q => q.status === "Draft") || null;
+      const latest = issued[0] || draft;
       return {
         ...latest,
+        hasDraft: Boolean(draft),
         history: versionList
       };
     });
@@ -102,6 +116,7 @@ export default function AdminQuotesList() {
         eventDate: inq.event_date,
         guestCount: q.guest_count || inq.guest_count,
         status: q.status,
+        hasDraft: Boolean(q.hasDraft),
         version: q.version_number || 1,
         totalCost: q.total_cost || 0,
         history: q.history || [q]
@@ -325,7 +340,14 @@ export default function AdminQuotesList() {
                             )}
                           </td>
                           <td className="py-4 px-6">
-                            {getStatusBadge(item.status)}
+                            <div className="flex flex-col items-start gap-1.5">
+                              {getStatusBadge(item.status)}
+                              {item.hasDraft && item.status !== "Draft" && (
+                                <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                                  Draft in progress
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6 text-right">
                             <button
@@ -351,18 +373,24 @@ export default function AdminQuotesList() {
                                   <span className="text-[11px] text-slate-500 font-medium">Total Versions: {item.history.length}</span>
                                 </div>
                                 <div className="divide-y divide-slate-100 border border-slate-100 rounded-md overflow-hidden text-xs">
-                                  {item.history.map((ver, idx) => (
+                                  {item.history.map((ver, idx) => {
+                                    // A draft was never issued, so it is neither
+                                    // the latest version nor something with an
+                                    // issue date to report.
+                                    const isDraft = ver.status === "Draft";
+                                    const isLatestIssued = !isDraft && !item.history.slice(0, idx).some(v => v.status !== "Draft");
+                                    return (
                                     <div key={ver._id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
                                       <div className="flex items-center gap-3">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${idx === 0 ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
-                                          v{ver.version_number || 1} {idx === 0 ? "(Latest)" : ""}
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${versionBadgeTone(isDraft, isLatestIssued)}`}>
+                                          v{ver.version_number || 1} {isDraft ? "(Draft)" : isLatestIssued ? "(Latest)" : ""}
                                         </span>
                                         <span className="font-mono font-semibold text-slate-800">
                                           {ver.quotation_number || `QTN-${ver._id.slice(-6).toUpperCase()}`}
                                         </span>
                                         <span className="text-slate-400">|</span>
                                         <span className="text-slate-500">
-                                          Issued: {ver.createdAt ? new Date(ver.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"}
+                                          {isDraft ? "Not sent" : `Issued: ${ver.createdAt ? new Date(ver.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "N/A"}`}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-4">
@@ -372,7 +400,8 @@ export default function AdminQuotesList() {
                                         {getStatusBadge(ver.status)}
                                       </div>
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </td>

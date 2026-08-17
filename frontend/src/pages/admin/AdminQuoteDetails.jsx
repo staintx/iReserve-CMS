@@ -115,6 +115,9 @@ export default function AdminQuoteDetails() {
     );
   }
 
+  // A saved draft leaves the inquiry's status untouched, so without this the
+  // only way to discover unfinished work would be to open the builder.
+  const hasDraft = quotations.some((q) => q.status === "Draft");
   const isPendingReview = ["Pending Review", "Under Review", "Waiting for Customer"].includes(quote.status);
   const isRevisionRequested = quote.status === "Revision Requested";
   const isQuotationSent = quote.status === "Quotation Sent";
@@ -165,7 +168,9 @@ export default function AdminQuoteDetails() {
                 onClick={() => setShowConvertModal(true)}
               >
                 <Activity size={14} className="text-primary-400" />
-                {isPendingReview
+                {hasDraft
+                  ? "Resume Draft Quotation"
+                  : isPendingReview
                   ? "Create Quotation"
                   : isRevisionRequested
                   ? "Revise Quotation"
@@ -187,6 +192,28 @@ export default function AdminQuoteDetails() {
         </div>
 
         {/* --- Contextual Status Banners (Compact) --- */}
+        {hasDraft && (
+          <div className="p-3 sm:p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-1.5 bg-amber-500 text-white rounded-md shrink-0">
+                <FileText size={15} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-bold text-amber-950 text-xs sm:text-sm leading-tight">Unfinished Quotation Draft</h4>
+                <p className="text-[11px] text-amber-700 mt-0.5">
+                  Someone started this quotation and saved it without sending. The customer has not seen it.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowConvertModal(true)}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0"
+            >
+              Resume Draft
+            </button>
+          </div>
+        )}
+
         {isQuotationSent && (
           <div className="p-3 sm:p-3.5 bg-blue-50/90 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5 min-w-0">

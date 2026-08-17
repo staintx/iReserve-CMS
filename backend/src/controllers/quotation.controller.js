@@ -10,6 +10,27 @@ const verifyCustomerOwnership = (inquiry, userId) => {
   return String(customerId) === String(userId);
 };
 
+/**
+ * Whether an event date is already behind us.
+ *
+ * Compared at day granularity: an event happening later today is still ahead,
+ * and only a date whose whole day has passed counts as past. A missing date is
+ * not treated as past; the required-field check owns that case.
+ */
+function isPastEventDate(value) {
+  if (!value) return false;
+  const eventDate = new Date(value);
+  if (Number.isNaN(eventDate.getTime())) return false;
+  const startOfEventDay = new Date(
+    eventDate.getFullYear(),
+    eventDate.getMonth(),
+    eventDate.getDate()
+  );
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return startOfEventDay < startOfToday;
+}
+
 /** Peso amounts inside validation messages, so the admin reads real figures. */
 const peso = (value) =>
   `PHP ${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -261,6 +282,16 @@ exports.createQuotation = asyncHandler(async (req, res) => {
   const totals = computeQuotationTotals(req.body);
 
   const errors = validateQuotationPayload(req.body, totals);
+
+  // The event date lives on the inquiry, which the builder saves just before
+  // sending, so it is checked here rather than against the request body. A
+  // quotation for a date that has already gone cannot be accepted, paid, or
+  // scheduled, so it must not be issued however the request was made.
+  if (isPastEventDate(inquiry.event_date)) {
+    errors.event_date =
+      "This event date has already passed. Update the event date before sending the quotation.";
+  }
+
   const firstError = Object.values(errors)[0];
   if (firstError) {
     return res.status(400).json({ message: firstError, errors });

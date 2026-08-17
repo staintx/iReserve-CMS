@@ -132,9 +132,11 @@ export default function CustomerLayout({
     navigate(item.to);
   };
 
-  const goToBooking = () => {
+  // Matches the landing page's "Book Now" CTA: both send customers straight
+  // to the packages catalog rather than into the booking wizard.
+  const goToPackages = () => {
     setDrawerOpen(false);
-    navigate("/customer/book", { state: { resetWizard: true } });
+    navigate("/packages");
   };
 
   const navHref = (item) => (item.section ? `/#${item.section}` : item.to);
@@ -209,7 +211,7 @@ export default function CustomerLayout({
             <button
               type="button"
               className="ls-btn ls-btn--sm ls-btn--primary"
-              onClick={goToBooking}
+              onClick={goToPackages}
             >
               Book an Event
             </button>
@@ -400,7 +402,7 @@ export default function CustomerLayout({
               <button
                 type="button"
                 className="ls-btn ls-btn--primary ls-btn--block"
-                onClick={goToBooking}
+                onClick={goToPackages}
               >
                 Book an Event
               </button>

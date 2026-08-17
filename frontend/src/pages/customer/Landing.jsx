@@ -2,20 +2,14 @@ import CustomerLayout from "../../components/layout/CustomerLayout";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
-import { X } from "lucide-react";
 import CustomerFooter from "../../components/layout/CustomerFooter";
 import { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import useRevealOnScroll from "../../hooks/useRevealOnScroll";
 import {
   capacityLabel,
-  peso,
   positiveNumbers,
   priceLabel,
 } from "../../lib/packageDisplay";
-import {
-  SERVICE_PATHS,
-  WHAT_HAPPENS_NEXT,
-} from "./booking/lib/bookingRules";
 
 // One large tile plus four small ones tiles the feature grid exactly.
 const GALLERY_PREVIEW_COUNT = 5;
@@ -47,86 +41,6 @@ const BOOKING_STEPS = [
   },
 ];
 
-// Booking-wizard vocabulary. `service_type` (used by the wizard) and
-// `package_type` (stored on the package) differ for the combined option —
-// see PACKAGE_TYPE_BY_SERVICE_TYPE in the booking flow's bookingRules module.
-const SERVICE_CARDS = [
-  {
-    serviceType: "Food Only",
-    packageType: "Food Only",
-    title: "Food only",
-    description:
-      "We cook, deliver, and serve at your venue. Priced by the dishes you choose for your guest count.",
-    Icon: TrayIcon,
-  },
-  {
-    serviceType: "Event Setup Only",
-    packageType: "Event Setup Only",
-    title: "Event setup only",
-    description:
-      "Scaffolding, tables, styling, and teardown. Priced by the setup size your venue and guest count need.",
-    Icon: SetupIcon,
-  },
-  {
-    serviceType: "Food and Event Setup",
-    packageType: "Event Setup Only",
-    title: "Food and setup",
-    description:
-      "One booking covering your event setup and food catering, start to finish.",
-    Icon: SparkleIcon,
-  },
-];
-
-/**
- * The modal is the decision point for a booking path, and choosing here skips
- * the wizard's own Service Type step (BookingWizard reads `serviceType` from
- * router state). So it has to do that step's job: say what the option is, what
- * the customer will be asked for, and what happens after — without becoming a
- * tutorial.
- *
- * Both this modal and the wizard's Service Type step render SERVICE_PATHS, so
- * the promise made here and the flow that follows cannot drift apart.
- */
-const SERVICE_MODAL_CONTENT = SERVICE_PATHS;
-
-function TrayIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 8h16" />
-      <path d="M6 8v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" />
-      <path d="M9 12h6" />
-      <path d="M8 4h8" />
-    </svg>
-  );
-}
-
-function SetupIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="14" rx="2" />
-      <path d="M8 10h8" />
-      <path d="M8 14h5" />
-    </svg>
-  );
-}
-
-function SparkleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m12 3 1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z" />
-      <path d="m18 15 0.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m5 12 4.5 4.5L19 7" />
-    </svg>
-  );
-}
-
 export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -138,7 +52,6 @@ export default function Landing() {
     reviews: { status: "loading", data: [] },
   });
   const [businessInfo, setBusinessInfo] = useState(DEFAULT_BUSINESS_INFO);
-  const [activeServiceModal, setActiveServiceModal] = useState(null);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   // Re-scan for reveal targets whenever a section swaps out of its loading
@@ -241,23 +154,6 @@ export default function Landing() {
     return () => window.clearTimeout(timer);
   }, [location.hash, scrollToSection]);
 
-  useEffect(() => {
-    if (!activeServiceModal) return undefined;
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") setActiveServiceModal(null);
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [activeServiceModal]);
-
   const galleryItems = content.gallery.data;
 
   useEffect(() => {
@@ -334,15 +230,6 @@ export default function Landing() {
     return facts;
   }, [availablePackages]);
 
-  const packageCountByType = useMemo(() => {
-    const counts = {};
-    availablePackages.forEach((pkg) => {
-      if (!pkg?.package_type) return;
-      counts[pkg.package_type] = (counts[pkg.package_type] || 0) + 1;
-    });
-    return counts;
-  }, [availablePackages]);
-
   const reviews = content.reviews.data;
 
   const contactNumber = businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
@@ -389,11 +276,11 @@ export default function Landing() {
           </p>
 
           <div className="ls-hero-actions">
-            <button type="button" className="ls-btn ls-btn--primary" onClick={() => goToBooking()}>
-              Book an Event
+            <button type="button" className="ls-btn ls-btn--primary" onClick={() => navigate("/packages")}>
+              Book Now
             </button>
-            <button type="button" className="ls-btn ls-btn--light" onClick={() => navigate("/packages")}>
-              Browse Packages
+            <button type="button" className="ls-btn ls-btn--light" onClick={() => goToBooking()}>
+              Request Custom Booking
             </button>
           </div>
 
@@ -410,65 +297,6 @@ export default function Landing() {
               ))}
             </dl>
           )}
-        </div>
-      </section>
-
-      {/* ── How booking works ──────────────────────────────── */}
-      <section id="services" className="ls-band ls-band--surface" aria-labelledby="services-title">
-        <div className="ls-inner">
-          <div className="ls-head ls-reveal">
-            <span className="ls-rule" aria-hidden="true" />
-            <p className="ls-eyebrow">What we do</p>
-            <h2 className="ls-title" id="services-title">
-              Three ways to book us
-            </h2>
-            <p className="ls-lede">
-              Start with the one that fits your event. You can still adjust the menu,
-              guest count, and add-ons while you book.
-            </p>
-          </div>
-
-          <div className="ls-paths ls-reveal ls-stagger">
-            {SERVICE_CARDS.map((path) => {
-              const { serviceType, title, description } = path;
-              const Icon = path.Icon;
-              const count = packageCountByType[path.packageType] || 0;
-              return (
-                <article className="ls-path" key={serviceType}>
-                  <span className="ls-path-icon">
-                    <Icon />
-                  </span>
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                  {count > 0 && (
-                    <p className="ls-path-meta">
-                      {count} {count === 1 ? "package" : "packages"} available
-                    </p>
-                  )}
-                  <div className="ls-path-action">
-                    <button
-                      type="button"
-                      className="ls-textlink"
-                      onClick={() => setActiveServiceModal(serviceType)}
-                    >
-                      See what&apos;s included
-                      <span aria-hidden="true">→</span>
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          <ol className="ls-steps ls-reveal ls-stagger">
-            {BOOKING_STEPS.map((step, index) => (
-              <li className="ls-step" key={step.title}>
-                <span className="ls-step-num">STEP {index + 1}</span>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
-              </li>
-            ))}
-          </ol>
         </div>
       </section>
 
@@ -524,7 +352,7 @@ export default function Landing() {
               </p>
               <div className="ls-state-actions">
                 <button type="button" className="ls-btn ls-btn--sm ls-btn--primary" onClick={() => goToBooking()}>
-                  Book an Event
+                  Request Custom Booking
                 </button>
               </div>
             </div>
@@ -598,8 +426,35 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── How booking works ──────────────────────────────── */}
+      <section id="how-it-works" className="ls-band ls-band--surface" aria-labelledby="how-it-works-title">
+        <div className="ls-inner">
+          <div className="ls-head ls-reveal">
+            <span className="ls-rule" aria-hidden="true" />
+            <p className="ls-eyebrow">How it works</p>
+            <h2 className="ls-title" id="how-it-works-title">
+              Booking in four simple steps
+            </h2>
+            <p className="ls-lede">
+              Choose a package or request a custom booking — the process from
+              there is the same.
+            </p>
+          </div>
+
+          <ol className="ls-steps ls-reveal ls-stagger">
+            {BOOKING_STEPS.map((step, index) => (
+              <li className="ls-step" key={step.title}>
+                <span className="ls-step-num">STEP {index + 1}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
       {/* ── Menu preview ───────────────────────────────────── */}
-      <section id="menu" className="ls-band ls-band--surface" aria-labelledby="menu-title">
+      <section id="menu" className="ls-band ls-band--page" aria-labelledby="menu-title">
         <div className="ls-inner">
           <div className="ls-head ls-head--split ls-reveal">
             <div>
@@ -609,7 +464,7 @@ export default function Landing() {
                 Browse our menu
               </h2>
               <p className="ls-lede">
-                Dishes you can add to any booking, priced per serving.
+                Dishes you can add to any booking.
               </p>
             </div>
             <button type="button" className="ls-textlink" onClick={() => navigate("/menu")}>
@@ -646,25 +501,19 @@ export default function Landing() {
 
           {content.menu.status === "ready" && availableMenu.length > 0 && (
             <div className="ls-dish-grid ls-reveal ls-stagger">
-              {availableMenu.slice(0, 4).map((dish) => {
-                const price = peso(dish.price);
-                return (
-                  <article className="ls-dish" key={dish._id || dish.name}>
-                    <div className="ls-dish-media">
-                      {dish.image_url ? (
-                        <img src={dish.image_url} alt={dish.name} loading="lazy" />
-                      ) : null}
-                    </div>
-                    <div className="ls-dish-row">
-                      <h3>{dish.name}</h3>
-                      {price && Number(dish.price) > 0 && (
-                        <span className="ls-dish-price">{price}</span>
-                      )}
-                    </div>
-                    {dish.category && <p className="ls-dish-cat">{dish.category}</p>}
-                  </article>
-                );
-              })}
+              {availableMenu.slice(0, 4).map((dish) => (
+                <article className="ls-dish" key={dish._id || dish.name}>
+                  <div className="ls-dish-media">
+                    {dish.image_url ? (
+                      <img src={dish.image_url} alt={dish.name} loading="lazy" />
+                    ) : null}
+                  </div>
+                  <div className="ls-dish-row">
+                    <h3>{dish.name}</h3>
+                  </div>
+                  {dish.category && <p className="ls-dish-cat">{dish.category}</p>}
+                </article>
+              ))}
             </div>
           )}
         </div>
@@ -672,7 +521,7 @@ export default function Landing() {
 
       {/* ── Gallery: hidden entirely when there is nothing to show ── */}
       {!(content.gallery.status === "ready" && galleryItems.length === 0) && (
-      <section id="gallery" className="ls-band ls-band--page" aria-labelledby="gallery-title">
+      <section id="gallery" className="ls-band ls-band--surface" aria-labelledby="gallery-title">
         <div className="ls-inner ls-inner--wide">
           <div className="ls-head ls-head--split ls-reveal">
             <div>
@@ -734,7 +583,7 @@ export default function Landing() {
 
       {/* ── Reviews: only rendered when there are any ──────── */}
       {content.reviews.status === "ready" && reviews.length > 0 && (
-        <section className="ls-band ls-band--surface" aria-labelledby="reviews-title">
+        <section className="ls-band ls-band--page" aria-labelledby="reviews-title">
           <div className="ls-inner">
             <div className="ls-head ls-reveal">
               <span className="ls-rule" aria-hidden="true" />
@@ -782,11 +631,11 @@ export default function Landing() {
               confirm availability and send the details back to you.
             </p>
             <div className="ls-close-actions">
-              <button type="button" className="ls-btn ls-btn--onink" onClick={() => goToBooking()}>
-                Book an Event
+              <button type="button" className="ls-btn ls-btn--onink" onClick={() => navigate("/packages")}>
+                Book Now
               </button>
-              <button type="button" className="ls-btn ls-btn--light" onClick={() => navigate("/packages")}>
-                Browse Packages
+              <button type="button" className="ls-btn ls-btn--light" onClick={() => goToBooking()}>
+                Request Custom Booking
               </button>
             </div>
           </div>
@@ -838,88 +687,6 @@ export default function Landing() {
             className="lightbox-image"
             onClick={(event) => event.stopPropagation()}
           />
-        </div>
-      )}
-
-      {/* ── Service detail modal ───────────────────────────── */}
-      {activeServiceModal && SERVICE_MODAL_CONTENT[activeServiceModal] && (
-        <div className="ls-modal-overlay" onClick={() => setActiveServiceModal(null)}>
-          <div
-            className="ls-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="service-modal-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              className="ls-modal-close"
-              type="button"
-              onClick={() => setActiveServiceModal(null)}
-              aria-label="Close"
-            >
-              <X size={18} aria-hidden="true" />
-            </button>
-
-            <div className="ls-modal-head">
-              <p className="ls-eyebrow">Booking path</p>
-              <h3 id="service-modal-title">
-                {SERVICE_MODAL_CONTENT[activeServiceModal].title}
-              </h3>
-              <p className="ls-modal-desc">
-                {SERVICE_MODAL_CONTENT[activeServiceModal].description}
-              </p>
-            </div>
-
-            <div className="ls-modal-body">
-              <section className="ls-modal-block">
-                <h4>What we&apos;ll ask you for</h4>
-                <ul className="ls-modal-list">
-                  {SERVICE_MODAL_CONTENT[activeServiceModal].steps.map((item) => (
-                    <li key={item}>
-                      <span className="ls-modal-tick" aria-hidden="true">
-                        <CheckIcon />
-                      </span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <p className="ls-modal-note">
-                  {SERVICE_MODAL_CONTENT[activeServiceModal].pricing}
-                </p>
-              </section>
-
-              <section className="ls-modal-block">
-                <h4>What happens next</h4>
-                <ol className="ls-modal-steps">
-                  {WHAT_HAPPENS_NEXT.map((item, index) => (
-                    <li key={item}>
-                      <span className="ls-modal-num" aria-hidden="true">
-                        {index + 1}
-                      </span>
-                      {item}
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            </div>
-
-            <div className="ls-modal-foot">
-              <button
-                className="ls-btn ls-btn--primary ls-btn--block"
-                type="button"
-                onClick={() => {
-                  const serviceType = activeServiceModal;
-                  setActiveServiceModal(null);
-                  goToBooking({ serviceType });
-                }}
-              >
-                Start booking
-              </button>
-              <p className="ls-modal-reassure">
-                Takes about five minutes. You won&apos;t pay anything yet.
-              </p>
-            </div>
-          </div>
         </div>
       )}
     </CustomerLayout>

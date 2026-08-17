@@ -1,8 +1,27 @@
-import React from "react";
-import { CheckCircle2, Calendar, User, Package as PackageIcon, DollarSign, AlertTriangle, X } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { CheckCircle2, Calendar, User, Package as PackageIcon, DollarSign, AlertTriangle, X, UserCheck } from "lucide-react";
 import Modal from "../../common/Modal";
+import { AdminAPI } from "../../../api/admin";
 
 export default function ConvertBookingModal({ quote, onClose, onConfirm, submitting }) {
+  const [managers, setManagers] = useState([]);
+  const [selectedManagerId, setSelectedManagerId] = useState("");
+  const [loadingManagers, setLoadingManagers] = useState(true);
+
+  useEffect(() => {
+    AdminAPI.getStaff()
+      .then((res) => {
+        const staffList = Array.isArray(res.data) ? res.data : [];
+        const managerList = staffList.filter((s) => s.role === "manager" && s.is_active !== false);
+        setManagers(managerList);
+        if (managerList.length > 0) {
+          setSelectedManagerId(managerList[0]._id);
+        }
+      })
+      .catch(() => setManagers([]))
+      .finally(() => setLoadingManagers(false));
+  }, []);
+
   if (!quote) return null;
 
   const customerName = quote.customer_id?.full_name 
@@ -92,11 +111,41 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
           </div>
         </div>
 
+        {/* Event Manager Assignment Box */}
+        <div className="w-full bg-slate-50 rounded-xl p-4 border border-slate-200/80 text-left space-y-2">
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <UserCheck size={15} className="text-primary-600" />
+            Assign Event Manager <span className="text-red-500">*</span>
+          </label>
+          <p className="text-[11px] text-slate-500">
+            Select the manager responsible for coordinating staff and event logistics:
+          </p>
+          {loadingManagers ? (
+            <div className="text-xs text-slate-400 py-1">Loading managers...</div>
+          ) : managers.length === 0 ? (
+            <div className="text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+              No active manager accounts found. Please create a manager under Staff Management.
+            </div>
+          ) : (
+            <select
+              value={selectedManagerId}
+              onChange={(e) => setSelectedManagerId(e.target.value)}
+              className="w-full p-2.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-primary-500 text-slate-900"
+            >
+              {managers.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.full_name} ({m.email})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
         {/* Warning Notice */}
         <div className="w-full p-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-left text-xs text-amber-800">
           <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="leading-snug">
-            <strong>Important:</strong> This action will lock the event date on the reservation calendar and reserve package inventory.
+            <strong>Important:</strong> This action will lock the event date on the reservation calendar and assign the selected event manager.
           </p>
         </div>
 
@@ -112,7 +161,7 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={() => onConfirm(selectedManagerId)}
             disabled={submitting}
             className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >

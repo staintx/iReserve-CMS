@@ -64,6 +64,7 @@ import ManagerStaff from "../pages/manager/ManagerStaff";
 import ManagerMessagesList from "../pages/manager/ManagerMessagesList";
 import ManagerMessagesChat from "../pages/manager/ManagerMessagesChat";
 import StaffDashboard from "../pages/staff/StaffDashboard";
+import StaffEventDetails from "../pages/staff/StaffEventDetails";
 
 const adminRoles = ["admin"];
 const managerRoles = ["manager"];
@@ -155,6 +156,7 @@ export default function AppRoutes() {
         <Route path="/admin/addons" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAddons /></ProtectedRoute>} />
         <Route path="/admin/inventory" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInventory /></ProtectedRoute>} />
         <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
+        <Route path="/admin/managers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminStaff /></ProtectedRoute>} />
         <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />
         <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
         <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
@@ -174,6 +176,8 @@ export default function AppRoutes() {
 
         {/* Staff (protected by role) */}
         <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={staffRoles}><StaffDashboard /></ProtectedRoute>} />
+        <Route path="/staff/events/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
+        <Route path="/staff/bookings/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
 
         <Route path="*" element={staffHome ? <Navigate to={staffHome} /> : <Landing />} />
       </Routes>

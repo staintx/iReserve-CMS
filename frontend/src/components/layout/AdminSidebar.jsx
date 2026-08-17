@@ -314,11 +314,11 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
         )}
 
         {isAdmin && (
-          <NavLink to="/admin/staff" className={linkClass} title={isCollapsed ? "Staff" : undefined}>
+          <NavLink to="/admin/staff" className={linkClass} title={isCollapsed ? "Staff & Managers" : undefined}>
             {({ isActive }) => (
               <>
                 <UserCheck className={iconClass(isActive)} />
-                {!isCollapsed && <span>Staff</span>}
+                {!isCollapsed && <span>Staff &amp; Managers</span>}
               </>
             )}
           </NavLink>

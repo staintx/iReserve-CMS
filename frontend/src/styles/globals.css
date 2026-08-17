@@ -2660,6 +2660,20 @@
     color: var(--ls-ink);
   }
 
+  .ls-detail-sizes {
+    margin-top: 26px;
+  }
+
+  .ls-detail-sizes-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ls-ink-soft);
+  }
+
+  .ls-detail-sizes .ls-table-scroll { margin-top: 10px; }
+
   .ls-detail-actions {
     display: flex;
     flex-wrap: wrap;

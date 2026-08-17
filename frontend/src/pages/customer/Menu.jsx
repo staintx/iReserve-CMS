@@ -7,16 +7,6 @@ import { CustomerAPI } from "../../api/customer";
 import { Search } from "lucide-react";
 import { CATEGORY_GROUPS, resolveGroup } from "../../lib/menuCategories";
 
-const peso = (amount) => {
-  const value = Number(amount);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
 export default function Menu() {
   const navigate = useNavigate();
   const businessInfo = useBusinessInfo();
@@ -124,26 +114,22 @@ export default function Menu() {
   const contactNumber =
     businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
 
-  const renderDish = (dish, { showCategory = false } = {}) => {
-    const price = peso(dish.price);
-    return (
-      <article className="ls-dish" key={dish._id || dish.name}>
-        <div className="ls-dish-media">
-          {dish.image_url ? (
-            <img src={dish.image_url} alt={dish.name} loading="lazy" />
-          ) : (
-            <div className="ls-dish-media-empty">{dish.name}</div>
-          )}
-        </div>
-        <div className="ls-dish-row">
-          <h3>{dish.name}</h3>
-          {price && <span className="ls-dish-price">{price}</span>}
-        </div>
-        {showCategory && <p className="ls-dish-cat">{dish.group.label}</p>}
-        {dish.description && <p className="ls-dish-desc">{dish.description}</p>}
-      </article>
-    );
-  };
+  const renderDish = (dish, { showCategory = false } = {}) => (
+    <article className="ls-dish" key={dish._id || dish.name}>
+      <div className="ls-dish-media">
+        {dish.image_url ? (
+          <img src={dish.image_url} alt={dish.name} loading="lazy" />
+        ) : (
+          <div className="ls-dish-media-empty">{dish.name}</div>
+        )}
+      </div>
+      <div className="ls-dish-row">
+        <h3>{dish.name}</h3>
+      </div>
+      {showCategory && <p className="ls-dish-cat">{dish.group.label}</p>}
+      {dish.description && <p className="ls-dish-desc">{dish.description}</p>}
+    </article>
+  );
 
   return (
     <CustomerLayout marketing contentClassName="ls-main">

@@ -26,8 +26,8 @@ import {
 // `section` entries scroll to a landing anchor; everything else is a route.
 const NAV_ITEMS = [
   { label: "Home", to: "/" },
-  { label: "Menu", to: "/menu" },
   { label: "Packages", to: "/packages" },
+  { label: "Menu", to: "/menu" },
   { label: "Gallery", to: "/gallery" },
   { label: "Contact", section: "contact" },
 ];

@@ -254,6 +254,50 @@ export default function PackageDetails() {
                     )}
                   </dl>
 
+                  {/* Sizes live with the rest of what a customer needs before
+                      they decide — price, guests, includes — rather than
+                      buried in the body. Price is intentionally left off each
+                      row: the Price fact above already gives the starting
+                      price, and the exact quote comes from the booking flow. */}
+                  {scaffoldOptions.length > 0 && (
+                    <div className="ls-detail-sizes">
+                      <p className="ls-detail-sizes-label">Available sizes</p>
+                      <div className="ls-table-scroll">
+                        <table className="ls-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">Size</th>
+                              <th scope="col">Area</th>
+                              <th scope="col">Guests</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {scaffoldOptions.map((option, index) => {
+                              const dims =
+                                option.width_ft && option.length_ft
+                                  ? `${option.width_ft} × ${option.length_ft} ft`
+                                  : "—";
+                              const guests =
+                                option.guest_min && option.guest_max
+                                  ? `${option.guest_min}–${option.guest_max}`
+                                  : option.guest_max
+                                    ? `Up to ${option.guest_max}`
+                                    : "—";
+
+                              return (
+                                <tr key={option._id || `${option.label}-${index}`}>
+                                  <th scope="row">{option.label || `Option ${index + 1}`}</th>
+                                  <td>{dims}</td>
+                                  <td>{guests}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="ls-detail-actions">
                     <button
                       type="button"
@@ -319,54 +363,6 @@ export default function PackageDetails() {
                       </ul>
                     </div>
                   ))}
-                </section>
-              )}
-
-              {/* The strongest unused data on the site: real sizes, real guest
-                  ranges, real prices — one row per configurable setup. */}
-              {scaffoldOptions.length > 0 && (
-                <section className="ls-detail-section" aria-labelledby="sizes-title">
-                  <h2 id="sizes-title">Sizes and what they cost</h2>
-                  <p className="ls-detail-prose">
-                    Setup is priced by size. Pick the one that suits your venue
-                    and guest count while you book.
-                  </p>
-                  <div className="ls-table-scroll">
-                    <table className="ls-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Size</th>
-                          <th scope="col">Area</th>
-                          <th scope="col">Guests</th>
-                          <th scope="col">Price</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scaffoldOptions.map((option, index) => {
-                          const dims =
-                            option.width_ft && option.length_ft
-                              ? `${option.width_ft} × ${option.length_ft} ft`
-                              : "—";
-                          const guests =
-                            option.guest_min && option.guest_max
-                              ? `${option.guest_min}–${option.guest_max}`
-                              : option.guest_max
-                                ? `Up to ${option.guest_max}`
-                                : "—";
-                          const price = peso(option.price);
-
-                          return (
-                            <tr key={option._id || `${option.label}-${index}`}>
-                              <th scope="row">{option.label || `Option ${index + 1}`}</th>
-                              <td>{dims}</td>
-                              <td>{guests}</td>
-                              <td>{price || "On request"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
                 </section>
               )}
 

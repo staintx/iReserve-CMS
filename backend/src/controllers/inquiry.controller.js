@@ -3,6 +3,7 @@ const BlockedDate = require("../models/BlockedDate");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
+const { cateringRequested, serviceTypeForRequest } = require("../utils/catering");
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -11,6 +12,15 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     customer_id: req.user?._id || req.body.customer_id,
     status: "Pending Review",
   };
+
+  // The catering answer decides the service type, not the package the customer
+  // started from. Derived here as well as in the wizard so what is stored says
+  // the same thing whatever the client sent: a request that includes food is
+  // "Food and Event Setup" even if it began life on an Event Setup Only
+  // package, and one without food carries no menu.
+  payload.include_food = cateringRequested(payload);
+  payload.service_type = serviceTypeForRequest(payload);
+  if (!payload.include_food) payload.selected_menu = [];
 
   if (Array.isArray(payload.additional_services) && (!payload.service_items || payload.service_items.length === 0)) {
     payload.service_items = payload.additional_services.map(s => ({

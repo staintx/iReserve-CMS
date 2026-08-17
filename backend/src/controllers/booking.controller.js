@@ -65,6 +65,7 @@ const {
   sendBookingConfirmationEmail,
   sendBookingStatusEmail,
 } = require("../utils/booking-emails");
+const { cateringRequested } = require("../utils/catering");
 
 const calculateBookingPrice = async (body) => {
   let sum = 0;
@@ -2383,18 +2384,34 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     quotation = await Quotation.findOne({ inquiry_id: inquiryId }).sort({ version_number: -1, createdAt: -1 });
   }
 
-  // Derive service_type
-  const serviceType = inquiry.service_type || (
-    inquiry.delivery_method === "setup" ? "Food and Event Setup" :
-    inquiry.event_type?.toLowerCase().includes("food delivery") ? "Food Only" : "Food and Event Setup"
-  );
+  // Whether this booking carries food, and the service type that follows from
+  // it. Both come from the inquiry: the booking used to be created with
+  // include_food hardcoded to true, so every setup-only event was recorded as
+  // catered once it reached the calendar.
+  const includeFood = cateringRequested(inquiry);
+  // Food Only stays Food Only; it is the one service type with no setup to add.
+  // Inquiries old enough to carry no service type at all keep the delivery and
+  // event-type heuristic that has always identified them.
+  const isFoodDelivery =
+    inquiry.service_type === "Food Only" ||
+    (!inquiry.service_type &&
+      inquiry.delivery_method !== "setup" &&
+      Boolean(inquiry.event_type?.toLowerCase().includes("food delivery")));
+  const serviceType = isFoodDelivery
+    ? "Food Only"
+    : includeFood
+      ? "Food and Event Setup"
+      : "Event Setup Only";
 
-  // Build menu items array
+  // Build menu items array. A booking without catering carries no menu, so no
+  // food can be charged on an event that did not ask for it.
   let menuItems = [];
-  if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
-    menuItems = quotation.menu_items;
-  } else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
-    menuItems = inquiry.selected_menu.map(m => (typeof m === 'object' ? { name: m.name || String(m), price: m.price || 0 } : { name: String(m), price: 0 }));
+  if (includeFood) {
+    if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
+      menuItems = quotation.menu_items;
+    } else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
+      menuItems = inquiry.selected_menu.map(m => (typeof m === 'object' ? { name: m.name || String(m), price: m.price || 0 } : { name: String(m), price: 0 }));
+    }
   }
 
   // Build service items / add-ons array
@@ -2460,7 +2477,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     event_date: inquiry.event_date,
     start_time: inquiry.start_time || "12:00",
     guest_count: quotation?.guest_count || inquiry.guest_count || 1,
-    include_food: true,
+    include_food: includeFood,
     venue_type: inquiry.venue_type || "Venue",
     service_type: serviceType,
     delivery_method: inquiry.delivery_method || "setup",

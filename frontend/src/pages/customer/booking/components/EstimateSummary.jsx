@@ -99,8 +99,18 @@ export default function EstimateSummary({
                     </span>
                   )}
                 </dt>
-                <dd className="shrink-0 tabular-nums text-white/90">
-                  {formatPeso(line.amount)}
+                {/* A line nobody has priced yet is not a line that costs
+                    nothing. Food is priced on the quotation, so showing ₱0
+                    against the customer's chosen dishes reads as free. */}
+                <dd
+                  className={cn(
+                    "shrink-0",
+                    line.isQuotedLater
+                      ? "text-xs text-white/60"
+                      : "tabular-nums text-white/90",
+                  )}
+                >
+                  {line.isQuotedLater ? "Priced on quotation" : formatPeso(line.amount)}
                 </dd>
               </div>
             ))}

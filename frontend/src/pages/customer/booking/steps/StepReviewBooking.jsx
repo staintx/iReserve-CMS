@@ -5,7 +5,12 @@ import { focusRing } from "../lib/bookingUI";
 import EstimateSummary from "../components/EstimateSummary";
 import { cn } from "@/lib/utils";
 import { policyHighlights } from "@/lib/policy";
-import { SERVICE_TYPES, SERVICE_LABELS } from "../lib/bookingRules";
+import {
+  SERVICE_TYPES,
+  SERVICE_LABELS,
+  cateringRequested,
+  serviceTypeForRequest,
+} from "../lib/bookingRules";
 
 /**
  * One fact. Two columns on desktop so a section of four short values reads as a
@@ -95,8 +100,13 @@ export default function StepReviewBooking({
   errors = {},
   setTurnstileToken,
 }) {
-  const isFoodOnly = form.service_type === SERVICE_TYPES.FOOD_ONLY;
-  const isSetupOnly = form.service_type === SERVICE_TYPES.SETUP_ONLY;
+  // What is actually being booked, which on a setup package is only settled by
+  // the customer's answer on the menu step. Reviewing the raw service type
+  // showed "Event setup only" — and hid the Food and Catering section outright
+  // — to a customer who had just picked their dishes.
+  const serviceType = serviceTypeForRequest(form);
+  const includesFood = cateringRequested(form);
+  const isFoodOnly = serviceType === SERVICE_TYPES.FOOD_ONLY;
   const isPickup = isFoodOnly && form.delivery_method === "pickup";
 
   const guestCount = parseInt(form.guest_count, 10) || 0;
@@ -150,7 +160,7 @@ export default function StepReviewBooking({
           >
             <Row
               label="Service"
-              value={SERVICE_LABELS[form.service_type] || form.service_type}
+              value={SERVICE_LABELS[serviceType] || serviceType}
             />
             <Row
               label="Guests"
@@ -244,9 +254,12 @@ export default function StepReviewBooking({
             )}
           </Section>
 
-          {!isSetupOnly && (
+          {/* Shown whenever food is part of this booking, and on the paths that
+              offered the catering question at all, so a customer who declined
+              sees their own answer confirmed rather than nothing. */}
+          {(includesFood || form.service_type !== SERVICE_TYPES.SETUP_ONLY) && (
             <Section title="Food & Catering" onEdit={edit(editTargets.food)}>
-              {form.include_food === false ? (
+              {!includesFood ? (
                 <Row
                   label="Catering"
                   wide

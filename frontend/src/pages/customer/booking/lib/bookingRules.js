@@ -24,6 +24,60 @@ export const PACKAGE_TYPE_BY_SERVICE_TYPE = {
 };
 
 // -----------------------------------------------------------------------------
+// The catering decision
+// -----------------------------------------------------------------------------
+// A package is only ever the *starting* configuration. Every setup package
+// enters the wizard as "Event Setup Only" (see serviceTypeForPackage), and the
+// customer is then asked, on the menu step, whether they want food with it.
+// Their answer lives in `include_food` — the service type is a label derived
+// from it, never the record of the decision itself.
+//
+// Reading catering off the service type is what made a customer who chose
+// "Add Catering / Food Menu" on a setup package arrive at the quotation builder
+// as though they had skipped catering, with their dishes hidden behind a
+// service type the admin had to change by hand.
+
+/**
+ * Whether the customer asked for food on this request.
+ *
+ * `include_food` is the answer they actually gave, so it decides this on its
+ * own — including on a request still labelled "Event Setup Only", which is what
+ * a setup package is called before the customer has answered anything.
+ *
+ * Only with no answer recorded at all does this fall back: to the dishes if any
+ * were chosen, and otherwise to the service type, which is how requests made
+ * before the question existed have always been read.
+ *
+ * Accepts a wizard form, an inquiry, or a booking — they all carry the same
+ * fields, with the dishes under `selected_menu` (inquiry) or `menu_items`
+ * (booking).
+ */
+export function cateringRequested(record) {
+  if (!record) return false;
+  if (record.service_type === SERVICE_TYPES.FOOD_ONLY) return true;
+  if (typeof record.include_food === "boolean") return record.include_food;
+  const dishes = record.selected_menu || record.menu_items || [];
+  if (dishes.length > 0) return true;
+  return record.service_type !== SERVICE_TYPES.SETUP_ONLY;
+}
+
+/**
+ * The service type a request should be stored and quoted under.
+ *
+ * Derived from the catering answer rather than from where the customer entered
+ * the flow, so a setup package plus catering is "Food and Event Setup" without
+ * anyone having to say so, and skipping catering settles back to setup only.
+ * Food Only has no setup to add and is left alone.
+ *
+ * Distinct from portal/statusMeta.js#resolveServiceType, which only fills in a
+ * label for records that never stored one.
+ */
+export function serviceTypeForRequest(record) {
+  if (record?.service_type === SERVICE_TYPES.FOOD_ONLY) return SERVICE_TYPES.FOOD_ONLY;
+  return cateringRequested(record) ? SERVICE_TYPES.FULL_SERVICE : SERVICE_TYPES.SETUP_ONLY;
+}
+
+// -----------------------------------------------------------------------------
 // What each path is, and what it asks for
 // -----------------------------------------------------------------------------
 // The landing page's service modal and the wizard's own Service Type step both
@@ -222,10 +276,9 @@ export function buildEstimate({
       );
     }
   } else {
-    // Setup Only or Food and Event Setup (Full Service)
-    const isFoodIncluded =
-      serviceType === SERVICE_TYPES.FULL_SERVICE ||
-      form?.include_food !== false;
+    // Setup Only or Food and Event Setup (Full Service). The service type here
+    // is only where the customer started; their catering answer is what counts.
+    const isFoodIncluded = cateringRequested(form);
     const dishes = form?.selected_menu || [];
     const hasFoodChosen = isFoodIncluded && dishes.length > 0;
 

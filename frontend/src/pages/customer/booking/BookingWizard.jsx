@@ -30,7 +30,9 @@ import StepPackageAddOns from "./steps/StepPackageAddOns";
 import {
   SERVICE_TYPES,
   buildEstimate,
+  cateringRequested,
   contactFieldError,
+  serviceTypeForRequest,
 } from "./lib/bookingRules";
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import { formatEventDate } from "../../../utils/format";
@@ -951,9 +953,18 @@ export default function BookingWizard() {
         : String(form.event_type || "").trim()) ||
       (isFoodOnly ? "Food Delivery" : "");
 
+    // The catering answer, and the service type that follows from it. A setup
+    // package starts as "Event Setup Only" because that is all it is until the
+    // customer answers the menu step — submitting that label unchanged is what
+    // used to reach the quotation builder as "the customer skipped catering",
+    // dishes and all.
+    const includeFood = cateringRequested(form);
+
     const payload = {
       ...form,
       "cf-turnstile-response": turnstileToken,
+      include_food: includeFood,
+      service_type: serviceTypeForRequest(form),
       // " " is the picker's "Something else" sentinel, not a real theme.
       event_theme: String(form.event_theme || "").trim(),
       event_palette: Array.isArray(form.event_palette) ? form.event_palette : [],
@@ -969,7 +980,11 @@ export default function BookingWizard() {
         ...(form.additional_services || []),
       ],
       delivery_method: isFoodOnly ? form.delivery_method : "setup",
-      selected_menu: (form.selected_menu || []).map((item) => item._id || item),
+      // Dishes only travel with a request that asked for food. The catering
+      // toggle already clears them, so this is the belt to that braces.
+      selected_menu: includeFood
+        ? (form.selected_menu || []).map((item) => item._id || item)
+        : [],
     };
 
     if (selectedPackageId) payload.package_id = selectedPackageId;
@@ -1000,7 +1015,7 @@ export default function BookingWizard() {
             { label: "Event type", value: eventType },
             { label: "Event date", value: formatEventDate(form.event_date) },
             { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
-            { label: "Service", value: form.service_type },
+            { label: "Service", value: payload.service_type },
             { label: "Venue", value: form.venue_type },
           ],
         },

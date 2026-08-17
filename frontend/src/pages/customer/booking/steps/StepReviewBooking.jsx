@@ -5,13 +5,7 @@ import { focusRing } from "../lib/bookingUI";
 import EstimateSummary from "../components/EstimateSummary";
 import { cn } from "@/lib/utils";
 import { policyHighlights } from "@/lib/policy";
-import {
-  SERVICE_TYPES,
-  SERVICE_LABELS,
-  COURSE_RULES,
-  selectedInGroup,
-  DRINKS_GROUP_ID,
-} from "../lib/bookingRules";
+import { SERVICE_TYPES, SERVICE_LABELS } from "../lib/bookingRules";
 
 /**
  * One fact. Two columns on desktop so a section of four short values reads as a
@@ -102,13 +96,11 @@ export default function StepReviewBooking({
   setTurnstileToken,
 }) {
   const isFoodOnly = form.service_type === SERVICE_TYPES.FOOD_ONLY;
-  const isFullService = form.service_type === SERVICE_TYPES.FULL_SERVICE;
   const isSetupOnly = form.service_type === SERVICE_TYPES.SETUP_ONLY;
   const isPickup = isFoodOnly && form.delivery_method === "pickup";
 
   const guestCount = parseInt(form.guest_count, 10) || 0;
   const selectedMenu = form.selected_menu || [];
-  const drinks = selectedInGroup(selectedMenu, DRINKS_GROUP_ID);
 
   const address =
     [form.street, form.barangay, form.municipality, form.province]
@@ -168,11 +160,7 @@ export default function StepReviewBooking({
               <>
                 <Row
                   label="Setup Concept"
-                  value={
-                    !isSetupOnly && form.include_food !== false && selectedMenu.length > 0
-                      ? "100% Bespoke Custom Setup (FREE with catering)"
-                      : "100% Bespoke Custom Setup (Priced on quotation)"
-                  }
+                  value="100% Bespoke Custom Setup (Priced on quotation)"
                   wide
                 />
                 {form.event_theme && (
@@ -208,14 +196,7 @@ export default function StepReviewBooking({
             ) : (
               <>
                 {showPackageSection && (
-                  <Row
-                    label="Setup Package"
-                    value={
-                      !isSetupOnly && form.include_food !== false && selectedMenu.length > 0
-                        ? `${packageName || "Event Setup"} (FREE with catering)`
-                        : packageName
-                    }
-                  />
+                  <Row label="Setup Package" value={packageName} />
                 )}
                 {setupSize && <Row label="Setup size" value={setupSize} />}
               </>
@@ -265,13 +246,13 @@ export default function StepReviewBooking({
 
           {!isSetupOnly && (
             <Section title="Food & Catering" onEdit={edit(editTargets.food)}>
-              {form.include_food === false || (selectedMenu.length === 0 && !isFoodOnly) ? (
+              {form.include_food === false ? (
                 <Row
                   label="Catering"
                   wide
                   value="No catering selected (Event Setup Only)"
                 />
-              ) : isFoodOnly ? (
+              ) : (
                 <>
                   <Row
                     label="Dishes"
@@ -286,37 +267,6 @@ export default function StepReviewBooking({
                     label="Pricing"
                     wide
                     value="Per-guest price will be set by caterer on your official quotation"
-                  />
-                </>
-              ) : (
-                <>
-                  {COURSE_RULES.map((rule) => {
-                    const items = selectedInGroup(selectedMenu, rule.groupId);
-                    return (
-                      <Row
-                        key={rule.key}
-                        label={rule.label}
-                        value={
-                          items.length > 0
-                            ? items.map((item) => item.name).join(", ")
-                            : "None selected"
-                        }
-                      />
-                    );
-                  })}
-                  <Row
-                    label="Drinks"
-                    value={
-                      drinks.length > 0
-                        ? drinks.map((item) => item.name).join(", ")
-                        : "None beyond the included water"
-                    }
-                  />
-                  <Row label="Water" value="Included free" />
-                  <Row
-                    label="Pricing"
-                    wide
-                    value="Per-guest catering price will be set on your official quotation"
                   />
                 </>
               )}

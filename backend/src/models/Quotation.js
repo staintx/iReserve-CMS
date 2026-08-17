@@ -134,7 +134,6 @@ const QuotationSchema = new mongoose.Schema(
           event_type: String,
           event_date: String,
           start_time: String,
-          duration_hours: String,
           guest_count: String,
           service_type: String,
           include_food: Boolean,

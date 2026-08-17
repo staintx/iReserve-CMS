@@ -7,7 +7,6 @@ import Modal from "../../../components/common/Modal";
 import { TermsContent, PrivacyContent } from "../../../components/policy/PolicyDocs";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
-import useToast from "../../../hooks/useToast";
 import {
   BATANGAS_PROVINCE,
   getBatangasBarangays,
@@ -34,6 +33,7 @@ import {
   contactFieldError,
 } from "./lib/bookingRules";
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
+import { formatEventDate } from "../../../utils/format";
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -109,7 +109,6 @@ export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { notify } = useToast();
 
   // --- Entry context (package page, landing modal, or a bare "Book" link) ---
   const initialEventType = location.state?.eventType || "";
@@ -978,9 +977,24 @@ export default function BookingWizard() {
       hasSubmitted.current = true;
       clearDraft(user._id);
 
-      notify("Request sent. We'll reply with your quotation.", "success");
-      navigate("/customer/inquiries", {
-        state: { submittedReference: data?.reference || null },
+      // A milestone, not a toast: the customer has just finished a nine-step
+      // form and their next question is "is my date booked?" — which needs a
+      // real answer, not a line that disappears in four seconds.
+      navigate("/customer/request-submitted", {
+        replace: true,
+        state: {
+          submitted: true,
+          kind: "package",
+          reference: data?.reference || null,
+          estimatedTotal: estimate.total,
+          summary: [
+            { label: "Event type", value: eventType },
+            { label: "Event date", value: formatEventDate(form.event_date) },
+            { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
+            { label: "Service", value: form.service_type },
+            { label: "Venue", value: form.venue_type },
+          ],
+        },
       });
     } catch (err) {
       const status = err.response?.status;

@@ -38,14 +38,9 @@ import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from 
 import { SERVICE_TYPES } from "../../../pages/customer/booking/lib/bookingRules";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency } from "../../../utils/format";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../ui/alert-dialog";
+import FeedbackDialog from "../../feedback/FeedbackDialog";
+import InlineMessage from "../../feedback/InlineMessage";
+import { useConfirm } from "../../feedback/confirmContext";
 
 /* ---------------------------------------------------------------------------
    Presentation primitives
@@ -62,13 +57,23 @@ const inputClass = (hasError) =>
 const LABEL_CLASS =
   "block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 mb-1.5";
 
-// One labelled remove control for every removable row in the builder. An icon
-// on its own read as a second, different action next to the inclusions list's
-// "Remove" button; saying what it does keeps every section consistent.
-const ROW_ACTION_REST =
-  "inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 transition-colors";
-const ROW_ACTION_DANGER_HOVER = "hover:border-red-300 hover:text-red-700";
-const ROW_ACTION_NEUTRAL_HOVER = "hover:bg-slate-50";
+// One labelled control for every removable row in the builder. An icon on its
+// own read as a second, different action next to the inclusions list's "Remove"
+// button; saying what it does keeps every section consistent.
+//
+// The tone carries the meaning: taking something out is destructive and reads
+// red, putting it back is a recovery and reads emerald. When the two sat in the
+// same neutral slate they were indistinguishable at a glance, which is exactly
+// the moment an admin is deciding between them. Both stay outline-only so a
+// long list of rows does not turn into a wall of colour.
+const ROW_ACTION_BASE =
+  "inline-flex shrink-0 items-center gap-1 rounded-md border bg-white px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1";
+const ROW_ACTION_TONES = {
+  danger: "border-red-200 text-red-700 hover:border-red-400 hover:bg-red-50 focus:ring-red-400",
+  success:
+    "border-emerald-200 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-50 focus:ring-emerald-400",
+  neutral: "border-slate-300 text-slate-600 hover:bg-slate-50 focus:ring-slate-400",
+};
 
 function RowAction({ onClick, icon: Icon, label, tone = "danger", title }) {
   return (
@@ -76,9 +81,7 @@ function RowAction({ onClick, icon: Icon, label, tone = "danger", title }) {
       type="button"
       onClick={onClick}
       title={title}
-      className={`${ROW_ACTION_REST} ${
-        tone === "danger" ? ROW_ACTION_DANGER_HOVER : ROW_ACTION_NEUTRAL_HOVER
-      }`}
+      className={`${ROW_ACTION_BASE} ${ROW_ACTION_TONES[tone] || ROW_ACTION_TONES.neutral}`}
     >
       {Icon ? <Icon size={12} /> : null} {label}
     </button>
@@ -114,7 +117,7 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
   };
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-400">
+      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-500">
         ₱
       </span>
       <input
@@ -146,7 +149,11 @@ function SectionCard({ step, title, description, icon: Icon, aside, children, id
             {Icon ? <Icon size={15} /> : null}
           </span>
           <div className="min-w-0">
-            <h3 className="flex items-baseline gap-2 text-sm font-bold text-slate-900">
+            {/* font-sans explicitly: this modal is rendered into a body portal,
+                outside the .admin-layout wrapper whose rule opts admin headings
+                out of Playfair. Without it a 14px section label renders in the
+                display serif, which is what that face is least suited to. */}
+            <h3 className="flex items-baseline gap-2 font-sans text-sm font-bold text-slate-900">
               {step != null && (
                 <span className="text-[11px] font-semibold tabular-nums text-slate-500">
                   {String(step).padStart(2, "0")}
@@ -172,13 +179,13 @@ function SummaryRow({ label, value, detail, tone = "default", strong, indent }) 
     tone === "deduct"
       ? "text-emerald-300"
       : tone === "muted"
-      ? "text-slate-400"
+      ? "text-slate-300"
       : strong
       ? "text-white"
       : "text-slate-200";
   return (
     <div className={`flex items-baseline justify-between gap-3 ${indent ? "pl-3" : ""}`}>
-      <span className={`min-w-0 text-xs ${strong ? "font-semibold text-white" : "text-slate-400"}`}>
+      <span className={`min-w-0 text-xs ${strong ? "font-semibold text-white" : "text-slate-300"}`}>
         {label}
         {detail && <span className="ml-1 text-[11px] text-slate-500">{detail}</span>}
       </span>
@@ -215,6 +222,15 @@ const addDays = (days) => {
   return toDateInput(date);
 };
 
+/**
+ * Today, as the date input's own yyyy-mm-dd string.
+ *
+ * Compared as strings rather than Dates so the check means "the calendar day
+ * the admin is sitting in", with no timezone shift turning this morning's event
+ * into yesterday's.
+ */
+const todayInput = () => toDateInput(new Date());
+
 const nonNegative = (value) => {
   if (value === "" || value === null || value === undefined) return "";
   const cleaned = String(value).replace(/[^0-9.]/g, "");
@@ -246,6 +262,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const { notify } = useToast();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -273,7 +290,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     event_type_other: "",
     event_date: "",
     start_time: "",
-    duration_hours: "",
     guest_count: 1,
     service_type: SERVICE_TYPES.FULL_SERVICE,
     venue_type: "",
@@ -403,7 +419,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           event_type_other: isOtherEventType(storedEventType) ? storedEventType : "",
           event_date: toDateInput(inquiry?.event_date),
           start_time: inquiry?.start_time || "",
-          duration_hours: inquiry?.duration_hours ? String(inquiry.duration_hours) : "",
           guest_count: Number(inquiry?.guest_count) || 1,
           service_type:
             inquiry?.service_type ||
@@ -605,13 +620,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     [cateringIncluded, menuItems]
   );
 
+  // Add-ons the admin has parked stay on screen but never reach a total or the
+  // saved quotation, so restoring one costs nothing and changes nothing.
+  const chargeableAddOns = useMemo(() => addOns.filter((item) => !item.removed), [addOns]);
+
   const pricingInput = useMemo(
     () => ({
       package_starting_price: startingPrice,
       removed_inclusions: removedInclusions,
       guest_count: details.guest_count,
       menu_items: chargeableMenuItems,
-      add_ons: addOns,
+      add_ons: chargeableAddOns,
       transportation_fee: transportationFee,
       additional_fees: additionalFees,
       taxes,
@@ -623,7 +642,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       removedInclusions,
       details.guest_count,
       chargeableMenuItems,
-      addOns,
+      chargeableAddOns,
       transportationFee,
       additionalFees,
       taxes,
@@ -654,7 +673,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         note: String(item.note || "").trim(),
         price: money(item.price),
       })),
-      add_ons: addOns.map((item) => ({
+      add_ons: chargeableAddOns.map((item) => ({
         name: String(item.name || "").trim(),
         price: money(item.price),
         quantity: addOnQuantityOf(item),
@@ -682,7 +701,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       keptInclusions,
       removedInclusions,
       chargeableMenuItems,
-      addOns,
+      chargeableAddOns,
       transportationFee,
       additionalFees,
       expirationDate,
@@ -713,6 +732,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const isDirty =
     !loading && savedBaseline.current !== null && savedBaseline.current !== formFingerprint;
+
+  // Recomputed per render rather than memoised: a builder left open overnight
+  // should not still be offering yesterday as a valid date.
+  const today = todayInput();
 
   /* --- Warnings: worth a look, never blocking ----------------------------- */
   const warnings = useMemo(() => {
@@ -802,6 +825,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       found.event_type_other = "Describe the event type.";
 
     if (!details.event_date) found.event_date = "Set the event date this quotation covers.";
+    else if (details.event_date < today)
+      found.event_date =
+        "This event date has already passed. Set the date the event will actually take place before sending.";
     if (!details.start_time) found.start_time = "Set the start time.";
     if (!Number(details.guest_count) || Number(details.guest_count) < 1)
       found.guest_count = "Enter the number of guests. Menu pricing is calculated per guest.";
@@ -840,7 +866,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           "Set the per guest price for this dish. Enter 0 to include it at no charge.";
     });
 
+    // Parked rows are excluded: they are not going to be sent, so they must
+    // not block sending. Indices still line up because errors are keyed off
+    // the same array the rows are rendered from.
     addOns.forEach((item, index) => {
+      if (item.removed) return;
       if (!String(item.name || "").trim())
         found[`add_ons.${index}.name`] = "Name this add-on or remove the line.";
       if (isBlankAmount(item.price))
@@ -985,7 +1015,42 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     clearError(`add_ons.${index}.${field}`);
   };
 
-  const handleRemoveAddOn = (index) => setAddOns((prev) => prev.filter((_, i) => i !== index));
+  /**
+   * Removing an add-on parks it rather than deleting it.
+   *
+   * The row stays on screen, struck through and out of every total, so a
+   * misclick costs one click to undo instead of retyping the service and its
+   * quoted price. Parked rows are dropped when the quotation is saved, so
+   * nothing about what gets stored or sent changes. This mirrors the
+   * Remove/Restore an admin already knows from package inclusions, except
+   * inclusions carry a deduction because they came out of the package price,
+   * and an add-on simply stops being charged.
+   */
+  const toggleAddOnRemoved = (index) => {
+    setAddOns((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, removed: !item.removed } : item))
+    );
+    // A parked row cannot be fixed, so its errors are no longer actionable.
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[`add_ons.${index}.name`];
+      delete next[`add_ons.${index}.price`];
+      delete next[`add_ons.${index}.quantity`];
+      return next;
+    });
+  };
+
+  /** Deletes outright. Used for a blank row the admin just added by mistake. */
+  const handleDeleteAddOn = (index) => {
+    setAddOns((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        if (!key.startsWith("add_ons.")) next[key] = value;
+      });
+      return next;
+    });
+  };
 
   /* --- Additional fee handlers -------------------------------------------- */
 
@@ -1030,7 +1095,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     event_type: resolvedEventType,
     event_date: details.event_date,
     start_time: details.start_time,
-    duration_hours: String(details.duration_hours || ""),
     guest_count: String(details.guest_count || ""),
     service_type: details.service_type,
     include_food: cateringIncluded,
@@ -1043,8 +1107,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     zip_code: details.zip_code,
   });
 
-  /** @returns {Promise<boolean>} whether the draft actually reached the server. */
-  const handleSaveDraft = async () => {
+  /**
+   * Saves the draft, or throws with the server's message.
+   *
+   * It throws rather than returning a flag so the leave-confirmation can
+   * report the failure inside itself and stay open. A toast there would
+   * announce the problem on the way out of the very dialog the admin opened
+   * to avoid losing this work.
+   */
+  const saveDraft = async () => {
     setSavingDraft(true);
     try {
       const { data } = await AdminAPI.saveQuotationDraft({
@@ -1058,13 +1129,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       // Errors from an earlier send attempt are stale once the work is parked.
       setErrors({});
       setShowErrorSummary(false);
-      notify("Draft saved. You can close this and pick it up later.", "success");
-      return true;
+      return data;
     } catch (err) {
-      notify(err.response?.data?.message || "Could not save the draft. Try again.", "error");
-      return false;
+      throw new Error(err.response?.data?.message || "Could not save the draft. Try again.");
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  /** The toolbar's own "Save draft" — the admin stays in the builder, so a
+      toast is the right weight for the result. */
+  const handleSaveDraft = async () => {
+    try {
+      await saveDraft();
+      notify("Draft saved", "success", {
+        description: "You can close this and pick it up later.",
+      });
+    } catch (err) {
+      notify(err.message, "error");
     }
   };
 
@@ -1080,29 +1162,33 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     setCloseIntent(intent);
   };
 
+  // A throw here is caught by the confirmation, which stays open and shows
+  // the reason — closing on failure would lose exactly what the admin just
+  // asked to keep.
   const handleSaveDraftAndClose = async () => {
-    const saved = await handleSaveDraft();
-    if (!saved) {
-      // Stay put: closing now would lose exactly what the admin asked to keep.
-      setCloseIntent(null);
-      return;
-    }
+    await saveDraft();
     setCloseIntent(null);
+    notify("Draft saved", "success", { description: "Pick it up from this inquiry when you are ready." });
     onSuccess();
   };
 
   const handleDiscardDraft = async () => {
     if (!savedDraft) return;
-    if (!window.confirm("Discard this saved draft? Any progress in it is lost.")) return;
-    try {
-      await AdminAPI.discardQuotationDraft(inquiry._id);
-      setSavedDraft(null);
-      setDraftSavedAt(null);
-      notify("Draft discarded.", "info");
-      onSuccess();
-    } catch (err) {
-      notify(err.response?.data?.message || "Could not discard the draft.", "error");
-    }
+    await confirm({
+      tone: "destructive",
+      title: "Discard this saved draft?",
+      description:
+        "The draft and everything in it is deleted. The customer has not been sent anything, so nothing they can see changes.",
+      confirmLabel: "Discard draft",
+      cancelLabel: "Keep draft",
+      onConfirm: async () => {
+        await AdminAPI.discardQuotationDraft(inquiry._id);
+        setSavedDraft(null);
+        setDraftSavedAt(null);
+        notify("Draft discarded", "info");
+        onSuccess();
+      },
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -1131,7 +1217,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         event_type: resolvedEventType,
         event_date: details.event_date,
         start_time: details.start_time,
-        duration_hours: numberOf(details.duration_hours) || undefined,
         guest_count: totals.guestCount,
         service_type: details.service_type,
         // The customer's catering answer, not an assumption from the service
@@ -1158,11 +1243,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
     try {
       await AdminAPI.createQuotation(quotationPayload);
+      // The admin goes straight back to the queue, so the toast has to carry
+      // the state change with it: which version went out, and that the
+      // inquiry has moved on and is now waiting on the customer.
       notify(
         quotation
-          ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent to the customer.`
-          : "Quotation sent to the customer.",
-        "success"
+          ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent to ${details.contact_first_name || "the customer"}`
+          : `Quotation sent to ${details.contact_first_name || "the customer"}`,
+        "success",
+        { description: "This inquiry is now waiting for their response." },
       );
       onSuccess();
     } catch (err) {
@@ -1234,9 +1323,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               <button
                 type="button"
                 onClick={handleDiscardDraft}
-                className="shrink-0 self-start rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-red-300 hover:text-red-700 sm:self-auto"
+                className={`${ROW_ACTION_BASE} ${ROW_ACTION_TONES.danger} self-start sm:self-auto`}
               >
-                Discard draft
+                <Trash2 size={12} /> Discard draft
               </button>
             </div>
           )}
@@ -1254,27 +1343,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           )}
 
+          {/* Validation belongs on the page next to the fields it names, not
+              in a dialog and not in a toast that expires while the admin is
+              still reading the list. */}
           {showErrorSummary && errorCount > 0 && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-3.5" role="alert">
-              <p className="flex items-center gap-2 text-xs font-bold text-red-800">
-                <AlertCircle size={15} className="shrink-0" />
-                {errorCount === 1
+            <InlineMessage
+              tone="error"
+              assertive
+              title={
+                errorCount === 1
                   ? "One field needs your attention before this can be sent."
-                  : `${errorCount} fields need your attention before this can be sent.`}
-              </p>
-              <ul className="mt-2 space-y-1 pl-6 text-[11.5px] leading-snug text-red-700">
+                  : `${errorCount} fields need your attention before this can be sent.`
+              }
+            >
+              <ul>
                 {Object.entries(errors)
                   .slice(0, 5)
                   .map(([key, message]) => (
-                    <li key={key} className="list-disc">
-                      {message}
-                    </li>
+                    <li key={key}>{message}</li>
                   ))}
-                {errorCount > 5 && (
-                  <li className="list-disc">and {errorCount - 5} more below.</li>
-                )}
+                {errorCount > 5 && <li>and {errorCount - 5} more below.</li>}
               </ul>
-            </div>
+            </InlineMessage>
           )}
 
           {/* --- 1. Customer and event information --------------------------- */}
@@ -1368,10 +1458,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   </select>
                 </Field>
 
-                <Field label="Event date" required error={errors.event_date} htmlFor="qb-event_date">
+                <Field
+                  label="Event date"
+                  required
+                  error={errors.event_date}
+                  hint="An event cannot be quoted for a date that has already passed."
+                  htmlFor="qb-event_date"
+                >
                   <input
                     id="qb-event_date"
                     type="date"
+                    min={today}
                     value={details.event_date}
                     onChange={(e) => setDetail("event_date", e.target.value)}
                     className={inputClass(errors.event_date)}
@@ -1424,17 +1521,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     value={details.guest_count}
                     onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
                     className={`${inputClass(errors.guest_count)} font-semibold tabular-nums`}
-                  />
-                </Field>
-
-                <Field label="Duration (hours)" htmlFor="qb-duration_hours">
-                  <input
-                    id="qb-duration_hours"
-                    type="number"
-                    min="0"
-                    value={details.duration_hours}
-                    onChange={(e) => setDetail("duration_hours", nonNegative(e.target.value))}
-                    className={`${inputClass(false)} tabular-nums`}
                   />
                 </Field>
 
@@ -1638,7 +1724,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 hint="The package cannot be changed here. Ask the customer to rebook to move to a different package."
               >
                 <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                  <Lock size={13} className="shrink-0 text-slate-400" />
+                  <Lock size={13} className="shrink-0 text-slate-500" />
                   <span className="truncate text-sm font-semibold text-slate-800" title={packageName}>
                     {packageName || "Custom Package"}
                   </span>
@@ -1723,7 +1809,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             )}
 
             {inclusions.length === 0 ? (
-              <p className="py-2 text-xs italic text-slate-400">
+              <p className="py-2 text-xs italic text-slate-500">
                 This package has no inclusions on record. Add the ones this quotation covers.
               </p>
             ) : (
@@ -2015,7 +2101,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                             />
                           </div>
                           <div className="min-w-[104px] text-right">
-                            <span className="block text-[10px] uppercase tracking-wider text-slate-400">
+                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                               {totals.guestCount} pax
                             </span>
                             <span className="text-xs font-bold tabular-nums text-slate-800">
@@ -2086,7 +2172,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </div>
 
               {addOns.length === 0 ? (
-                <p className="py-3 text-center text-xs italic text-slate-400">
+                <p className="py-3 text-center text-xs italic text-slate-500">
                   No add-ons on this quotation yet.
                 </p>
               ) : (
@@ -2098,19 +2184,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       errors[`add_ons.${index}.price`] ||
                       errors[`add_ons.${index}.quantity`];
                     return (
-                      <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                      <li
+                        key={index}
+                        className={`rounded-lg border p-2.5 transition-colors ${
+                          item.removed ? "border-slate-300 bg-slate-50" : "border-slate-200 bg-white"
+                        }`}
+                      >
                         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                           <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
                             <input
                               id={`qb-add_ons.${index}.name`}
                               type="text"
                               value={item.name}
+                              disabled={item.removed}
                               onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
                               placeholder="Add-on or service name"
-                              className={`${inputClass(errors[`add_ons.${index}.name`])} py-1.5 text-xs font-semibold`}
+                              className={`${inputClass(errors[`add_ons.${index}.name`])} py-1.5 text-xs font-semibold ${
+                                item.removed ? "line-through decoration-slate-400" : ""
+                              }`}
                             />
                             <select
                               value={item.pricing_type || "fixed"}
+                              disabled={item.removed}
                               onChange={(e) => handleAddOnChange(index, "pricing_type", e.target.value)}
                               className={`${inputClass(false)} py-1.5 text-xs`}
                             >
@@ -2129,6 +2224,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 id={`qb-add_ons.${index}.quantity`}
                                 type="number"
                                 min="1"
+                                disabled={item.removed}
                                 value={item.quantity}
                                 onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
                                 className={`${inputClass(errors[`add_ons.${index}.quantity`])} w-20 py-1.5 text-xs font-semibold tabular-nums`}
@@ -2139,6 +2235,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                               <MoneyInput
                                 id={`qb-add_ons.${index}.price`}
                                 value={item.price}
+                                disabled={item.removed}
                                 placeholder={isFixed ? "Quoted price" : "Unit price"}
                                 error={errors[`add_ons.${index}.price`]}
                                 onChange={(value) => handleAddOnChange(index, "price", value)}
@@ -2147,20 +2244,40 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                             </div>
 
                             <div className="min-w-[104px] text-right">
-                              <span className="block text-[10px] uppercase tracking-wider text-slate-400">
+                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                                 Line total
                               </span>
-                              <span className="text-xs font-bold tabular-nums text-slate-800">
+                              <span
+                                className={`text-xs font-bold tabular-nums ${
+                                  item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                                }`}
+                              >
                                 {formatCurrency(addOnLineTotal(item))}
                               </span>
                             </div>
 
-                            <RowAction
-                              onClick={() => handleRemoveAddOn(index)}
-                              icon={Trash2}
-                              label="Remove"
-                              title="Remove this add-on from the quotation"
-                            />
+                            {/* Parked, not deleted: one click puts it back,
+                                with its quoted price still filled in. */}
+                            {item.removed ? (
+                              <RowAction
+                                onClick={() => toggleAddOnRemoved(index)}
+                                icon={Undo2}
+                                label="Restore"
+                                tone="success"
+                                title="Put this add-on back on the quotation"
+                              />
+                            ) : (
+                              <RowAction
+                                onClick={() =>
+                                  String(item.name || "").trim() || numberOf(item.price)
+                                    ? toggleAddOnRemoved(index)
+                                    : handleDeleteAddOn(index)
+                                }
+                                icon={Trash2}
+                                label="Remove"
+                                title="Take this add-on off the quotation. You can restore it."
+                              />
+                            )}
                           </div>
                         </div>
                         {rowError && (
@@ -2425,14 +2542,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               {menuHeading && (
                 <SummaryRow
                   label={menuHeading}
-                  detail={`(${menuItems.length} at ${totals.guestCount} pax)`}
+                  detail={`(${chargeableMenuItems.length} at ${totals.guestCount} pax)`}
                   value={formatCurrency(totals.menuSubtotal)}
                 />
               )}
               {!isFoodOnly && (
                 <SummaryRow
                   label="Add-ons and services"
-                  detail={`(${addOns.length})`}
+                  detail={`(${chargeableAddOns.length})`}
                   value={formatCurrency(totals.addOnsSubtotal)}
                 />
               )}
@@ -2490,7 +2607,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   Changes in version {(Number(quotation.version_number) || 1) + 1}.0
                 </p>
                 {pendingChanges.length === 0 ? (
-                  <p className="text-[11px] leading-relaxed text-slate-400">
+                  <p className="text-[11px] leading-relaxed text-slate-300">
                     Nothing has changed yet. Edit the quotation before publishing a new version.
                   </p>
                 ) : (
@@ -2522,7 +2639,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </div>
             )}
 
-            <p className="flex items-start gap-1.5 text-[11px] leading-snug text-slate-400">
+            <p className="flex items-start gap-1.5 text-[11px] leading-snug text-slate-300">
               <CalendarDays size={12} className="mt-[2px] shrink-0" />
               Sending publishes this quotation to the customer straight away.
             </p>
@@ -2574,58 +2691,52 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
       {/* Closing with work in progress. The X, the backdrop, Escape and Cancel
           all land here rather than discarding silently. Leaving offers to keep
-          the work; Cancel is a deliberate throw-away, so it just asks once. */}
-      <AlertDialog open={closeIntent !== null} onOpenChange={(open) => !open && setCloseIntent(null)}>
-        <AlertDialogContent className="admin-shell">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-slate-900">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              {closeIntent === "cancel"
-                ? "Discard this quotation?"
-                : "Save this quotation as a draft before leaving?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600">
-              {closeIntent === "cancel"
-                ? "The changes you have made will be lost. The customer has not been sent anything."
-                : "You have changes that have not been saved. Save them as a draft and you can pick this up later."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setCloseIntent(null)}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Keep editing
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCloseIntent(null);
-                onClose();
-              }}
-              className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
-            >
-              {closeIntent === "cancel" ? "Discard" : "Discard changes"}
-            </button>
-            {closeIntent === "leave" && (
-              <button
-                type="button"
-                onClick={handleSaveDraftAndClose}
-                disabled={savingDraft}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
-              >
-                {savingDraft ? (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                ) : (
-                  <Save size={14} />
-                )}
-                {savingDraft ? "Saving" : "Save as draft"}
-              </button>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          the work; Cancel is a deliberate throw-away, so it just asks once.
+
+          Two different questions, so two different shapes. "Leave" is a
+          three-way: the safe, recommended action (save the draft) is the
+          primary, "Keep editing" is the neutral escape, and discarding is a
+          quiet destructive text button set apart on the left. The old footer
+          gave all three the same weight in one row, which is why it read as a
+          puzzle rather than a recommendation. "Cancel" is a plain destructive
+          yes/no — there is nothing to offer to keep. */}
+      {closeIntent === "leave" ? (
+        <FeedbackDialog
+          open
+          onOpenChange={(open) => !open && setCloseIntent(null)}
+          tone="warning"
+          title="Save this quotation as a draft before leaving?"
+          description="You have changes that have not been saved. Save them as a draft and you can pick this up later. Nothing has been sent to the customer either way."
+          confirmLabel="Save as draft"
+          confirmIcon={Save}
+          cancelLabel="Keep editing"
+          onConfirm={handleSaveDraftAndClose}
+          tertiary={{
+            label: "Discard changes",
+            tone: "destructive",
+            onClick: () => {
+              setCloseIntent(null);
+              onClose();
+            },
+          }}
+        />
+      ) : null}
+
+      {closeIntent === "cancel" ? (
+        <FeedbackDialog
+          open
+          onOpenChange={(open) => !open && setCloseIntent(null)}
+          tone="destructive"
+          title="Discard this quotation?"
+          description="The changes you have made will be lost. The customer has not been sent anything."
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          onConfirm={() => {
+            setCloseIntent(null);
+            onClose();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

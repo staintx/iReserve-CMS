@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import { useConfirm } from "../feedback/confirmContext";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import OcularDatePickerModal from "../customer/OcularDatePickerModal";
@@ -40,6 +41,7 @@ export default function BookingCard({
 }) {
   const navigate = useNavigate();
   const { notify } = useToast();
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(false);
 
   // Ocular schedule form state
@@ -93,17 +95,26 @@ export default function BookingCard({
 
   // Cancellation Request Handler
   const handleCancellationRequest = async () => {
-    if (!window.confirm("Are you sure you want to request cancellation for this booking? An admin will review your request.")) return;
-    try {
-      setIsCancelling(true);
-      await CustomerAPI.requestCancellation(booking._id);
-      notify("Cancellation request sent to admin team.", "success");
-      if (onBookingUpdate) onBookingUpdate();
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to submit cancellation request.", "error");
-    } finally {
-      setIsCancelling(false);
-    }
+    await confirm({
+      tone: "destructive",
+      title: "Request cancellation for this booking?",
+      description:
+        "This sends a cancellation request to our team for review. Your booking stays active until they act on it, and anything already paid is handled separately.",
+      confirmLabel: "Request cancellation",
+      cancelLabel: "Keep booking",
+      onConfirm: async () => {
+        setIsCancelling(true);
+        try {
+          await CustomerAPI.requestCancellation(booking._id);
+          notify("Cancellation request sent", "success", {
+            description: "Our team will review it and get back to you.",
+          });
+          if (onBookingUpdate) onBookingUpdate();
+        } finally {
+          setIsCancelling(false);
+        }
+      },
+    });
   };
 
   const refCode = booking.reference || `BK-${booking._id.substring(0, 6).toUpperCase()}`;

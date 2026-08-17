@@ -874,7 +874,12 @@ export default function AdminPayments() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-xl font-bold text-foreground">
+                {/* Work Sans, not Playfair. This is a modal title on an
+                    operate-mode surface, which the Scanned-Not-Read rule opts
+                    out of the display serif — the same reason .admin-layout
+                    overrides its own headings. The inline style was overriding
+                    that override. */}
+                <h2 className="font-sans text-xl font-semibold tracking-tight text-[#16264A]">
                   Record Manual Payment
                 </h2>
                 <button onClick={() => setRecordModalOpen(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">

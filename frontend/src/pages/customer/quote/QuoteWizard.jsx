@@ -3,7 +3,6 @@ import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
 import { useNavigate, useLocation } from "react-router-dom";
-import useToast from "../../../hooks/useToast";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, Info, ArrowLeft, ArrowRight, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Info, ArrowLeft, ArrowRight, Loader2, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock, AlertTriangle } from "lucide-react";
+import { formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
 import { Turnstile } from '@marsidev/react-turnstile';
@@ -105,12 +105,13 @@ export default function QuoteWizard() {
   const [menuFilter, setMenuFilter] = useState(menuTabs[0]);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
-  const { notify } = useToast();
   
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [bookingRef, setBookingRef] = useState("");
+  // Submitting creates an inquiry, and the backend rejects a second one within
+  // 60 seconds with a 429. Guarding the button is what stops a double-click
+  // turning a successful submission into an error message.
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const initialEventType = location.state?.eventType || "";
   const initialPackageId = location.state?.packageId || location.state?.package_id || null;
@@ -472,6 +473,7 @@ export default function QuoteWizard() {
   };
 
   const submit = async () => {
+    if (isSubmitting) return;
     setError("");
     if (form.full_name && form.email && form.phone) {
       CustomerAPI.updateProfile({
@@ -490,11 +492,30 @@ export default function QuoteWizard() {
       setError("Please complete the security check.");
       return;
     }
+    setIsSubmitting(true);
     try {
       const inquiryPayload = buildInquiryPayload();
       const res = await CustomerAPI.submitInquiry(inquiryPayload);
-      setBookingRef(res?.data?._id || "");
-      setShowSuccessModal(true);
+      // A dedicated completion state, not a dismissible modal. The old modal
+      // could be thrown away with a backdrop click, promised a confirmation
+      // email the backend never sends, advertised a consultation call and a
+      // "3-5 days" proposal that exist nowhere in the system, and printed the
+      // raw Mongo _id where the customer needed the INQ- reference.
+      navigate("/customer/request-submitted", {
+        replace: true,
+        state: {
+          submitted: true,
+          kind: "custom",
+          reference: res?.data?.reference || null,
+          summary: [
+            { label: "Event type", value: inquiryPayload.event_type },
+            { label: "Event date", value: formatEventDate(inquiryPayload.event_date) },
+            { label: "Guests", value: inquiryPayload.guest_count ? `${inquiryPayload.guest_count}` : "" },
+            { label: "Service", value: inquiryPayload.service_type },
+            { label: "Venue", value: inquiryPayload.venue_type },
+          ],
+        },
+      });
     } catch (err) {
       const backendErrors = mapBackendErrors(err.response?.data?.errors);
       if (Object.keys(backendErrors).length > 0) {
@@ -503,8 +524,12 @@ export default function QuoteWizard() {
         return;
       }
       const message = err.response?.data?.message || "We could not submit your inquiry. Please try again.";
+      // The banner is the feedback that matters here — it sits with the form
+      // the customer has to fix and stays until they do. A toast on top of it
+      // would say the same thing twice and then vanish.
       setError(message);
-      notify(message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -512,37 +537,6 @@ export default function QuoteWizard() {
     <CustomerLayout>
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Modals */}
-        <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-          <DialogContent className="sm:max-w-lg text-center">
-            <DialogHeader>
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              <DialogTitle className="text-2xl font-serif text-center">Custom Quote Request Submitted!</DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <p className="text-muted-foreground mb-6">Thank you for your detailed submission! Our team is excited to create a personalized proposal for your event.</p>
-              <div className="bg-muted/50 rounded-xl p-6 mb-6 text-left border border-border">
-                <h4 className="font-bold text-foreground mb-3 font-serif">What You Can Expect:</h4>
-                <ol className="space-y-3 text-sm text-muted-foreground list-decimal pl-4">
-                  <li><strong className="text-foreground">Event Review:</strong> We'll review your requirements and contact you to schedule a consultation</li>
-                  <li><strong className="text-foreground">Consultation Call:</strong> 30-60 minute discussion to understand your vision and answer questions</li>
-                  <li><strong className="text-foreground">Custom Proposal (3-5 days):</strong> Detailed quote with other options, pricing breakdown, and recommendations</li>
-                  <li><strong className="text-foreground">Refinement & Booking:</strong> We'll work together to perfect every detail before confirming your booking</li>
-                </ol>
-              </div>
-              <p className="text-sm text-muted-foreground mb-2">A confirmation email has been sent to <strong className="text-foreground">{form.email || "your email"}</strong>.</p>
-              {bookingRef && (
-                <p className="text-sm text-muted-foreground">Inquiry Reference: <strong className="font-mono text-foreground bg-muted px-2 py-0.5 rounded">{bookingRef}</strong></p>
-              )}
-            </div>
-            <DialogFooter className="flex flex-col sm:flex-row gap-3">
-              <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setShowSuccessModal(false); navigate("/customer/inquiries"); }}>View My Inquiry</Button>
-              <Button className="w-full sm:w-auto" onClick={() => { setShowSuccessModal(false); navigate("/"); }}>Return to Home</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         <Dialog open={showTerms} onOpenChange={setShowTerms}>
           <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
@@ -1174,8 +1168,16 @@ export default function QuoteWizard() {
                         )}
                       </CardContent>
                       <CardFooter className="bg-muted/20 border-t border-border p-6 flex justify-between">
-                        <Button variant="outline" onClick={back} size="lg"><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-                        <Button className="bg-accent text-accent-foreground hover:bg-accent/90" onClick={submit} size="lg">Submit Quote Request <CheckCircle2 className="w-4 h-4 ml-2" /></Button>
+                        <Button variant="outline" onClick={back} size="lg" disabled={isSubmitting}><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+                        {/* Primary blue, not `bg-accent`: accent is champagne gold,
+                            which the design system reserves for decoration and
+                            explicitly bars from buttons. */}
+                        <Button onClick={submit} size="lg" disabled={isSubmitting}>
+                          {isSubmitting ? "Sending request…" : "Submit Quote Request"}
+                          {isSubmitting
+                            ? <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                            : <CheckCircle2 className="w-4 h-4 ml-2" />}
+                        </Button>
                       </CardFooter>
                     </>
                   )}

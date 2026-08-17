@@ -18,16 +18,9 @@ import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import PackageModal from "../../components/admin/ui/PackageModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-
-// Constants
-const EVENT_TYPES = [
-  "Wedding",
-  "Birthday",
-  "Corporate",
-  "Christening",
-  "Anniversary",
-  "Other",
-];
+// One list for the whole product: the booking wizard offers these, and the
+// Quotation Builder corrects into the same set.
+import { EVENT_TYPES } from "../../lib/eventTypes";
 
 export default function AdminPackages() {
   const { notify } = useToast();
@@ -151,7 +144,6 @@ export default function AdminPackages() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search packages by name..."
                   className="bg-transparent text-sm focus:outline-none flex-1"
-                  style={{ fontFamily: "Inter, sans-serif" }}
                 />
                 {search && (
                   <button

@@ -11,6 +11,7 @@ import {
 } from "../components/BookingSharedUI";
 import EstimateSummary from "../components/EstimateSummary";
 import ThemePicker from "../components/ThemePicker";
+import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
 
 const VENUE_TYPES = [
   "Covered Court",
@@ -69,7 +70,20 @@ export default function StepEventDetails({
           <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
 
           <div className="space-y-3">
-            <Field label="Event type" required error={errors.event_type}>
+            {/* Prefilled when the customer arrived from a package, but never
+                locked: the package sets the starting point, not the truth about
+                what the event is. An admin can correct it later in the
+                Quotation Builder, and both sides offer the same list. */}
+            <Field
+              label="Event type"
+              required
+              hint={
+                initialEventType
+                  ? "Prefilled from the package you picked. Change it if your event is something else."
+                  : undefined
+              }
+              error={errors.event_type}
+            >
               <TSelect
                 value={form.event_type}
                 onChange={(val) =>
@@ -77,27 +91,25 @@ export default function StepEventDetails({
                     ...form,
                     event_type: val,
                     event_type_other:
-                      val === "Other" ? form.event_type_other : "",
+                      val === OTHER_EVENT_TYPE ? form.event_type_other : "",
                   })
                 }
-                options={["Birthday", "Wedding", "Corporate", "Other"]}
+                options={EVENT_TYPES}
                 placeholder="Select event type"
-                disabled={!!initialEventType}
                 hasError={!!errors.event_type}
               />
             </Field>
 
-            {form.event_type === "Other" && (
+            {form.event_type === OTHER_EVENT_TYPE && (
               <Field
                 label="Which kind of event?"
                 required
                 error={errors.event_type_other}
               >
                 <TInput
-                  placeholder="e.g. Anniversary"
+                  placeholder="e.g. Reunion"
                   value={form.event_type_other}
                   onChange={(val) => setForm({ ...form, event_type_other: val })}
-                  disabled={!!initialEventType}
                   hasError={!!errors.event_type_other}
                 />
               </Field>

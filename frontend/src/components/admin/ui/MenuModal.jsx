@@ -11,7 +11,6 @@ export default function MenuModal({ item, onClose, onSave }) {
   const [formData, setFormData] = useState({
     name: "",
     category: "Main Course",
-    price: "",
     description: "",
     status: "available",
     available: true
@@ -23,7 +22,6 @@ export default function MenuModal({ item, onClose, onSave }) {
       setFormData({
         name: item.name || "",
         category: item.category || "Main Course",
-        price: item.price || "",
         description: item.description || "",
         status: item.available === false ? "unavailable" : "available",
         available: item.available !== false
@@ -38,7 +36,6 @@ export default function MenuModal({ item, onClose, onSave }) {
       const data = new FormData();
       data.append("name", formData.name);
       data.append("category", formData.category);
-      data.append("price", Number(formData.price));
       data.append("description", formData.description);
       data.append("available", formData.status === "available");
       
@@ -116,17 +113,6 @@ export default function MenuModal({ item, onClose, onSave }) {
               <option value="Beverage">Beverage</option>
               <option value="Drinking Water">Drinking Water</option>
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Price per pax (₱)</label>
-            <input 
-              type="number" 
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
-              placeholder="0" 
-              value={formData.price} 
-              onChange={e => setFormData({...formData, price: e.target.value})} 
-            />
           </div>
 
           <div>

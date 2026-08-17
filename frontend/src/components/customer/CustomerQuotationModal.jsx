@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
 import { Button } from "../ui/button";
 import {
@@ -24,6 +24,7 @@ import AmountSummary from "./portal/AmountSummary";
 import { ACTION_DANGER } from "./portal/actionStyles";
 import { formatCurrency, formatEventDate, formatShortDate, formatTime } from "../../utils/format";
 import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationDiff";
+import { groupInclusions } from "../../lib/packageDisplay";
 
 /** Quotation status → the portal's shared semantic tones. */
 const statusMeta = (status, isExpired) => {
@@ -46,6 +47,26 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   const [revisionNote, setRevisionNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pane, setPane] = useState("quotation");
+  const revisionInputRef = useRef(null);
+
+  // Opening the form used to look like nothing happened: it rendered at the
+  // bottom of a long scrolling dialog while the button that opened it sat in
+  // the footer. It now sits at the top of the quotation, and the cursor lands
+  // in it, so the customer can start typing straight away.
+  useEffect(() => {
+    if (!showRevisionForm) return;
+    const frame = requestAnimationFrame(() => {
+      revisionInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      revisionInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showRevisionForm]);
+
+  // Asking for a change is about this quotation, so switch back to it if the
+  // customer was reading the version comparison when they pressed the button.
+  useEffect(() => {
+    if (showRevisionForm) setPane("quotation");
+  }, [showRevisionForm]);
 
   if (!quotation) return null;
 
@@ -101,15 +122,34 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   };
 
   const isExpired = quotation.expiration_date && new Date(quotation.expiration_date) < new Date();
-  const canRespond = (quotation.status === "Sent" || quotation.status === "Draft") && !isExpired;
+  // A Draft is unfinished work the server no longer serves to customers, so it
+  // is not something to accept, decline, or ask for changes to.
+  const canRespond = quotation.status === "Sent" && !isExpired;
 
-  // Build full address string
+  /**
+   * Every event detail on this page comes from the quotation that was sent.
+   *
+   * `event_snapshot` is frozen onto each version when the admin issues it, so
+   * what the customer reads here is what they were quoted. The inquiry is only
+   * consulted for quotations issued before snapshots existed: it is the live
+   * booking record and will have moved on, which is exactly why it cannot be
+   * the source for a document the customer is being asked to accept.
+   */
+  const snapshot = quotation.event_snapshot || null;
+  const eventDetail = (key) => {
+    const fromSnapshot = snapshot?.[key];
+    if (fromSnapshot !== undefined && fromSnapshot !== null && fromSnapshot !== "") {
+      return fromSnapshot;
+    }
+    return snapshot ? undefined : inquiry?.[key];
+  };
+
   const fullAddress = [
-    inquiry?.street,
-    inquiry?.barangay,
-    inquiry?.municipality,
-    inquiry?.province,
-    inquiry?.zip_code
+    eventDetail("street"),
+    eventDetail("barangay"),
+    eventDetail("municipality"),
+    eventDetail("province"),
+    eventDetail("zip_code"),
   ].filter(Boolean).join(", ") || "Location details specified in booking inquiry";
 
   const guestCount = quotation.guest_count || inquiry?.guest_count || 1;
@@ -137,8 +177,38 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     tone: "warning",
   };
 
+  // Named charges the caterer added while quoting. The two fixed fee fields are
+  // no longer issued, but quotations sent before custom fees existed still
+  // carry them and must keep showing what the customer was charged.
+  const additionalFees = (Array.isArray(quotation.additional_fees) ? quotation.additional_fees : [])
+    .filter((fee) => Number(fee?.amount) > 0);
   const hasFees =
-    quotation.transportation_fee > 0 || quotation.equipment_fee > 0 || quotation.decoration_fee > 0;
+    quotation.transportation_fee > 0 ||
+    quotation.equipment_fee > 0 ||
+    quotation.decoration_fee > 0 ||
+    additionalFees.length > 0;
+
+  // What the package started at, and what came off it. Only shown when the
+  // quotation actually records a deduction, so an untouched package still reads
+  // as one simple price.
+  const startingPrice = Number(quotation.package_starting_price || 0);
+  const removedInclusions = (Array.isArray(quotation.removed_inclusions) ? quotation.removed_inclusions : [])
+    .filter((entry) => entry?.name);
+  const inclusionDeductions = removedInclusions.reduce(
+    (sum, entry) => sum + (Number(entry?.deduction) || 0),
+    0
+  );
+  const showPackageBreakdown = startingPrice > 0 && inclusionDeductions > 0;
+  // Inclusions are stored as "[Category] Name (qty)" strings by the package
+  // admin form. Printed raw they repeat the same bracketed category on every
+  // line, which is most of the noise in this section. groupInclusions parses
+  // them back into real groups so the category is stated once and the items
+  // read as a list under it. Nothing about the data changes.
+  const inclusionGroups = groupInclusions(
+    (Array.isArray(quotation.package_inclusions) ? quotation.package_inclusions : [])
+      .map((entry) => (typeof entry === "string" ? entry : entry?.name))
+      .filter(Boolean)
+  );
 
   // What the caterer actually changed between the previous saved version and
   // this one. Derived from two real quotation documents — see quotationDiff.
@@ -297,6 +367,59 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
         ) : (
         <div className="space-y-6 px-5 py-6 sm:px-7">
 
+          {/* Change request. Sits at the top of the quotation so it is the
+              first thing in view once opened, rather than below every pricing
+              section. It is a plain message to the team: nothing here edits the
+              quotation, and no quotation field is exposed for a customer to
+              change. The caterer reissues a version if they can accommodate it. */}
+          {showRevisionForm && (
+            <form
+              onSubmit={handleRevisionSubmit}
+              className="space-y-3 rounded-xl border-2 border-primary bg-card p-4 sm:p-5"
+              aria-labelledby="revision-heading"
+            >
+              <div className="flex items-start gap-2.5">
+                <span
+                  className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-powder text-primary"
+                  aria-hidden="true"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 id="revision-heading" className="font-serif text-lg font-bold text-foreground">
+                    What would you like to change?
+                  </h3>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Describe it in your own words. You might mention guest count, menu or package,
+                    add-ons, event details, or anything else.
+                  </p>
+                </div>
+              </div>
+              <textarea
+                id="revision-note"
+                ref={revisionInputRef}
+                aria-label="Describe the change you would like"
+                className="min-h-[130px] w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder="For example: can we increase the guest count from 50 to 70 and add 2 cocktail tables?"
+                value={revisionNote}
+                onChange={(e) => setRevisionNote(e.target.value)}
+                required
+              />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                This sends a request to our team. It does not change your quotation on its own.
+                We'll review it and send you an updated version if we can accommodate it.
+              </p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => setShowRevisionForm(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Sending…" : "Send change request"}
+                </Button>
+              </div>
+            </form>
+          )}
+
           {isExpired && (
             <StateNotice tone="neutral" icon={Clock} title="This quote has expired.">
               Message our team and we'll send you an updated quotation.
@@ -363,10 +486,14 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
               <DetailGrid
                 title="Event"
                 items={[
-                  { label: "Event type", value: inquiry?.event_type || "Catering event" },
-                  { label: "Date", value: formatEventDate(inquiry?.event_date, { fallback: "To be confirmed" }) },
-                  { label: "Start time", value: formatTime(inquiry?.start_time) || "To be confirmed" },
+                  { label: "Event type", value: eventDetail("event_type") || "Catering event" },
+                  { label: "Date", value: formatEventDate(eventDetail("event_date"), { fallback: "To be confirmed" }) },
+                  { label: "Start time", value: formatTime(eventDetail("start_time")) || "To be confirmed" },
                   { label: "Guests", value: `${guestCount} guests` },
+                  eventDetail("service_type") && {
+                    label: "Service type",
+                    value: eventDetail("service_type"),
+                  },
                 ]}
               />
               <DetailGrid
@@ -374,10 +501,11 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 className="border-t border-border pt-4"
                 items={[
                   { label: "Address", value: fullAddress, wide: true },
-                  inquiry?.landmark && { label: "Landmark", value: inquiry.landmark },
-                  inquiry?.delivery_method && {
-                    label: "Service type",
-                    value: <span className="capitalize">{inquiry.delivery_method}</span>,
+                  eventDetail("venue_type") && { label: "Venue type", value: eventDetail("venue_type") },
+                  eventDetail("landmark") && { label: "Landmark", value: eventDetail("landmark") },
+                  eventDetail("delivery_method") && {
+                    label: "Delivery",
+                    value: <span className="capitalize">{eventDetail("delivery_method")}</span>,
                   },
                 ]}
               />
@@ -387,25 +515,33 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 items={[
                   {
                     label: "Name",
-                    value: `${inquiry?.contact_first_name || "Customer"} ${inquiry?.contact_last_name || ""}`.trim(),
+                    value: `${eventDetail("contact_first_name") || "Customer"} ${eventDetail("contact_last_name") || ""}`.trim(),
                   },
-                  { label: "Email", value: inquiry?.contact_email || "—" },
-                  { label: "Phone", value: inquiry?.contact_phone || "—" },
+                  { label: "Email", value: eventDetail("contact_email") || "Not provided" },
+                  { label: "Phone", value: eventDetail("contact_phone") || "Not provided" },
                 ]}
               />
-              {(inquiry?.special_requests || inquiry?.dietary_requirements) && (
+              {(eventDetail("special_requests") ||
+                eventDetail("dietary_requirements") ||
+                eventDetail("dietary_restrictions") ||
+                eventDetail("allergies")) && (
                 <DetailGrid
                   title="Your notes"
                   className="border-t border-border pt-4"
                   items={[
-                    inquiry.special_requests && {
+                    eventDetail("special_requests") && {
                       label: "Special instructions",
-                      value: inquiry.special_requests,
+                      value: eventDetail("special_requests"),
                       wide: true,
                     },
-                    inquiry.dietary_requirements && {
+                    (eventDetail("dietary_requirements") || eventDetail("dietary_restrictions")) && {
                       label: "Dietary requirements",
-                      value: inquiry.dietary_requirements,
+                      value: eventDetail("dietary_requirements") || eventDetail("dietary_restrictions"),
+                      wide: true,
+                    },
+                    eventDetail("allergies") && {
+                      label: "Allergies",
+                      value: eventDetail("allergies"),
                       wide: true,
                     },
                   ]}
@@ -420,22 +556,80 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
             <div className="overflow-hidden rounded-xl border border-border bg-card">
 
               {quotation.package_name && (
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-4 sm:px-5">
-                  <div className="min-w-0">
-                    <span className="text-sm font-semibold text-foreground">{quotation.package_name}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      Event setup package
+                <div className="border-b border-border px-4 py-4 sm:px-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <div className="min-w-0">
+                      <span className="text-sm font-semibold text-foreground">{quotation.package_name}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Event setup package
+                      </span>
+                    </div>
+                    <span className="text-sm font-medium text-foreground">
+                      {Number(quotation.package_price) > 0
+                        ? formatCurrency(quotation.package_price)
+                        : "Included"}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-foreground">
-                    {Number(quotation.package_price) > 0 ? (
-                      formatCurrency(quotation.package_price)
-                    ) : quotation.menu_items?.length > 0 ? (
-                      <span className="text-emerald-700 font-semibold">Included FREE with catering</span>
-                    ) : (
-                      "Included"
-                    )}
-                  </span>
+
+                  {/* How the package price was reached, whenever something was
+                      taken out of it. Without this the customer sees a package
+                      price that does not match the package they browsed. */}
+                  {showPackageBreakdown && (
+                    <dl className="mt-3 space-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-xs text-muted-foreground">Package starting price</dt>
+                        <dd className="font-sans text-xs font-medium tabular-nums text-foreground">
+                          {formatCurrency(startingPrice)}
+                        </dd>
+                      </div>
+                      {removedInclusions.map((entry, idx) => (
+                        <div key={idx} className="flex items-baseline justify-between gap-4">
+                          <dt className="min-w-0 text-xs text-muted-foreground">
+                            Removed: {entry.name}
+                          </dt>
+                          <dd className="font-sans text-xs font-medium tabular-nums text-emerald-700">
+                            − {formatCurrency(entry.deduction)}
+                          </dd>
+                        </div>
+                      ))}
+                      <div className="flex items-baseline justify-between gap-4 border-t border-border pt-1.5">
+                        <dt className="text-xs font-semibold text-foreground">Adjusted package price</dt>
+                        <dd className="font-sans text-xs font-semibold tabular-nums text-foreground">
+                          {formatCurrency(quotation.package_price)}
+                        </dd>
+                      </div>
+                    </dl>
+                  )}
+
+                  {inclusionGroups.length > 0 && (
+                    <div className="mt-4 space-y-3.5">
+                      {inclusionGroups.map((group, groupIdx) => (
+                        <div key={group.category || groupIdx}>
+                          {group.category && (
+                            <h5 className="mb-1.5 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              {group.category}
+                            </h5>
+                          )}
+                          <ul className="grid grid-cols-1 gap-x-5 gap-y-1 sm:grid-cols-2">
+                            {group.items.map((item, idx) => (
+                              <li key={idx} className="flex items-baseline gap-2 text-sm text-foreground">
+                                <span
+                                  className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary"
+                                  aria-hidden="true"
+                                />
+                                <span className="min-w-0">
+                                  {item.name}
+                                  {item.qty && (
+                                    <span className="text-muted-foreground"> ({item.qty})</span>
+                                  )}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -533,6 +727,17 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                         </span>
                       </li>
                     )}
+                    {additionalFees.map((fee, idx) => (
+                      <li key={idx} className="flex items-baseline justify-between gap-4">
+                        <span className="flex items-center gap-2 text-sm text-foreground">
+                          <PackageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          {fee.name || "Additional fee"}
+                        </span>
+                        <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                          {formatCurrency(fee.amount)}
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               )}
@@ -582,41 +787,6 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
             </p>
           </section>
 
-          {/* Revision form */}
-          {showRevisionForm && (
-            <form
-              onSubmit={handleRevisionSubmit}
-              className="space-y-3 rounded-xl border border-border bg-card p-4 sm:p-5"
-            >
-              <label htmlFor="revision-note" className="block text-sm font-semibold text-foreground">
-                What would you like to change?
-              </label>
-              <p className="text-sm text-muted-foreground">
-                Describe it in your own words — you might mention guest count, menu or package,
-                add-ons, event details, or anything else.
-              </p>
-              <textarea
-                id="revision-note"
-                className="min-h-[110px] w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="For example: can we increase the guest count from 50 to 70 and add 2 cocktail tables?"
-                value={revisionNote}
-                onChange={(e) => setRevisionNote(e.target.value)}
-                required
-              />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                This sends a request to our team — it doesn't change your quotation on its own.
-                We'll review it and send you an updated version if we can accommodate it.
-              </p>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setShowRevisionForm(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Sending…" : "Send revision request"}
-                </Button>
-              </div>
-            </form>
-          )}
         </div>
         )}
 

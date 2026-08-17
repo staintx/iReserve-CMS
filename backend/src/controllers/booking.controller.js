@@ -2476,6 +2476,9 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     total_price: totalPrice,
     payment_status: "pending",
     status: "pending deposit",
+    ...(req.body.event_manager_id || req.body.manager_id
+      ? { event_manager_id: req.body.event_manager_id || req.body.manager_id }
+      : {}),
   };
 
   const newBooking = await Booking.create(payload);

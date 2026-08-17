@@ -4,18 +4,19 @@ import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import { 
   Menu, 
-  LayoutDashboard, 
   Calendar, 
-  Users, 
+  PackageCheck, 
+  CalendarDays, 
   MessageSquare,
   LogOut,
-  ShieldCheck
+  UserCheck,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ConfirmDialog from "../common/ConfirmDialog";
 import NotificationBell from "../common/NotificationBell";
 
-export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
+export default function StaffSidebar({ mobileOpen, setMobileOpen }) {
   const auth = useAuth() || {}; 
   const user = auth.user || null;
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
   const initials = (() => {
     const name = user?.full_name || user?.email || "";
     const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "MG";
+    if (parts.length === 0) return "ST";
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   })();
@@ -74,14 +75,14 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
         )}
       >
         {/* Brand Header */}
-        <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/manager/dashboard")}>
+        <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/staff/dashboard")}>
           {!isCollapsed ? (
             <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
               <img src={logo} alt="Caezelle's logo" className="w-10 h-10 rounded-full object-cover border border-border shadow-sm shrink-0" />
               <div>
-                <div className="font-serif font-bold text-foreground leading-tight">Manager Portal</div>
-                <div className="text-xs text-amber-700 font-semibold uppercase tracking-wider mt-0.5 flex items-center gap-1">
-                  <ShieldCheck size={12} className="text-amber-600" /> Event Lead
+                <div className="font-serif font-bold text-foreground leading-tight">Staff Portal</div>
+                <div className="text-xs text-primary font-semibold uppercase tracking-wider mt-0.5 flex items-center gap-1">
+                  <UserCheck size={12} className="text-primary" /> Operations Crew
                 </div>
               </div>
             </div>
@@ -113,36 +114,18 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
 
         {/* Nav Links */}
         <nav className="flex flex-col flex-1 px-3 pt-1 pb-6 space-y-0.5 overflow-y-auto hide-scrollbar">
-          <div className={sectionLabelClass}>Operations</div>
+          <div className={sectionLabelClass}>My Duties</div>
 
-          <NavLink to="/manager/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
-            {({ isActive }) => (
-              <>
-                <LayoutDashboard className={iconClass(isActive)} />
-                {!isCollapsed && <span>Dashboard</span>}
-              </>
-            )}
-          </NavLink>
-
-          <NavLink to="/manager/bookings" className={linkClass} title={isCollapsed ? "Assigned Bookings" : undefined}>
+          <NavLink to="/staff/dashboard" className={linkClass} title={isCollapsed ? "My Assigned Events" : undefined}>
             {({ isActive }) => (
               <>
                 <Calendar className={iconClass(isActive)} />
-                {!isCollapsed && <span>Assigned Bookings</span>}
+                {!isCollapsed && <span>Assigned Events</span>}
               </>
             )}
           </NavLink>
 
-          <NavLink to="/manager/staff" className={linkClass} title={isCollapsed ? "Staff & Availability" : undefined}>
-            {({ isActive }) => (
-              <>
-                <Users className={iconClass(isActive)} />
-                {!isCollapsed && <span>Staff Roster</span>}
-              </>
-            )}
-          </NavLink>
-
-          <NavLink to="/manager/messages" className={linkClass} title={isCollapsed ? "Messages" : undefined}>
+          <NavLink to="/staff/messages" className={linkClass} title={isCollapsed ? "Messages" : undefined}>
             {({ isActive }) => (
               <>
                 <MessageSquare className={iconClass(isActive)} />
@@ -161,8 +144,8 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
                   {initials}
                 </div>
                 <div className="overflow-hidden">
-                  <div className="text-xs font-bold text-foreground truncate">{user?.full_name || "Event Manager"}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">{user?.email || "Manager"}</div>
+                  <div className="text-xs font-bold text-foreground truncate">{user?.full_name || "Staff Member"}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{user?.position || "Catering Staff"}</div>
                 </div>
               </div>
               <button
@@ -188,7 +171,7 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
       {showLogoutConfirm && (
         <ConfirmDialog
           title="Sign Out"
-          message="Are you sure you want to sign out of the Manager Portal?"
+          message="Are you sure you want to sign out of the Staff Portal?"
           onConfirm={() => {
             setShowLogoutConfirm(false);
             auth.logout();

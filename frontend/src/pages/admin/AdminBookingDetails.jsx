@@ -64,6 +64,25 @@ export default function AdminBookingDetails() {
   const [revisionNote, setRevisionNote] = useState("");
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
+  const [managers, setManagers] = useState([]);
+  const [isEditingManager, setIsEditingManager] = useState(false);
+  const [selectedManagerId, setSelectedManagerId] = useState("");
+  const [savingManager, setSavingManager] = useState(false);
+
+  const handleUpdateManager = async () => {
+    if (!booking) return;
+    setSavingManager(true);
+    try {
+      await AdminAPI.updateBooking(booking._id, { event_manager_id: selectedManagerId || null });
+      notify("Event coordinator updated successfully.", "success");
+      setIsEditingManager(false);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to update event manager.", "error");
+    } finally {
+      setSavingManager(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -96,6 +115,16 @@ export default function AdminBookingDetails() {
       }
 
       setBooking(bookingData);
+      setSelectedManagerId(bookingData.event_manager_id?._id || bookingData.event_manager_id || "");
+
+      // Fetch manager staff list
+      try {
+        const staffRes = await AdminAPI.getStaff();
+        const staffList = Array.isArray(staffRes.data) ? staffRes.data : [];
+        setManagers(staffList.filter((s) => s.role === "manager" && s.is_active !== false));
+      } catch (sErr) {
+        setManagers([]);
+      }
 
       // Fetch payments for this booking
       try {
@@ -567,9 +596,66 @@ export default function AdminBookingDetails() {
                 <span className="text-slate-500">Venue / Location</span>
                 <strong className="text-slate-900 text-right max-w-44 truncate">{booking.venue_type || booking.municipality || "TBA"}</strong>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Coordinator</span>
-                <strong className="text-slate-900">{booking.event_manager_id?.full_name || "Unassigned"}</strong>
+              <div className="pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-500 font-medium">Event Coordinator</span>
+                  {!isEditingManager && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingManager(true)}
+                      className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 underline"
+                    >
+                      {booking.event_manager_id ? "Change" : "Assign"}
+                    </button>
+                  )}
+                </div>
+
+                {!isEditingManager ? (
+                  <div className="flex items-center justify-between">
+                    <strong className="text-slate-900 font-bold">
+                      {booking.event_manager_id?.full_name || "Unassigned"}
+                    </strong>
+                    {booking.event_manager_id?.email && (
+                      <span className="text-[10px] text-slate-400">({booking.event_manager_id.email})</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 mt-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <select
+                      value={selectedManagerId}
+                      onChange={(e) => setSelectedManagerId(e.target.value)}
+                      className="w-full p-1.5 text-xs rounded border border-slate-300 bg-white font-medium text-slate-900"
+                    >
+                      <option value="">-- Unassigned --</option>
+                      {managers.map((m) => (
+                        <option key={m._id} value={m._id}>
+                          {m.full_name} ({m.email})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                          setIsEditingManager(false);
+                        }}
+                        disabled={savingManager}
+                        className="px-2 py-1 text-[11px] text-slate-600 bg-white border border-slate-200 rounded hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleUpdateManager}
+                        disabled={savingManager}
+                        className="px-2.5 py-1 text-[11px] font-bold text-white bg-primary-600 hover:bg-primary-700 rounded shadow-2xs"
+                      >
+                        {savingManager ? "Saving..." : "Save Coordinator"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </AdminCard>

@@ -26,8 +26,15 @@ export default function EstimateSummary({
   note,
   className = "",
 }) {
-  const { lines, blockers, total, hasTotal, depositPercentage, depositAmount } =
-    estimate;
+  const {
+    lines,
+    blockers,
+    total,
+    hasTotal,
+    depositPercentage,
+    depositAmount,
+    guests,
+  } = estimate;
 
   if (variant === "bar") {
     return (
@@ -39,6 +46,9 @@ export default function EstimateSummary({
       >
         <p className="text-[13px] text-white/70">
           {note || "Estimated total so far"}
+          {guests > 0 && (
+            <span className="text-white/50"> · Estimated guests: {guests}</span>
+          )}
         </p>
         <p className="text-sm font-semibold tabular-nums" aria-live="polite">
           {hasTotal ? formatPeso(total) : "Not yet available"}
@@ -57,9 +67,17 @@ export default function EstimateSummary({
       )}
     >
       <div className="px-4 pt-4">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">
-          Estimated cost
-        </h3>
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">
+            Estimated cost
+          </h3>
+          {guests > 0 && (
+            <p className="text-[11px] text-white/50" aria-live="polite">
+              Estimated guests:{" "}
+              <span className="font-semibold text-white/80">{guests}</span>
+            </p>
+          )}
+        </div>
         <span
           className="mt-2 block h-px w-8 bg-[#C5A059]"
           aria-hidden="true"

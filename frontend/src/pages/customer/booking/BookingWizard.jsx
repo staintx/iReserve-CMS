@@ -32,7 +32,6 @@ import {
   SERVICE_TYPES,
   buildEstimate,
   contactFieldError,
-  validateCourseSelection,
 } from "./lib/bookingRules";
 
 // -----------------------------------------------------------------------------
@@ -729,18 +728,8 @@ export default function BookingWizard() {
           break;
         }
 
-        case "MenuSelection": {
-          if (form.include_food !== false) {
-            if (isFoodAndEventSetup || !isFoodOnly) {
-              const { valid, issues } = validateCourseSelection(
-                form.selected_menu,
-                menuItems,
-              );
-              if (!valid) message = issues.join(" ");
-            }
-          }
-          break;
-        }
+        // MenuSelection: no rule to enforce here — dishes are a free choice
+        // with no required categories or cap, on every service path.
 
         case "ContactInfo": {
           [
@@ -779,10 +768,7 @@ export default function BookingWizard() {
       availability,
       isAvailabilityPending,
       isAvailabilityBlocked,
-      isEventSetupOnly,
-      isFoodAndEventSetup,
       selectedPackageId,
-      menuItems,
       guestMin,
       guestMax,
       setupCapacity,

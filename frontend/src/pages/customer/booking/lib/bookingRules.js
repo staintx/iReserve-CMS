@@ -1,5 +1,3 @@
-import { groupIdFor } from "@/lib/menuCategories";
-
 // -----------------------------------------------------------------------------
 // Canonical terminology
 // -----------------------------------------------------------------------------
@@ -68,7 +66,7 @@ export const SERVICE_PATHS = {
       "Your date and time, which we check is free",
       "A setup package and scaffold size",
       "Event type, venue, and guest count",
-      "Your courses: 3 mains, 1 vegetable, 2 desserts (or skip food)",
+      "Any dishes you'd like, as many as you want (or skip food)",
       "Any allergies, extras, or requests",
       "Contact details",
     ],
@@ -85,103 +83,6 @@ export const WHAT_HAPPENS_NEXT = [
   "We price it and send you a quotation to review.",
   "Accept it and pay the deposit, and your date is held.",
 ];
-
-// -----------------------------------------------------------------------------
-// Food and Event Setup course rules
-// -----------------------------------------------------------------------------
-// Fixed-count courses for the combined service. The counts are the business
-// rule; the *effective* requirement is capped by what the admin currently
-// offers (see effectiveRequirement) so an under-stocked category can never make
-// the flow impossible to complete.
-export const COURSE_RULES = [
-  {
-    key: "main",
-    groupId: "mains",
-    label: "Main Courses",
-    required: 3,
-    help: "Pick three main dishes. These are served to every guest.",
-  },
-  {
-    key: "vegetable",
-    groupId: "vegetables",
-    label: "Vegetables",
-    required: 1,
-    help: "Pick one vegetable dish.",
-  },
-  {
-    key: "dessert",
-    groupId: "desserts",
-    label: "Desserts",
-    required: 2,
-    help: "Pick two desserts.",
-  },
-];
-
-// Drinks have no count rule anywhere in the system, so none is invented here:
-// they are an open, optional choice. Water is included at no charge and is
-// never selectable — it is shown in the summary so customers know it is there.
-export const DRINKS_GROUP_ID = "drinks";
-export const WATER_GROUP_ID = "water";
-
-/** Menu items belonging to one course group, in catalog order. */
-export const itemsInGroup = (menuItems, groupId) =>
-  (menuItems || []).filter((item) => groupIdFor(item) === groupId);
-
-/** Selected items belonging to one course group. */
-export const selectedInGroup = (selectedMenu, groupId) =>
-  (selectedMenu || []).filter((item) => groupIdFor(item) === groupId);
-
-/**
- * How many items a customer must actually pick for a course.
- *
- * The rule says three mains; if the admin only has two main dishes available
- * today, three is unreachable. Capping at what is offered keeps the flow
- * completable and matches the wording of the rule ("from the items currently
- * offered"). The backend applies the identical cap.
- */
-export const effectiveRequirement = (rule, availableCount) =>
-  Math.min(rule.required, availableCount);
-
-/**
- * Per-course progress for the combined service.
- * Returns one entry per rule, whether or not the category has any items.
- */
-export function courseProgress(selectedMenu, menuItems) {
-  return COURSE_RULES.map((rule) => {
-    const available = itemsInGroup(menuItems, rule.groupId);
-    const selected = selectedInGroup(selectedMenu, rule.groupId);
-    const required = effectiveRequirement(rule, available.length);
-    return {
-      ...rule,
-      available,
-      selected,
-      selectedCount: selected.length,
-      required,
-      unavailable: available.length === 0,
-      satisfied: selected.length === required,
-      remaining: required - selected.length,
-    };
-  });
-}
-
-/**
- * Validates the combined-service course selection. Messages name the course and
- * the exact number still needed rather than saying the selection is invalid.
- */
-export function validateCourseSelection(selectedMenu, menuItems) {
-  const issues = courseProgress(selectedMenu, menuItems)
-    .filter((course) => !course.unavailable && !course.satisfied)
-    .map((course) => {
-      const short = course.required - course.selectedCount;
-      // Phrased "from <Course>" so the sentence reads correctly whether one or
-      // several are still missing, without needing singular/plural forms.
-      return short > 0
-        ? `Choose ${short} more from ${course.label} (${course.selectedCount} of ${course.required} selected).`
-        : `Remove ${Math.abs(short)} from ${course.label}. You can pick ${course.required}.`;
-    });
-
-  return { valid: issues.length === 0, issues };
-}
 
 // -----------------------------------------------------------------------------
 // Contact details
@@ -363,16 +264,37 @@ export function buildEstimate({
       }
     }
 
-    if (hasFoodChosen) {
-      // Event Setup is FREE when catering food is ordered
+    // Setup fee: computed the same way whether or not food is also ordered.
+    // Pricing is Setup Fee + Food Fee — the setup is never waived for
+    // ordering food, it is simply a separate line from the food estimate.
+    if (isCustom) {
       lines.push({
         id: "setup",
         label: setupLabel,
-        detail: "Included FREE with food catering package (Setup fee waived)",
+        detail: "Custom design & styling to be priced on official quotation",
         amount: 0,
-        isFree: true,
+        isQuotedLater: true,
       });
+      blockers.push(
+        "Your bespoke event setup proposal will be prepared and priced by our design team on your official quotation.",
+      );
+    } else if (setupAmount > 0) {
+      lines.push({
+        id: "setup",
+        label: setupLabel,
+        detail: setupDetail,
+        amount: setupAmount,
+      });
+    } else if (!isFoodIncluded) {
+      blockers.push(
+        packageName
+          ? `${packageName} does not have a set price yet. ${QUOTED_LATER}`
+          : QUOTED_LATER,
+      );
+    }
 
+    // Food fee: additional to the setup fee above, whenever dishes are chosen.
+    if (hasFoodChosen) {
       lines.push({
         id: "food",
         label: `Catering menu (${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"})`,
@@ -384,33 +306,6 @@ export function buildEstimate({
       blockers.push(
         "Your per-guest catering rate will be set and confirmed on your official quotation based on your menu selection.",
       );
-    } else {
-      // Setup Only (No Food)
-      if (isCustom) {
-        lines.push({
-          id: "setup",
-          label: setupLabel,
-          detail: "Custom design & styling to be priced on official quotation",
-          amount: 0,
-          isQuotedLater: true,
-        });
-        blockers.push(
-          "Your bespoke event setup proposal will be prepared and priced by our design team on your official quotation.",
-        );
-      } else if (setupAmount > 0) {
-        lines.push({
-          id: "setup",
-          label: setupLabel,
-          detail: setupDetail,
-          amount: setupAmount,
-        });
-      } else if (!isFoodIncluded) {
-        blockers.push(
-          packageName
-            ? `${packageName} does not have a set price yet. ${QUOTED_LATER}`
-            : QUOTED_LATER,
-        );
-      }
     }
   }
 
@@ -440,5 +335,6 @@ export function buildEstimate({
     hasTotal: blockers.length === 0 && total > 0,
     depositPercentage,
     depositAmount: (total * depositPercentage) / 100,
+    guests,
   };
 }

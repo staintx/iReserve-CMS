@@ -6,6 +6,7 @@ import { CustomerAPI } from "../../../api/customer";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import { cn } from "@/lib/utils";
+import InlineMessage from "../../../components/feedback/InlineMessage";
 
 export default function BookingSuccess() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function BookingSuccess() {
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [schedulingError, setSchedulingError] = useState("");
   const [isLoading, setIsLoading] = useState((!!searchParams.get('booking_id') || !!searchParams.get('session_id')) && !location.state?.booking);
   
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -100,7 +102,13 @@ export default function BookingSuccess() {
       navigate(`/customer/bookings/${booking._id}`, { state: { ocularSuccess: true } });
     } catch (err) {
       console.error(err);
-      alert("Failed to schedule. Please try again.");
+      // Was a native alert(), which is unstyled, blocking, and threw away the
+      // server's reason. The message belongs next to the date and time the
+      // customer picked, which are still selected and still valid to retry.
+      setSchedulingError(
+        err.response?.data?.message ||
+          "We could not schedule that visit. Your date and time are still selected — try again.",
+      );
       setScheduling(false);
     }
   };
@@ -326,13 +334,18 @@ export default function BookingSuccess() {
                 </div>
 
                 <div className="flex flex-col gap-4 mt-2">
-                  <Button 
+                  {schedulingError && (
+                    <InlineMessage tone="error" assertive onDismiss={() => setSchedulingError("")}>
+                      {schedulingError}
+                    </InlineMessage>
+                  )}
+                  <Button
                     size="lg"
-                    className="w-full h-14 rounded-2xl text-base font-medium bg-accent text-accent-foreground hover:bg-accent/90"
+                    className="w-full h-14 rounded-2xl text-base font-medium"
                     onClick={handleScheduleOcular}
                     disabled={!ocularDate || !ocularTime || scheduling}
                   >
-                    {scheduling ? "Confirming..." : "Confirm Ocular Visit >"}
+                    {scheduling ? "Confirming…" : "Confirm ocular visit"}
                   </Button>
                   
                   <Button

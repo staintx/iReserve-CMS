@@ -21,6 +21,7 @@ import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import { useNavigate } from "react-router-dom";
 import useToast from "../../hooks/useToast";
+import { useConfirm } from "../../components/feedback/confirmContext";
 import DataTable from "../../components/admin/table/DataTable";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
@@ -34,11 +35,10 @@ import { Input } from "../../components/ui/input";
 export default function AdminOcular() {
   const navigate = useNavigate();
   const { notify } = useToast();
+  const confirm = useConfirm();
 
   const [search, setSearch] = useState("");
   const [filterTab, setFilterTab] = useState("all");
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelTarget, setCancelTarget] = useState(null);
   const [drawerRow, setDrawerRow] = useState(null);
 
   // Schedule Modal State
@@ -173,22 +173,26 @@ export default function AdminOcular() {
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
   // Cancellation Handler
-  const handleCancel = (item) => {
-    setCancelTarget(item);
-    setShowCancelModal(true);
+  const handleCancel = async (item) => {
+    if (!item) return;
     setDrawerRow(null);
-  };
-
-  const confirmCancel = () => {
-    if (!cancelTarget) return;
-    AdminAPI.completeOcular(cancelTarget._id, { outcome: "cancel", notes: "Cancelled via Admin Ocular interface." })
-      .then(() => {
-        setShowCancelModal(false);
-        setCancelTarget(null);
-        notify("Ocular visit cancelled.", "warning");
+    await confirm({
+      tone: "destructive",
+      title: "Cancel this ocular visit?",
+      description: `This marks the site inspection for ${item.customer || "this booking"} as cancelled and updates the booking status. It does not cancel the booking itself.`,
+      confirmLabel: "Cancel ocular",
+      cancelLabel: "Keep scheduled",
+      onConfirm: async () => {
+        await AdminAPI.completeOcular(item._id, {
+          outcome: "cancel",
+          notes: "Cancelled via Admin Ocular interface.",
+        });
+        notify("Ocular visit cancelled", "warning", {
+          description: item.id ? `Booking ${item.id} has been updated.` : undefined,
+        });
         loadData();
-      })
-      .catch((err) => notify(err.response?.data?.message || "Failed to cancel ocular visit", "error"));
+      },
+    });
   };
 
   // Complete / Proceed Handler
@@ -766,38 +770,6 @@ export default function AdminOcular() {
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Ocular Modal */}
-      {showCancelModal && cancelTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-            <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100 bg-rose-50/50">
-              <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center shrink-0">
-                <AlertTriangle size={20} className="text-rose-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">Cancel Ocular Visit</h3>
-                <p className="text-xs text-rose-600 font-medium">Booking {cancelTarget.id}</p>
-              </div>
-            </div>
-
-            <div className="p-6 text-xs text-slate-600 space-y-3">
-              <p>Are you sure you want to cancel the ocular visit for <strong>{cancelTarget.customer}</strong>?</p>
-              <p className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-500">
-                This will mark the site inspection as cancelled and update the booking status.
-              </p>
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end bg-slate-50">
-              <Btn variant="secondary" size="sm" onClick={() => setShowCancelModal(false)}>
-                Keep Scheduled
-              </Btn>
-              <Btn variant="danger" size="sm" onClick={confirmCancel}>
-                Cancel Ocular
-              </Btn>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminLayout>
   );
 }

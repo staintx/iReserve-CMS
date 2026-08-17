@@ -28,6 +28,7 @@ import Gallery from "../pages/customer/Gallery";
 
 import BookingWizard from "../pages/customer/booking/BookingWizard";
 import BookingSuccess from "../pages/customer/booking/BookingSuccess";
+import InquirySubmitted from "../pages/customer/booking/InquirySubmitted";
 
 import QuoteWizard from "../pages/customer/quote/QuoteWizard";
 
@@ -125,6 +126,9 @@ export default function AppRoutes() {
         <Route path="/customer/dashboard" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
         <Route path="/customer/book" element={<ProtectedRoute allowedRoles={customerOnly}><BookingWizard /></ProtectedRoute>} />
         <Route path="/customer/booking-success" element={<ProtectedRoute allowedRoles={customerOnly}><BookingSuccess /></ProtectedRoute>} />
+        {/* Completion state for a submitted inquiry, shared by the package
+            booking wizard and the custom quote wizard. */}
+        <Route path="/customer/request-submitted" element={<ProtectedRoute allowedRoles={customerOnly}><InquirySubmitted /></ProtectedRoute>} />
 
         <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
         <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />

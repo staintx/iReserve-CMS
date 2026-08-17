@@ -38,14 +38,9 @@ import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from 
 import { SERVICE_TYPES } from "../../../pages/customer/booking/lib/bookingRules";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency } from "../../../utils/format";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../ui/alert-dialog";
+import FeedbackDialog from "../../feedback/FeedbackDialog";
+import InlineMessage from "../../feedback/InlineMessage";
+import { useConfirm } from "../../feedback/confirmContext";
 
 /* ---------------------------------------------------------------------------
    Presentation primitives
@@ -267,6 +262,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const { notify } = useToast();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -1111,8 +1107,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     zip_code: details.zip_code,
   });
 
-  /** @returns {Promise<boolean>} whether the draft actually reached the server. */
-  const handleSaveDraft = async () => {
+  /**
+   * Saves the draft, or throws with the server's message.
+   *
+   * It throws rather than returning a flag so the leave-confirmation can
+   * report the failure inside itself and stay open. A toast there would
+   * announce the problem on the way out of the very dialog the admin opened
+   * to avoid losing this work.
+   */
+  const saveDraft = async () => {
     setSavingDraft(true);
     try {
       const { data } = await AdminAPI.saveQuotationDraft({
@@ -1126,13 +1129,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       // Errors from an earlier send attempt are stale once the work is parked.
       setErrors({});
       setShowErrorSummary(false);
-      notify("Draft saved. You can close this and pick it up later.", "success");
-      return true;
+      return data;
     } catch (err) {
-      notify(err.response?.data?.message || "Could not save the draft. Try again.", "error");
-      return false;
+      throw new Error(err.response?.data?.message || "Could not save the draft. Try again.");
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  /** The toolbar's own "Save draft" — the admin stays in the builder, so a
+      toast is the right weight for the result. */
+  const handleSaveDraft = async () => {
+    try {
+      await saveDraft();
+      notify("Draft saved", "success", {
+        description: "You can close this and pick it up later.",
+      });
+    } catch (err) {
+      notify(err.message, "error");
     }
   };
 
@@ -1148,29 +1162,33 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     setCloseIntent(intent);
   };
 
+  // A throw here is caught by the confirmation, which stays open and shows
+  // the reason — closing on failure would lose exactly what the admin just
+  // asked to keep.
   const handleSaveDraftAndClose = async () => {
-    const saved = await handleSaveDraft();
-    if (!saved) {
-      // Stay put: closing now would lose exactly what the admin asked to keep.
-      setCloseIntent(null);
-      return;
-    }
+    await saveDraft();
     setCloseIntent(null);
+    notify("Draft saved", "success", { description: "Pick it up from this inquiry when you are ready." });
     onSuccess();
   };
 
   const handleDiscardDraft = async () => {
     if (!savedDraft) return;
-    if (!window.confirm("Discard this saved draft? Any progress in it is lost.")) return;
-    try {
-      await AdminAPI.discardQuotationDraft(inquiry._id);
-      setSavedDraft(null);
-      setDraftSavedAt(null);
-      notify("Draft discarded.", "info");
-      onSuccess();
-    } catch (err) {
-      notify(err.response?.data?.message || "Could not discard the draft.", "error");
-    }
+    await confirm({
+      tone: "destructive",
+      title: "Discard this saved draft?",
+      description:
+        "The draft and everything in it is deleted. The customer has not been sent anything, so nothing they can see changes.",
+      confirmLabel: "Discard draft",
+      cancelLabel: "Keep draft",
+      onConfirm: async () => {
+        await AdminAPI.discardQuotationDraft(inquiry._id);
+        setSavedDraft(null);
+        setDraftSavedAt(null);
+        notify("Draft discarded", "info");
+        onSuccess();
+      },
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -1225,11 +1243,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
     try {
       await AdminAPI.createQuotation(quotationPayload);
+      // The admin goes straight back to the queue, so the toast has to carry
+      // the state change with it: which version went out, and that the
+      // inquiry has moved on and is now waiting on the customer.
       notify(
         quotation
-          ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent to the customer.`
-          : "Quotation sent to the customer.",
-        "success"
+          ? `Version ${(Number(quotation.version_number) || 1) + 1}.0 sent to ${details.contact_first_name || "the customer"}`
+          : `Quotation sent to ${details.contact_first_name || "the customer"}`,
+        "success",
+        { description: "This inquiry is now waiting for their response." },
       );
       onSuccess();
     } catch (err) {
@@ -1321,27 +1343,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           )}
 
+          {/* Validation belongs on the page next to the fields it names, not
+              in a dialog and not in a toast that expires while the admin is
+              still reading the list. */}
           {showErrorSummary && errorCount > 0 && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-3.5" role="alert">
-              <p className="flex items-center gap-2 text-xs font-bold text-red-800">
-                <AlertCircle size={15} className="shrink-0" />
-                {errorCount === 1
+            <InlineMessage
+              tone="error"
+              assertive
+              title={
+                errorCount === 1
                   ? "One field needs your attention before this can be sent."
-                  : `${errorCount} fields need your attention before this can be sent.`}
-              </p>
-              <ul className="mt-2 space-y-1 pl-6 text-[11.5px] leading-snug text-red-700">
+                  : `${errorCount} fields need your attention before this can be sent.`
+              }
+            >
+              <ul>
                 {Object.entries(errors)
                   .slice(0, 5)
                   .map(([key, message]) => (
-                    <li key={key} className="list-disc">
-                      {message}
-                    </li>
+                    <li key={key}>{message}</li>
                   ))}
-                {errorCount > 5 && (
-                  <li className="list-disc">and {errorCount - 5} more below.</li>
-                )}
+                {errorCount > 5 && <li>and {errorCount - 5} more below.</li>}
               </ul>
-            </div>
+            </InlineMessage>
           )}
 
           {/* --- 1. Customer and event information --------------------------- */}
@@ -2668,58 +2691,52 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
       {/* Closing with work in progress. The X, the backdrop, Escape and Cancel
           all land here rather than discarding silently. Leaving offers to keep
-          the work; Cancel is a deliberate throw-away, so it just asks once. */}
-      <AlertDialog open={closeIntent !== null} onOpenChange={(open) => !open && setCloseIntent(null)}>
-        <AlertDialogContent className="admin-shell">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-slate-900">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              {closeIntent === "cancel"
-                ? "Discard this quotation?"
-                : "Save this quotation as a draft before leaving?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-600">
-              {closeIntent === "cancel"
-                ? "The changes you have made will be lost. The customer has not been sent anything."
-                : "You have changes that have not been saved. Save them as a draft and you can pick this up later."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setCloseIntent(null)}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Keep editing
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCloseIntent(null);
-                onClose();
-              }}
-              className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
-            >
-              {closeIntent === "cancel" ? "Discard" : "Discard changes"}
-            </button>
-            {closeIntent === "leave" && (
-              <button
-                type="button"
-                onClick={handleSaveDraftAndClose}
-                disabled={savingDraft}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
-              >
-                {savingDraft ? (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                ) : (
-                  <Save size={14} />
-                )}
-                {savingDraft ? "Saving" : "Save as draft"}
-              </button>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          the work; Cancel is a deliberate throw-away, so it just asks once.
+
+          Two different questions, so two different shapes. "Leave" is a
+          three-way: the safe, recommended action (save the draft) is the
+          primary, "Keep editing" is the neutral escape, and discarding is a
+          quiet destructive text button set apart on the left. The old footer
+          gave all three the same weight in one row, which is why it read as a
+          puzzle rather than a recommendation. "Cancel" is a plain destructive
+          yes/no — there is nothing to offer to keep. */}
+      {closeIntent === "leave" ? (
+        <FeedbackDialog
+          open
+          onOpenChange={(open) => !open && setCloseIntent(null)}
+          tone="warning"
+          title="Save this quotation as a draft before leaving?"
+          description="You have changes that have not been saved. Save them as a draft and you can pick this up later. Nothing has been sent to the customer either way."
+          confirmLabel="Save as draft"
+          confirmIcon={Save}
+          cancelLabel="Keep editing"
+          onConfirm={handleSaveDraftAndClose}
+          tertiary={{
+            label: "Discard changes",
+            tone: "destructive",
+            onClick: () => {
+              setCloseIntent(null);
+              onClose();
+            },
+          }}
+        />
+      ) : null}
+
+      {closeIntent === "cancel" ? (
+        <FeedbackDialog
+          open
+          onOpenChange={(open) => !open && setCloseIntent(null)}
+          tone="destructive"
+          title="Discard this quotation?"
+          description="The changes you have made will be lost. The customer has not been sent anything."
+          confirmLabel="Discard"
+          cancelLabel="Keep editing"
+          onConfirm={() => {
+            setCloseIntent(null);
+            onClose();
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

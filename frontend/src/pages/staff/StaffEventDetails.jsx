@@ -6,6 +6,7 @@ import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import useToast from "../../hooks/useToast";
+import { useConfirm } from "../../components/feedback/confirmContext";
 import useAuth from "../../hooks/useAuth";
 import {
   Calendar,
@@ -34,6 +35,7 @@ export default function StaffEventDetails() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { notify } = useToast();
+  const confirm = useConfirm();
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -193,23 +195,27 @@ export default function StaffEventDetails() {
   };
 
   const handleCompleteEvent = async () => {
-    if (!window.confirm("Confirm that this catering event shift is completed and verified?")) {
-      return;
-    }
-
-    setCompletingEvent(true);
-    try {
-      await StaffAPI.completeEvent(id, {
-        final_notes: note.trim() || undefined,
-        equipment_returns: equipmentList
-      });
-      notify("Event marked as completed! Great job!", "success");
-      navigate("/staff/dashboard");
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to complete event.", "error");
-    } finally {
-      setCompletingEvent(false);
-    }
+    await confirm({
+      tone: "confirm",
+      title: "Mark this event as completed?",
+      description:
+        "This closes out the shift with the notes and equipment returns recorded below. Check them before confirming — you will be taken back to your dashboard.",
+      confirmLabel: "Mark completed",
+      cancelLabel: "Not yet",
+      onConfirm: async () => {
+        setCompletingEvent(true);
+        try {
+          await StaffAPI.completeEvent(id, {
+            final_notes: note.trim() || undefined,
+            equipment_returns: equipmentList,
+          });
+          notify("Event marked as completed", "success", { description: "Nice work." });
+          navigate("/staff/dashboard");
+        } finally {
+          setCompletingEvent(false);
+        }
+      },
+    });
   };
 
   const myRole = useMemo(() => {

@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import { useConfirm } from "../feedback/confirmContext";
+import InlineMessage from "../feedback/InlineMessage";
 import { cn } from "@/lib/utils";
 import StatusPill from "./portal/StatusPill";
 import StateNotice from "./portal/StateNotice";
@@ -43,8 +45,10 @@ const statusMeta = (status, isExpired) => {
 
 export default function CustomerQuotationModal({ open, onClose, quotation, inquiry, versions = [], onUpdated }) {
   const { notify } = useToast();
+  const confirm = useConfirm();
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
+  const [revisionError, setRevisionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pane, setPane] = useState("quotation");
   const revisionInputRef = useRef(null);
@@ -70,55 +74,93 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
 
   if (!quotation) return null;
 
+  /**
+   * Accepting is the customer's biggest commitment in this flow, so it asks
+   * first. The wording is taken from what `acceptQuotation` actually does:
+   * the quotation and the inquiry both move to "Awaiting Final Confirmation",
+   * which is emphatically not a confirmed booking — the team still has to
+   * confirm, and the deposit is what secures the date.
+   */
   const handleAccept = async () => {
-    try {
-      setIsSubmitting(true);
-      await CustomerAPI.acceptQuotation(quotation._id);
-      notify("Quotation accepted! Our team will now convert this to an official booking.", "success");
-
-      if (onUpdated) onUpdated();
-      onClose();
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to accept quotation.", "error");
-    } finally {
-      setIsSubmitting(false);
-    }
+    const depositAmount = Number(quotation.deposit_amount || 0);
+    await confirm({
+      tone: "confirm",
+      title: "Accept this quotation?",
+      description: `This tells our team you are happy with these figures. They will then give the final confirmation${
+        depositAmount > 0 ? ` and arrange the ${formatCurrency(depositAmount)} deposit that secures your date` : ""
+      }. You will not be charged by accepting.`,
+      confirmLabel: "Accept quotation",
+      cancelLabel: "Not yet",
+      onConfirm: async () => {
+        setIsSubmitting(true);
+        try {
+          await CustomerAPI.acceptQuotation(quotation._id);
+          notify("Quotation accepted", "success", {
+            description:
+              "Your request is now awaiting final confirmation from our team. Your date is not secured until they confirm.",
+          });
+          if (onUpdated) onUpdated();
+          onClose();
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   const handleRevisionSubmit = async (e) => {
     e.preventDefault();
     if (!revisionNote.trim()) {
-      notify("Please provide details for your revision request.", "error");
+      setRevisionError("Tell us what you would like changed so our team knows what to adjust.");
+      revisionInputRef.current?.focus();
       return;
     }
     try {
+      setRevisionError("");
       setIsSubmitting(true);
       await CustomerAPI.requestQuotationRevision(quotation._id, revisionNote.trim());
-      notify("Revision request sent to the admin team.", "success");
+      // The backend only records the request and flips the status — it does
+      // not alter a single figure. Saying so is the difference between the
+      // customer waiting calmly and the customer wondering what changed.
+      notify("Change request sent", "success", {
+        description:
+          "Our team will review it. This quotation stays exactly as it is until they send a new version.",
+      });
       setShowRevisionForm(false);
       setRevisionNote("");
       if (onUpdated) onUpdated();
       onClose();
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to send revision request.", "error");
+      setRevisionError(
+        err.response?.data?.message || "We could not send your change request. Try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleReject = async () => {
-    if (!window.confirm("Are you sure you want to decline this quotation?")) return;
-    try {
-      setIsSubmitting(true);
-      await CustomerAPI.rejectQuotation(quotation._id);
-      notify("Quotation declined.", "info");
-      if (onUpdated) onUpdated();
-      onClose();
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to decline quotation.", "error");
-    } finally {
-      setIsSubmitting(false);
-    }
+    await confirm({
+      tone: "destructive",
+      title: "Decline this quotation?",
+      description:
+        "Our team will see that you have declined and will not proceed with it. If you only want something changed, ask for a change instead — that keeps the conversation open.",
+      confirmLabel: "Decline quotation",
+      cancelLabel: "Go back",
+      onConfirm: async () => {
+        setIsSubmitting(true);
+        try {
+          await CustomerAPI.rejectQuotation(quotation._id);
+          notify("Quotation declined", "info", {
+            description: "Message our team if you would like to pick this up again.",
+          });
+          if (onUpdated) onUpdated();
+          onClose();
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   const isExpired = quotation.expiration_date && new Date(quotation.expiration_date) < new Date();
@@ -409,6 +451,13 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 This sends a request to our team. It does not change your quotation on its own.
                 We'll review it and send you an updated version if we can accommodate it.
               </p>
+              {/* Failure stays with the form, holding the text the customer
+                  wrote, instead of closing it behind a toast. */}
+              {revisionError && (
+                <InlineMessage tone="error" assertive>
+                  {revisionError}
+                </InlineMessage>
+              )}
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setShowRevisionForm(false)}>
                   Cancel

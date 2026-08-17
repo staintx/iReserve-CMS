@@ -1,0 +1,794 @@
+/* ═══════════════════════════════════════════════════════════════
+   Feedback System — dialogs, toasts, inline messages, completion
+   states.
+
+   Deliberately written as plain CSS in an unlayered block rather
+   than as Tailwind utilities. Everything here renders through a
+   Radix portal attached to <body>, which sits OUTSIDE .admin-shell
+   and .page-shell, so it inherits neither their token overrides nor
+   their heading rules. The two things that leak in from globals.css
+   @layer base are exactly the two that made the old dialogs look
+   wrong:
+
+     h1,h2,h3,h4 { font-family: var(--font-serif);
+                   color: var(--color-brown-dark); }
+
+   Radix renders dialog titles as <h2>, so every portalled title was
+   silently picking up Playfair Display and the legacy brown ink.
+   Unlayered rules beat @layer base regardless of source order, so
+   declaring the surface here immunises it once instead of forcing
+   every call site to re-specify font and colour.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Structure — mirrors the --ls-* set so feedback reads as part of
+     the same system rather than a parallel palette. */
+  --fb-ink: #1E293B;
+  --fb-ink-soft: #64748B;
+  --fb-navy: #16264A;
+  --fb-line: #E2E8F0;
+  --fb-line-strong: #CBD5E1;
+  --fb-surface: #FFFFFF;
+  --fb-tint: #F1F5F9;
+  --fb-blue: #4C81E0;
+  --fb-blue-deep: #3768C2;
+
+  /* Status. The one sanctioned extension to the two-hue rule: these
+     carry meaning the brief requires (a warning must not read as an
+     error), they are scoped to feedback semantics only, and each
+     clears 4.5:1 on white. They are never general UI colour. */
+  --fb-info: #3768C2;
+  --fb-info-tint: #EAF1FC;
+  --fb-info-line: #C3D8F6;
+
+  --fb-success: #0F7B5A;
+  --fb-success-tint: #E7F5F0;
+  --fb-success-line: #B6DFCF;
+
+  --fb-warning: #B45309;
+  --fb-warning-tint: #FDF1E3;
+  --fb-warning-line: #F0D3AE;
+
+  --fb-danger: #C0392B;
+  --fb-danger-tint: #FCEDEB;
+  --fb-danger-line: #F2C8C2;
+
+  --fb-radius: 12px;
+  --fb-radius-sm: 6px;
+  --fb-radius-md: 8px;
+
+  /* The documented overlay shadow, not an ad-hoc one. */
+  --fb-shadow-overlay: 0 24px 60px rgba(8, 15, 34, 0.32);
+  --fb-shadow-float: 0 12px 32px rgba(15, 23, 42, 0.14);
+
+  --fb-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Shared surface reset ──────────────────────────────────────
+   One place that pins the font stack for every portalled feedback
+   surface. Work Sans, never Playfair: these are read under mild
+   pressure ("did my work save?", "am I about to lose this?") and
+   the brief pins maximum readability. It is also what the
+   Scanned-Not-Read rule already asks for on transactional UI. */
+.fb,
+.fb * {
+  font-family: "Work Sans", "Segoe UI", Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+.fb {
+  color: var(--fb-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Browser surfaces inside feedback carry the palette too. */
+.fb ::selection {
+  background: var(--fb-info-tint);
+  color: var(--fb-navy);
+}
+
+/* The one focus treatment, matching the shell's. No radius here — that
+   would reshape whatever control happens to take focus. */
+.fb :focus-visible {
+  outline: 2px solid var(--fb-blue);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Dialog
+   ═══════════════════════════════════════════════════════════════ */
+
+.fb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(8, 15, 34, 0.52);
+}
+
+.fb-overlay[data-state="open"] {
+  animation: fb-fade-in 180ms var(--fb-ease);
+}
+
+.fb-overlay[data-state="closed"] {
+  animation: fb-fade-out 130ms ease-in;
+}
+
+.fb-dialog {
+  position: fixed;
+  z-index: 61;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100vw - 32px);
+  max-width: 460px;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: var(--fb-surface);
+  border-radius: var(--fb-radius);
+  box-shadow: var(--fb-shadow-overlay);
+  overflow: hidden;
+}
+
+/* Richer bodies (forms, reason fields, long lists) get more measure. */
+.fb-dialog--wide { max-width: 560px; }
+
+.fb-dialog[data-state="open"] {
+  animation: fb-dialog-in 220ms var(--fb-ease);
+}
+
+.fb-dialog[data-state="closed"] {
+  animation: fb-dialog-out 140ms ease-in;
+}
+
+@keyframes fb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fb-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes fb-dialog-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(0.97); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes fb-dialog-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-overlay[data-state],
+  .fb-dialog[data-state] {
+    animation: none;
+  }
+}
+
+.fb-dialog__body {
+  display: flex;
+  gap: 14px;
+  padding: 24px 24px 20px;
+  overflow-y: auto;
+}
+
+/* Semantic icon tile. A tinted rounded square, not a saturated
+   circle — it sits in the flat editorial language and lets the
+   colour do the signalling at low volume. */
+.fb-dialog__icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  margin-top: 1px;
+}
+
+.fb-dialog__icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.fb-dialog__text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.fb-dialog__title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.011em;
+  color: var(--fb-navy);
+  text-wrap: balance;
+}
+
+.fb-dialog__description {
+  margin: 7px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--fb-ink-soft);
+  max-width: 52ch;
+}
+
+/* Slot for anything richer than a sentence — a reason field, a list
+   of what is about to be removed, a server error detail. */
+.fb-dialog__content {
+  margin-top: 14px;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--fb-ink);
+}
+
+/* Failure that happened *inside* the dialog. The dialog stays open
+   and reports here rather than closing and firing a toast the user
+   has to chase. */
+.fb-dialog__error {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--fb-danger-line);
+  border-radius: var(--fb-radius-md);
+  background: var(--fb-danger-tint);
+  color: #8E2B20;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  /* Server messages arrive at unpredictable lengths and can contain
+     long unbroken tokens (ids, urls). Neither may burst the panel. */
+  overflow-wrap: anywhere;
+}
+
+.fb-dialog__error svg {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────
+   Two zones, not one row of equal boxes. Anything low-emphasis and
+   irreversible (the third option in a three-way close) sits alone
+   on the left; the real decision — cancel then confirm — sits right
+   in that fixed order. That ordering is the whole reason the old
+   three-button footer read as a puzzle. */
+.fb-dialog__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--fb-line);
+  background: var(--fb-surface);
+}
+
+.fb-dialog__footer-lead {
+  margin-right: auto;
+}
+
+.fb-dialog__footer-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 519px) {
+  /* Stacked, primary on top, full width — thumbs reach the bottom
+     of the sheet first, and a 3-up row of wrapped labels is exactly
+     the failure this system replaced. */
+  .fb-dialog__footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .fb-dialog__footer-main {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    margin-left: 0;
+    gap: 8px;
+  }
+
+  .fb-dialog__footer-lead {
+    margin-right: 0;
+  }
+
+  .fb-btn {
+    width: 100%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Buttons
+   Local to the feedback surface for the same portal reason as the
+   type: these must not depend on which shell they render inside.
+   ═══════════════════════════════════════════════════════════════ */
+
+.fb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--fb-radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.fb-btn svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.fb-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.fb-btn--primary {
+  background: var(--fb-blue);
+  color: #FFFFFF;
+}
+
+.fb-btn--primary:hover:not(:disabled) { background: var(--fb-blue-deep); }
+
+.fb-btn--danger {
+  background: var(--fb-danger);
+  color: #FFFFFF;
+}
+
+.fb-btn--danger:hover:not(:disabled) { background: #A32F23; }
+
+.fb-btn--ghost {
+  background: var(--fb-surface);
+  border-color: var(--fb-line-strong);
+  color: var(--fb-ink);
+}
+
+.fb-btn--ghost:hover:not(:disabled) {
+  background: var(--fb-tint);
+  border-color: #94A3B8;
+}
+
+/* Low-emphasis destructive — the "discard" that must be reachable
+   but must not compete with the safe primary. Text-weight, not a
+   third boxed button. */
+.fb-btn--quiet-danger {
+  background: transparent;
+  color: var(--fb-danger);
+  padding: 0 10px;
+}
+
+.fb-btn--quiet-danger:hover:not(:disabled) { background: var(--fb-danger-tint); }
+
+.fb-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: fb-spin 620ms linear infinite;
+}
+
+.fb-btn--ghost .fb-spinner,
+.fb-btn--quiet-danger .fb-spinner {
+  border-color: rgba(30, 41, 59, 0.25);
+  border-top-color: var(--fb-ink);
+}
+
+@keyframes fb-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-spinner { animation-duration: 1.4s; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Tone tints — shared by dialog icons, inline messages and toasts
+   ═══════════════════════════════════════════════════════════════ */
+
+.fb-tone-info    { background: var(--fb-info-tint);    color: var(--fb-info); }
+.fb-tone-success { background: var(--fb-success-tint); color: var(--fb-success); }
+.fb-tone-warning { background: var(--fb-warning-tint); color: var(--fb-warning); }
+.fb-tone-danger  { background: var(--fb-danger-tint);  color: var(--fb-danger); }
+.fb-tone-neutral { background: var(--fb-tint);         color: var(--fb-navy); }
+
+/* ═══════════════════════════════════════════════════════════════
+   Inline message — the non-blocking half of the system.
+   Validation summaries, "this is a draft", failed-load notices.
+   A full hairline box, never a fat coloured left rule.
+   ═══════════════════════════════════════════════════════════════ */
+
+.fb-inline {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: var(--fb-radius-md);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.fb-inline__icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.fb-inline__icon svg { width: 17px; height: 17px; }
+
+.fb-inline__body { min-width: 0; flex: 1 1 auto; }
+
+.fb-inline__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--fb-navy);
+}
+
+.fb-inline__title + .fb-inline__message { margin-top: 3px; }
+
+.fb-inline__message { margin: 0; color: var(--fb-ink); }
+
+.fb-inline__message ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.fb-inline__message li { margin-top: 2px; }
+
+.fb-inline__dismiss {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -2px -4px 0 0;
+  border: 0;
+  border-radius: var(--fb-radius-sm);
+  background: transparent;
+  color: var(--fb-ink-soft);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.fb-inline__dismiss:hover { background: rgba(15, 23, 42, 0.06); color: var(--fb-ink); }
+
+.fb-inline--info    { background: var(--fb-info-tint);    border-color: var(--fb-info-line); }
+.fb-inline--success { background: var(--fb-success-tint); border-color: var(--fb-success-line); }
+.fb-inline--warning { background: var(--fb-warning-tint); border-color: var(--fb-warning-line); }
+.fb-inline--danger  { background: var(--fb-danger-tint);  border-color: var(--fb-danger-line); }
+.fb-inline--neutral { background: var(--fb-tint);         border-color: var(--fb-line); }
+
+.fb-inline--info    .fb-inline__icon { color: var(--fb-info); }
+.fb-inline--success .fb-inline__icon { color: var(--fb-success); }
+.fb-inline--warning .fb-inline__icon { color: var(--fb-warning); }
+.fb-inline--danger  .fb-inline__icon { color: var(--fb-danger); }
+.fb-inline--neutral .fb-inline__icon { color: var(--fb-ink-soft); }
+
+/* ═══════════════════════════════════════════════════════════════
+   Toast (Sonner)
+   ═══════════════════════════════════════════════════════════════ */
+
+.fb-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 13px 14px;
+  background: var(--fb-surface);
+  border: 1px solid var(--fb-line);
+  border-radius: var(--fb-radius-md);
+  box-shadow: var(--fb-shadow-float);
+}
+
+.fb-toast__icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--fb-radius-sm);
+}
+
+.fb-toast__icon svg { width: 15px; height: 15px; }
+
+.fb-toast__body { min-width: 0; flex: 1 1 auto; padding-top: 2px; }
+
+.fb-toast__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--fb-navy);
+  overflow-wrap: anywhere;
+}
+
+.fb-toast__description {
+  margin-top: 2px;
+  font-size: 0.78125rem;
+  line-height: 1.5;
+  color: var(--fb-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.fb-toast__close {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 1px -3px 0 0;
+  border: 0;
+  border-radius: var(--fb-radius-sm);
+  background: transparent;
+  color: #94A3B8;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.fb-toast__close:hover { background: var(--fb-tint); color: var(--fb-ink); }
+
+/* ═══════════════════════════════════════════════════════════════
+   Completion state
+   A full surface, not a modal — the workflow milestone the brief
+   asks for. Reached after the server confirmed, so nothing here is
+   dismissible and nothing here promises what the backend does not.
+   ═══════════════════════════════════════════════════════════════ */
+
+.fb-done {
+  max-width: 660px;
+  margin: 0 auto;
+  padding: 40px 20px 72px;
+}
+
+@media (min-width: 640px) {
+  .fb-done { padding: 56px 24px 88px; }
+}
+
+.fb-done__head { text-align: center; }
+
+.fb-done__badge {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.fb-done__badge svg { width: 30px; height: 30px; stroke-width: 1.9; }
+
+.fb-done__badge--in {
+  animation: fb-badge-in 460ms var(--fb-ease) both;
+}
+
+@keyframes fb-badge-in {
+  0%   { opacity: 0; transform: scale(0.7); }
+  60%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-done__badge--in { animation: none; }
+}
+
+.fb-done__title {
+  margin: 0;
+  font-size: clamp(1.6rem, 4.4vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: -0.021em;
+  color: var(--fb-navy);
+  text-wrap: balance;
+}
+
+.fb-done__lead {
+  margin: 14px auto 0;
+  max-width: 54ch;
+  font-size: 0.9375rem;
+  line-height: 1.68;
+  color: var(--fb-ink-soft);
+  text-wrap: pretty;
+}
+
+.fb-done__ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 22px;
+  padding: 9px 15px;
+  border: 1px solid var(--fb-line);
+  border-radius: var(--fb-radius-md);
+  background: var(--fb-surface);
+}
+
+.fb-done__ref-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--fb-ink-soft);
+}
+
+.fb-done__ref-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--fb-navy);
+  /* Tabular so a column of references lines up and the eye can
+     compare them digit by digit. */
+  font-variant-numeric: tabular-nums;
+}
+
+.fb-done__section {
+  margin-top: 34px;
+  border: 1px solid var(--fb-line);
+  border-radius: var(--fb-radius);
+  background: var(--fb-surface);
+  overflow: hidden;
+}
+
+.fb-done__section-title {
+  margin: 0;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--fb-line);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fb-ink-soft);
+}
+
+.fb-done__section-body { padding: 6px 20px 18px; }
+
+/* Summary rows */
+.fb-done__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--fb-line);
+  font-size: 0.875rem;
+}
+
+.fb-done__row:last-child { border-bottom: 0; }
+
+.fb-done__row dt { color: var(--fb-ink-soft); }
+
+.fb-done__row dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--fb-ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.fb-done__row--total {
+  border-bottom: 0;
+  border-top: 1px solid var(--fb-line-strong);
+  margin-top: 4px;
+  padding-top: 14px;
+}
+
+.fb-done__row--total dt { color: var(--fb-navy); font-weight: 600; }
+.fb-done__row--total dd { font-size: 1.0625rem; color: var(--fb-navy); font-variant-numeric: tabular-nums; }
+
+.fb-done__note {
+  margin: 12px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--fb-ink-soft);
+}
+
+/* Numbered process. The numbers are earned here: the sequence is
+   the information — it is what the customer came to this screen to
+   learn. */
+.fb-done__steps {
+  margin: 0;
+  padding: 6px 0 0;
+  list-style: none;
+  counter-reset: fb-step;
+}
+
+.fb-done__step {
+  position: relative;
+  counter-increment: fb-step;
+  padding: 0 0 20px 40px;
+}
+
+.fb-done__step::before {
+  content: counter(fb-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--fb-tint);
+  color: var(--fb-navy);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Connector rule, so the list reads as one process rather than four
+   unrelated notes. */
+.fb-done__step::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 31px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--fb-line);
+}
+
+.fb-done__step:last-child { padding-bottom: 2px; }
+.fb-done__step:last-child::after { display: none; }
+
+/* The step the request is sitting at right now.
+   Deep Navy rather than Royal Blue: white on #4C81E0 is 3.8:1, which is
+   under the 4.5:1 floor for a 12px numeral, and the design system already
+   names Deep Navy as the colour for small solid marks including numbered
+   steps. Navy gives the same "this one is current" read at 14.9:1. */
+.fb-done__step--current::before {
+  background: var(--fb-navy);
+  color: #FFFFFF;
+}
+
+.fb-done__step-title {
+  margin: 3px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--fb-navy);
+}
+
+.fb-done__step-body {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--fb-ink-soft);
+}
+
+.fb-done__actions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+@media (min-width: 520px) {
+  .fb-done__actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .fb-done__actions .fb-btn { min-width: 172px; }
+}
+
+.fb-done__actions .fb-btn { height: 42px; font-size: 0.875rem; }

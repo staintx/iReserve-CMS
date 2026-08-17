@@ -19,7 +19,6 @@ export default function AdminAddons() {
   const [activeAddon, setActiveAddon] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
-    price: 0,
     description: "",
     pricing_type: "fixed",
     available: true
@@ -46,7 +45,6 @@ export default function AdminAddons() {
       setActiveAddon(addon);
       setFormData({
         name: addon.name,
-        price: addon.price,
         description: addon.description || "",
         pricing_type: addon.pricing_type || "fixed",
         available: addon.available
@@ -55,7 +53,6 @@ export default function AdminAddons() {
       setActiveAddon(null);
       setFormData({
         name: "",
-        price: 0,
         description: "",
         pricing_type: "fixed",
         available: true
@@ -71,8 +68,8 @@ export default function AdminAddons() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name.trim() || formData.price < 0) {
-      notify("Please provide a valid name and price", "error");
+    if (!formData.name.trim()) {
+      notify("Please provide a name", "error");
       return;
     }
 
@@ -101,8 +98,6 @@ export default function AdminAddons() {
       .catch((err) => notify(err.response?.data?.message || "Failed to delete addon", "error"));
   };
 
-  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
-
   return (
     <AdminLayout>
       <div className="p-6 space-y-6 bg-background min-h-screen">
@@ -129,7 +124,6 @@ export default function AdminAddons() {
                     <th className="px-6 py-4 font-medium">Addon Name</th>
                     <th className="px-6 py-4 font-medium">Pricing Type</th>
                     <th className="px-6 py-4 font-medium">Description</th>
-                    <th className="px-6 py-4 font-medium">Price</th>
                     <th className="px-6 py-4 font-medium">Status</th>
                     <th className="px-6 py-4 font-medium text-right">Actions</th>
                   </tr>
@@ -153,9 +147,6 @@ export default function AdminAddons() {
                       </td>
                       <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">
                         {addon.description || "—"}
-                      </td>
-                      <td className="px-6 py-4 font-medium text-foreground">
-                        {fmt(addon.price)}
                       </td>
                       <td className="px-6 py-4">
                         {addon.available ? (
@@ -216,18 +207,6 @@ export default function AdminAddons() {
                 <option value="fixed">Fixed / One-Time (Single fee, e.g. Entourage Setup, Lights & Sound)</option>
                 <option value="quantity">Quantity-Based (Price × Quantity, e.g. Extra Chairs, Extra Tables)</option>
               </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Price (₱) *</label>
-              <input
-                required
-                type="number"
-                min="0"
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-              />
             </div>
 
             <div>

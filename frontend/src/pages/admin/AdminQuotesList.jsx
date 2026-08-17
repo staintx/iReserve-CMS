@@ -11,8 +11,7 @@ import {
   CheckCircle, 
   Search, 
   Filter, 
-  PlusCircle, 
-  ArrowRight, 
+  PlusCircle,
   RefreshCw,
   Eye,
   Calendar,
@@ -26,7 +25,6 @@ import {
 export default function AdminQuotesList() {
   const navigate = useNavigate();
   const { notify } = useToast();
-  const [inquiries, setInquiries] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -36,11 +34,7 @@ export default function AdminQuotesList() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [inqRes, qtnRes] = await Promise.all([
-        AdminAPI.getInquiries(),
-        AdminAPI.getAllQuotations()
-      ]);
-      setInquiries(inqRes.data || []);
+      const qtnRes = await AdminAPI.getAllQuotations();
       setQuotations(qtnRes.data || []);
     } catch (err) {
       notify(err.response?.data?.message || "Could not load quotations list.", "error");
@@ -83,69 +77,45 @@ export default function AdminQuotesList() {
   // Compute Metrics using latest version per inquiry
   const metrics = useMemo(() => {
     const totalQuotations = groupedQuotations.length;
-    const pendingInquiries = inquiries.filter(q => q.status === "Pending Review" || q.status === "Under Review").length;
     const sentQuotations = groupedQuotations.filter(q => q.status === "Sent" || q.status === "Quotation Sent").length;
     const revisionRequests = groupedQuotations.filter(q => q.status === "Revision Requested").length;
-    const acceptedQuotations = groupedQuotations.filter(q => 
+    const acceptedQuotations = groupedQuotations.filter(q =>
       q.status === "Accepted" || q.status === "Quote Accepted" || q.status === "Awaiting Final Confirmation" || q.status === "Converted to Booking"
     ).length;
-    return { totalQuotations, pendingInquiries, sentQuotations, revisionRequests, acceptedQuotations };
-  }, [inquiries, groupedQuotations]);
+    return { totalQuotations, sentQuotations, revisionRequests, acceptedQuotations };
+  }, [groupedQuotations]);
 
   // Combine items depending on activeTab
   const displayItems = useMemo(() => {
-    let items = [];
+    // Latest Quotations per Inquiry thread
+    let items = groupedQuotations.map(q => {
+      const inq = q.inquiry_id || {};
+      return {
+        type: "QUOTATION",
+        id: q._id,
+        inquiryId: inq._id || q.inquiry_id,
+        quotationNumber: q.quotation_number || `QTN-${q._id.slice(-6).toUpperCase()}`,
+        reference: inq.reference || "INQ",
+        eventType: inq.event_type || "Event",
+        customerName: inq.contact_first_name ? `${inq.contact_first_name} ${inq.contact_last_name}` : (inq.customer_id?.full_name || "Customer"),
+        customerContact: inq.contact_phone || inq.contact_email || inq.customer_id?.email,
+        eventDate: inq.event_date,
+        guestCount: q.guest_count || inq.guest_count,
+        status: q.status,
+        version: q.version_number || 1,
+        totalCost: q.total_cost || 0,
+        history: q.history || [q]
+      };
+    });
 
-    if (activeTab === "pending_inquiries") {
-      // Pending inquiries that need a quote created
-      items = inquiries
-        .filter(i => i.status === "Pending Review" || i.status === "Under Review" || i.status === "Revision Requested")
-        .map(i => ({
-          type: "INQUIRY",
-          id: i._id,
-          inquiryId: i._id,
-          reference: i.reference || i._id.slice(-8).toUpperCase(),
-          eventType: i.event_type || "Event Inquiry",
-          customerName: `${i.contact_first_name || ''} ${i.contact_last_name || ''}`.trim() || "Customer",
-          customerContact: i.contact_phone || i.contact_email,
-          eventDate: i.event_date,
-          guestCount: i.guest_count,
-          status: i.status,
-          version: null,
-          totalCost: null,
-          history: []
-        }));
-    } else {
-      // Latest Quotations per Inquiry thread
-      items = groupedQuotations.map(q => {
-        const inq = q.inquiry_id || {};
-        return {
-          type: "QUOTATION",
-          id: q._id,
-          inquiryId: inq._id || q.inquiry_id,
-          quotationNumber: q.quotation_number || `QTN-${q._id.slice(-6).toUpperCase()}`,
-          reference: inq.reference || "INQ",
-          eventType: inq.event_type || "Event",
-          customerName: inq.contact_first_name ? `${inq.contact_first_name} ${inq.contact_last_name}` : (inq.customer_id?.full_name || "Customer"),
-          customerContact: inq.contact_phone || inq.contact_email || inq.customer_id?.email,
-          eventDate: inq.event_date,
-          guestCount: q.guest_count || inq.guest_count,
-          status: q.status,
-          version: q.version_number || 1,
-          totalCost: q.total_cost || 0,
-          history: q.history || [q]
-        };
-      });
-
-      if (activeTab === "sent") {
-        items = items.filter(i => i.status === "Sent" || i.status === "Quotation Sent");
-      } else if (activeTab === "revision") {
-        items = items.filter(i => i.status === "Revision Requested");
-      } else if (activeTab === "accepted") {
-        items = items.filter(i => 
-          i.status === "Accepted" || i.status === "Quote Accepted" || i.status === "Awaiting Final Confirmation" || i.status === "Converted to Booking"
-        );
-      }
+    if (activeTab === "sent") {
+      items = items.filter(i => i.status === "Sent" || i.status === "Quotation Sent");
+    } else if (activeTab === "revision") {
+      items = items.filter(i => i.status === "Revision Requested");
+    } else if (activeTab === "accepted") {
+      items = items.filter(i =>
+        i.status === "Accepted" || i.status === "Quote Accepted" || i.status === "Awaiting Final Confirmation" || i.status === "Converted to Booking"
+      );
     }
 
     // Search filter
@@ -161,7 +131,7 @@ export default function AdminQuotesList() {
     }
 
     return items;
-  }, [inquiries, groupedQuotations, activeTab, search]);
+  }, [groupedQuotations, activeTab, search]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -216,16 +186,6 @@ export default function AdminQuotesList() {
           </div>
 
           <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-              <Clock size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Needs Quote</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.pendingInquiries}</h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
             <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
               <RefreshCw size={24} />
             </div>
@@ -253,7 +213,6 @@ export default function AdminQuotesList() {
           <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
             {[
               { id: "all_quotes", label: `Issued Quotations (${metrics.totalQuotations})` },
-              { id: "pending_inquiries", label: `Needs Quotation (${metrics.pendingInquiries})` },
               { id: "sent", label: `Sent (${metrics.sentQuotations})` },
               { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
               { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` }
@@ -374,17 +333,8 @@ export default function AdminQuotesList() {
                               onClick={() => navigate(`/admin/quotes/${item.inquiryId}/details`)}
                               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors shadow-sm"
                             >
-                              {item.type === "INQUIRY" ? (
-                                <>
-                                  <span>Create Quote</span>
-                                  <ArrowRight size={14} />
-                                </>
-                              ) : (
-                                <>
-                                  <Eye size={14} />
-                                  <span>View & Edit</span>
-                                </>
-                              )}
+                              <Eye size={14} />
+                              <span>View & Edit</span>
                             </button>
                           </td>
                         </tr>

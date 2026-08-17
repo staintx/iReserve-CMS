@@ -10,7 +10,6 @@ import {
   InfoNote,
   StepShell,
 } from "../components/BookingSharedUI";
-import { formatPeso } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
 
@@ -121,7 +120,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
                         </p>
                       )}
                       <p className="mt-1 text-[13px] font-semibold text-[#4C81E0]">
-                        {formatPeso(item.price)} {isFixed ? "(One-Time)" : "each"}
+                        {isFixed ? "One-time — priced on your quotation" : "Priced per unit on your quotation"}
                       </p>
                     </div>
 

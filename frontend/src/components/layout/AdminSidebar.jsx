@@ -271,7 +271,6 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
           </button>
           {isDropdownOpen("bookings") && !isCollapsed && (
             <div className={subNavWrapClass}>
-              <NavLink to="/admin/bookings/calendar" className={subLinkClass}>Availability Calendar</NavLink>
               <NavLink to="/admin/bookings/inquiries" className={subLinkClass}>Inquiries</NavLink>
               <NavLink to="/admin/quotes" className={subLinkClass}>Quotations</NavLink>
               <NavLink to="/admin/bookings/reservations" className={subLinkClass}>Reservations</NavLink>

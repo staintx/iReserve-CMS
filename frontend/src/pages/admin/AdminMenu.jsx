@@ -66,8 +66,6 @@ export default function AdminMenu() {
     return matchSearch && matchCategory;
   });
 
-  const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
-
   return (
     <AdminLayout>
       <div className="p-6 space-y-5 bg-background min-h-screen">
@@ -130,8 +128,7 @@ export default function AdminMenu() {
                     {item.description || "No description provided."}
                   </p>
                   
-                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <p className="text-lg font-bold text-foreground">{fmt(item.price)}</p>
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-end">
                     <div className="flex gap-2">
                       <Btn variant="secondary" size="sm" className="px-3" onClick={() => handleOpenModal(item)}>
                         <Edit3 size={13} className="mr-1.5" /> Edit

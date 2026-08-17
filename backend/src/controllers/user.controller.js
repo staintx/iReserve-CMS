@@ -31,8 +31,33 @@ exports.updateMe = asyncHandler(async (req, res) => {
     }
   }
 
+  // Name updates keep both representations in step. This path uses
+  // findByIdAndUpdate, which bypasses the model's pre-save hook, so the
+  // derivation is repeated here rather than silently skipped — otherwise a
+  // profile edit would leave first/last and full_name disagreeing.
+  const firstName = req.body.first_name !== undefined ? String(req.body.first_name).trim() : null;
+  const lastName = req.body.last_name !== undefined ? String(req.body.last_name).trim() : null;
+  const nameUpdates = {};
+
+  if (firstName !== null || lastName !== null) {
+    const current = await User.findById(req.user._id).select("first_name last_name");
+    const nextFirst = firstName !== null ? firstName : current?.first_name || "";
+    const nextLast = lastName !== null ? lastName : current?.last_name || "";
+    nameUpdates.first_name = nextFirst;
+    nameUpdates.last_name = nextLast;
+    nameUpdates.full_name = [nextFirst, nextLast].filter(Boolean).join(" ");
+  } else if (req.body.full_name) {
+    // Legacy callers that still send one combined value: split it so the two
+    // fields do not go stale behind it.
+    const full = req.body.full_name.trim();
+    const parts = full.split(/\s+/);
+    nameUpdates.full_name = full;
+    nameUpdates.first_name = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0];
+    nameUpdates.last_name = parts.length > 1 ? parts[parts.length - 1] : "";
+  }
+
   const updates = {
-    ...(req.body.full_name && { full_name: req.body.full_name.trim() }),
+    ...nameUpdates,
     ...(req.body.email && { email: req.body.email.trim().toLowerCase() }),
     phone: req.body.phone ? req.body.phone.trim() : "",
     address: req.body.address ? req.body.address.trim() : "",

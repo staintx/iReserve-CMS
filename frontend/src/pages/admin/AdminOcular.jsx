@@ -142,24 +142,45 @@ export default function AdminOcular() {
     });
   }, [ocularBookings]);
 
-  // KPI Metrics
-  const kpiStats = useMemo(() => {
-    const total = formattedOculars.length;
-    const requested = formattedOculars.filter((o) => o.status === "Requested").length;
-    const scheduled = formattedOculars.filter((o) => o.status === "Scheduled").length;
-    const revisionNeeded = formattedOculars.filter((o) => o.outcome === "revise" || o.status === "Revision Needed").length;
-    const completed = formattedOculars.filter((o) => o.status === "Completed" || o.outcome === "proceed").length;
+  /**
+   * A visit that has been carried out is no longer an ocular to manage — the
+   * event it belongs to is a booking, and Reservations is where it is tracked
+   * from that point on. Showing it as an active row here was the same event
+   * appearing twice.
+   *
+   * "Concluded" covers a passed inspection and a cancelled visit alike. Both
+   * stay reachable through the Completed tab, which is deliberately a lookup
+   * rather than part of "All Active".
+   */
+  const isConcluded = (o) =>
+    o.status === "Completed" ||
+    o.status === "Cancelled" ||
+    ["proceed", "cancel"].includes(o.outcome);
 
-    return { total, requested, scheduled, revisionNeeded, completed };
+  // KPI Metrics. `total` is the active workload, matching the "All Active"
+  // tab — it counted concluded visits too, so the card and the tab it labels
+  // disagreed with the list underneath them.
+  const kpiStats = useMemo(() => {
+    const active = formattedOculars.filter((o) => !isConcluded(o));
+    const requested = active.filter((o) => o.status === "Requested").length;
+    const scheduled = active.filter((o) => o.status === "Scheduled").length;
+    const revisionNeeded = active.filter((o) => o.outcome === "revise" || o.status === "Revision Needed").length;
+    const completed = formattedOculars.filter((o) => isConcluded(o)).length;
+
+    return { total: active.length, requested, scheduled, revisionNeeded, completed };
   }, [formattedOculars]);
 
   // Filtered List
   const filtered = useMemo(() => {
     return formattedOculars.filter((o) => {
-      if (filterTab === "requested" && o.status !== "Requested") return false;
-      if (filterTab === "scheduled" && o.status !== "Scheduled") return false;
-      if (filterTab === "revise" && o.outcome !== "revise" && o.status !== "Revision Needed") return false;
-      if (filterTab === "completed" && o.status !== "Completed" && o.outcome !== "proceed") return false;
+      if (filterTab === "completed") {
+        if (!isConcluded(o)) return false;
+      } else if (isConcluded(o)) {
+        // Concluded visits are only ever reachable from the Completed tab.
+        return false;
+      } else if (filterTab === "requested" && o.status !== "Requested") return false;
+      else if (filterTab === "scheduled" && o.status !== "Scheduled") return false;
+      else if (filterTab === "revise" && o.outcome !== "revise" && o.status !== "Revision Needed") return false;
 
       if (search.trim()) {
         const q = search.toLowerCase();

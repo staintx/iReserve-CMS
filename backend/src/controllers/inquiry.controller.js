@@ -119,9 +119,34 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
 
 // Admin updates inquiry (status, details)
 exports.updateInquiry = asyncHandler(async (req, res) => {
-  const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+  // runValidators: the enum was previously unenforced on this path, which is
+  // how "Cancelled" got written for months without being a legal value.
+  const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, req.body, {
+    returnDocument: "after",
+    runValidators: true,
+  });
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
-  
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
+
+  res.json(inquiry);
+});
+
+/**
+ * Archive / restore. Filing only — the lifecycle status is left alone, so an
+ * inquiry can be pulled back out of the archive exactly as it went in.
+ */
+exports.setInquiryArchived = asyncHandler(async (req, res) => {
+  const archived = req.body?.archived !== false;
+
+  const inquiry = await Inquiry.findByIdAndUpdate(
+    req.params.id,
+    { archived, archived_at: archived ? new Date() : null },
+    { returnDocument: "after", runValidators: true },
+  );
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
   const io = req.app.get("io");
   if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
 

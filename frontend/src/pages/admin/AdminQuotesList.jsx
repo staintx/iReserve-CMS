@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
@@ -19,6 +19,7 @@ import {
   Utensils,
   ChevronDown,
   ChevronRight,
+  CreditCard,
   History
 } from "lucide-react";
 
@@ -38,11 +39,27 @@ export default function AdminQuotesList() {
   const [activeTab, setActiveTab] = useState("all_quotes");
   const [expandedRows, setExpandedRows] = useState({});
 
+  /**
+   * Payment state per booking, keyed by booking id.
+   *
+   * Quotations owns the record right up until the deposit clears — that is the
+   * hand-off point to Reservations — so this page has to know whether the
+   * booking a quotation converted into has actually been paid. The quotation
+   * itself only knows it was converted.
+   */
+  const [bookingPayments, setBookingPayments] = useState(() => new Map());
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const qtnRes = await AdminAPI.getAllQuotations();
+      const [qtnRes, bookingRes] = await Promise.all([
+        AdminAPI.getAllQuotations(),
+        AdminAPI.getBookings().catch(() => ({ data: [] })),
+      ]);
       setQuotations(qtnRes.data || []);
+      setBookingPayments(
+        new Map((bookingRes.data || []).map((b) => [String(b._id), b.payment_status || "pending"])),
+      );
     } catch (err) {
       notify(err.response?.data?.message || "Could not load quotations list.", "error");
     } finally {
@@ -88,6 +105,21 @@ export default function AdminQuotesList() {
     });
   }, [quotations]);
 
+  /**
+   * A converted quotation whose booking has not paid its deposit yet. These
+   * are the records that used to sit in Reservations under "Pending Deposit";
+   * they belong here until the money arrives.
+   */
+  const isAwaitingDeposit = useCallback((q) => {
+    if (q.status !== "Converted to Booking") return false;
+    const bookingId = q.inquiry_id?.converted_booking_id;
+    if (!bookingId) return false;
+    const paymentStatus = bookingPayments.get(String(bookingId?._id || bookingId));
+    // Unknown booking → treat as still owed rather than silently promoting it
+    // to Reservations, so a record can never fall out of both sections.
+    return paymentStatus === undefined || paymentStatus === "pending";
+  }, [bookingPayments]);
+
   // Compute Metrics using latest version per inquiry
   const metrics = useMemo(() => {
     const totalQuotations = groupedQuotations.length;
@@ -96,8 +128,9 @@ export default function AdminQuotesList() {
     const acceptedQuotations = groupedQuotations.filter(q =>
       q.status === "Accepted" || q.status === "Quote Accepted" || q.status === "Awaiting Final Confirmation" || q.status === "Converted to Booking"
     ).length;
-    return { totalQuotations, sentQuotations, revisionRequests, acceptedQuotations };
-  }, [groupedQuotations]);
+    const awaitingDeposit = groupedQuotations.filter(isAwaitingDeposit).length;
+    return { totalQuotations, sentQuotations, revisionRequests, acceptedQuotations, awaitingDeposit };
+  }, [groupedQuotations, isAwaitingDeposit]);
 
   // Combine items depending on activeTab
   const displayItems = useMemo(() => {
@@ -111,11 +144,12 @@ export default function AdminQuotesList() {
         quotationNumber: q.quotation_number || `QTN-${q._id.slice(-6).toUpperCase()}`,
         reference: inq.reference || "INQ",
         eventType: inq.event_type || "Event",
-        customerName: inq.contact_first_name ? `${inq.contact_first_name} ${inq.contact_last_name}` : (inq.customer_id?.full_name || "Customer"),
+        customerName: inq.contact_first_name ? `${inq.contact_first_name} ${inq.contact_last_name}` : ([inq.customer_id?.first_name, inq.customer_id?.last_name].filter(Boolean).join(" ") || inq.customer_id?.full_name || "Customer"),
         customerContact: inq.contact_phone || inq.contact_email || inq.customer_id?.email,
         eventDate: inq.event_date,
         guestCount: q.guest_count || inq.guest_count,
         status: q.status,
+        awaitingDeposit: isAwaitingDeposit(q),
         hasDraft: Boolean(q.hasDraft),
         version: q.version_number || 1,
         totalCost: q.total_cost || 0,
@@ -127,6 +161,8 @@ export default function AdminQuotesList() {
       items = items.filter(i => i.status === "Sent" || i.status === "Quotation Sent");
     } else if (activeTab === "revision") {
       items = items.filter(i => i.status === "Revision Requested");
+    } else if (activeTab === "awaiting_deposit") {
+      items = items.filter(i => i.awaitingDeposit);
     } else if (activeTab === "accepted") {
       items = items.filter(i =>
         i.status === "Accepted" || i.status === "Quote Accepted" || i.status === "Awaiting Final Confirmation" || i.status === "Converted to Booking"
@@ -146,7 +182,7 @@ export default function AdminQuotesList() {
     }
 
     return items;
-  }, [groupedQuotations, activeTab, search]);
+  }, [groupedQuotations, activeTab, search, isAwaitingDeposit]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -219,6 +255,17 @@ export default function AdminQuotesList() {
               <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.acceptedQuotations}</h3>
             </div>
           </div>
+
+          {/* The hand-off point to Reservations: these stay here until paid. */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
+              <CreditCard size={24} />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Awaiting Deposit</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.awaitingDeposit}</h3>
+            </div>
+          </div>
         </div>
 
         {/* Toolbar & Filters */}
@@ -230,7 +277,8 @@ export default function AdminQuotesList() {
               { id: "all_quotes", label: `Issued Quotations (${metrics.totalQuotations})` },
               { id: "sent", label: `Sent (${metrics.sentQuotations})` },
               { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
-              { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` }
+              { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` },
+              { id: "awaiting_deposit", label: `Awaiting Deposit (${metrics.awaitingDeposit})` }
             ].map(tab => (
               <button
                 key={tab.id}

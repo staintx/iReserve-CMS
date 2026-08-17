@@ -386,7 +386,16 @@ export default function BookingWizard() {
     if (!user) return;
 
     const applyProfileData = (profileData) => {
-      const { firstName, lastName } = parseName(profileData.full_name || user.full_name || "");
+      // Registration now stores the name in two fields, so the surname the
+      // customer actually typed is used verbatim. parseName stays as the
+      // fallback for accounts created before the split, which only have a
+      // combined full_name — guessing is still better than an empty field,
+      // but it is no longer the primary path.
+      const storedFirst = (profileData.first_name || user.first_name || "").trim();
+      const storedLast = (profileData.last_name || user.last_name || "").trim();
+      const parsed = parseName(profileData.full_name || user.full_name || "");
+      const firstName = storedFirst || parsed.firstName;
+      const lastName = storedLast || (storedFirst ? "" : parsed.lastName);
       const email = profileData.email || user.email || "";
       const phone = normalizePhone(profileData.phone || user.phone || "");
       const altPhone = normalizePhone(profileData.alt_phone || user.alt_phone || "");

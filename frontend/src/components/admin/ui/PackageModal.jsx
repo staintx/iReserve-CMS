@@ -16,6 +16,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     name: "",
     package_type: "Event Setup Only",
     event_type: "",
+    event_type_other: "",
     available: true,
 
     // Guest & Capacity
@@ -65,7 +66,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     label: "",
     width_ft: "",
     length_ft: "",
-    price: "",
     guest_min: "",
     guest_max: "",
   });
@@ -88,10 +88,13 @@ export default function PackageModal({ pkg, onClose, onSave }) {
         pricing_type: a.pricing_type || "fixed",
       }));
 
+      const existingScaffoldCount = (pkg.scaffold_size_options || []).length;
+
       setFormData({
         name: pkg.name || "",
         package_type: pkg.package_type || "Event Setup Only",
         event_type: pkg.event_type || "",
+        event_type_other: "",
         available: pkg.available !== false,
         guest_min: pkg.guest_min || "",
         guest_max: pkg.guest_max || "",
@@ -104,6 +107,9 @@ export default function PackageModal({ pkg, onClose, onSave }) {
         scaffold_size_options: pkg.scaffold_size_options || [],
         default_scaffold_option_id: pkg.default_scaffold_option_id || "",
       });
+      setShowScaffoldForm(existingScaffoldCount === 0);
+    } else {
+      setShowScaffoldForm(true);
     }
   }, [pkg]);
 
@@ -292,31 +298,31 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   ];
 
   const [editingScaffoldIdx, setEditingScaffoldIdx] = useState(null);
+  const [showScaffoldForm, setShowScaffoldForm] = useState(true);
   const [editScaffoldData, setEditScaffoldData] = useState({
     label: "",
     width_ft: "",
     length_ft: "",
-    price: "",
     guest_min: "",
     guest_max: "",
   });
 
   // ============ HANDLERS - Scaffold Options ============
   const handleAddScaffoldOption = () => {
-    const { label, width_ft, length_ft, price, guest_min, guest_max } =
+    const { label, width_ft, length_ft, guest_min, guest_max } =
       newScaffoldOption;
-    if (!label || !width_ft || !length_ft) return;
+    if (!width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
+    const nextLabel = label || `${Number(width_ft)}x${Number(length_ft)} Scaffold`;
     setFormData((prev) => ({
       ...prev,
       scaffold_size_options: [
         ...(prev.scaffold_size_options || []),
         {
-          label,
+          label: nextLabel,
           width_ft: Number(width_ft),
           length_ft: Number(length_ft),
           area_ft2: area,
-          price: Number(price || 0),
           guest_min: guest_min ? Number(guest_min) : undefined,
           guest_max: guest_max ? Number(guest_max) : undefined,
         },
@@ -326,19 +332,20 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       label: "",
       width_ft: "",
       length_ft: "",
-      price: "",
       guest_min: "",
       guest_max: "",
     });
+    setShowScaffoldForm(false);
   };
 
   const handleRemoveScaffoldOption = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      scaffold_size_options: prev.scaffold_size_options.filter(
-        (_, i) => i !== index,
-      ),
-    }));
+    setFormData((prev) => {
+      const nextOptions = prev.scaffold_size_options.filter((_, i) => i !== index);
+      if (nextOptions.length === 0) {
+        setShowScaffoldForm(true);
+      }
+      return { ...prev, scaffold_size_options: nextOptions };
+    });
   };
 
   const handleStartEditScaffold = (idx, opt) => {
@@ -347,26 +354,25 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       label: opt.label || "",
       width_ft: opt.width_ft || "",
       length_ft: opt.length_ft || "",
-      price: opt.price || 0,
       guest_min: opt.guest_min || "",
       guest_max: opt.guest_max || "",
     });
   };
 
   const handleSaveEditScaffold = (idx) => {
-    const { label, width_ft, length_ft, price, guest_min, guest_max } = editScaffoldData;
-    if (!label || !width_ft || !length_ft) return;
+    const { width_ft, length_ft, guest_min, guest_max } = editScaffoldData;
+    if (!width_ft || !length_ft) return;
     const area = Number(width_ft) * Number(length_ft);
+    const nextLabel = `${Number(width_ft)}x${Number(length_ft)} Scaffold`;
 
     setFormData((prev) => {
       const nextOptions = [...(prev.scaffold_size_options || [])];
       nextOptions[idx] = {
         ...nextOptions[idx],
-        label,
+        label: nextLabel,
         width_ft: Number(width_ft),
         length_ft: Number(length_ft),
         area_ft2: area,
-        price: Number(price || 0),
         guest_min: guest_min ? Number(guest_min) : undefined,
         guest_max: guest_max ? Number(guest_max) : undefined,
       };
@@ -385,7 +391,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       label: preset.label,
       width_ft: preset.width_ft,
       length_ft: preset.length_ft,
-      price: newScaffoldOption.price || "",
       guest_min: preset.guest_min,
       guest_max: preset.guest_max,
     });
@@ -406,18 +411,40 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   // ============ HANDLERS - Form Submit ============
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.name.trim() || !formData.event_type || !formData.setup_price) {
+      notify("Package name, event type, and base setup price are required.", "error");
+      return;
+    }
+
+    if (formData.event_type === "Other" && !String(formData.event_type_other || "").trim()) {
+      notify("Please specify the custom event type.", "error");
+      return;
+    }
+
     setLoading(true);
     try {
       const data = new FormData();
-      Object.keys(formData).forEach((key) => {
+      const normalizedFormData = {
+        ...formData,
+        event_type:
+          formData.event_type === "Other"
+            ? String(formData.event_type_other || "").trim() || "Other"
+            : formData.event_type,
+        scaffold_size_options: (formData.scaffold_size_options || []).map(
+          ({ price, ...rest }) => rest,
+        ),
+      };
+
+      Object.keys(normalizedFormData).forEach((key) => {
         if (key === "inclusions") {
-          formData[key].forEach((val) => data.append(`${key}[]`, val));
+          normalizedFormData[key].forEach((val) => data.append(`${key}[]`, val));
         } else if (key === "setup_equipment" || key === "add_ons") {
-          data.append(key, JSON.stringify(formData[key]));
+          data.append(key, JSON.stringify(normalizedFormData[key]));
         } else if (key === "scaffold_size_options") {
-          data.append(key, JSON.stringify(formData[key]));
+          data.append(key, JSON.stringify(normalizedFormData[key]));
         } else {
-          data.append(key, formData[key]);
+          data.append(key, normalizedFormData[key]);
         }
       });
 
@@ -500,7 +527,12 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   value={formData.event_type}
                   onChange={(e) =>
-                    setFormData({ ...formData, event_type: e.target.value })
+                    setFormData({
+                      ...formData,
+                      event_type: e.target.value,
+                      event_type_other:
+                        e.target.value === "Other" ? formData.event_type_other : "",
+                    })
                   }
                 >
                   <option value="">Select Event Type</option>
@@ -511,12 +543,23 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                   <option value="Anniversary">Anniversary</option>
                   <option value="Other">Other</option>
                 </select>
+                {formData.event_type === "Other" && (
+                  <input
+                    type="text"
+                    className="w-full mt-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    placeholder="Specify custom event type"
+                    value={formData.event_type_other}
+                    onChange={(e) =>
+                      setFormData({ ...formData, event_type_other: e.target.value })
+                    }
+                  />
+                )}
               </div>
 
-              {/* Base Setup Price (Optional) */}
+              {/* Base Setup Price */}
               <div>
                 <label className="block text-sm text-gray-600 mb-1">
-                  Base Setup Price (₱) <span className="text-xs text-gray-400">(Optional)</span>
+                  Base Setup Price (₱) <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="number"
@@ -574,95 +617,75 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
               {/* Add Scaffold Form */}
-              <div className="flex flex-col gap-2 mb-1">
-                <div className="flex gap-2 flex-wrap">
-                  <input
-                    type="text"
-                    placeholder="Label (e.g. 20x40 Setup)"
-                    className="flex-1 min-w-[140px] border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                    value={newScaffoldOption.label}
-                    onChange={(e) =>
-                      setNewScaffoldOption({
-                        ...newScaffoldOption,
-                        label: e.target.value,
-                      })
-                    }
-                  />
-                  <input
-                    type="number"
-                    placeholder="Width (ft)"
-                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                    value={newScaffoldOption.width_ft}
-                    onChange={(e) =>
-                      setNewScaffoldOption({
-                        ...newScaffoldOption,
-                        width_ft: e.target.value,
-                      })
-                    }
-                  />
-                  <input
-                    type="number"
-                    placeholder="Length (ft)"
-                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                    value={newScaffoldOption.length_ft}
-                    onChange={(e) =>
-                      setNewScaffoldOption({
-                        ...newScaffoldOption,
-                        length_ft: e.target.value,
-                      })
-                    }
-                  />
-                  <input
-                    type="number"
-                    placeholder="Price (₱)"
-                    className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                    value={newScaffoldOption.price}
-                    onChange={(e) =>
-                      setNewScaffoldOption({
-                        ...newScaffoldOption,
-                        price: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex gap-2 items-center flex-wrap">
-                  <input
-                    type="number"
-                    placeholder="Min Guests"
-                    className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                    value={newScaffoldOption.guest_min}
-                    onChange={(e) =>
-                      setNewScaffoldOption({
-                        ...newScaffoldOption,
-                        guest_min: e.target.value,
-                      })
-                    }
-                  />
-                  <span className="text-gray-400 text-sm">to</span>
-                  <input
-                    type="number"
-                    placeholder="Max Guests"
-                    className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                    value={newScaffoldOption.guest_max}
-                    onChange={(e) =>
-                      setNewScaffoldOption({
-                        ...newScaffoldOption,
-                        guest_max: e.target.value,
-                      })
-                    }
-                  />
-                  <Btn
-                    variant="primary"
-                    size="sm"
-                    onClick={handleAddScaffoldOption}
-                    disabled={
-                      !newScaffoldOption.label ||
-                      !newScaffoldOption.width_ft ||
-                      !newScaffoldOption.length_ft
-                    }
-                  >
-                    <Plus size={12} className="mr-1" /> Add Size
-                  </Btn>
+              {showScaffoldForm && (
+                <div className="flex flex-col gap-2 mb-1">
+                  <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-gray-700">Scaffold Size</span>
+                    <input
+                      type="number"
+                      placeholder="Width"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      value={newScaffoldOption.width_ft}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          width_ft: e.target.value,
+                        })
+                      }
+                    />
+                    <input
+                      type="number"
+                      placeholder="Length"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      value={newScaffoldOption.length_ft}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          length_ft: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-gray-700">Best for</span>
+                    <input
+                      type="number"
+                      placeholder="Min Guest"
+                      className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      value={newScaffoldOption.guest_min}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          guest_min: e.target.value,
+                        })
+                      }
+                    />
+                    <span className="text-gray-400 text-sm">to</span>
+                    <input
+                      type="number"
+                      placeholder="Max Guest"
+                      className="w-28 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      value={newScaffoldOption.guest_max}
+                      onChange={(e) =>
+                        setNewScaffoldOption({
+                          ...newScaffoldOption,
+                          guest_max: e.target.value,
+                        })
+                      }
+                    />
+                    <Btn
+                      variant="primary"
+                      size="sm"
+                      onClick={handleAddScaffoldOption}
+                      disabled={
+                        !newScaffoldOption.width_ft ||
+                        !newScaffoldOption.length_ft
+                      }
+                    >
+                      <Plus size={12} className="mr-1" /> Confirm
+                    </Btn>
+                  </div>
                 </div>
 
                 {/* Quick Presets Chips */}
@@ -678,12 +701,13 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                         onClick={() => handleApplyScaffoldPreset(preset)}
                         className="text-xs px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:text-primary hover:border-primary transition-all shadow-2xs hover:bg-primary/5 flex items-center gap-1"
                       >
-                        <Plus size={10} /> {preset.label} ({preset.guest_min}-{preset.guest_max} guests)
+                        <Plus size={10} /> {preset.label}, Fit for ({preset.guest_min}-{preset.guest_max}) Guest
                       </button>
                     ))}
                   </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Scaffold Options List */}
               {(formData.scaffold_size_options || []).length > 0 ? (
@@ -697,99 +721,79 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                           key={idx}
                           className="flex flex-col gap-2 bg-blue-50/70 p-3 rounded-lg border border-blue-200 shadow-2xs"
                         >
-                          <div className="flex gap-2 flex-wrap">
-                            <input
-                              type="text"
-                              placeholder="Label"
-                              className="flex-1 min-w-[120px] border border-blue-300 rounded px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              value={editScaffoldData.label}
-                              onChange={(e) =>
-                                setEditScaffoldData({
-                                  ...editScaffoldData,
-                                  label: e.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="number"
-                              placeholder="W (ft)"
-                              className="w-20 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              value={editScaffoldData.width_ft}
-                              onChange={(e) =>
-                                setEditScaffoldData({
-                                  ...editScaffoldData,
-                                  width_ft: e.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="number"
-                              placeholder="L (ft)"
-                              className="w-20 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              value={editScaffoldData.length_ft}
-                              onChange={(e) =>
-                                setEditScaffoldData({
-                                  ...editScaffoldData,
-                                  length_ft: e.target.value,
-                                })
-                              }
-                            />
-                            <input
-                              type="number"
-                              placeholder="Price (₱)"
-                              className="w-28 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                              value={editScaffoldData.price}
-                              onChange={(e) =>
-                                setEditScaffoldData({
-                                  ...editScaffoldData,
-                                  price: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="flex gap-2 items-center flex-wrap justify-between">
-                            <div className="flex gap-2 items-center">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs text-gray-700">Scaffold Size</span>
                               <input
                                 type="number"
-                                placeholder="Min Guests"
-                                className="w-24 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={editScaffoldData.guest_min}
+                                placeholder="Width"
+                                className="w-20 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={editScaffoldData.width_ft}
                                 onChange={(e) =>
                                   setEditScaffoldData({
                                     ...editScaffoldData,
-                                    guest_min: e.target.value,
+                                    width_ft: e.target.value,
                                   })
                                 }
                               />
-                              <span className="text-gray-400 text-xs">to</span>
                               <input
                                 type="number"
-                                placeholder="Max Guests"
-                                className="w-24 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={editScaffoldData.guest_max}
+                                placeholder="Length"
+                                className="w-20 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={editScaffoldData.length_ft}
                                 onChange={(e) =>
                                   setEditScaffoldData({
                                     ...editScaffoldData,
-                                    guest_max: e.target.value,
+                                    length_ft: e.target.value,
                                   })
                                 }
                               />
                             </div>
-                            <div className="flex gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveEditScaffold(idx)}
-                                className="px-2.5 py-1 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/90 transition-colors shadow-2xs flex items-center gap-1"
-                              >
-                                <Check size={12} /> Save
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCancelEditScaffold}
-                                className="px-2.5 py-1 text-gray-600 bg-gray-200 text-xs rounded hover:bg-gray-300 transition-colors flex items-center gap-1"
-                              >
-                                <X size={12} /> Cancel
-                              </button>
+                            <div className="flex gap-2 items-center flex-wrap justify-between">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-xs text-gray-700">Best for</span>
+                                <input
+                                  type="number"
+                                  placeholder="Min Guest"
+                                  className="w-24 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                  value={editScaffoldData.guest_min}
+                                  onChange={(e) =>
+                                    setEditScaffoldData({
+                                      ...editScaffoldData,
+                                      guest_min: e.target.value,
+                                    })
+                                  }
+                                />
+                                <span className="text-gray-400 text-xs">to</span>
+                                <input
+                                  type="number"
+                                  placeholder="Max Guest"
+                                  className="w-24 border border-blue-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                  value={editScaffoldData.guest_max}
+                                  onChange={(e) =>
+                                    setEditScaffoldData({
+                                      ...editScaffoldData,
+                                      guest_max: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditScaffold(idx)}
+                                  className="px-2.5 py-1 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/90 transition-colors shadow-2xs flex items-center gap-1"
+                                >
+                                  <Check size={12} /> Confirm
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditScaffold}
+                                  className="px-2.5 py-1 text-gray-600 bg-gray-200 text-xs rounded hover:bg-gray-300 transition-colors flex items-center gap-1"
+                                >
+                                  <X size={12} /> Cancel
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </li>
@@ -849,9 +853,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="font-semibold text-sm">
-                            ₱{Number(opt.price || 0).toLocaleString()}
-                          </div>
                           <button
                             type="button"
                             onClick={() => handleStartEditScaffold(idx, opt)}

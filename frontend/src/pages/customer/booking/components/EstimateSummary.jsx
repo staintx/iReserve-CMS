@@ -34,6 +34,15 @@ export default function EstimateSummary({
     depositPercentage,
     depositAmount,
     guests,
+    // "Estimated guests" everywhere except a Special Offer, whose count is
+    // exact because the price is built directly from it.
+    guestsLabel = "Estimated guests",
+    // Special Offers only. What the base price buys, and what it does not —
+    // present so the total is never mistaken for the final bill.
+    offerName,
+    included,
+    quotedSeparately,
+    totalLabel = "Estimated total",
   } = estimate;
 
   if (variant === "bar") {
@@ -47,7 +56,7 @@ export default function EstimateSummary({
         <p className="text-[13px] text-white/70">
           {note || "Estimated total so far"}
           {guests > 0 && (
-            <span className="text-white/50"> · Estimated guests: {guests}</span>
+            <span className="text-white/50"> · {guestsLabel}: {guests}</span>
           )}
         </p>
         <p className="text-sm font-semibold tabular-nums" aria-live="polite">
@@ -73,7 +82,7 @@ export default function EstimateSummary({
           </h3>
           {guests > 0 && (
             <p className="text-[11px] text-white/50" aria-live="polite">
-              Estimated guests:{" "}
+              {guestsLabel}:{" "}
               <span className="font-semibold text-white/80">{guests}</span>
             </p>
           )}
@@ -130,13 +139,56 @@ export default function EstimateSummary({
           </ul>
         )}
 
+        {/* What the offer covers, and what it does not. Two plain lists, so a
+            customer reading ₱50,000 cannot come away thinking set-up and
+            equipment were part of it. */}
+        {(included?.length > 0 || quotedSeparately?.length > 0) && (
+          <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
+            {included?.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#C5A059]">
+                  Included in this offer
+                </p>
+                <ul className="space-y-1 text-[13px] text-white/75">
+                  {included.map((entry) => (
+                    <li key={entry} className="flex gap-2">
+                      <span aria-hidden="true" className="text-[#7FE3BC]">
+                        ✓
+                      </span>
+                      {entry}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {quotedSeparately?.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+                  Not included · priced on your quotation
+                </p>
+                <ul className="space-y-1 text-[13px] text-white/60">
+                  {quotedSeparately.map((entry) => (
+                    <li key={entry} className="flex gap-2">
+                      <span aria-hidden="true" className="text-white/30">
+                        +
+                      </span>
+                      {entry}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         <div
           className={cn(
             "flex items-baseline justify-between gap-3 border-t border-white/10 pt-3",
             lines.length > 0 || blockers.length > 0 ? "mt-3" : "",
           )}
         >
-          <span className="text-[13px] text-white/70">Estimated total</span>
+          <span className="text-[13px] text-white/70">{totalLabel}</span>
           <span
             className={cn(
               "tabular-nums",
@@ -151,11 +203,21 @@ export default function EstimateSummary({
 
       {hasTotal && (
         <p className="border-t border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs leading-relaxed text-white/60">
-          {depositPercentage}% deposit{" "}
-          <span className="font-semibold text-white">
-            {formatPeso(depositAmount)}
-          </span>{" "}
-          reserves your date after you accept the quotation.
+          {offerName ? (
+            <>
+              Your quotation adds any set-up, equipment and extras to this base
+              price. The {depositPercentage}% deposit is worked out from that
+              final total and reserves your date once you accept it.
+            </>
+          ) : (
+            <>
+              {depositPercentage}% deposit{" "}
+              <span className="font-semibold text-white">
+                {formatPeso(depositAmount)}
+              </span>{" "}
+              reserves your date after you accept the quotation.
+            </>
+          )}
         </p>
       )}
     </section>

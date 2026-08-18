@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerLayout from "../../components/layout/CustomerLayout";
 import CustomerFooter from "../../components/layout/CustomerFooter";
@@ -12,6 +12,16 @@ import {
   priceLabel,
   serviceLabel,
 } from "../../lib/packageDisplay";
+import {
+  isSpecialOffer,
+  offerGuestCap,
+  offerPricePerPerson,
+  offerMenuRules,
+  freeSetupOptions,
+} from "../../lib/specialOffers";
+
+const peso = (amount) =>
+  "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
 
 // Order the service filters the way the booking flow presents them.
 const SERVICE_ORDER = ["Event Setup Only"];
@@ -51,9 +61,23 @@ export default function Packages() {
     fetchPackages().then(setPackages);
   };
 
-  const available = useMemo(
+  const published = useMemo(
     () => packages.data.filter((pkg) => pkg?.available !== false),
     [packages.data],
+  );
+
+  // Special Offers lead the page. They are the same kind of record as the
+  // packages below and live in the same section, but they are what the
+  // business is actively promoting, so they get their own band rather than
+  // being lost in a grid of twenty cards.
+  const offers = useMemo(() => published.filter(isSpecialOffer), [published]);
+
+  // The filters below apply to regular packages only: an offer is priced per
+  // person against a fixed rate, so a "price per guest" range and a service
+  // filter have nothing to say about it.
+  const available = useMemo(
+    () => published.filter((pkg) => !isSpecialOffer(pkg)),
+    [published],
   );
 
   // Filter options come from the data, so a filter can never match nothing.
@@ -111,6 +135,47 @@ export default function Packages() {
     setPriceMax("");
   };
 
+  /**
+   * The sticky bar's real height, published as a custom property.
+   *
+   * The section anchors have to clear it, and its height genuinely varies —
+   * the filter row is absent when no regular packages are published, and the
+   * fields wrap at different widths. A hardcoded offset would either hide the
+   * heading under the bar or leave a gap of dead space above it, so it is
+   * measured rather than guessed.
+   */
+  const filterBarRef = useRef(null);
+
+  useEffect(() => {
+    const node = filterBarRef.current;
+    if (!node) {
+      document.documentElement.style.removeProperty("--ls-filterbar-h");
+      return undefined;
+    }
+
+    const publish = () =>
+      document.documentElement.style.setProperty(
+        "--ls-filterbar-h",
+        `${Math.round(node.getBoundingClientRect().height)}px`,
+      );
+
+    publish();
+
+    // ResizeObserver is not in every browser this reaches; without it the
+    // measurement simply stays at whatever the first paint produced, which is
+    // still better than a guess.
+    const observer =
+      typeof ResizeObserver === "function" ? new ResizeObserver(publish) : null;
+    observer?.observe(node);
+    window.addEventListener("resize", publish);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", publish);
+      document.documentElement.style.removeProperty("--ls-filterbar-h");
+    };
+  }, [packages.status, available.length, offers.length]);
+
   const contactNumber =
     businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
 
@@ -120,16 +185,42 @@ export default function Packages() {
         <div className="ls-inner">
           <span className="ls-rule" aria-hidden="true" />
           <p className="ls-eyebrow">Packages</p>
-          <h1>Event Setup Packages</h1>
+          <h1>Packages &amp; Special Offers</h1>
           <p className="ls-lede">
-            Each package sets your event styling, equipment, and scaffold size
-            options. Food catering can be optionally added when booking.
+            Our regular packages set your event styling, equipment, and scaffold
+            size, with catering added when you book. Our special offers are set
+            menus at one fixed price per guest.
           </p>
         </div>
       </div>
 
-      {packages.status === "ready" && available.length > 0 && (
-        <div className="ls-filterbar">
+      {/* One sticky bar, in the order the page is used: which section you want,
+          then how to narrow it, then the results. The bar was previously
+          rendered after both listings, so it stuck to nothing and a customer
+          met the filters only once they had finished scrolling past everything
+          the filters were for. */}
+      {packages.status === "ready" && (available.length > 0 || offers.length > 0) && (
+        <div className="ls-filterbar" ref={filterBarRef}>
+          <div className="ls-inner ls-packagenav">
+            <nav aria-label="Package sections">
+              <a className="ls-packagenav-link" href="#regular-packages">
+                Regular Packages
+                <span>{available.length}</span>
+              </a>
+              {offers.length > 0 && (
+                <a className="ls-packagenav-link" href="#special-offers">
+                  Special Offers
+                  <span>{offers.length}</span>
+                </a>
+              )}
+            </nav>
+          </div>
+
+          {/* Filters describe setup size and price per guest, neither of which
+              says anything about a fixed per-person offer — so they are scoped
+              to the regular catalogue and say so, rather than appearing to
+              filter a section they cannot touch. */}
+          {available.length > 0 && (
           <div className="ls-inner ls-filterbar-inner">
             {serviceOptions.length > 1 && (
               <div className="ls-chips" role="group" aria-label="Filter by what's included">
@@ -216,10 +307,11 @@ export default function Packages() {
               )}
             </div>
           </div>
+          )}
         </div>
       )}
 
-      <section className="ls-band ls-band--page" aria-label="Catering packages">
+      <section id="regular-packages" className="ls-band ls-band--page" aria-label="Regular packages">
         <div className="ls-inner">
           {packages.status === "loading" && (
             <div className="ls-card-grid" aria-hidden="true">
@@ -257,7 +349,11 @@ export default function Packages() {
             </div>
           )}
 
-          {packages.status === "ready" && available.length === 0 && (
+          {/* Only a genuinely empty catalogue: offers above are packages
+              too, so publishing one of those is not "nothing published". */}
+          {packages.status === "ready" &&
+            available.length === 0 &&
+            offers.length === 0 && (
             <div className="ls-state">
               <p className="ls-state-title">No packages are published right now</p>
               <p>
@@ -281,10 +377,11 @@ export default function Packages() {
           {packages.status === "ready" && available.length > 0 && (
             <>
               <div className="ls-menu-section-head">
-                <h2>
+                <h2>Regular Packages</h2>
+                <p className="ls-menu-count">
                   {filtered.length} {filtered.length === 1 ? "package" : "packages"}
                   {hasAnyFilter ? " match your filters" : " available"}
-                </h2>
+                </p>
               </div>
 
               {filtered.length === 0 ? (
@@ -383,6 +480,111 @@ export default function Packages() {
           )}
         </div>
       </section>
+
+      {/* ── Special Offers ──────────────────────────────────────────
+          Below the regular catalogue, in a section of their own. An
+          offer is a package with a fixed per-person price, so it stays
+          on this page — but it is not mixed into the grid above, where
+          a filter for setup size or price per guest cannot describe it. */}
+      {packages.status === "ready" && offers.length > 0 && (
+        <section id="special-offers" className="ls-band ls-band--tint" aria-labelledby="special-offers-title">
+          <div className="ls-inner">
+            <div className="ls-head">
+              <span className="ls-rule" aria-hidden="true" />
+              <p className="ls-eyebrow">Special Offers</p>
+              <h2 className="ls-title" id="special-offers-title">
+                Fixed price, per person
+              </h2>
+              <p className="ls-lede">
+                Set menus at a fixed rate for every guest. Your quotation still
+                covers set-up, equipment, and anything you add.
+              </p>
+            </div>
+
+            <div className="ls-card-grid">
+              {offers.map((offer) => {
+                const perPerson = offerPricePerPerson(offer);
+                const cap = offerGuestCap(offer);
+                const freeSetup = freeSetupOptions(offer);
+                // The courses this offer feeds people, straight from its
+                // configured rules — no inclusion list is written here.
+                const rules = offerMenuRules(offer);
+
+                return (
+                  <article className="ls-pkg ls-offer" key={offer._id || offer.name}>
+                    <div className="ls-pkg-media">
+                      {offer.image_url ? (
+                        <img
+                          src={offer.image_url}
+                          alt={`${offer.name} special offer`}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="ls-pkg-media-empty">{offer.name}</div>
+                      )}
+                      <span className="ls-offer-tag">Special offer</span>
+                    </div>
+
+                    <div className="ls-pkg-body">
+                      <h3>{offer.name}</h3>
+
+                      {perPerson > 0 && (
+                        <p className="ls-offer-price">
+                          <strong>{peso(perPerson)}</strong>
+                          <span>per person</span>
+                        </p>
+                      )}
+
+                      <div className="ls-offer-chips">
+                        {cap && (
+                          <span className="ls-offer-chip">Up to {cap} guests</span>
+                        )}
+                        {freeSetup.map((option) => (
+                          <span
+                            className="ls-offer-chip ls-offer-chip--free"
+                            key={option.label || option._id}
+                          >
+                            Free set-up · {option.label}
+                          </span>
+                        ))}
+                        {offer.badge_text && !freeSetup.length && (
+                          <span className="ls-offer-chip">{offer.badge_text}</span>
+                        )}
+                      </div>
+
+                      {offer.description && (
+                        <p className="ls-pkg-desc">{offer.description}</p>
+                      )}
+
+                      {rules.length > 0 && (
+                        <ul className="ls-offer-includes">
+                          {rules.map((rule, index) => (
+                            <li key={index}>
+                              {rule.selectable === false || !rule.required_count
+                                ? `${rule.label}${rule.note ? ` — ${rule.note}` : " — included"}`
+                                : `${rule.required_count} × ${rule.label}, your choice`}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <div className="ls-pkg-actions">
+                        <button
+                          type="button"
+                          className="ls-btn ls-btn--primary ls-btn--block"
+                          onClick={() => navigate(`/packages/${offer._id}`)}
+                        >
+                          View offer
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="ls-band ls-band--ink" aria-labelledby="packages-bridge-title">
         <div className="ls-inner ls-bridge">

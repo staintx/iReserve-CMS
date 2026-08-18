@@ -58,10 +58,13 @@ export default function StepDeliveryDetails({
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
         <Card className="p-4">
           <SectionTitle icon={Users}>How many guests</SectionTitle>
+          {/* An estimate, deliberately: a custom booking's count can still
+              change at quotation, ocular, or revision. Only a Special Offer
+              (never this path) asks for an exact guest count. */}
           <Field
-            label="Guest count"
+            label="Estimated guest count"
             required
-            hint="Dish prices are per guest, so this sets your estimate."
+            hint="An estimate is fine — dish prices are per guest, so this sets your estimate."
             error={errors.guest_count}
           >
             <GuestCounter

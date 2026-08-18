@@ -39,6 +39,13 @@ import {
   SERVICE_TYPES,
   cateringRequested,
 } from "../../../pages/customer/booking/lib/bookingRules";
+import {
+  isSpecialOffer,
+  offerBaseFoodPrice,
+  offerMenuRules,
+  offerPricePerPerson,
+  offerSetupCharge,
+} from "../../../lib/specialOffers";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency } from "../../../utils/format";
 import FeedbackDialog from "../../feedback/FeedbackDialog";
@@ -355,6 +362,41 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
 
   /**
+   * When the booking came from a Special Offer, what that offer promised.
+   *
+   * Read straight from the offer's stored configuration and the size the
+   * customer chose, so the builder states the same terms the customer was sold
+   * rather than the admin having to remember them. Nothing here is priced: the
+   * base is the offer's own figure, and everything else is this builder's job.
+   */
+  const offerContext = useMemo(() => {
+    if (!isSpecialOffer(packageRecord)) return null;
+
+    const guests = Number(details.guest_count) || Number(inquiry?.guest_count) || 0;
+    const perPerson = offerPricePerPerson(packageRecord);
+    const setup = offerSetupCharge(packageRecord, inquiry?.selected_scaffold_option_id);
+
+    return {
+      name: packageRecord.name,
+      guests,
+      perPerson,
+      basePrice: offerBaseFoodPrice(packageRecord, guests),
+      setup,
+      // What the per-person price buys, in the offer's own words.
+      included: offerMenuRules(packageRecord).map((rule) =>
+        rule.selectable === false || !Number(rule.required_count)
+          ? rule.label
+          : `${rule.required_count} × ${rule.label}`,
+      ),
+    };
+  }, [
+    packageRecord,
+    details.guest_count,
+    inquiry?.guest_count,
+    inquiry?.selected_scaffold_option_id,
+  ]);
+
+  /**
    * What the customer actually submitted, read straight off the inquiry.
    *
    * Held separately from the editable working copy so the admin can always see
@@ -561,10 +603,41 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setStartingPrice(derived ? String(derived) : "");
         }
 
+        /**
+         * A Special Offer's starting price above is its base price — the food
+         * the per-person rate buys, and the only figure the offer decides.
+         *
+         * Set-up, equipment, crew and everything else are this builder's job.
+         * The one thing seeded is a size the offer covers: a ₱0 line naming it,
+         * so the admin can see the offer already gave that away rather than
+         * charging for it by accident. A size the offer does not cover is left
+         * for the admin to price — seeding ₱0 there would read as a decision
+         * someone made.
+         */
+        if (isSpecialOffer(packageRecord)) {
+          const setup = offerSetupCharge(
+            packageRecord,
+            inquiry?.selected_scaffold_option_id,
+          );
+          if (setup.isFree) {
+            setAdditionalFees([
+              {
+                name: `Event set-up (${setup.label}) — free with this offer`,
+                amount: "0",
+              },
+            ]);
+          }
+        }
+
         // The dishes the customer actually chose, seeded with the catalog rate
         // so the admin adjusts a real number rather than typing one from
         // nothing. A customer who declined catering gets no food lines at all,
         // so no food charge can reach a booking that did not ask for it.
+        //
+        // On a Special Offer the dishes are already paid for by the per-person
+        // base price above, so they are listed at zero: the admin sees exactly
+        // what was chosen without the offer's food being charged twice.
+        const offerCoversFood = isSpecialOffer(packageRecord);
         setMenuItems(
           !customerSelection.wantedFood
             ? []
@@ -572,8 +645,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 if (item && typeof item === "object") {
                   return {
                     name: item.name || "",
-                    note: item.category || item.note || "",
-                    price: item.price ? String(item.price) : "",
+                    note: offerCoversFood
+                      ? `${item.category || item.note || "Included"} · covered by the offer`
+                      : item.category || item.note || "",
+                    price: offerCoversFood || !item.price ? "" : String(item.price),
                   };
                 }
                 return { name: String(item || ""), note: "", price: "" };
@@ -1743,10 +1818,99 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           )}
 
           {/* --- 2. Package and starting price ------------------------------- */}
+          {/* A Special Offer arrives with one figure already settled and a list
+              of things the customer was told are covered. Stating both here,
+              before the pricing fields, is what stops food that the offer paid
+              for being charged again further down. */}
+          {offerContext && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+                  <Sparkles size={11} /> Special Offer
+                </span>
+                <span className="text-sm font-bold text-slate-900">
+                  {offerContext.name}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Base offer price
+                  </p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
+                    {formatCurrency(offerContext.basePrice)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {offerContext.guests} guests ×{" "}
+                    {formatCurrency(offerContext.perPerson)} per person — seeded
+                    as the starting price below.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Set-up
+                  </p>
+                  {offerContext.setup.isFree ? (
+                    <>
+                      <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700">
+                        {formatCurrency(0)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {offerContext.setup.label} — free set-up, because this
+                        offer covers it at that size.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-sm font-semibold text-slate-700">
+                        Priced in this quotation
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {offerContext.setup.hasSize
+                          ? `${offerContext.setup.label} is not covered by the offer. Add it under additional charges.`
+                          : "No size was chosen. Add any set-up under additional charges."}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {offerContext.included.length > 0 && (
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Included by the offer — already paid for by the base price
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {offerContext.included.map((entry) => (
+                      <span
+                        key={entry}
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800"
+                      >
+                        <Check size={11} /> {entry}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    The customer&apos;s dishes are listed below at {formatCurrency(0)}
+                    for the record. Leave them there — pricing them again would
+                    charge for food this offer already covers.
+                  </p>
+                </div>
+              )}
+
+              <p className="mt-3 text-xs text-slate-600">
+                Equipment, crew, add-ons and any additional requests are not part
+                of the offer. Add them below; this quotation is what settles them.
+              </p>
+            </div>
+          )}
+
           <SectionCard
             step={2}
             icon={Package}
-            title="Package and starting price"
+            title={offerContext ? "Offer and base price" : "Package and starting price"}
             description="The baseline this quotation is built from, before anything is added or removed."
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1763,13 +1927,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </Field>
 
               <Field
-                label="Starting price"
+                label={offerContext ? "Base offer price" : "Starting price"}
                 required
                 error={errors.package_starting_price}
                 hint={
-                  totals.startingPrice > 0
-                    ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
-                    : "This package has no price on record. Enter the baseline for this quotation."
+                  offerContext
+                    ? `${offerContext.guests} guests × ${formatCurrency(offerContext.perPerson)} per person. Adjust only if the guest count changed.`
+                    : totals.startingPrice > 0
+                      ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
+                      : "This package has no price on record. Enter the baseline for this quotation."
                 }
                 htmlFor="qb-package_starting_price"
               >
@@ -1790,7 +1956,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs">
                 <span className="text-slate-500">
-                  Starting price
+                  {offerContext ? "Base offer price" : "Starting price"}
                   <strong className="ml-2 tabular-nums text-slate-800">
                     {formatCurrency(totals.startingPrice)}
                   </strong>
@@ -1808,7 +1974,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   </strong>
                 </span>
                 <span className="font-semibold text-slate-900">
-                  Adjusted package price
+                  {offerContext ? "Adjusted base price" : "Adjusted package price"}
                   <strong className="ml-2 tabular-nums text-primary">
                     {formatCurrency(totals.packagePrice)}
                   </strong>

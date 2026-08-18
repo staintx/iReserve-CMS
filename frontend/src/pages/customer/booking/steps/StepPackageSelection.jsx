@@ -23,6 +23,7 @@ import {
   StepShell,
 } from "../components/BookingSharedUI";
 import { focusRing, formatPeso } from "../lib/bookingUI";
+import { isSpecialOffer } from "@/lib/specialOffers";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
 import { CustomerAPI } from "@/api/customer";
@@ -235,11 +236,17 @@ export default function StepPackageSelection({
 
   const isCustomSetup = Boolean(form.is_custom_setup);
 
+  // This step chooses a *setup* package and its scaffold size. A Special Offer
+  // is a different proposition — a fixed per-person price with its own food
+  // rules and guest cap — and is booked from its own card on the Packages page,
+  // which is where those terms are actually explained. Listing one here would
+  // drop a customer into a setup-shaped flow that cannot satisfy its rules.
   const matchingPackages = (packages || []).filter(
     (pkg) =>
-      !pkg?.package_type ||
-      pkg?.package_type === "Event Setup Only" ||
-      pkg?.package_type === "Food + Event Setup",
+      !isSpecialOffer(pkg) &&
+      (!pkg?.package_type ||
+        pkg?.package_type === "Event Setup Only" ||
+        pkg?.package_type === "Food + Event Setup"),
   );
 
   const selectedPackage =

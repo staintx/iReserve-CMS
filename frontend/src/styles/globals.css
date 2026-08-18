@@ -2092,6 +2092,171 @@
 
   .ls-pkg-actions { margin-top: auto; }
 
+  /* ── Special Offers ─────────────────────────────────────────
+     A dark card against the light package grid. The contrast is the
+     signal: an offer is not a slightly better package, it is a fixed
+     price on a dark ground, and it reads as its own thing from across
+     the page without inventing a second visual language. Navy and
+     champagne are both already in the palette. */
+  .ls-offer {
+    background: var(--ls-navy);
+    border-color: var(--ls-navy);
+    color: #FFFFFF;
+    box-shadow: 0 12px 32px rgba(22, 38, 74, 0.22);
+  }
+
+  .ls-offer:hover {
+    border-color: var(--ls-champagne);
+    box-shadow: 0 16px 40px rgba(22, 38, 74, 0.3);
+  }
+
+  .ls-offer .ls-pkg-media {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .ls-offer .ls-pkg-media-empty {
+    color: rgba(255, 255, 255, 0.62);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .ls-offer .ls-pkg-body h3 { color: #FFFFFF; }
+
+  .ls-offer .ls-pkg-desc {
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  .ls-offer-tag {
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ls-navy);
+    background: var(--ls-champagne);
+    border-radius: 4px;
+  }
+
+  /* The headline number. An offer's whole proposition is its rate,
+     so it is stated once, large, instead of buried in the facts.
+
+     Sans, not the display serif: this is a figure to be read and
+     compared, not a title. Playfair's old-style numerals render ₱500
+     with a descending 5 and uneven heights, which is handsome in a
+     heading and wrong on a price. White carries it instead of gold —
+     maximum contrast on the navy ground, and it stops the card from
+     reading as three competing gold elements. */
+  .ls-offer-price {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .ls-offer-price strong {
+    font-family: var(--font-sans);
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: #FFFFFF;
+  }
+
+  .ls-offer-price span {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .ls-offer-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .ls-offer-chip {
+    padding: 4px 9px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+  }
+
+  .ls-offer-chip--free {
+    color: #7FE3BC;
+    background: rgba(127, 227, 188, 0.12);
+    border-color: rgba(127, 227, 188, 0.34);
+  }
+
+  .ls-offer-includes {
+    margin: 14px 0 18px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.74);
+  }
+
+  .ls-offer-includes li {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ls-offer-includes li::before {
+    content: "";
+    flex: none;
+    width: 5px;
+    height: 5px;
+    margin-top: 9px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  /* The CTA keeps the product's action colour rather than taking the
+     accent. Every other primary button in the product is this blue, and
+     an offer's button doing something different asks the customer to
+     re-learn what a primary action looks like. It has enough lift off
+     the navy to read as raised, which gold was doing by brightness
+     alone. */
+  .ls-offer .ls-btn--primary {
+    color: #FFFFFF;
+    background: var(--ls-blue);
+    border-color: var(--ls-blue);
+  }
+
+  .ls-offer .ls-btn--primary:hover {
+    background: #5F91E8;
+    border-color: #5F91E8;
+  }
+
+  /* On the detail page the chips sit on the normal light ground, so
+     they keep the light treatment rather than inheriting the card's. */
+  .ls-detail-head .ls-offer-chip {
+    color: var(--ls-navy);
+    background: rgba(197, 160, 89, 0.14);
+    border-color: rgba(197, 160, 89, 0.34);
+  }
+
+  .ls-detail-head .ls-offer-chip--free {
+    color: #0F6E4F;
+    background: rgba(16, 148, 105, 0.1);
+    border-color: rgba(16, 148, 105, 0.28);
+  }
+
+  .ls-detail-body .ls-offer-includes,
+  .ls-detail-head .ls-offer-includes {
+    border-top-color: var(--ls-line);
+    color: var(--ls-ink-soft);
+  }
+
   /* ── Menu preview ───────────────────────────────────────── */
   .ls-dish-grid {
     display: grid;
@@ -2378,14 +2543,111 @@
   /* ── Sticky filter bar ────────────────────────────────────
      Sits directly under the sticky site header, so `top` tracks the
      header height token rather than a hard-coded offset. ───────── */
+  /* Static by default. The bar now carries a section nav as well as the
+     filters, and on a phone those stack into something tall enough that
+     pinning it would cost a third of the screen for the whole scroll — worse
+     than the problem it solves. It sticks from tablet up, where it collapses
+     to one compact row and there is room to spare. */
   .ls-filterbar {
-    position: sticky;
-    top: var(--ls-header-h);
+    position: relative;
     z-index: 30;
     padding: 14px 0;
     background: rgba(248, 250, 252, 0.94);
-    backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--ls-line);
+  }
+
+  @media (min-width: 900px) {
+    .ls-filterbar {
+      position: sticky;
+      top: var(--ls-header-h);
+      backdrop-filter: blur(8px);
+      /* A short viewport (a laptop in a split screen, a phone in landscape)
+         must never end up with a pinned bar taller than the window. */
+      max-height: calc(100vh - var(--ls-header-h) - 16px);
+      overflow-y: auto;
+    }
+  }
+
+  /* Section nav sits above the filters inside the same sticky bar, so the
+     order on screen is: which section, how to narrow it, then the results. */
+  .ls-packagenav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .ls-packagenav nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ls-packagenav nav::-webkit-scrollbar { display: none; }
+
+  .ls-packagenav-link {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--ls-ink);
+    text-decoration: none;
+    background: var(--ls-surface);
+    border: 1px solid var(--ls-line);
+    border-radius: 999px;
+    transition: border-color 0.18s ease, color 0.18s ease;
+  }
+
+  .ls-packagenav-link:hover {
+    color: var(--ls-blue);
+    border-color: var(--ls-blue);
+  }
+
+  .ls-packagenav-link span {
+    padding: 1px 7px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--ls-ink-soft);
+    background: var(--ls-tint);
+    border-radius: 999px;
+  }
+
+  /* A jump target has to clear the sticky bar, or the section heading lands
+     underneath it. */
+  #regular-packages,
+  #special-offers {
+    scroll-margin-top: calc(var(--ls-header-h) + 16px);
+  }
+
+  @media (min-width: 900px) {
+    /* Clear the pinned bar as well as the header, or a jump lands the section
+       heading underneath it. The bar's height is measured and published by
+       Packages.jsx; the fallback covers the frame before that lands. */
+    #regular-packages,
+    #special-offers {
+      scroll-margin-top: calc(
+        var(--ls-header-h) + var(--ls-filterbar-h, 150px) + 16px
+      );
+    }
+  }
+
+  /* The bar carries two rows now; the divider keeps them from reading as one
+     run-on strip of controls. */
+  .ls-packagenav + .ls-filterbar-inner {
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--ls-line);
+  }
+
+  /* The price help line is the first thing to go when height is scarce: the
+     two inputs are labelled "Price per guest" already. */
+  @media (max-width: 599px) {
+    .ls-filterbar .ls-field-help { display: none; }
   }
 
   .ls-filterbar-inner {

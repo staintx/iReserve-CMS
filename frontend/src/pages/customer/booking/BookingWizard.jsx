@@ -35,6 +35,12 @@ import {
   serviceTypeForRequest,
 } from "./lib/bookingRules";
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
+import {
+  isSpecialOffer,
+  offerGuestCap,
+  selectableOfferRules,
+  validateOfferSelection,
+} from "../../../lib/specialOffers";
 import { formatEventDate } from "../../../utils/format";
 
 // -----------------------------------------------------------------------------
@@ -222,11 +228,30 @@ export default function BookingWizard() {
   // page passed in. Only with none of those does the flow fall back to an open
   // range. Previously a package chosen inside the wizard was ignored entirely,
   // so a 40-150 guest package silently accepted 1 or 900.
+  // A Special Offer changes three things about this flow, all of them
+  // consequences of one fact: its price is `guest count × a fixed rate`, so
+  // the guest count is the real number rather than an opening estimate.
+  //   1. Its `max_guests` is a hard ceiling, not guidance.
+  //   2. The field is called "Guest count", never "Estimated guest count".
+  //   3. Its food is chosen against the offer's rules rather than freely.
+  const isOffer = isSpecialOffer(packageDetails);
+  const offerRules = useMemo(
+    () => (isOffer ? selectableOfferRules(packageDetails) : []),
+    [isOffer, packageDetails],
+  );
+
   const { guestMin, guestMax } = useMemo(() => {
     const positive = (candidate) => {
       const parsed = Number(candidate);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     };
+
+    // An offer's cap wins over every other bound, because exceeding it means
+    // the offer no longer applies at all.
+    const cap = isOffer ? offerGuestCap(packageDetails) : null;
+    if (cap) {
+      return { guestMin: positive(packageDetails?.guest_min) || 1, guestMax: cap };
+    }
 
     // Deliberately not clamped to the chosen setup size. Guest count is how
     // many people the customer is actually expecting; setup capacity is a
@@ -243,8 +268,8 @@ export default function BookingWizard() {
 
     return { guestMin: 1, guestMax: 1000 };
   }, [
-    packageDetails?.guest_min,
-    packageDetails?.guest_max,
+    isOffer,
+    packageDetails,
     initialGuestMin,
     initialGuestMax,
   ]);
@@ -481,6 +506,87 @@ export default function BookingWizard() {
       .catch(() => setPackageDetails(null));
   }, [selectedPackageId]);
 
+  // A Special Offer is a food offer: the per-person price is what buys the
+  // meal, so there is no "do you want catering?" question to answer and the
+  // toggle that asks it never applies.
+  useEffect(() => {
+    if (!isOffer) return;
+    setForm((prev) =>
+      prev.include_food === true
+        ? prev
+        : { ...prev, include_food: true, service_type: SERVICE_TYPES.FULL_SERVICE },
+    );
+  }, [isOffer]);
+
+  // An offer is booked straight from its card, so it never passes through the
+  // setup-package step that normally chooses a scaffold size. Without a size
+  // selected, an offer that includes free setup at one of them could never
+  // apply it. Seed the offer's own default (or its first size) so the free
+  // setup it advertises is what the customer actually gets; they can still
+  // change it on the Event Details step.
+  const seededOfferSize = useRef(null);
+  useEffect(() => {
+    if (!isOffer) return;
+    const options = Array.isArray(packageDetails?.scaffold_size_options)
+      ? packageDetails.scaffold_size_options
+      : [];
+    if (options.length === 0) return;
+    if (seededOfferSize.current === String(packageDetails._id)) return;
+    if (form.selected_scaffold_option_id) {
+      seededOfferSize.current = String(packageDetails._id);
+      return;
+    }
+
+    const option =
+      options.find(
+        (entry) =>
+          String(entry._id) === String(packageDetails.default_scaffold_option_id),
+      ) || options[0];
+    if (!option?._id) return;
+
+    seededOfferSize.current = String(packageDetails._id);
+    setForm((prev) => ({
+      ...prev,
+      selected_scaffold_option_id: String(option._id),
+      scaffold_width: option.width_ft,
+      scaffold_length: option.length_ft,
+      scaffold_base_area:
+        option.area_ft2 ??
+        (option.width_ft && option.length_ft
+          ? option.width_ft * option.length_ft
+          : undefined),
+      scaffold_price: option.free_setup ? 0 : Number(option.price) || 0,
+    }));
+  }, [isOffer, packageDetails, form.selected_scaffold_option_id]);
+
+  // Changing the size on an offer re-prices the setup line, so the change is
+  // applied through one handler rather than in each place that offers it.
+  const selectOfferScaffold = useCallback(
+    (optionId) => {
+      const options = Array.isArray(packageDetails?.scaffold_size_options)
+        ? packageDetails.scaffold_size_options
+        : [];
+      const option = options.find(
+        (entry) => String(entry._id) === String(optionId),
+      );
+      if (!option) return;
+
+      setForm((prev) => ({
+        ...prev,
+        selected_scaffold_option_id: String(option._id),
+        scaffold_width: option.width_ft,
+        scaffold_length: option.length_ft,
+        scaffold_base_area:
+          option.area_ft2 ??
+          (option.width_ft && option.length_ft
+            ? option.width_ft * option.length_ft
+            : undefined),
+        scaffold_price: option.free_setup ? 0 : Number(option.price) || 0,
+      }));
+    },
+    [packageDetails],
+  );
+
   // A setup package brings its own equipment; carry it onto the inquiry so the
   // team sees what has to be reserved.
   useEffect(() => {
@@ -704,7 +810,13 @@ export default function BookingWizard() {
 
           const guests = parseNumber(form.guest_count) || 0;
           if (guests <= 0) {
-            errors.guest_count = "Enter how many guests you're expecting.";
+            errors.guest_count = isOffer
+              ? "Enter your guest count. This offer is priced per person."
+              : "Enter how many guests you're expecting.";
+          } else if (isOffer && guests > guestMax) {
+            // A cap on an offer is a limit on what is being sold, so it is
+            // stated as one rather than as a generic range.
+            errors.guest_count = `${packageDetails?.name || "This offer"} covers up to ${guestMax} guests. Lower the count, or book a custom event instead.`;
           } else if (guests < guestMin || guests > guestMax) {
             errors.guest_count = `Enter a guest count between ${guestMin} and ${guestMax}.`;
           } else if (setupCapacity?.status === "over") {
@@ -727,8 +839,22 @@ export default function BookingWizard() {
           break;
         }
 
-        // MenuSelection: no rule to enforce here — dishes are a free choice
-        // with no required categories or cap, on every service path.
+        case "MenuSelection": {
+          // Dishes are otherwise a free choice with no required categories and
+          // no cap, on every service path. A Special Offer is the exception:
+          // its per-person price buys a specific set of courses, so its own
+          // configured rules are what has to be satisfied here.
+          if (!isOffer) break;
+          const problems = validateOfferSelection(
+            packageDetails,
+            (form.selected_menu || []).map((item) => item?._id || item),
+          );
+          if (problems.length > 0) {
+            errors.selected_menu = problems[0];
+            message = problems[0];
+          }
+          break;
+        }
 
         case "ContactInfo": {
           [
@@ -771,6 +897,8 @@ export default function BookingWizard() {
       guestMin,
       guestMax,
       setupCapacity,
+      isOffer,
+      packageDetails,
     ],
   );
 
@@ -1130,6 +1258,8 @@ export default function BookingWizard() {
             estimate={estimate}
             errors={fieldErrors}
             setupCapacity={setupCapacity}
+            offer={isOffer ? packageDetails : null}
+            onSelectOfferScaffold={selectOfferScaffold}
           />
         );
 
@@ -1154,6 +1284,11 @@ export default function BookingWizard() {
             menuItems={menuItems}
             estimate={estimate}
             isFullService={!isFoodOnly}
+            // A Special Offer replaces free browsing with its own courses:
+            // pick exactly what the offer includes, from what it allows.
+            offer={isOffer ? packageDetails : null}
+            offerRules={offerRules}
+            errors={fieldErrors}
           />
         );
 
@@ -1200,6 +1335,7 @@ export default function BookingWizard() {
             editTargets={editTargets}
             errors={fieldErrors}
             setTurnstileToken={setTurnstileToken}
+            offer={isOffer ? packageDetails : null}
           />
         );
 

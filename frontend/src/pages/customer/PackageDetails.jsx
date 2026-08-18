@@ -15,6 +15,17 @@ import {
   serviceLabel,
   serviceTypeForPackage,
 } from "../../lib/packageDisplay";
+import {
+  isSpecialOffer,
+  offerGuestCap,
+  offerPricePerPerson,
+  offerMenuRules,
+  freeSetupOptions,
+} from "../../lib/specialOffers";
+import { SERVICE_TYPES } from "./booking/lib/bookingRules";
+
+const peso = (amount) =>
+  "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
 
 export default function PackageDetails() {
   const { id } = useParams();
@@ -99,17 +110,32 @@ export default function PackageDetails() {
     businessInfo.contact_number || DEFAULT_BUSINESS_INFO.contact_number;
   const contactEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
 
+  const offer = isSpecialOffer(data);
+  const perPerson = offer ? offerPricePerPerson(data) : 0;
+  const offerCap = offer ? offerGuestCap(data) : null;
+  const offerRules = offer ? offerMenuRules(data) : [];
+  const offerFreeSetup = offer ? freeSetupOptions(data) : [];
+
   const bookingState = data
     ? {
         resetWizard: true,
         initialStep: 0,
         eventType: eventTypeForPackage(data),
-        serviceType: serviceTypeForPackage(data),
+        // An offer always includes food, so it enters the wizard as full
+        // service rather than as a setup package the customer is then asked
+        // whether they want catering with.
+        serviceType: offer
+          ? SERVICE_TYPES.FULL_SERVICE
+          : serviceTypeForPackage(data),
         packageId: data._id,
         packageName: data.name,
-        packagePrice: data.setup_price || perGuestPrice(data) || 0,
+        packagePrice: offer
+          ? perPerson
+          : data.setup_price || perGuestPrice(data) || 0,
         guestMin: data.guest_min || null,
-        guestMax: data.guest_max || null,
+        // The offer's cap is the wizard's hard ceiling on the guest count,
+        // because the price is built directly from that number.
+        guestMax: offerCap || data.guest_max || null,
       }
     : null;
 
@@ -231,16 +257,43 @@ export default function PackageDetails() {
                   <h1>{data.name}</h1>
                   {data.description && <p className="ls-lede">{data.description}</p>}
 
+                  {/* An offer's headline is one number and one benefit, so
+                      they lead rather than sitting inside the fact list. */}
+                  {offer && (
+                    <div className="ls-offer-chips" style={{ marginBottom: 4 }}>
+                      <span className="ls-offer-chip">Special offer</span>
+                      {offerFreeSetup.map((option) => (
+                        <span
+                          className="ls-offer-chip ls-offer-chip--free"
+                          key={option.label || option._id}
+                        >
+                          Free set-up · {option.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <dl className="ls-detail-facts">
                     <div>
                       <dt>Price</dt>
-                      <dd>{priceLabel(data)}</dd>
+                      <dd>
+                        {offer && perPerson > 0
+                          ? `${peso(perPerson)} per person`
+                          : priceLabel(data)}
+                      </dd>
                     </div>
-                    {capacity && (
+                    {offer && offerCap ? (
                       <div>
-                        <dt>Guests</dt>
-                        <dd>{capacity}</dd>
+                        <dt>Guest count</dt>
+                        <dd>Up to {offerCap} guests</dd>
                       </div>
+                    ) : (
+                      capacity && (
+                        <div>
+                          <dt>Guests</dt>
+                          <dd>{capacity}</dd>
+                        </div>
+                      )
                     )}
                     {inclusionGroups.length > 0 && (
                       <div>
@@ -268,6 +321,7 @@ export default function PackageDetails() {
                               <th scope="col">Size</th>
                               <th scope="col">Area</th>
                               <th scope="col">Guests</th>
+                              <th scope="col">Set-up</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -288,12 +342,37 @@ export default function PackageDetails() {
                                   <th scope="row">{option.label || `Option ${index + 1}`}</th>
                                   <td>{dims}</td>
                                   <td>{guests}</td>
+                                  {/* What a size costs is a quotation
+                                      decision, so this says whether the offer
+                                      covers it — never a number. */}
+                                  <td>
+                                    {option.free_setup
+                                      ? "Free with this offer"
+                                      : "Priced on quotation"}
+                                  </td>
                                 </tr>
                               );
                             })}
                           </tbody>
                         </table>
                       </div>
+                    </div>
+                  )}
+
+                  {/* What the per-person price feeds people, from the offer's
+                      configured rules. Nothing here is written into the page. */}
+                  {offerRules.length > 0 && (
+                    <div className="ls-detail-sizes">
+                      <p className="ls-detail-sizes-label">What every guest gets</p>
+                      <ul className="ls-offer-includes">
+                        {offerRules.map((rule, index) => (
+                          <li key={index}>
+                            {rule.selectable === false || !rule.required_count
+                              ? `${rule.label}${rule.note ? ` — ${rule.note}` : " — included"}`
+                              : `${rule.required_count} × ${rule.label}, your choice from our menu`}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
 
@@ -305,7 +384,7 @@ export default function PackageDetails() {
                         navigate("/customer/book", { state: bookingState })
                       }
                     >
-                      Book this package
+                      {offer ? "Book this offer" : "Book this package"}
                     </button>
                     <button
                       type="button"
@@ -444,7 +523,7 @@ export default function PackageDetails() {
                   className="ls-btn ls-btn--onink"
                   onClick={() => navigate("/customer/book", { state: bookingState })}
                 >
-                  Book this package
+                  {offer ? "Book this offer" : "Book this package"}
                 </button>
                 <button
                   type="button"

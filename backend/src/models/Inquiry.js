@@ -5,6 +5,40 @@ const InquirySchema = new mongoose.Schema(
     reference: { type: String, unique: true, sparse: true },
     customer_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     package_id: { type: mongoose.Schema.Types.ObjectId, ref: "Package" },
+
+    /**
+     * What kind of request this is, resolved from the package relation at
+     * submission time — never guessed from a package name.
+     *
+     *   regular — the customer booked a regular package
+     *   special — the customer booked a Special Offer
+     *   custom  — no package: the customer built the event themselves
+     *
+     * The admin Inquiries list shows this beside the package name, so a
+     * "Full Package" offer is never mistaken for a regular package that
+     * happens to be called that.
+     */
+    booking_type: {
+      type: String,
+      enum: ["regular", "special", "custom"],
+      default: "custom",
+    },
+
+    // The package name as it stood when the request was sent. The relation
+    // above stays the source of truth; this keeps the list readable if the
+    // package is later renamed or deleted.
+    package_name_snapshot: String,
+
+    // Special Offers only. `guest_count × price per person`, the base FOOD
+    // price the offer promises. The quotation remains the final authority on
+    // what is owed — this is the figure it starts from.
+    offer_base_price: Number,
+    // Whether the offer covers the setup at the size the customer chose.
+    // There is no amount beside it on purpose: an offer's scaffold options
+    // carry no price, and what an uncovered size costs is decided on the
+    // quotation. Free setup belongs to a size, never to ordering food.
+    offer_setup_is_free: { type: Boolean, default: false },
+
     
     event_type: { type: String, required: true },
     event_theme: String,

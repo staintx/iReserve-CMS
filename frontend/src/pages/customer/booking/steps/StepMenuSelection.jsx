@@ -11,6 +11,7 @@ import { focusRing } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
 import { resolveGroup, CATEGORY_GROUPS } from "@/lib/menuCategories";
+import { offerMenuRules, offerRuleProgress } from "@/lib/specialOffers";
 
 /** One selectable dish. Price is never shown here — the per-guest rate is
     quotation-based, not a fixed number, so it is only ever summarised in the
@@ -116,6 +117,9 @@ export default function StepMenuSelection({
   menuItems,
   estimate,
   isFullService,
+  offer = null,
+  offerRules = [],
+  errors = {},
 }) {
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
 
@@ -267,6 +271,120 @@ export default function StepMenuSelection({
       </div>
     </>
   );
+
+  // ---------------------------------------------------------------------------
+  // Special Offer
+  // ---------------------------------------------------------------------------
+  // The one path with required courses, because the offer's per-person price
+  // buys a specific meal. Every course, every count and every allowed dish here
+  // comes from the offer's own configuration — nothing about which dishes fit
+  // which course is decided in this file.
+  //
+  // There is also no "skip catering" toggle: the food *is* the offer.
+  if (offer) {
+    const selectedIds = selected.map((item) => String(item._id));
+    // The full rule list (including the courses that are simply included and
+    // never chosen), so the customer sees everything the price covers.
+    const allRules = offerMenuRules(offer);
+    const includedRules = allRules.filter(
+      (rule) => rule.selectable === false || !Number(rule.required_count),
+    );
+
+    const itemById = new Map(
+      (menuItems || []).map((item) => [String(item._id), item]),
+    );
+    // Rules arrive with their allowed items populated by the API; the loaded
+    // catalogue is preferred so availability and images are current.
+    const itemsForRule = (rule) =>
+      (rule.menu_items || [])
+        .map((entry) => itemById.get(String(entry?._id || entry)) || entry)
+        .filter((item) => item && item._id);
+
+    return (
+      <StepShell aside={<EstimateSummary estimate={estimate} />}>
+        <SH
+          title={`Choose your ${offer.name} menu`}
+          sub="Pick the courses your offer includes. Your price per person stays the same whichever dishes you choose."
+        />
+
+        {errors.selected_menu && (
+          <p
+            role="alert"
+            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700"
+          >
+            {errors.selected_menu}
+          </p>
+        )}
+
+        <div className="space-y-4">
+          {offerRules.map((rule, index) => {
+            const progress = offerRuleProgress(rule, selectedIds);
+            const items = itemsForRule(rule);
+
+            return (
+              <Card key={rule._id || `${rule.label}-${index}`} className="p-4">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-base font-semibold text-[#1E293B]">
+                    {rule.label}
+                  </h3>
+                  {/* Says what is still needed, not just what is wrong — the
+                      count is the whole rule, so it is stated plainly. */}
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-xs font-semibold",
+                      progress.complete
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-amber-50 text-amber-700",
+                    )}
+                  >
+                    {progress.complete
+                      ? `${progress.required} of ${progress.required} chosen`
+                      : `Choose ${progress.remaining} more of ${progress.required}`}
+                  </span>
+                </div>
+
+                {rule.note && (
+                  <p className="mb-3 text-[13px] text-[#64748B]">{rule.note}</p>
+                )}
+
+                <DishGrid
+                  items={items}
+                  isSelected={isSelected}
+                  onToggle={toggle}
+                  emptyMessage="No dishes are configured for this course yet. Tell us in the notes below and we'll sort it on your quotation."
+                />
+              </Card>
+            );
+          })}
+
+          {includedRules.length > 0 && (
+            <Card className="p-4">
+              <h3 className="mb-2 text-base font-semibold text-[#1E293B]">
+                Also included
+              </h3>
+              <ul className="space-y-1.5 text-[13px] text-[#64748B]">
+                {includedRules.map((rule, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <Check size={14} className="mt-0.5 shrink-0 text-[#4C81E0]" />
+                    <span>
+                      {rule.label}
+                      {rule.note ? ` — ${rule.note}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          <Card className="p-4">
+            {requestsField(
+              "e.g. One guest is allergic to shellfish — please keep their serving separate",
+            )}
+          </Card>
+        </div>
+      </StepShell>
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Full service (Food + Event Setup, or a package with catering added): a

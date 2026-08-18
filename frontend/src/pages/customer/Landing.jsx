@@ -10,6 +10,16 @@ import {
   positiveNumbers,
   priceLabel,
 } from "../../lib/packageDisplay";
+import {
+  isSpecialOffer,
+  offerGuestCap,
+  offerPricePerPerson,
+  offerMenuRules,
+  freeSetupOptions,
+} from "../../lib/specialOffers";
+
+const peso = (amount) =>
+  "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
 
 // One large tile plus four small ones tiles the feature grid exactly.
 const GALLERY_PREVIEW_COUNT = 5;
@@ -171,15 +181,51 @@ export default function Landing() {
     navigate("/customer/book", { state: { resetWizard: true, ...payload } });
   };
 
-  const availablePackages = useMemo(
+  const publishedPackages = useMemo(
     () => content.packages.data.filter((pkg) => pkg?.available !== false),
     [content.packages.data],
+  );
+
+  const availablePackages = useMemo(
+    () => publishedPackages.filter((pkg) => !isSpecialOffer(pkg)),
+    [publishedPackages],
   );
 
   const featuredPackages = useMemo(() => {
     const flagged = availablePackages.filter((pkg) => pkg?.featured === true);
     return (flagged.length > 0 ? flagged : availablePackages).slice(0, 3);
   }, [availablePackages]);
+
+  /**
+   * The home page promotes one offer, not the catalogue.
+   *
+   * A visitor here is deciding whether to look further, so a whole band of
+   * offers competes with the packages instead of drawing anyone into them. One
+   * card, slotted between two regular packages, is a promotion; the full set
+   * lives on the Packages page.
+   *
+   * A flagged (`featured`) offer wins, otherwise the first published one.
+   */
+  const promotedOffer = useMemo(() => {
+    const offers = publishedPackages.filter(isSpecialOffer);
+    return offers.find((offer) => offer?.featured === true) || offers[0] || null;
+  }, [publishedPackages]);
+
+  /**
+   * The three cards the packages band renders, with the promoted offer sitting
+   * in the middle — Regular · Special · Regular — so it reads as one of the
+   * things on offer rather than an advert bolted to the side.
+   *
+   * With only one package to show it goes after it rather than orphaning a
+   * lone offer at the front.
+   */
+  const packageShowcase = useMemo(() => {
+    if (!promotedOffer) return featuredPackages;
+    const cards = [...featuredPackages];
+    const middle = cards.length >= 2 ? 1 : cards.length;
+    cards.splice(middle, 0, promotedOffer);
+    return cards.slice(0, 3);
+  }, [featuredPackages, promotedOffer]);
 
   const availableMenu = useMemo(
     () => content.menu.data.filter((item) => item?.available !== false),
@@ -343,7 +389,7 @@ export default function Landing() {
               () => retryContent(["packages"]),
             )}
 
-          {content.packages.status === "ready" && featuredPackages.length === 0 && (
+          {content.packages.status === "ready" && packageShowcase.length === 0 && (
             <div className="ls-state">
               <p className="ls-state-title">No packages are published right now</p>
               <p>
@@ -358,9 +404,82 @@ export default function Landing() {
             </div>
           )}
 
-          {content.packages.status === "ready" && featuredPackages.length > 0 && (
+          {content.packages.status === "ready" && packageShowcase.length > 0 && (
             <div className="ls-card-grid ls-reveal ls-stagger">
-              {featuredPackages.map((pkg) => {
+              {packageShowcase.map((pkg) => {
+                /* One promoted offer sits among the packages rather than in a
+                   band of its own. It is the same card with the offer
+                   treatment — dark ground, badge, per-person rate — so it is
+                   unmistakable without becoming a different component. */
+                if (isSpecialOffer(pkg)) {
+                  const perPerson = offerPricePerPerson(pkg);
+                  const cap = offerGuestCap(pkg);
+                  const freeSetup = freeSetupOptions(pkg);
+                  const rules = offerMenuRules(pkg).slice(0, 3);
+
+                  return (
+                    <article className="ls-pkg ls-offer" key={pkg._id || pkg.name}>
+                      <div className="ls-pkg-media">
+                        {pkg.image_url ? (
+                          <img
+                            src={pkg.image_url}
+                            alt={`${pkg.name} special offer`}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="ls-pkg-media-empty">{pkg.name}</div>
+                        )}
+                        <span className="ls-offer-tag">Special Offer</span>
+                      </div>
+
+                      <div className="ls-pkg-body">
+                        <h3>{pkg.name}</h3>
+
+                        {perPerson > 0 && (
+                          <p className="ls-offer-price">
+                            <strong>{peso(perPerson)}</strong>
+                            <span>per person</span>
+                          </p>
+                        )}
+
+                        <div className="ls-offer-chips">
+                          {cap && <span className="ls-offer-chip">Up to {cap} guests</span>}
+                          {freeSetup.map((option) => (
+                            <span
+                              className="ls-offer-chip ls-offer-chip--free"
+                              key={option.label || option._id}
+                            >
+                              Free set-up · {option.label}
+                            </span>
+                          ))}
+                        </div>
+
+                        {rules.length > 0 && (
+                          <ul className="ls-offer-includes">
+                            {rules.map((rule, index) => (
+                              <li key={index}>
+                                {rule.selectable === false || !rule.required_count
+                                  ? `${rule.label} — included`
+                                  : `${rule.required_count} × ${rule.label}`}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        <div className="ls-pkg-actions">
+                          <button
+                            type="button"
+                            className="ls-btn ls-btn--primary ls-btn--block"
+                            onClick={() => navigate(`/packages/${pkg._id}`)}
+                          >
+                            View offer
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                }
+
                 const capacity = capacityLabel(pkg);
                 const inclusionCount = Array.isArray(pkg.inclusions)
                   ? pkg.inclusions.length

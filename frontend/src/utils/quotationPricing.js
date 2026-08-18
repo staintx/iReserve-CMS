@@ -12,6 +12,8 @@
  * calculated differently from an added service.
  */
 
+import { isSpecialOffer, offerBaseFoodPrice } from "@/lib/specialOffers";
+
 export const money = (value) => {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount < 0) return 0;
@@ -106,6 +108,16 @@ export function derivePackageStartingPrice(inquiry, guestCount) {
   };
 
   const pkg = inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+
+  // A Special Offer's starting price is its base FOOD price — the fixed
+  // per-person rate times the guest count the customer actually booked. The
+  // setup for their chosen size is a separate line the builder seeds beside
+  // it, so the two never collapse into one figure the admin cannot unpick.
+  if (isSpecialOffer(pkg)) {
+    const stored = positive(inquiry?.offer_base_price);
+    if (stored) return money(stored);
+    return money(offerBaseFoodPrice(pkg, count(guestCount, 1) || 1));
+  }
 
   const scaffold = positive(inquiry?.scaffold_price);
   if (scaffold) return money(scaffold);

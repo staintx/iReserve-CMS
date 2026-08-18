@@ -20,6 +20,18 @@ import BulkActionBar from "../../components/admin/table/BulkActionBar";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import { BOOKING_TYPES, bookingIdentity } from "../../lib/specialOffers";
+
+/**
+ * How the Booking column reads for each kind of request. The type comes from
+ * the stored booking_type / package relation — never from the package name, so
+ * an offer called "Full Package" is never filed as a regular package.
+ */
+const BOOKING_TYPE_STYLES = {
+  [BOOKING_TYPES.SPECIAL]: "bg-amber-100 text-amber-800 border-amber-200",
+  [BOOKING_TYPES.REGULAR]: "bg-blue-50 text-blue-700 border-blue-200",
+  [BOOKING_TYPES.CUSTOM]: "bg-slate-100 text-slate-600 border-slate-200",
+};
 
 export default function AdminInquiries() {
   const navigate = useNavigate();
@@ -90,15 +102,20 @@ export default function AdminInquiries() {
   // Map API fields to table columns (includes all active & archived inquiries)
   const formattedBookings = bookings.map((b) => {
     const mappedStatus = b.status;
+    // What the customer actually submitted: the package or offer by name, and
+    // which of the three kinds of request it is.
+    const identity = bookingIdentity(b);
 
     return {
+      booking: identity.name,
+      bookingType: identity.type,
+      bookingTypeLabel: identity.label,
       _id: b._id,
       id: b.reference || b._id.substring(b._id.length - 8).toUpperCase(),
       createdAt: b.createdAt,
       customer: b.customer_id?.full_name || `${b.contact_first_name || ''} ${b.contact_last_name || ''}`.trim() || "Unknown",
       email: b.customer_id?.email || b.contact_email || "",
       eventType: b.event_type || "Event",
-      pkg: b.package_id?.name || "Custom",
       guests: b.guest_count || 0,
       date: b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
       rawDate: b.event_date ? new Date(b.event_date) : null,
@@ -131,7 +148,13 @@ export default function AdminInquiries() {
     } else {
       matchStatus = !archived && r.status === filter;
     }
-    const matchSearch = !search || r.customer.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase());
+    const matchSearch =
+      !search ||
+      r.customer.toLowerCase().includes(search.toLowerCase()) ||
+      r.id.toLowerCase().includes(search.toLowerCase()) ||
+      // Searching by the package or offer name is how an admin finds every
+      // request for one of them at once.
+      r.booking.toLowerCase().includes(search.toLowerCase());
     const matchDateFrom = !dateRange.from || (r.rawDate && r.rawDate >= new Date(dateRange.from));
     const matchDateTo = !dateRange.to || (r.rawDate && r.rawDate <= new Date(`${dateRange.to}T23:59:59`));
     return matchStatus && matchSearch && matchDateFrom && matchDateTo;
@@ -227,6 +250,25 @@ export default function AdminInquiries() {
         <div>
           <p className="text-sm font-semibold text-foreground">{r.customer}</p>
           <p className="text-xs text-muted-foreground/70">{r.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: "booking",
+      header: "Booking / Type",
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground" title={r.booking}>
+            {r.booking}
+          </p>
+          <span
+            className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+              BOOKING_TYPE_STYLES[r.bookingType] ||
+              BOOKING_TYPE_STYLES[BOOKING_TYPES.CUSTOM]
+            }`}
+          >
+            {r.bookingTypeLabel}
+          </span>
         </div>
       ),
     },
@@ -525,7 +567,8 @@ export default function AdminInquiries() {
           {drawerRow && (
             <div className="grid grid-cols-2 gap-4">
               <DrawerField label="Event Type" value={drawerRow.eventType} />
-              <DrawerField label="Package" value={drawerRow.pkg} />
+              <DrawerField label="Booking" value={drawerRow.booking} />
+              <DrawerField label="Booking type" value={drawerRow.bookingTypeLabel} />
               <DrawerField label="Guests" value={drawerRow.guests} />
               <DrawerField label="Venue" value={drawerRow.venue} />
               <DrawerField label="Deposit" value={<Badge status={drawerRow.depositStatus} />} />

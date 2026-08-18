@@ -5,6 +5,7 @@ import { focusRing } from "../lib/bookingUI";
 import EstimateSummary from "../components/EstimateSummary";
 import { cn } from "@/lib/utils";
 import { policyHighlights } from "@/lib/policy";
+import { guestCountLabel } from "@/lib/specialOffers";
 import {
   SERVICE_TYPES,
   SERVICE_LABELS,
@@ -99,6 +100,7 @@ export default function StepReviewBooking({
   editTargets = {},
   errors = {},
   setTurnstileToken,
+  offer = null,
 }) {
   // What is actually being booked, which on a setup package is only settled by
   // the customer's answer on the menu step. Reviewing the raw service type
@@ -162,8 +164,11 @@ export default function StepReviewBooking({
               label="Service"
               value={SERVICE_LABELS[serviceType] || serviceType}
             />
+            {/* Named for what it is on this path: an offer's count is the
+                number its price is built from, everything else is an estimate
+                that can still move at quotation. */}
             <Row
-              label="Guests"
+              label={guestCountLabel(offer)}
               value={guestCount ? `${guestCount} guests` : ""}
             />
             {form.is_custom_setup ? (

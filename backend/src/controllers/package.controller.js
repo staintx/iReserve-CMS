@@ -1,6 +1,56 @@
 const Package = require("../models/Package");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
+const {
+  OFFER_TYPES,
+  normalizeOfferMenuRules,
+} = require("../utils/specialOffers");
+
+/**
+ * Special Offers and regular packages share this collection, so a body that
+ * says nothing about its type is a regular package — the value every package
+ * written before offers existed has.
+ */
+const normalizeOfferType = (value) =>
+  value === OFFER_TYPES.SPECIAL ? OFFER_TYPES.SPECIAL : OFFER_TYPES.REGULAR;
+
+/**
+ * Scaffold sizes carry numbers and one flag from a multipart body, where
+ * everything arrives as a string. Parsed in one place so create and update
+ * cannot disagree about what "free set-up" means.
+ *
+ * `existing` is the stored list, used to carry forward the deprecated per-size
+ * `price` on packages that were configured with one. The form stopped
+ * collecting it — a size's cost is a quotation decision — so without this an
+ * ordinary "save" on an old package would quietly wipe the figure its bookings
+ * are still priced from.
+ */
+const normalizeScaffoldOptions = (options, existing = []) => {
+  const priceById = new Map(
+    (Array.isArray(existing) ? existing : [])
+      .filter((option) => option?._id && option.price != null)
+      .map((option) => [String(option._id), option.price]),
+  );
+
+  return (Array.isArray(options) ? options : []).map((option) => {
+    const carriedPrice = option._id ? priceById.get(String(option._id)) : undefined;
+    const free_setup = option.free_setup === true || option.free_setup === "true";
+
+    return {
+      ...option,
+      guest_min: option.guest_min ? Number(option.guest_min) : undefined,
+      guest_max: option.guest_max ? Number(option.guest_max) : undefined,
+      free_setup,
+      // Free set-up settles the price at zero; otherwise whatever was stored
+      // before survives, and a new option simply has none.
+      ...(free_setup
+        ? { price: 0 }
+        : carriedPrice !== undefined
+          ? { price: carriedPrice }
+          : {}),
+    };
+  });
+};
 
 const normalizeList = (value) => {
   if (!value) return [];
@@ -65,13 +115,9 @@ exports.create = async (req, res) => {
   let scaffold_size_options = [];
   if (req.body.scaffold_size_options) {
     try {
-      scaffold_size_options = JSON.parse(req.body.scaffold_size_options);
-      // ✅ Ensure guest_min and guest_max are numbers if provided
-      scaffold_size_options = scaffold_size_options.map((option) => ({
-        ...option,
-        guest_min: option.guest_min ? Number(option.guest_min) : undefined,
-        guest_max: option.guest_max ? Number(option.guest_max) : undefined,
-      }));
+      scaffold_size_options = normalizeScaffoldOptions(
+        JSON.parse(req.body.scaffold_size_options)
+      );
     } catch (e) {
       console.error("Failed to parse scaffold_size_options", e);
     }
@@ -104,9 +150,22 @@ exports.create = async (req, res) => {
     }
   }
 
+  const offer_type = normalizeOfferType(req.body.offer_type);
+
   const payload = {
     ...req.body,
     package_type: req.body.package_type || "Event Setup Only",
+    offer_type,
+    // A cap only means something on a Special Offer, where the guest count is
+    // the real number the price is built from.
+    max_guests:
+      offer_type === OFFER_TYPES.SPECIAL && req.body.max_guests
+        ? Number(req.body.max_guests)
+        : undefined,
+    offer_menu_rules:
+      offer_type === OFFER_TYPES.SPECIAL
+        ? normalizeOfferMenuRules(req.body.offer_menu_rules)
+        : [],
     inclusions: normalizeList(req.body.inclusions),
     add_ons,
     features,
@@ -152,7 +211,21 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   const query = canViewUnavailable(req.user) ? {} : { available: true };
-  const packages = await Package.find(query);
+
+  // `?offer_type=special` (or `regular`) narrows the list to one tab's worth.
+  // Regular packages predate the field, so asking for regular has to include
+  // the rows that have no value stored at all.
+  const offerType = req.query.offer_type;
+  if (offerType === OFFER_TYPES.SPECIAL) {
+    query.offer_type = OFFER_TYPES.SPECIAL;
+  } else if (offerType === OFFER_TYPES.REGULAR) {
+    query.offer_type = { $ne: OFFER_TYPES.SPECIAL };
+  }
+
+  const packages = await Package.find(query).populate(
+    "offer_menu_rules.menu_items",
+    "name description category price image_url available"
+  );
   res.json(packages);
 };
 
@@ -161,7 +234,10 @@ exports.getById = async (req, res) => {
     ? { _id: req.params.id }
     : { _id: req.params.id, available: true };
 
-  const pkg = await Package.findOne(query);
+  const pkg = await Package.findOne(query).populate(
+    "offer_menu_rules.menu_items",
+    "name description category price image_url available"
+  );
   if (!pkg) return res.status(404).json({ message: "Package not found" });
   res.json(pkg);
 };
@@ -198,16 +274,35 @@ exports.update = async (req, res) => {
 
   if (req.body.scaffold_size_options) {
     try {
-      data.scaffold_size_options = JSON.parse(req.body.scaffold_size_options);
-      // ✅ Ensure guest_min and guest_max are numbers if provided
-      data.scaffold_size_options = data.scaffold_size_options.map((option) => ({
-        ...option,
-        guest_min: option.guest_min ? Number(option.guest_min) : undefined,
-        guest_max: option.guest_max ? Number(option.guest_max) : undefined,
-      }));
+      data.scaffold_size_options = normalizeScaffoldOptions(
+        JSON.parse(req.body.scaffold_size_options),
+        current.scaffold_size_options,
+      );
     } catch (e) {
       console.error("Failed to parse scaffold_size_options", e);
     }
+  }
+
+  // The type decides whether the offer-only fields mean anything. Resolved
+  // against the stored package when the body does not restate it, so a partial
+  // update can never silently demote a Special Offer to a regular package.
+  const offerType = normalizeOfferType(req.body.offer_type ?? current.offer_type);
+  data.offer_type = offerType;
+
+  if (offerType === OFFER_TYPES.SPECIAL) {
+    if (req.body.max_guests !== undefined) {
+      // Explicitly null rather than undefined: mongoose drops undefined from an
+      // update, so clearing a cap has to be a value the update actually carries.
+      data.max_guests = req.body.max_guests ? Number(req.body.max_guests) : null;
+    }
+    if (req.body.offer_menu_rules !== undefined) {
+      data.offer_menu_rules = normalizeOfferMenuRules(req.body.offer_menu_rules);
+    }
+  } else {
+    // Converting an offer back to a regular package clears the fields only an
+    // offer uses, rather than leaving a stale cap enforcing itself invisibly.
+    data.max_guests = null;
+    data.offer_menu_rules = [];
   }
 
   if (req.body.menu_items) {
@@ -299,6 +394,8 @@ exports.update = async (req, res) => {
     "package_type",
     "guest_min", // ✅ Added to tracking
     "guest_max", // ✅ Added to tracking
+    "offer_type",
+    "max_guests",
     "booking_requirements",
     "cancellation_policy",
   ];

@@ -66,6 +66,11 @@ const {
   sendBookingStatusEmail,
 } = require("../utils/booking-emails");
 const { cateringRequested } = require("../utils/catering");
+const {
+  bookingTypeForPackage,
+  isSpecialOffer,
+  offerBaseFoodPrice,
+} = require("../utils/specialOffers");
 
 const calculateBookingPrice = async (body) => {
   let sum = 0;
@@ -76,9 +81,24 @@ const calculateBookingPrice = async (body) => {
     ((Array.isArray(body.menu_items) && body.menu_items.length > 0) ||
       (Array.isArray(body.selected_menu) && body.selected_menu.length > 0));
 
+  // A Special Offer's own dish selection is part of what the per-person price
+  // buys, so it is never charged again per dish below.
+  let offerCoversFood = false;
+
   if (body.package_id) {
     const pkg = await Package.findById(body.package_id);
-    if (pkg) {
+    if (pkg && isSpecialOffer(pkg)) {
+      /**
+       * A Special Offer decides exactly one figure: its base price, which is
+       * `guest count × price per person`, and which covers the food.
+       *
+       * Setup, equipment, crew and everything else are settled on the
+       * quotation — an offer's scaffold options carry no price, so there is no
+       * setup amount to add here without inventing one.
+       */
+      offerCoversFood = true;
+      sum += offerBaseFoodPrice(pkg, guestCount);
+    } else if (pkg) {
       const packageType = pkg.package_type || "Event Setup Only";
       if (packageType === "Event Setup Only") {
         // Setup is charged whether or not catering is ordered. Pricing is
@@ -108,7 +128,7 @@ const calculateBookingPrice = async (body) => {
   }
 
   // Food menu prices, charged per guest on top of any setup fee above.
-  if (hasFood && guestCount > 0) {
+  if (hasFood && guestCount > 0 && !offerCoversFood) {
     if (Array.isArray(body.menu_items) && body.menu_items.length > 0) {
       for (const item of body.menu_items) {
         sum += (Number(item.price) || 0) * guestCount;
@@ -2473,6 +2493,13 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const payload = {
     customer_id: inquiry.customer_id?._id || inquiry.customer_id,
     package_id: pkgId,
+    // Carried across so a reservation still says what it was booked from.
+    // Falls back to the package relation for inquiries submitted before the
+    // field existed — never to the package name.
+    booking_type:
+      inquiry.booking_type || bookingTypeForPackage(inquiry.package_id || null),
+    package_name_snapshot:
+      inquiry.package_name_snapshot || inquiry.package_id?.name || "",
     event_type: inquiry.event_type || "Event",
     event_date: inquiry.event_date,
     start_time: inquiry.start_time || "12:00",

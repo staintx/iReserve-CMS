@@ -1,9 +1,19 @@
 const Inquiry = require("../models/Inquiry");
+const Package = require("../models/Package");
 const BlockedDate = require("../models/BlockedDate");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const { cateringRequested, serviceTypeForRequest } = require("../utils/catering");
+const {
+  BOOKING_TYPES,
+  isSpecialOffer,
+  bookingTypeForPackage,
+  offerGuestCap,
+  offerBaseFoodPrice,
+  offerSetupCharge,
+  validateOfferSelection,
+} = require("../utils/specialOffers");
 
 // Customer submits a new inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -13,6 +23,24 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     status: "Pending Review",
   };
 
+  /**
+   * What kind of request this is, decided from the package relation rather
+   * than from anything the browser asserted. The admin Inquiries list reads
+   * this, so it has to be the server's own answer.
+   */
+  const pkg = payload.package_id
+    ? await Package.findById(payload.package_id)
+    : null;
+
+  if (payload.package_id && !pkg) {
+    return res.status(400).json({
+      message: "The package for this request no longer exists. Please choose another.",
+    });
+  }
+
+  payload.booking_type = bookingTypeForPackage(pkg);
+  payload.package_name_snapshot = pkg?.name || "";
+
   // The catering answer decides the service type, not the package the customer
   // started from. Derived here as well as in the wizard so what is stored says
   // the same thing whatever the client sent: a request that includes food is
@@ -21,6 +49,56 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   payload.include_food = cateringRequested(payload);
   payload.service_type = serviceTypeForRequest(payload);
   if (!payload.include_food) payload.selected_menu = [];
+
+  /**
+   * Special Offers. The guest count here is a real number the price is built
+   * from, not an estimate, so the cap is enforced and the base food price is
+   * computed server-side. The quotation is still the final authority on the
+   * total — this only records what the offer itself promises.
+   */
+  if (isSpecialOffer(pkg)) {
+    const guests = Math.floor(Number(payload.guest_count) || 0);
+    const cap = offerGuestCap(pkg);
+
+    if (guests < 1) {
+      return res.status(400).json({
+        message: `Enter the guest count for ${pkg.name}. This offer is priced per person.`,
+      });
+    }
+
+    if (cap && guests > cap) {
+      return res.status(400).json({
+        message: `${pkg.name} covers up to ${cap} guests. You entered ${guests}. Lower the guest count, or ask us about a custom booking.`,
+      });
+    }
+
+    const problems = validateOfferSelection(pkg, payload.selected_menu);
+    if (problems.length > 0) {
+      return res.status(400).json({
+        message: `Your ${pkg.name} food selection is not complete. ${problems.join(" ")}`,
+      });
+    }
+
+    // Food comes with the offer, so the catering question does not apply.
+    payload.include_food = true;
+    payload.service_type = serviceTypeForRequest({ ...payload, include_food: true });
+
+    const setup = offerSetupCharge(pkg, payload.selected_scaffold_option_id);
+    payload.offer_base_price = offerBaseFoodPrice(pkg, guests);
+    // Whether the offer covers the setup at the size chosen. There is no
+    // amount to record: what an uncovered size costs is decided on the
+    // quotation, and writing a number here would be inventing one.
+    payload.offer_setup_is_free = setup.isFree;
+    // A scaffold price is never carried on an offer, so the shared field is
+    // left unset rather than stamped with a zero that reads like a decision.
+    delete payload.scaffold_price;
+  } else {
+    // Only a Special Offer carries these. A regular or custom request that
+    // sent them anyway must not have them stored.
+    delete payload.offer_base_price;
+    delete payload.offer_setup_price;
+    delete payload.offer_setup_is_free;
+  }
 
   if (Array.isArray(payload.additional_services) && (!payload.service_items || payload.service_items.length === 0)) {
     payload.service_items = payload.additional_services.map(s => ({
@@ -89,7 +167,20 @@ exports.getInquiries = asyncHandler(async (req, res) => {
   const inquiries = await Inquiry.find(query)
     .sort({ createdAt: -1 })
     .populate("customer_id", "first_name last_name email phone")
+    // The Booking Type column names the package or offer the request came
+    // from, so the list has to carry the relation, not just its id.
+    .populate("package_id", "name offer_type package_type")
     .lean();
+
+  // Requests submitted before booking_type existed still have to identify
+  // themselves. Resolved from the same relation, never from the name.
+  inquiries.forEach((inquiry) => {
+    if (!inquiry.booking_type) {
+      inquiry.booking_type = inquiry.package_id
+        ? bookingTypeForPackage(inquiry.package_id)
+        : BOOKING_TYPES.CUSTOM;
+    }
+  });
   res.json(inquiries);
 });
 

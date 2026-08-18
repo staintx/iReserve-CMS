@@ -13,6 +13,17 @@ const BookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Package",
     },
+
+    // Carried over from the inquiry so a converted booking still says what it
+    // was booked from — regular package, Special Offer, or a custom build —
+    // without anyone having to read it out of the package name.
+    booking_type: {
+      type: String,
+      enum: ["regular", "special", "custom"],
+      default: "custom",
+    },
+    package_name_snapshot: String,
+
     event_manager_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     // staff_ids removed – use staff_assignments instead
 

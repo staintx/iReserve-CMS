@@ -47,8 +47,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   const [diningInput, setDiningInput] = useState({ name: "", qty: "" });
   const [addOnInput, setAddOnInput] = useState({
     name: "",
-    price: "",
-    pricing_type: "fixed",
+    qty: "",
   });
 
   // In-line editing states
@@ -58,8 +57,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
   const [editingAddOnIdx, setEditingAddOnIdx] = useState(null);
   const [editAddOnData, setEditAddOnData] = useState({
     name: "",
-    price: "",
-    pricing_type: "fixed",
+    qty: "",
   });
 
   const [newScaffoldOption, setNewScaffoldOption] = useState({
@@ -84,8 +82,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
       // Normalize add_ons
       const normalizedAddOns = (pkg.add_ons || []).map((a) => ({
         name: a.name || (typeof a === "string" ? a : ""),
-        price: a.price || 0,
-        pricing_type: a.pricing_type || "fixed",
+        qty: a.qty || "",
       }));
 
       const existingScaffoldCount = (pkg.scaffold_size_options || []).length;
@@ -216,8 +213,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
     const newAddOnObj = {
       name: nameToAdd.trim(),
-      price: Number(addOnInput.price) || 0,
-      pricing_type: addOnInput.pricing_type || "fixed",
+      qty: addOnInput.qty.trim() || "",
     };
 
     setFormData((prev) => ({
@@ -227,8 +223,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
 
     setAddOnInput({
       name: "",
-      price: "",
-      pricing_type: "fixed",
+      qty: "",
     });
   };
 
@@ -243,29 +238,27 @@ export default function PackageModal({ pkg, onClose, onSave }) {
     setEditingAddOnIdx(idx);
     setEditAddOnData({
       name: addOn.name,
-      price: addOn.price,
-      pricing_type: addOn.pricing_type || "fixed",
+      qty: addOn.qty || "",
     });
   };
 
   const handleSaveEditAddOn = (idx) => {
-    if (!editAddOnData.name.trim() || editAddOnData.price === "") return;
+    if (!editAddOnData.name.trim()) return;
     setFormData((prev) => {
       const nextAddOns = [...prev.add_ons];
       nextAddOns[idx] = {
         name: editAddOnData.name.trim(),
-        price: Number(editAddOnData.price) || 0,
-        pricing_type: editAddOnData.pricing_type || "fixed",
+        qty: editAddOnData.qty.trim() || "",
       };
       return { ...prev, add_ons: nextAddOns };
     });
     setEditingAddOnIdx(null);
-    setEditAddOnData({ name: "", price: "", pricing_type: "fixed" });
+    setEditAddOnData({ name: "", qty: "" });
   };
 
   const handleCancelEditAddOn = () => {
     setEditingAddOnIdx(null);
-    setEditAddOnData({ name: "", price: "", pricing_type: "fixed" });
+    setEditAddOnData({ name: "", qty: "" });
   };
 
   // Preset lists based directly on client catalog PDF
@@ -1415,7 +1408,7 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                     <div className="flex gap-2 mb-3 items-center w-full">
                       <input
                         type="text"
-                        placeholder="Add-on name (e.g. Videoke, Host, Clown)"
+                        placeholder="Item name (e.g. Videoke, Host, Clown)"
                         className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
                         value={addOnInput.name}
                         onChange={(e) =>
@@ -1430,13 +1423,12 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                       />
 
                       <input
-                        type="number"
-                        min="0"
-                        placeholder="Price (₱)"
+                        type="text"
+                        placeholder="Qty (e.g. 1, 5, 2-4)"
                         className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
-                        value={addOnInput.price}
+                        value={addOnInput.qty}
                         onChange={(e) =>
-                          setAddOnInput({ ...addOnInput, price: e.target.value })
+                          setAddOnInput({ ...addOnInput, qty: e.target.value })
                         }
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -1446,28 +1438,14 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                         }}
                       />
 
-                      <select
-                        className="w-24 shrink-0 border border-gray-200 rounded-lg px-2 py-2 text-xs bg-white text-gray-700 font-medium focus:outline-none focus:border-primary"
-                        value={addOnInput.pricing_type || "fixed"}
-                        onChange={(e) =>
-                          setAddOnInput({
-                            ...addOnInput,
-                            pricing_type: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="fixed">Fixed</option>
-                        <option value="quantity">Qty-Based</option>
-                      </select>
-
                       <Btn
                         variant="primary"
                         size="sm"
                         className="shrink-0"
                         onClick={() => handleAddAddOn()}
-                        disabled={!addOnInput.name.trim() || addOnInput.price === ""}
+                        disabled={!addOnInput.name.trim()}
                       >
-                        <Plus size={14} />
+                        <Plus size={14} className="mr-1" /> Add
                       </Btn>
                     </div>
 
@@ -1524,15 +1502,14 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                                 autoFocus
                               />
                               <input
-                                type="number"
-                                min="0"
-                                placeholder="Price"
+                                type="text"
+                                placeholder="Qty"
                                 className="w-20 shrink-0 border border-purple-300 rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={editAddOnData.price}
+                                value={editAddOnData.qty}
                                 onChange={(e) =>
                                   setEditAddOnData({
                                     ...editAddOnData,
-                                    price: e.target.value,
+                                    qty: e.target.value,
                                   })
                                 }
                                 onKeyDown={(e) => {
@@ -1544,19 +1521,6 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                                   }
                                 }}
                               />
-                              <select
-                                className="w-20 shrink-0 border border-purple-300 rounded-md px-1.5 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={editAddOnData.pricing_type}
-                                onChange={(e) =>
-                                  setEditAddOnData({
-                                    ...editAddOnData,
-                                    pricing_type: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="fixed">Fixed</option>
-                                <option value="quantity">Qty</option>
-                              </select>
                               <button
                                 type="button"
                                 onClick={() => handleSaveEditAddOn(i)}
@@ -1587,12 +1551,11 @@ export default function PackageModal({ pkg, onClose, onSave }) {
                               <span className="font-medium text-gray-800 break-words">
                                 {add.name}
                               </span>
-                              <span className="text-gray-500 font-semibold ml-1 shrink-0">
-                                ₱{Number(add.price).toLocaleString()}
-                              </span>
-                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 shrink-0">
-                                {add.pricing_type === "quantity" ? "Qty-Based" : "Fixed"}
-                              </span>
+                              {add.qty && (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 shrink-0">
+                                  × {add.qty}
+                                </span>
+                              )}
                             </span>
                             <div className="flex items-center gap-1 shrink-0">
                               <button

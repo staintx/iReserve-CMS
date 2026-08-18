@@ -49,13 +49,7 @@ const PackageSchema = new mongoose.Schema(
     add_ons: [
       {
         name: String,
-        price: Number,
-        pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
-        inventory_id: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Inventory",
-          default: null,
-        },
+        qty: String,
       },
     ],
     image_url: String,

@@ -235,7 +235,7 @@ export default function ZelleAIPanel() {
           setZelleMessages([
             {
               role: "model",
-              text: `Hello! 👋 I'm **Zelle**, your AI Concierge for Caezelle's Catering Services.\n\nI can help you explore catering packages, check date availability, estimate budgets, or draft an inquiry for your upcoming event.\n\nHow can I assist you today?`,
+              text: `Hello! 👋 I'm **Zelle**, your AI Assistant for Caezelle's Catering Services.\n\nI can help you explore catering packages, check date availability, estimate budgets, or draft an inquiry for your upcoming event.\n\nHow can I assist you today?`,
               timestamp: new Date().toISOString(),
               ui_cards: [],
             },
@@ -431,7 +431,7 @@ export default function ZelleAIPanel() {
               ? "inset-4 sm:inset-10 rounded-3xl md:w-[900px] md:h-[800px] md:max-h-[85vh] md:m-auto"
               : "right-4 sm:right-6 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-3xl origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
           )}
-          style={!isExpanded ? { bottom: "var(--chat-fab-bottom, 5.5rem)" } : {}}
+          style={!isExpanded ? { bottom: "var(--chat-fab-bottom, 1.5rem)" } : {}}
         >
           {/* HISTORY DRAWER */}
           {user && activeTab === "zelle" && (
@@ -459,7 +459,7 @@ export default function ZelleAIPanel() {
                     {activeTab === "zelle" ? "Zelle AI Assistant" : "Caezelle Support Team"}
                   </h3>
                   <p className="text-[10px] text-primary-foreground/80">
-                    {activeTab === "zelle" ? "Instant 24/7 AI Assistance" : "Human Team • Replies in minutes"}
+                    {activeTab === "zelle" ? "Instant 24/7 AI Assistance" : "Event Coordinators • Replies in minutes"}
                   </p>
                 </div>
               </div>
@@ -531,7 +531,7 @@ export default function ZelleAIPanel() {
           </div>
 
           {/* ========================================================================= */}
-          {/* TAB 1: ZELLE AI CONCIERGE */}
+          {/* TAB 1: ZELLE AI ASSISTANT */}
           {/* ========================================================================= */}
           {activeTab === "zelle" && (
             <>
@@ -712,9 +712,9 @@ export default function ZelleAIPanel() {
             </>
           )}
         </div>
-      ) : null}
-
-      <ZelleAIFab isOpen={isOpen} onClick={() => setIsOpen(!isOpen)} />
+      ) : (
+        <ZelleAIFab isOpen={false} onClick={() => setIsOpen(true)} />
+      )}
     </>
   );
 }

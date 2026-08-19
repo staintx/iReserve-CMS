@@ -16,6 +16,8 @@ import {
 import Badge from "../../components/admin/ui/Badge";
 import { pendingChangeRequestOf } from "../../utils/quotationDiff";
 import { priceLabel, capacityLabel } from "../../lib/packageDisplay";
+import { formatCurrency, formatShortDate } from "../../utils/format";
+import { menuAmountLabel, menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
 
 /* --- Compact Reusable Card Component --- */
 const CompactCard = ({ title, icon: Icon, children, headerRight, className = "" }) => (
@@ -47,6 +49,199 @@ const CompactField = ({ icon: Icon, label, value, children, span = "col-span-1" 
     </div>
   </div>
 );
+
+/* --- One money line in the quotation summary --- */
+const MoneyLine = ({ label, detail, value, strong, deduct }) => (
+  <div className="flex items-baseline justify-between gap-4 text-xs">
+    <span className={`min-w-0 ${strong ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+      {label}
+      {detail && <span className="ml-1 text-slate-400">{detail}</span>}
+    </span>
+    <span
+      className={`shrink-0 tabular-nums ${
+        deduct ? "text-emerald-700" : strong ? "font-bold text-slate-900" : "font-semibold text-slate-800"
+      }`}
+    >
+      {value}
+    </span>
+  </div>
+);
+
+/**
+ * The quotation as it stands right now.
+ *
+ * The page used to describe the inquiry and nothing else, which made the
+ * original request look like the current state of the deal: an admin
+ * reading it after two revisions saw the dishes and the estimate the
+ * customer submitted weeks ago, with no sign of what had actually been
+ * quoted since. The inquiry is still below, unchanged and labelled as the
+ * original — this card is what is true today.
+ */
+function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
+  const expiry = quotation.expiration_date ? new Date(quotation.expiration_date) : null;
+  const expired =
+    expiry &&
+    !Number.isNaN(expiry.getTime()) &&
+    new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate()) <
+      new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+  // An expired quotation reads red because it is the one state on this chip
+  // that needs acting on; a live one stays a neutral date stamp.
+  const expiryChipTone = expired
+    ? "bg-red-50 text-red-800"
+    : "bg-slate-100 text-slate-700";
+
+  const guests = Number(quotation.guest_count) || 1;
+  const dishes = Array.isArray(quotation.menu_items) ? quotation.menu_items : [];
+  const addOns = Array.isArray(quotation.add_ons) ? quotation.add_ons : [];
+  const fees = Array.isArray(quotation.additional_fees) ? quotation.additional_fees : [];
+  const menuSubtotal = dishes.reduce((sum, item) => sum + menuLineTotal(item, guests), 0);
+  const addOnsSubtotal = addOns.reduce((sum, item) => sum + addOnLineTotal(item), 0);
+
+  return (
+    <CompactCard
+      title="Current quotation"
+      icon={FileText}
+      headerRight={
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold tabular-nums text-primary">
+            v{Number(quotation.version_number) || 1}
+          </span>
+          {versionCount > 1 && (
+            <span className="text-[10.5px] font-medium text-slate-400">of {versionCount}</span>
+          )}
+        </div>
+      }
+    >
+      <div className="space-y-3.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+          <span className="font-mono font-semibold text-slate-700">
+            {quotation.quotation_number || "QTN"}
+          </span>
+          <span>Issued {formatShortDate(quotation.createdAt)}</span>
+          <span className={`rounded px-1.5 py-0.5 font-semibold ${expiryChipTone}`}>
+            {expiry
+              ? `${expired ? "Expired" : "Valid until"} ${formatShortDate(quotation.expiration_date)}`
+              : "No expiry set"}
+          </span>
+          {hasDraft && (
+            <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800">
+              Newer draft not sent
+            </span>
+          )}
+        </div>
+
+        {/* What is being charged, in the order the builder priced it. */}
+        <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+          <MoneyLine
+            label={quotation.package_name || "Package"}
+            value={formatCurrency(quotation.package_price)}
+          />
+          {dishes.length > 0 && (
+            <MoneyLine
+              label="Menu"
+              detail={`(${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"})`}
+              value={formatCurrency(menuSubtotal)}
+            />
+          )}
+          {addOns.length > 0 && (
+            <MoneyLine
+              label="Add-ons and services"
+              detail={`(${addOns.length})`}
+              value={formatCurrency(addOnsSubtotal)}
+            />
+          )}
+          {Number(quotation.transportation_fee) > 0 && (
+            <MoneyLine label="Transportation" value={formatCurrency(quotation.transportation_fee)} />
+          )}
+          {fees.map((fee, i) => (
+            <MoneyLine key={i} label={fee.name || "Additional fee"} value={formatCurrency(fee.amount)} />
+          ))}
+          {Number(quotation.taxes) > 0 && (
+            <MoneyLine label="Taxes" value={`+ ${formatCurrency(quotation.taxes)}`} />
+          )}
+          {Number(quotation.discounts) > 0 && (
+            <MoneyLine label="Discount" value={`− ${formatCurrency(quotation.discounts)}`} deduct />
+          )}
+          <div className="mt-1 border-t border-slate-200 pt-1.5">
+            <MoneyLine label="Quoted total" value={formatCurrency(quotation.total_cost)} strong />
+            <MoneyLine label="Deposit to confirm" value={formatCurrency(quotation.deposit_amount)} />
+            <MoneyLine label="Balance before event" value={formatCurrency(quotation.remaining_balance)} />
+          </div>
+        </div>
+
+        {/* The quoted dishes, showing exactly what the customer's copy shows:
+            pricing mode, quantity and unit, the rate, the line total and the
+            item note — same values, same blue/violet mode colours. */}
+        {dishes.length > 0 && (
+          <div>
+            <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Quoted dishes ({dishes.length})
+            </span>
+            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+              {dishes.map((dish, i) => {
+                const byQuantity = dish.pricing_type === "quantity";
+                const units = byQuantity ? Math.max(1, Number(dish.quantity) || 1) : guests;
+                const basis = byQuantity
+                  ? `${units} × ${formatCurrency(dish.price)}`
+                  : `${units} guests × ${formatCurrency(dish.price)} per guest`;
+                return (
+                  <li key={i} className="flex items-baseline justify-between gap-3 px-2.5 py-2">
+                    <div className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        <span className="text-xs font-semibold text-slate-800">{dish.name}</span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            byQuantity
+                              ? "bg-violet-50 text-violet-700"
+                              : "bg-primary/10 text-primary"
+                          }`}
+                        >
+                          {byQuantity ? menuAmountLabel(dish) : "Per guest"}
+                        </span>
+                      </span>
+                      {Number(dish.price) > 0 && (
+                        <span className="mt-0.5 block text-[11px] tabular-nums text-slate-500">
+                          {basis}
+                        </span>
+                      )}
+                      {dish.note && (
+                        <span className="mt-1 block border-l-2 border-slate-200 pl-2 text-[11px] italic text-slate-500">
+                          {dish.note}
+                        </span>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">
+                      {formatCurrency(menuLineTotal(dish, guests))}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {quotation.admin_notes && (
+          <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5">
+            <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Notes sent to the customer
+            </span>
+            <p className="whitespace-pre-line text-[11.5px] leading-relaxed text-slate-700">
+              {quotation.admin_notes}
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={onEdit}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+        >
+          <RefreshCw size={13} /> {hasDraft ? "Resume draft" : "Revise this quotation"}
+        </button>
+      </div>
+    </CompactCard>
+  );
+}
 
 export default function AdminQuoteDetails() {
   const { id } = useParams();
@@ -119,6 +314,19 @@ export default function AdminQuoteDetails() {
   // A saved draft leaves the inquiry's status untouched, so without this the
   // only way to discover unfinished work would be to open the builder.
   const hasDraft = quotations.some((q) => q.status === "Draft");
+
+  /**
+   * The version the customer is holding: the newest one actually issued.
+   *
+   * A draft is excluded because nobody outside this office has seen it, so
+   * it cannot be what the deal currently is. The existing revision records
+   * are used as they stand — no parallel "current quotation" is stored
+   * anywhere, this is just the newest row read back.
+   */
+  const issuedVersions = quotations
+    .filter((q) => q.status !== "Draft")
+    .sort((a, b) => (Number(b.version_number) || 1) - (Number(a.version_number) || 1));
+  const currentQuotation = issuedVersions[0] || null;
   const isPendingReview = ["Pending Review", "Under Review", "Waiting for Customer"].includes(quote.status);
   const isRevisionRequested = quote.status === "Revision Requested";
   const isQuotationSent = quote.status === "Quotation Sent";
@@ -140,8 +348,12 @@ export default function AdminQuoteDetails() {
               Back to Inquiries
             </button>
             <div className="flex flex-wrap items-center gap-2.5">
+              {/* Named after what the record has become. Before a quotation
+                  exists this page really is just the inquiry; once one has
+                  been issued, the quotation is the live document and the
+                  inquiry below it is the archived original. */}
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                Inquiry Details
+                {currentQuotation ? "Quotation" : "Inquiry Details"}
               </h1>
               <Badge status={quote.status} />
             </div>
@@ -344,6 +556,30 @@ export default function AdminQuoteDetails() {
           {/* Main Column (8 of 12) */}
           <div className="lg:col-span-8 space-y-4">
 
+            {currentQuotation && (
+              <CurrentQuotationCard
+                quotation={currentQuotation}
+                versionCount={issuedVersions.length}
+                hasDraft={hasDraft}
+                onEdit={() => setShowConvertModal(true)}
+              />
+            )}
+
+            {/* Everything below is the inquiry: the request exactly as the
+                customer submitted it. It is deliberately never rewritten
+                when a quotation is revised, so the two can be compared —
+                which only works if the reader is told which is which. */}
+            {currentQuotation && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5">
+                <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
+                <p className="text-[11.5px] leading-relaxed text-slate-600">
+                  <span className="font-bold text-slate-800">Original customer request.</span>{" "}
+                  What was submitted with this booking, kept for reference. The quotation above is
+                  the current quoted version — where they differ, the quotation is what stands.
+                </p>
+              </div>
+            )}
+
             {/* Selected Package Card */}
             <CompactCard title="Selected Package" icon={PackageIcon}>
               {quote.package_id && typeof quote.package_id === "object" ? (
@@ -528,8 +764,15 @@ export default function AdminQuoteDetails() {
             </CompactCard>
 
             {/* Food & Service Order Details Card */}
-            <CompactCard 
-              title={quote.service_type === "Event Setup Only" ? "Add-ons & Equipment Services" : "Food & Service Order"} 
+            {/* "Requested" once a quotation exists, because by then this list
+                and the quoted dishes above are two different things and the
+                title is the only place to say so. */}
+            <CompactCard
+              title={`${currentQuotation ? "Requested " : ""}${
+                quote.service_type === "Event Setup Only"
+                  ? "Add-ons & Equipment Services"
+                  : "Food & Service Order"
+              }`}
               icon={quote.service_type === "Event Setup Only" ? Layers : Utensils}
             >
               <div className="space-y-3">

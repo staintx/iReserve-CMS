@@ -35,10 +35,29 @@ function inclusionDeductionsOf(removedInclusions) {
   );
 }
 
-/** Menu is quoted per guest, so the guest count multiplies every dish. */
+/**
+ * How many units one dish line is charged for.
+ *
+ * Per guest is the default, and what every dish did before: the price is a
+ * per-head rate and the guest count multiplies it. A line switched to
+ * `quantity` is charged for a stated number of its own units instead — two
+ * bilao of Shanghai, priced per bilao — because a customer can ask for a
+ * fixed amount of one dish without it scaling to the whole guest list.
+ *
+ * A quotation stored before this existed has no pricing_type, so it falls
+ * through to per guest and prices exactly as it always did.
+ */
+function menuQuantityOf(item, guestCount) {
+  if (item?.pricing_type === "quantity") return count(item?.quantity, 1) || 1;
+  return count(guestCount, 1) || 1;
+}
+
+function menuLineTotal(item, guestCount) {
+  return money(money(item?.price) * menuQuantityOf(item, guestCount));
+}
+
 function menuSubtotalOf(menuItems, guestCount) {
-  const guests = count(guestCount, 1) || 1;
-  return money(list(menuItems).reduce((sum, item) => sum + money(item?.price) * guests, 0));
+  return money(list(menuItems).reduce((sum, item) => sum + menuLineTotal(item, guestCount), 0));
 }
 
 /** Fixed add-ons are charged once; quantity add-ons are charged per unit. */
@@ -101,6 +120,8 @@ function computeQuotationTotals(input = {}) {
 module.exports = {
   computeQuotationTotals,
   inclusionDeductionsOf,
+  menuQuantityOf,
+  menuLineTotal,
   menuSubtotalOf,
   addOnsSubtotalOf,
   additionalFeesTotalOf,

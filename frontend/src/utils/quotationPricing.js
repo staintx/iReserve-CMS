@@ -31,11 +31,41 @@ const list = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
 export const inclusionDeductionsOf = (removedInclusions) =>
   money(list(removedInclusions).reduce((sum, entry) => sum + money(entry?.deduction), 0));
 
-/** Menu is quoted per guest, so the guest count multiplies every dish. */
-export const menuSubtotalOf = (menuItems, guestCount) => {
-  const guests = count(guestCount, 1) || 1;
-  return money(list(menuItems).reduce((sum, item) => sum + money(item?.price) * guests, 0));
+/** How a dish line is charged. See the server copy for the reasoning. */
+export const MENU_PRICING = { PER_GUEST: "per_guest", QUANTITY: "quantity" };
+
+/**
+ * How many units one dish line is charged for.
+ *
+ * Per guest is the default, and what every dish did before: the price is a
+ * per-head rate and the guest count multiplies it. A line switched to
+ * `quantity` is charged for a stated number of its own units instead — two
+ * bilao of Shanghai, priced per bilao.
+ */
+export const menuQuantityOf = (item, guestCount) => {
+  if (item?.pricing_type === MENU_PRICING.QUANTITY) return count(item?.quantity, 1) || 1;
+  return count(guestCount, 1) || 1;
 };
+
+export const menuLineTotal = (item, guestCount) =>
+  money(money(item?.price) * menuQuantityOf(item, guestCount));
+
+/**
+ * "2 bilao", or "" for a dish quoted per guest.
+ *
+ * A per-guest dish has no amount of its own to state — its quantity is the
+ * guest count, which is already on the page — so it returns nothing rather
+ * than a redundant "×1" on every line.
+ */
+export const menuAmountLabel = (item) => {
+  if (item?.pricing_type !== MENU_PRICING.QUANTITY) return "";
+  const quantity = count(item?.quantity, 1) || 1;
+  const unit = String(item?.unit || "").trim();
+  return unit ? `${quantity} ${unit}` : `×${quantity}`;
+};
+
+export const menuSubtotalOf = (menuItems, guestCount) =>
+  money(list(menuItems).reduce((sum, item) => sum + menuLineTotal(item, guestCount), 0));
 
 /** A single add-on line: fixed services charge once, quantity items per unit. */
 export const addOnQuantityOf = (item) =>

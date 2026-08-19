@@ -173,16 +173,20 @@ export default function AdminInquiries() {
     archived: inScope.filter((r) => isArchived(r)).length,
   };
 
-  const handleCancel = (id) => {
+  // Both handlers are awaited by the dialog, so the confirm button carries
+  // the in-flight state and blocks a second submit. Neither clears the
+  // dialog's own target: ConfirmDialog does that on every close path,
+  // success or failure, so the overlay can no longer outlive the toast.
+  const handleCancel = async (id) => {
     // Rejecting sets the lifecycle status; the Archive tab picks "Cancelled"
     // up on its own, so there is no second write to keep in sync.
-    AdminAPI.updateInquiry(id, { status: "Cancelled" })
-      .then(() => {
-        notify("Inquiry rejected", "success", { description: "You'll find it under Archive." });
-        setCancelTarget(null);
-        loadData();
-      })
-      .catch((err) => notify(err.response?.data?.message || "Failed to reject inquiry", "error"));
+    try {
+      await AdminAPI.updateInquiry(id, { status: "Cancelled" });
+      notify("Inquiry rejected", "success", { description: "You'll find it under Archive." });
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to reject inquiry", "error");
+    }
   };
 
   const handleArchive = async (row, archived = true) => {
@@ -232,86 +236,130 @@ export default function AdminInquiries() {
     loadData();
   };
 
-  // Actions are rendered inline
-
-  // Reservations is the busiest workflow in the portal, so its table is cut
-  // to the 6 columns that support a quick approve/cancel decision; everything
-  // else (event type, package, guests, venue, deposit) lives in the drawer.
+  /**
+   * Six columns, and the last one is pinned.
+   *
+   * The table was eight columns wide with four buttons in the final cell,
+   * so the actions — the whole reason a row gets read — were the first
+   * thing to disappear off the right edge. Event type and guest count now
+   * ride along under the request they describe rather than each claiming
+   * a column of their own, and only the one action that moves the inquiry
+   * forward stays as a button. Reject, Archive and the full record live
+   * in the row menu next to it; nothing was dropped, and the whole row
+   * still opens the drawer on click.
+   */
   const columns = [
     {
       key: "id",
-      header: "Inquiry ID",
-      render: (r) => <span className="text-xs font-mono font-bold text-primary">{r.id}</span>,
+      header: "Inquiry",
+      width: "132px",
+      render: (r) => (
+        <div className="min-w-0">
+          <span className="block font-mono text-xs font-bold text-primary">{r.id}</span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground/70">
+            {r.createdAt
+              ? new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+              : "—"}
+          </span>
+        </div>
+      ),
     },
     {
       key: "customer",
       header: "Customer",
       render: (r) => (
-        <div>
-          <p className="text-sm font-semibold text-foreground">{r.customer}</p>
-          <p className="text-xs text-muted-foreground/70">{r.email}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-foreground" title={r.customer}>
+            {r.customer}
+          </p>
+          <p className="truncate text-xs text-muted-foreground/70" title={r.email}>
+            {r.email || "—"}
+          </p>
         </div>
       ),
     },
     {
       key: "booking",
-      header: "Booking / Type",
+      header: "Request",
       render: (r) => (
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground" title={r.booking}>
-            {r.booking}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-foreground" title={r.booking}>
+              {r.booking}
+            </span>
+            <span
+              className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                BOOKING_TYPE_STYLES[r.bookingType] ||
+                BOOKING_TYPE_STYLES[BOOKING_TYPES.CUSTOM]
+              }`}
+            >
+              {r.bookingTypeLabel}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
+            {r.eventType} · {r.guests} pax
           </p>
-          <span
-            className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-              BOOKING_TYPE_STYLES[r.bookingType] ||
-              BOOKING_TYPE_STYLES[BOOKING_TYPES.CUSTOM]
-            }`}
-          >
-            {r.bookingTypeLabel}
-          </span>
         </div>
       ),
     },
-    { key: "date", header: "Date", className: "text-xs text-foreground whitespace-nowrap" },
-    { key: "status", header: "Status", render: (r) => <Badge status={r.status} /> },
-    { key: "eventType", header: "Event Type", className: "text-xs text-foreground" },
-    { key: "guests", header: "Guests", render: (r) => <span className="text-xs text-foreground">{r.guests} pax</span> },
+    {
+      key: "date",
+      header: "Event date",
+      width: "126px",
+      className: "text-xs text-foreground whitespace-nowrap",
+    },
+    { key: "status", header: "Status", width: "148px", render: (r) => <Badge status={r.status} /> },
     {
       key: "actions",
-      header: "Actions",
+      header: <span className="sr-only">Actions</span>,
+      width: "168px",
       stopRowClick: true,
       render: (r) => {
         // Archived rows offer restore only. "Edit Quote" is gone because a
         // quotation-stage record is no longer on this page at all.
         if (isArchived(r)) {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-1.5">
               {r.archived && (
-                <button onClick={() => handleArchive(r, false)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+                <Btn variant="secondary" size="sm" onClick={() => handleArchive(r, false)}>
                   <ArchiveRestore size={13} /> Restore
-                </button>
+                </Btn>
               )}
-              <button onClick={() => setDrawerRow(r)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors ml-auto">
-                <Eye size={13} /> View
-              </button>
+              <RowActionsMenu
+                actions={[
+                  { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(r) },
+                ]}
+              />
             </div>
           );
         }
 
         return (
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate(`/admin/quotes/${r._id}/details`)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
+          <div className="flex items-center justify-end gap-1.5">
+            {/* Brand blue, because creating the quote is the one thing this
+                queue exists to get done. Everything else on the row is a
+                way of clearing it, not advancing it. */}
+            <Btn
+              variant="primary"
+              size="sm"
+              onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+            >
               <Plus size={13} /> Create Quote
-            </button>
-            <button onClick={() => setCancelTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm">
-              <XCircle size={13} /> Reject
-            </button>
-            <button onClick={() => setArchiveTarget(r)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
-              <Archive size={13} /> Archive
-            </button>
-            <button onClick={() => setDrawerRow(r)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors ml-auto">
-              <Eye size={13} /> View
-            </button>
+            </Btn>
+            <RowActionsMenu
+              actions={[
+                { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(r) },
+                { key: "archive", label: "Archive inquiry", icon: Archive, onSelect: () => setArchiveTarget(r) },
+                { key: "div", divider: true },
+                {
+                  key: "reject",
+                  label: "Reject inquiry",
+                  icon: XCircle,
+                  destructive: true,
+                  onSelect: () => setCancelTarget(r),
+                },
+              ]}
+            />
           </div>
         );
       },
@@ -512,7 +560,8 @@ export default function AdminInquiries() {
             selectable
             selectedIds={selectedIds}
             onSelectedIdsChange={setSelectedIds}
-            minWidth="880px"
+            minWidth="860px"
+            pinLastColumn
           />
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
@@ -566,6 +615,7 @@ export default function AdminInquiries() {
         >
           {drawerRow && (
             <div className="grid grid-cols-2 gap-4">
+              <DrawerField label="Event Date" value={drawerRow.date} />
               <DrawerField label="Event Type" value={drawerRow.eventType} />
               <DrawerField label="Booking" value={drawerRow.booking} />
               <DrawerField label="Booking type" value={drawerRow.bookingTypeLabel} />

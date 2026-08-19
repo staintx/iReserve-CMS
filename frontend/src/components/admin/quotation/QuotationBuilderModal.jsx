@@ -33,6 +33,8 @@ import {
   derivePackageStartingPrice,
   addOnQuantityOf,
   addOnLineTotal,
+  MENU_PRICING,
+  menuLineTotal,
   money,
 } from "../../../utils/quotationPricing";
 import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
@@ -148,7 +150,31 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
   );
 }
 
-function SectionCard({ step, title, description, icon: Icon, aside, children, id }) {
+/**
+ * Section accents.
+ *
+ * Seven near-identical white cards made the builder one long undifferentiated
+ * scroll: the only way to tell where you were was to read the heading. Each
+ * section now carries a hue on its icon chip and step number, so scrolling
+ * past one is enough to know which part of the quote you are in.
+ *
+ * Deliberately confined to a 28px chip and a two-character number. The hue
+ * marks a place, it is not a status — statuses (error red, deduction emerald,
+ * warning amber) have to stay louder than this or they stop reading as
+ * statuses at all.
+ */
+const SECTION_ACCENTS = {
+  slate: { chip: "bg-slate-100 text-slate-600", step: "text-slate-400" },
+  primary: { chip: "bg-primary/10 text-primary", step: "text-primary/70" },
+  emerald: { chip: "bg-emerald-50 text-emerald-700", step: "text-emerald-600/70" },
+  amber: { chip: "bg-amber-50 text-amber-700", step: "text-amber-600/70" },
+  violet: { chip: "bg-violet-50 text-violet-700", step: "text-violet-600/70" },
+  sky: { chip: "bg-sky-50 text-sky-700", step: "text-sky-600/70" },
+  indigo: { chip: "bg-indigo-50 text-indigo-700", step: "text-indigo-600/70" },
+};
+
+function SectionCard({ step, title, description, icon: Icon, aside, children, id, accent = "primary" }) {
+  const tone = SECTION_ACCENTS[accent] || SECTION_ACCENTS.primary;
   return (
     <section
       id={id}
@@ -156,7 +182,7 @@ function SectionCard({ step, title, description, icon: Icon, aside, children, id
     >
       <header className="mb-4 flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tone.chip}`}>
             {Icon ? <Icon size={15} /> : null}
           </span>
           <div className="min-w-0">
@@ -166,7 +192,7 @@ function SectionCard({ step, title, description, icon: Icon, aside, children, id
                 display serif, which is what that face is least suited to. */}
             <h3 className="flex items-baseline gap-2 font-sans text-sm font-bold text-slate-900">
               {step != null && (
-                <span className="text-[11px] font-semibold tabular-nums text-slate-500">
+                <span className={`text-[11px] font-semibold tabular-nums ${tone.step}`}>
                   {String(step).padStart(2, "0")}
                 </span>
               )}
@@ -265,6 +291,27 @@ const isBlankAmount = (value) => String(value ?? "").trim() === "";
 const inclusionText = (inclusion) =>
   typeof inclusion === "string" ? inclusion : String(inclusion?.name || inclusion || "");
 
+/**
+ * Units the kitchen actually quotes in, offered as suggestions only.
+ *
+ * The field is a free-text input with this list behind a datalist, so the
+ * common cases are one keystroke away and an unusual one is still just
+ * typed. Nothing branches on the value — a unit is a label on a number —
+ * so adding to this list is a convenience, never a requirement.
+ */
+const UNIT_SUGGESTIONS = ["bilao", "tray", "pan", "kilo", "platter", "gallon", "piece", "set"];
+
+/** A dish row as the builder holds it, whatever it was seeded from. */
+const menuRow = (partial = {}) => ({
+  name: "",
+  note: "",
+  quantity: 1,
+  unit: "",
+  pricing_type: MENU_PRICING.PER_GUEST,
+  price: "",
+  ...partial,
+});
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* ---------------------------------------------------------------------------
@@ -329,6 +376,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Sections 4 and 5: line items
   const [menuItems, setMenuItems] = useState([]);
   const [addOns, setAddOns] = useState([]);
+  // Dish rows whose note fields the admin has opened. A row that already
+  // carries a note is open regardless — the notes are disclosed rather than
+  // always rendered because two extra inputs on every dish turned a menu of
+  // eight into a page of scrolling, and most dishes never need one.
+  const [openNoteRows, setOpenNoteRows] = useState(() => new Set());
 
   // Section 6: adjustments
   const [transportationFee, setTransportationFee] = useState("");
@@ -550,11 +602,23 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               })
             ),
           ]);
-          setMenuItems(Array.isArray(latest.menu_items) ? latest.menu_items.map((m) => ({
-            name: m?.name || "",
-            note: m?.note || "",
-            price: m?.price ? String(m.price) : "",
-          })) : []);
+          setMenuItems(
+            Array.isArray(latest.menu_items)
+              ? latest.menu_items.map((m) =>
+                  menuRow({
+                    name: m?.name || "",
+                    note: m?.note || "",
+                    quantity: Number(m?.quantity) > 0 ? Number(m.quantity) : 1,
+                    unit: m?.unit || "",
+                    pricing_type:
+                      m?.pricing_type === MENU_PRICING.QUANTITY
+                        ? MENU_PRICING.QUANTITY
+                        : MENU_PRICING.PER_GUEST,
+                    price: m?.price ? String(m.price) : "",
+                  })
+                )
+              : []
+          );
           setAddOns(Array.isArray(latest.add_ons) ? latest.add_ons.map((a) => ({
             name: a?.name || "",
             price: a?.price ? String(a.price) : "",
@@ -571,7 +635,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setTaxes(latest.taxes ? String(latest.taxes) : "");
           setDiscounts(latest.discounts ? String(latest.discounts) : "");
           setDepositAmount(latest.deposit_amount ? String(latest.deposit_amount) : "");
-          setExpirationDate(toDateInput(latest.expiration_date) || addDays(7));
+          // A revision of a quotation whose validity has already run out gets
+          // a fresh window rather than opening pre-filled with a date the
+          // form will refuse to send.
+          const storedExpiry = toDateInput(latest.expiration_date);
+          setExpirationDate(
+            storedExpiry && storedExpiry >= todayInput() ? storedExpiry : addDays(7)
+          );
           setAdminNotes(latest.admin_notes || "");
           return;
         }
@@ -643,17 +713,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           !customerSelection.wantedFood
             ? []
             : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
-              if (item && typeof item === "object") {
-                return {
-                  name: item.name || "",
-                  note: offerCoversFood
-                    ? `${item.category || item.note || "Included"} · covered by the offer`
-                    : item.category || item.note || "",
-                  price: offerCoversFood || !item.price ? "" : String(item.price),
-                };
-              }
-              return { name: String(item || ""), note: "", price: "" };
-            })
+                if (item && typeof item === "object") {
+                  return menuRow({
+                    name: item.name || "",
+                    note: offerCoversFood
+                      ? `${item.category || item.note || "Included"} · covered by the offer`
+                      : item.category || item.note || "",
+                    price: offerCoversFood || !item.price ? "" : String(item.price),
+                  });
+                }
+                return menuRow({ name: String(item || "") });
+              })
         );
 
         setAddOns(
@@ -703,9 +773,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   );
 
   // Food lines only count when this quotation actually carries catering, so
-  // toggling catering off cannot leave a priced dish in the total.
+  // toggling catering off cannot leave a priced dish in the total. Parked
+  // dishes are excluded for the same reason add-ons are: they are on screen
+  // so they can be restored, not so they can be charged.
   const chargeableMenuItems = useMemo(
-    () => (cateringIncluded ? menuItems : []),
+    () => (cateringIncluded ? menuItems.filter((item) => !item.removed) : []),
     [cateringIncluded, menuItems]
   );
 
@@ -760,6 +832,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       menu_items: chargeableMenuItems.map((item) => ({
         name: String(item.name || "").trim(),
         note: String(item.note || "").trim(),
+        pricing_type:
+          item.pricing_type === MENU_PRICING.QUANTITY
+            ? MENU_PRICING.QUANTITY
+            : MENU_PRICING.PER_GUEST,
+        // A per-guest dish takes its count from the guest count, so storing
+        // anything else here would be a second, contradictory number.
+        quantity:
+          item.pricing_type === MENU_PRICING.QUANTITY
+            ? Math.max(1, Number(item.quantity) || 1)
+            : 1,
+        unit: String(item.unit || "").trim(),
         price: money(item.price),
       })),
       add_ons: chargeableAddOns.map((item) => ({
@@ -826,6 +909,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // should not still be offering yesterday as a valid date.
   const today = todayInput();
 
+  // How long the quotation stands, said in days rather than left for the
+  // admin to count off a calendar.
+  const validityWindow = (() => {
+    if (!expirationDate || expirationDate < today) return "";
+    const days = Math.round(
+      (new Date(`${expirationDate}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000
+    );
+    if (days === 0) return "It expires at the end of today.";
+    return `The customer has ${days} day${days === 1 ? "" : "s"} to accept.`;
+  })();
+
   /* --- Warnings: worth a look, never blocking ----------------------------- */
   const warnings = useMemo(() => {
     const notes = [];
@@ -856,11 +950,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         `The deposit covers ${depositShare.toFixed(0)} percent of the total, leaving little on the balance.`
       );
     }
-    if (cateringIncluded && menuItems.length === 0) {
+    if (cateringIncluded && chargeableMenuItems.length === 0) {
       notes.push(
         customerSelection.dishes.length > 0
-          ? `The customer picked ${customerSelection.dishes.length} dish${customerSelection.dishes.length === 1 ? "" : "es"
-          }, but none are on this quotation. Add them back or confirm the catering is being dropped.`
+          ? `The customer picked ${customerSelection.dishes.length} dish${
+              customerSelection.dishes.length === 1 ? "" : "es"
+            }, but none are on this quotation. Restore them or confirm the catering is being dropped.`
           : "This booking includes catering, but no dishes are quoted yet."
       );
     }
@@ -887,7 +982,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     packageRecord,
     depositPercentage,
     cateringIncluded,
-    menuItems.length,
+    chargeableMenuItems.length,
     customerSelection.dishes.length,
     unresolvedDishes,
   ]);
@@ -943,16 +1038,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
     // Only the dishes actually being quoted. With catering switched off the
     // menu section is hidden, so validating rows behind it would block the
-    // send on fields the admin cannot see or fix.
-    chargeableMenuItems.forEach((item, index) => {
-      if (!String(item.name || "").trim())
-        found[`menu_items.${index}.name`] = "Name this dish or remove the line.";
-      // A blank price here is multiplied by the guest count, so it is the most
-      // expensive field in the form to leave unanswered.
-      if (isBlankAmount(item.price))
-        found[`menu_items.${index}.price`] =
-          "Set the per guest price for this dish. Enter 0 to include it at no charge.";
-    });
+    // send on fields the admin cannot see or fix — and a parked row is not
+    // going to be sent, so it must not block sending either. Indices are
+    // taken from `menuItems`, the array the rows are rendered from, so the
+    // errors land on the row the admin is looking at.
+    if (cateringIncluded) {
+      menuItems.forEach((item, index) => {
+        if (item.removed) return;
+        const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
+        if (!String(item.name || "").trim())
+          found[`menu_items.${index}.name`] = "Name this dish or remove the line.";
+        // A blank price here is multiplied by the guest count or the stated
+        // quantity, so it is the most expensive field in the form to leave
+        // unanswered.
+        if (isBlankAmount(item.price))
+          found[`menu_items.${index}.price`] = byQuantity
+            ? `Set the price for one ${String(item.unit || "").trim() || "unit"} of this dish. Enter 0 to include it at no charge.`
+            : "Set the per guest price for this dish. Enter 0 to include it at no charge.";
+        if (byQuantity && (!Number(item.quantity) || Number(item.quantity) < 1))
+          found[`menu_items.${index}.quantity`] =
+            "Enter how many of this dish the quotation covers.";
+      });
+    }
 
     // Parked rows are excluded: they are not going to be sent, so they must
     // not block sending. Indices still line up because errors are keyed off
@@ -989,6 +1096,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       )}.`;
 
     if (!expirationDate) found.expiration_date = "Set the date this quotation stops being valid.";
+    // The picker greys out earlier days, but a date can still be typed into
+    // it, and a quotation that expired before it was sent gives the customer
+    // nothing they can accept.
+    else if (expirationDate < today)
+      found.expiration_date =
+        "This quotation would already have expired. Choose today or a later date.";
 
     return found;
   };
@@ -1076,22 +1189,73 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (!found) return;
     setMenuItems((prev) => [
       ...prev,
-      { name: found.name, price: found.price ? String(found.price) : "", note: found.category || "" },
+      menuRow({
+        name: found.name,
+        price: found.price ? String(found.price) : "",
+        note: found.category || "",
+      }),
     ]);
     setSelectedCatalogDish("");
   };
 
   const handleMenuChange = (index, field, value) => {
     setMenuItems((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, [field]: field === "price" ? nonNegative(value) : value } : item
-      )
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        if (field === "price") return { ...item, price: nonNegative(value) };
+        if (field === "quantity")
+          return { ...item, quantity: Math.max(1, Number(nonNegative(value)) || 1) };
+        // Switching back to per guest resets the quantity: the guest count is
+        // the count from that point on, and a stale 2 left in the field would
+        // read as a contradiction of the line right next to it.
+        if (field === "pricing_type")
+          return {
+            ...item,
+            pricing_type: value,
+            quantity: value === MENU_PRICING.QUANTITY ? item.quantity || 1 : 1,
+            unit: value === MENU_PRICING.QUANTITY ? item.unit : "",
+          };
+        return { ...item, [field]: value };
+      })
     );
     clearError(`menu_items.${index}.${field}`);
   };
 
-  const handleRemoveMenuItem = (index) =>
+  /**
+   * Removing a dish parks it rather than deleting it.
+   *
+   * Same interaction as the add-ons list directly below, for the same
+   * reason: the row stays on screen struck through and out of every total,
+   * so an accidental removal costs one click to undo instead of finding
+   * the dish in the catalog again and retyping its price, quantity and
+   * notes. Parked rows are dropped when the quotation is saved, so nothing
+   * about what is stored or sent changes.
+   */
+  const toggleMenuItemRemoved = (index) => {
+    setMenuItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, removed: !item.removed } : item))
+    );
+    // A parked row cannot be fixed, so its errors are no longer actionable.
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[`menu_items.${index}.name`];
+      delete next[`menu_items.${index}.price`];
+      delete next[`menu_items.${index}.quantity`];
+      return next;
+    });
+  };
+
+  /** Deletes outright. Used for a blank row the admin just added by mistake. */
+  const handleDeleteMenuItem = (index) => {
     setMenuItems((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        if (!key.startsWith("menu_items.")) next[key] = value;
+      });
+      return next;
+    });
+  };
 
   /* --- Add-on handlers ---------------------------------------------------- */
 
@@ -1520,6 +1684,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           <SectionCard
             step={1}
             id="qb-section-details"
+            accent="slate"
             icon={User}
             title="Customer and event information"
             description="What the customer submitted when they booked. Correct anything that is wrong before quoting."
@@ -1952,6 +2117,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           <SectionCard
             step={2}
+            accent="primary"
             icon={Package}
             title={offerContext ? "Offer and base price" : "Package and starting price"}
             description="The baseline this quotation is built from, before anything is added or removed."
@@ -2028,6 +2194,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 3. Package inclusions --------------------------------------- */}
           <SectionCard
             step={3}
+            accent="emerald"
             icon={Check}
             title="Package inclusions"
             description="Remove what the customer is not getting and state what each removal takes off the starting price."
@@ -2171,11 +2338,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {!isSetupOnly && (
             <SectionCard
               step={stepNumbers.menu}
+              accent="amber"
               icon={cateringIncluded ? Utensils : UtensilsCrossed}
               title="Menu"
               description={
                 cateringIncluded
-                  ? "Dishes are priced per guest and multiplied by the guest count above."
+                  ? "Price a dish per guest, or by a set amount when the customer asked for a specific quantity."
                   : "The customer's answer to catering on this booking."
               }
               aside={
@@ -2265,103 +2433,272 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </label>
 
               {cateringIncluded && (
-                <>
-                  <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
-                    <select
-                      value={selectedCatalogDish}
-                      onChange={(e) => setSelectedCatalogDish(e.target.value)}
-                      className={`${inputClass(false)} text-xs`}
-                    >
-                      <option value="">Pick a dish from the menu catalog</option>
-                      {catalogMenuItems.map((item) => (
-                        <option key={item._id} value={item._id}>
-                          {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleAddCatalogDish}
-                      disabled={!selectedCatalogDish}
-                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
-                    >
-                      <Plus size={13} /> Add dish
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMenuItems((prev) => [...prev, { name: "", price: "", note: "" }])}
-                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                    >
-                      <Plus size={13} /> Custom dish
-                    </button>
-                  </div>
+              <>
+              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
+                <select
+                  value={selectedCatalogDish}
+                  onChange={(e) => setSelectedCatalogDish(e.target.value)}
+                  className={`${inputClass(false)} text-xs`}
+                >
+                  <option value="">Pick a dish from the menu catalog</option>
+                  {catalogMenuItems.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleAddCatalogDish}
+                  disabled={!selectedCatalogDish}
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
+                >
+                  <Plus size={13} /> Add dish
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMenuItems((prev) => [...prev, menuRow()])}
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  <Plus size={13} /> Custom dish
+                </button>
+              </div>
 
-                  {menuItems.length === 0 ? (
-                    <p className="py-3 text-center text-xs italic text-slate-500">
-                      No dishes on this quotation yet. Add the ones this event covers so they can be
-                      priced per guest.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {menuItems.map((item, index) => (
-                        <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
-                          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                            <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-                              <input
-                                id={`qb-menu_items.${index}.name`}
-                                type="text"
-                                value={item.name}
-                                onChange={(e) => handleMenuChange(index, "name", e.target.value)}
-                                placeholder="Dish name"
-                                className={`${inputClass(errors[`menu_items.${index}.name`])} py-1.5 text-xs font-semibold`}
-                              />
-                              <input
-                                type="text"
-                                value={item.note || ""}
-                                onChange={(e) => handleMenuChange(index, "note", e.target.value)}
-                                placeholder="Note or category (optional)"
-                                className={`${inputClass(false)} py-1.5 text-xs`}
-                              />
-                            </div>
+              {/* Units are suggestions shared by every row, so the list is
+                  rendered once rather than per dish. */}
+              <datalist id="qb-menu-units">
+                {UNIT_SUGGESTIONS.map((unit) => (
+                  <option key={unit} value={unit} />
+                ))}
+              </datalist>
 
-                            <div className="flex items-center gap-3 lg:shrink-0">
-                              <div className="w-32">
-                                <MoneyInput
-                                  id={`qb-menu_items.${index}.price`}
-                                  value={item.price}
-                                  placeholder="Per pax"
-                                  error={errors[`menu_items.${index}.price`]}
-                                  onChange={(value) => handleMenuChange(index, "price", value)}
-                                  className="py-1.5 text-xs"
+              {menuItems.length === 0 ? (
+                <p className="py-3 text-center text-xs italic text-slate-500">
+                  No dishes on this quotation yet. Add the ones this event covers so they can be
+                  priced.
+                </p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {menuItems.map((item, index) => {
+                    const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
+                    const unitLabel = String(item.unit || "").trim();
+                    const notesOpen = openNoteRows.has(index) || Boolean(item.note);
+                    const rowError =
+                      errors[`menu_items.${index}.name`] ||
+                      errors[`menu_items.${index}.price`] ||
+                      errors[`menu_items.${index}.quantity`];
+                    // The colour thread for this row: blue for "priced per
+                    // guest", violet for "priced by a set amount". Carried
+                    // from the mode toggle down through the quantity/unit
+                    // inputs so the whole row reads as one pricing decision
+                    // at a glance, not just the toggle button.
+                    const modeTint = byQuantity
+                      ? "border-violet-300 bg-violet-50 text-violet-800"
+                      : "border-primary/30 bg-primary/5 text-primary";
+                    return (
+                      <li
+                        key={index}
+                        className={`rounded-lg border p-2.5 transition-colors ${
+                          item.removed
+                            ? "border-slate-300 bg-slate-50"
+                            : byQuantity
+                              ? "border-violet-200 bg-white"
+                              : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        {/* Explicit column widths, not an implicit grid: the
+                            dish name gets a guaranteed minimum width it can
+                            never be squeezed under, so switching pricing
+                            mode can change what sits *beside* it but can
+                            never make it disappear. */}
+                        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                          <input
+                            id={`qb-menu_items.${index}.name`}
+                            type="text"
+                            value={item.name}
+                            disabled={item.removed}
+                            onChange={(e) => handleMenuChange(index, "name", e.target.value)}
+                            placeholder="Dish name"
+                            className={`${inputClass(errors[`menu_items.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${
+                              item.removed ? "line-through decoration-slate-400" : ""
+                            }`}
+                          />
+
+                          {/* Pricing mode: a two-way switch rather than a
+                              <select>, so the mode is a colour and a label
+                              you read, not a menu you open. */}
+                          <div
+                            role="group"
+                            aria-label="Pricing mode"
+                            className="inline-flex shrink-0 rounded-md border border-slate-300 bg-slate-50 p-0.5 text-[11px] font-semibold"
+                          >
+                            <button
+                              type="button"
+                              disabled={item.removed}
+                              onClick={() => handleMenuChange(index, "pricing_type", MENU_PRICING.PER_GUEST)}
+                              aria-pressed={!byQuantity}
+                              className={`rounded px-2.5 py-1 transition-colors ${
+                                !byQuantity
+                                  ? "bg-primary text-white shadow-2xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              Per guest
+                            </button>
+                            <button
+                              type="button"
+                              disabled={item.removed}
+                              onClick={() => handleMenuChange(index, "pricing_type", MENU_PRICING.QUANTITY)}
+                              aria-pressed={byQuantity}
+                              className={`rounded px-2.5 py-1 transition-colors ${
+                                byQuantity
+                                  ? "bg-violet-600 text-white shadow-2xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              Per unit
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                            {/* A per-guest dish shows the guest count where a
+                                by-amount dish shows its own quantity and unit,
+                                in the same slot: the number that multiplies
+                                the price is always in one place, tinted to
+                                match the mode switch beside it. */}
+                            {byQuantity ? (
+                              <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
+                                <input
+                                  id={`qb-menu_items.${index}.quantity`}
+                                  type="number"
+                                  min="1"
+                                  disabled={item.removed}
+                                  value={item.quantity}
+                                  onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
+                                  className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                    errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
+                                  }`}
+                                />
+                                <input
+                                  type="text"
+                                  list="qb-menu-units"
+                                  disabled={item.removed}
+                                  value={item.unit}
+                                  onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
+                                  placeholder="unit"
+                                  className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
                                 />
                               </div>
-                              <div className="min-w-[104px] text-right">
-                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                                  {totals.guestCount} pax
-                                </span>
-                                <span className="text-xs font-bold tabular-nums text-slate-800">
-                                  {formatCurrency(money(item.price) * totals.guestCount)}
-                                </span>
-                              </div>
-                              <RowAction
-                                onClick={() => handleRemoveMenuItem(index)}
-                                icon={Trash2}
-                                label="Remove"
-                                title="Remove this dish from the quotation"
+                            ) : (
+                              <span className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold tabular-nums ${modeTint}`}>
+                                {totals.guestCount} pax
+                              </span>
+                            )}
+
+                            <div className="w-28">
+                              <MoneyInput
+                                id={`qb-menu_items.${index}.price`}
+                                value={item.price}
+                                disabled={item.removed}
+                                placeholder={byQuantity ? `Per ${unitLabel || "unit"}` : "Per pax"}
+                                error={errors[`menu_items.${index}.price`]}
+                                onChange={(value) => handleMenuChange(index, "price", value)}
+                                className="py-1.5 text-xs"
                               />
                             </div>
+
+                            <div className="min-w-[96px] text-right">
+                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                Line total
+                              </span>
+                              <span
+                                className={`text-xs font-bold tabular-nums ${
+                                  item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                                }`}
+                              >
+                                {formatCurrency(menuLineTotal(item, totals.guestCount))}
+                              </span>
+                            </div>
+
+                            {/* Parked, not deleted: one click puts it back,
+                                with its price, quantity and note intact. */}
+                            {item.removed ? (
+                              <RowAction
+                                onClick={() => toggleMenuItemRemoved(index)}
+                                icon={Undo2}
+                                label="Restore"
+                                tone="success"
+                                title="Put this dish back on the quotation"
+                              />
+                            ) : (
+                              <RowAction
+                                onClick={() =>
+                                  String(item.name || "").trim() || numberOf(item.price)
+                                    ? toggleMenuItemRemoved(index)
+                                    : handleDeleteMenuItem(index)
+                                }
+                                icon={Trash2}
+                                label="Remove"
+                                title="Take this dish off the quotation. You can restore it."
+                              />
+                            )}
                           </div>
-                          {(errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]) && (
-                            <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
-                              <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                              {errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]}
-                            </p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
+                        </div>
+
+                        {/* One note, visible to both sides of the quotation.
+                            It explains the arrangement this line represents
+                            ("Customer requested 2 bilao only.") and never
+                            factors into the price above — pricing mode,
+                            quantity and unit price are the only inputs the
+                            total reads from. Secondary and optional, so it
+                            stays out of the way until it is needed. */}
+                        {!item.removed && !notesOpen && (
+                          <button
+                            type="button"
+                            onClick={() => setOpenNoteRows((prev) => new Set(prev).add(index))}
+                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 transition-colors hover:text-primary"
+                          >
+                            <Plus size={11} /> Add item note
+                          </button>
+                        )}
+
+                        {!item.removed && notesOpen && (
+                          <div className="mt-2">
+                            <label
+                              htmlFor={`qb-menu_items.${index}.note`}
+                              className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                              Item note
+                            </label>
+                            <input
+                              id={`qb-menu_items.${index}.note`}
+                              type="text"
+                              value={item.note || ""}
+                              onChange={(e) => handleMenuChange(index, "note", e.target.value)}
+                              placeholder={
+                                byQuantity
+                                  ? `e.g. Customer requested ${item.quantity || 2} ${unitLabel || "unit"}${
+                                      Number(item.quantity) === 1 ? "" : "s"
+                                    } only.`
+                                  : "e.g. Main course, no substitutions"
+                              }
+                              className={`${inputClass(false)} py-1.5 text-xs`}
+                            />
+                          </div>
+                        )}
+
+                        {rowError && (
+                          <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                            <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                            {rowError}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              </>
               )}
             </SectionCard>
           )}
@@ -2370,6 +2707,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {!isFoodOnly && (
             <SectionCard
               step={stepNumbers.addOns}
+              accent="violet"
               icon={Sparkles}
               title="Add-ons and services"
               description="The catalog holds the add-on names. The price is what you quote for this event."
@@ -2418,53 +2756,95 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       errors[`add_ons.${index}.name`] ||
                       errors[`add_ons.${index}.price`] ||
                       errors[`add_ons.${index}.quantity`];
+                    // Same two-colour language as the Menu rows above: blue is
+                    // the default charge, violet is "a counted number of units".
+                    // An admin who has learned it once in one section should
+                    // not have to learn it again in the next.
+                    const modeTint = isFixed
+                      ? "border-primary/30 bg-primary/5 text-primary"
+                      : "border-violet-300 bg-violet-50 text-violet-800";
                     return (
                       <li
                         key={index}
-                        className={`rounded-lg border p-2.5 transition-colors ${item.removed ? "border-slate-300 bg-slate-50" : "border-slate-200 bg-white"
-                          }`}
+                        className={`rounded-lg border p-2.5 transition-colors ${
+                          item.removed
+                            ? "border-slate-300 bg-slate-50"
+                            : isFixed
+                              ? "border-slate-200 bg-white"
+                              : "border-violet-200 bg-white"
+                        }`}
                       >
-                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                          <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-                            <input
-                              id={`qb-add_ons.${index}.name`}
-                              type="text"
-                              value={item.name}
+                        {/* Explicit widths, matching the Menu rows: the name
+                            keeps a guaranteed minimum so changing pricing mode
+                            can never squeeze it out of the row. */}
+                        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                          <input
+                            id={`qb-add_ons.${index}.name`}
+                            type="text"
+                            value={item.name}
+                            disabled={item.removed}
+                            onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
+                            placeholder="Add-on or service name"
+                            className={`${inputClass(errors[`add_ons.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${
+                              item.removed ? "line-through decoration-slate-400" : ""
+                            }`}
+                          />
+
+                          <div
+                            role="group"
+                            aria-label="Pricing mode"
+                            className="inline-flex shrink-0 rounded-md border border-slate-300 bg-slate-50 p-0.5 text-[11px] font-semibold"
+                          >
+                            <button
+                              type="button"
                               disabled={item.removed}
-                              onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
-                              placeholder="Add-on or service name"
-                              className={`${inputClass(errors[`add_ons.${index}.name`])} py-1.5 text-xs font-semibold ${item.removed ? "line-through decoration-slate-400" : ""
-                                }`}
-                            />
-                            <select
-                              value={item.pricing_type || "fixed"}
-                              disabled={item.removed}
-                              onChange={(e) => handleAddOnChange(index, "pricing_type", e.target.value)}
-                              className={`${inputClass(false)} py-1.5 text-xs`}
+                              onClick={() => handleAddOnChange(index, "pricing_type", "fixed")}
+                              aria-pressed={isFixed}
+                              className={`rounded px-2.5 py-1 transition-colors ${
+                                isFixed
+                                  ? "bg-primary text-white shadow-2xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
                             >
-                              <option value="fixed">Fixed, charged once</option>
-                              <option value="quantity">Quantity based, price per unit</option>
-                            </select>
+                              Once
+                            </button>
+                            <button
+                              type="button"
+                              disabled={item.removed}
+                              onClick={() => handleAddOnChange(index, "pricing_type", "quantity")}
+                              aria-pressed={!isFixed}
+                              className={`rounded px-2.5 py-1 transition-colors ${
+                                !isFixed
+                                  ? "bg-violet-600 text-white shadow-2xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              Per unit
+                            </button>
                           </div>
 
-                          <div className="flex items-center gap-3 lg:shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
                             {isFixed ? (
-                              <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600">
-                                1x
+                              <span className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold tabular-nums ${modeTint}`}>
+                                1×
                               </span>
                             ) : (
-                              <input
-                                id={`qb-add_ons.${index}.quantity`}
-                                type="number"
-                                min="1"
-                                disabled={item.removed}
-                                value={item.quantity}
-                                onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
-                                className={`${inputClass(errors[`add_ons.${index}.quantity`])} w-20 py-1.5 text-xs font-semibold tabular-nums`}
-                              />
+                              <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
+                                <input
+                                  id={`qb-add_ons.${index}.quantity`}
+                                  type="number"
+                                  min="1"
+                                  disabled={item.removed}
+                                  value={item.quantity}
+                                  onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
+                                  className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                    errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
+                                  }`}
+                                />
+                              </div>
                             )}
 
-                            <div className="w-32">
+                            <div className="w-28">
                               <MoneyInput
                                 id={`qb-add_ons.${index}.price`}
                                 value={item.price}
@@ -2476,7 +2856,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                               />
                             </div>
 
-                            <div className="min-w-[104px] text-right">
+                            <div className="min-w-[96px] text-right">
                               <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                                 Line total
                               </span>
@@ -2529,6 +2909,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 6. Adjustments ---------------------------------------------- */}
           <SectionCard
             step={stepNumbers.adjustments}
+            accent="sky"
             icon={Percent}
             title="Adjustments"
             description="Transportation, any custom fees, then tax and discount applied to the subtotal."
@@ -2628,6 +3009,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 7. Payment terms -------------------------------------------- */}
           <SectionCard
             step={stepNumbers.payment}
+            accent="indigo"
             icon={CreditCard}
             title="Payment terms"
             description="What the customer pays to confirm the date, and how long this quotation stands."
@@ -2671,12 +3053,20 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 label="Quotation valid until"
                 required
                 error={errors.expiration_date}
-                hint="After this date the customer can no longer accept it."
+                hint={
+                  expirationDate && expirationDate >= today
+                    ? `Selectable from today. ${validityWindow}`
+                    : "Selectable from today onward — earlier dates are greyed out in the picker."
+                }
                 htmlFor="qb-expiration_date"
               >
+                {/* `min` is what greys the past out in the native picker;
+                    validate() re-checks it because the field can still be
+                    typed into. */}
                 <input
                   id="qb-expiration_date"
                   type="date"
+                  min={today}
                   value={expirationDate}
                   onChange={(e) => {
                     setExpirationDate(e.target.value);
@@ -2684,6 +3074,23 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   }}
                   className={inputClass(errors.expiration_date)}
                 />
+                {/* The common validity windows, so the usual answer is one
+                    click rather than a calendar navigation. */}
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {[7, 14, 30].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => {
+                        setExpirationDate(addDays(days));
+                        clearError("expiration_date");
+                      }}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                    >
+                      {days} days
+                    </button>
+                  ))}
+                </div>
               </Field>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
@@ -2774,7 +3181,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               {menuHeading && (
                 <SummaryRow
                   label={menuHeading}
-                  detail={`(${chargeableMenuItems.length} at ${totals.guestCount} pax)`}
+                  detail={`(${chargeableMenuItems.length} ${
+                    chargeableMenuItems.length === 1 ? "dish" : "dishes"
+                  })`}
                   value={formatCurrency(totals.menuSubtotal)}
                 />
               )}

@@ -35,14 +35,36 @@ const QuotationSchema = new mongoose.Schema(
 
     guest_count: Number,
 
+    // One quoted dish.
+    //
+    // `pricing_type` is what lets a quotation say "2 bilao of Shanghai"
+    // instead of assuming every dish scales to the whole guest list.
+    // `per_guest` is the default and the original behaviour — price times
+    // the guest count. `quantity` charges the stated number of the dish's
+    // own units instead. `unit` is a free-text label ("bilao", "tray",
+    // "pan"); nothing branches on its value, so any unit the kitchen uses
+    // works without a schema change.
+    //
+    // `note` explains the arrangement this line represents ("Customer
+    // requested 2 bilao only.") and is visible to both admin and customer —
+    // there is deliberately no separate admin-only note on a dish. It never
+    // factors into pricing; pricing_type, quantity and price are the only
+    // inputs the total is computed from.
     menu_items: [
       {
         name: String,
         note: String,
+        quantity: { type: Number, default: 1 },
+        unit: String,
+        pricing_type: {
+          type: String,
+          enum: ["per_guest", "quantity"],
+          default: "per_guest",
+        },
         price: Number,
       },
     ],
-    
+
     add_ons: [
       {
         name: String,

@@ -50,6 +50,7 @@ import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/act
 import { cn } from "@/lib/utils";
 import { selectSourceQuotation } from "../../utils/quotationDiff";
 import { formatShortDate } from "../../utils/format";
+import { menuAmountLabel } from "../../utils/quotationPricing";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -852,7 +853,17 @@ export default function CustomerEventDashboard() {
                           {booking.menu_items.map((item, idx) => (
                             <li key={idx} className="flex items-baseline justify-between gap-4 px-4 py-3">
                               <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground">{item.name}</p>
+                                <p className="text-sm font-medium text-foreground">
+                                  {item.name}
+                                  {/* The amount agreed on the quotation, stated
+                                      the same way here so the two never appear
+                                      to describe different orders. */}
+                                  {menuAmountLabel(item) && (
+                                    <span className="ml-1.5 font-sans text-xs font-semibold text-muted-foreground">
+                                      {menuAmountLabel(item)}
+                                    </span>
+                                  )}
+                                </p>
                                 {item.note && <p className="text-xs text-muted-foreground mt-0.5">{item.note}</p>}
                               </div>
                               <span className="shrink-0 font-sans text-sm tabular-nums text-muted-foreground">

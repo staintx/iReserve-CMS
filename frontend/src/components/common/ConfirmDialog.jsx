@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import FeedbackDialog from "../feedback/FeedbackDialog";
 
 /**
@@ -8,7 +7,7 @@ import FeedbackDialog from "../feedback/FeedbackDialog";
  * hierarchy, loading state, focus handling, mobile layout — without
  * being touched.
  *
- * Two things did change in how it reads:
+ * Three things did change in how it reads:
  *
  * 1. With no `title`, the message becomes the heading rather than
  *    sitting as grey body copy under a generic "Confirm Action". A
@@ -17,6 +16,23 @@ import FeedbackDialog from "../feedback/FeedbackDialog";
  * 2. `confirmVariant="danger"` / `isDestructive` now select the
  *    destructive tone, which changes the icon, the button colour and
  *    which control gets initial focus — not just the button colour.
+ * 3. `onCancel` is a *dismiss* handler: it fires on every path that
+ *    closes the dialog, including a successful confirm. See below.
+ *
+ * Why (3): this component does not own its own visibility. Every call
+ * site renders it behind `{target && <ConfirmDialog …/>}`, so the
+ * dialog only actually disappears when the call site clears `target`
+ * — which is exactly what its `onCancel` does at all 19 of them. The
+ * old contract suppressed that handler after a confirm, on the theory
+ * that `onConfirm` would clear the state instead. Any handler that
+ * forgot to (Inquiry archiving) or that only cleared it on the happy
+ * path left the overlay on screen over a success toast, with the
+ * action already committed and no way back but Escape.
+ *
+ * Dismissing is not the same decision as declining, so a call site
+ * that needs to tell them apart can pass an explicit `onClose`; it
+ * takes over the dismiss duty and `onCancel` goes back to meaning
+ * "the user said no".
  *
  * For new code prefer `useConfirm()` (no local state) or
  * `FeedbackDialog` directly (async actions, three-way choices).
@@ -31,11 +47,9 @@ export default function ConfirmDialog({
   tone,
   onConfirm,
   onCancel,
+  onClose,
 }) {
-  // Closing after a successful confirm must not also fire onCancel:
-  // most call sites use onCancel to clear the target that renders
-  // this dialog, and several use onConfirm for the same thing.
-  const confirmed = useRef(false);
+  const dismiss = onClose || onCancel;
 
   const resolvedTone =
     tone || (isDestructive || confirmVariant === "danger" ? "destructive" : "confirm");
@@ -48,17 +62,11 @@ export default function ConfirmDialog({
       description={title ? message : undefined}
       confirmLabel={confirmText}
       cancelLabel={cancelText}
-      onConfirm={async () => {
-        confirmed.current = true;
-        await onConfirm?.();
-      }}
+      onConfirm={onConfirm}
+      onCancel={onClose ? onCancel : undefined}
       onOpenChange={(open) => {
         if (open) return;
-        if (confirmed.current) {
-          confirmed.current = false;
-          return;
-        }
-        onCancel?.();
+        dismiss?.();
       }}
     />
   );

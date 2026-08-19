@@ -172,7 +172,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
 
         {/* The quoted dishes, showing exactly what the customer's copy shows:
             pricing mode, quantity and unit, the rate, the line total and the
-            item note. */}
+            item note — same values, same blue/violet mode colours. */}
         {dishes.length > 0 && (
           <div>
             <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -190,7 +190,13 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
                     <div className="min-w-0">
                       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                         <span className="text-xs font-semibold text-slate-800">{dish.name}</span>
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            byQuantity
+                              ? "bg-violet-50 text-violet-700"
+                              : "bg-primary/10 text-primary"
+                          }`}
+                        >
                           {byQuantity ? menuAmountLabel(dish) : "Per guest"}
                         </span>
                       </span>

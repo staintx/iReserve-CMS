@@ -688,11 +688,12 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                   <h4 className="mb-3 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Menu
                   </h4>
-                  <ul className="space-y-2.5">
-                    {/* The same three numbers the admin priced the line on —
-                        how much, at what rate, for what total — because the
-                        old single figure showed a per-head rate next to a
-                        total the customer could not reconcile it with. */}
+                  <ul className="space-y-3">
+                    {/* Every value the admin priced the line on, in the same
+                        order and the same colours their builder shows: pricing
+                        mode, how many, at what rate, for what total, and the
+                        item note. A customer reading this and an admin reading
+                        the builder are looking at the same seven facts. */}
                     {quotation.menu_items.map((item, idx) => {
                       const units = menuQuantityOf(item, guestCount);
                       const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
@@ -704,14 +705,22 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                       return (
                         <li key={idx} className="flex items-baseline justify-between gap-4">
                           <div className="min-w-0">
-                            <span className="text-sm text-foreground">
-                              {item.name}
-                              {byQuantity && (
-                                <span className="ml-1.5 font-sans text-xs font-semibold text-muted-foreground">
-                                  ×{units}
-                                  {unitLabel ? ` ${unitLabel}` : ""}
-                                </span>
-                              )}
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground">
+                              <span>{item.name}</span>
+                              {/* Same blue/violet split the builder uses, so
+                                  "per unit" looks like "per unit" on both
+                                  sides of the conversation. */}
+                              <span
+                                className={`rounded px-1.5 py-0.5 font-sans text-[10px] font-bold uppercase tracking-wide ${
+                                  byQuantity
+                                    ? "bg-violet-50 text-violet-700"
+                                    : "bg-primary/10 text-primary"
+                                }`}
+                              >
+                                {byQuantity
+                                  ? `${units} ${unitLabel || (units === 1 ? "unit" : "units")}`
+                                  : "Per guest"}
+                              </span>
                             </span>
                             {Number(item.price) > 0 && (
                               <span className="mt-0.5 block font-sans text-xs tabular-nums text-muted-foreground">
@@ -719,7 +728,9 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                               </span>
                             )}
                             {item.note && (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">{item.note}</span>
+                              <span className="mt-1 block border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
+                                {item.note}
+                              </span>
                             )}
                           </div>
                           <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">

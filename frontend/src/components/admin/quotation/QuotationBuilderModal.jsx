@@ -150,7 +150,31 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
   );
 }
 
-function SectionCard({ step, title, description, icon: Icon, aside, children, id }) {
+/**
+ * Section accents.
+ *
+ * Seven near-identical white cards made the builder one long undifferentiated
+ * scroll: the only way to tell where you were was to read the heading. Each
+ * section now carries a hue on its icon chip and step number, so scrolling
+ * past one is enough to know which part of the quote you are in.
+ *
+ * Deliberately confined to a 28px chip and a two-character number. The hue
+ * marks a place, it is not a status — statuses (error red, deduction emerald,
+ * warning amber) have to stay louder than this or they stop reading as
+ * statuses at all.
+ */
+const SECTION_ACCENTS = {
+  slate: { chip: "bg-slate-100 text-slate-600", step: "text-slate-400" },
+  primary: { chip: "bg-primary/10 text-primary", step: "text-primary/70" },
+  emerald: { chip: "bg-emerald-50 text-emerald-700", step: "text-emerald-600/70" },
+  amber: { chip: "bg-amber-50 text-amber-700", step: "text-amber-600/70" },
+  violet: { chip: "bg-violet-50 text-violet-700", step: "text-violet-600/70" },
+  sky: { chip: "bg-sky-50 text-sky-700", step: "text-sky-600/70" },
+  indigo: { chip: "bg-indigo-50 text-indigo-700", step: "text-indigo-600/70" },
+};
+
+function SectionCard({ step, title, description, icon: Icon, aside, children, id, accent = "primary" }) {
+  const tone = SECTION_ACCENTS[accent] || SECTION_ACCENTS.primary;
   return (
     <section
       id={id}
@@ -158,7 +182,7 @@ function SectionCard({ step, title, description, icon: Icon, aside, children, id
     >
       <header className="mb-4 flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tone.chip}`}>
             {Icon ? <Icon size={15} /> : null}
           </span>
           <div className="min-w-0">
@@ -168,7 +192,7 @@ function SectionCard({ step, title, description, icon: Icon, aside, children, id
                 display serif, which is what that face is least suited to. */}
             <h3 className="flex items-baseline gap-2 font-sans text-sm font-bold text-slate-900">
               {step != null && (
-                <span className="text-[11px] font-semibold tabular-nums text-slate-500">
+                <span className={`text-[11px] font-semibold tabular-nums ${tone.step}`}>
                   {String(step).padStart(2, "0")}
                 </span>
               )}
@@ -1660,6 +1684,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           <SectionCard
             step={1}
             id="qb-section-details"
+            accent="slate"
             icon={User}
             title="Customer and event information"
             description="What the customer submitted when they booked. Correct anything that is wrong before quoting."
@@ -2092,6 +2117,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           <SectionCard
             step={2}
+            accent="primary"
             icon={Package}
             title={offerContext ? "Offer and base price" : "Package and starting price"}
             description="The baseline this quotation is built from, before anything is added or removed."
@@ -2168,6 +2194,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 3. Package inclusions --------------------------------------- */}
           <SectionCard
             step={3}
+            accent="emerald"
             icon={Check}
             title="Package inclusions"
             description="Remove what the customer is not getting and state what each removal takes off the starting price."
@@ -2311,6 +2338,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {!isSetupOnly && (
             <SectionCard
               step={stepNumbers.menu}
+              accent="amber"
               icon={cateringIncluded ? Utensils : UtensilsCrossed}
               title="Menu"
               description={
@@ -2679,6 +2707,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {!isFoodOnly && (
             <SectionCard
               step={stepNumbers.addOns}
+              accent="violet"
               icon={Sparkles}
               title="Add-ons and services"
               description="The catalog holds the add-on names. The price is what you quote for this event."
@@ -2880,6 +2909,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 6. Adjustments ---------------------------------------------- */}
           <SectionCard
             step={stepNumbers.adjustments}
+            accent="sky"
             icon={Percent}
             title="Adjustments"
             description="Transportation, any custom fees, then tax and discount applied to the subtotal."
@@ -2979,6 +3009,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 7. Payment terms -------------------------------------------- */}
           <SectionCard
             step={stepNumbers.payment}
+            accent="indigo"
             icon={CreditCard}
             title="Payment terms"
             description="What the customer pays to confirm the date, and how long this quotation stands."

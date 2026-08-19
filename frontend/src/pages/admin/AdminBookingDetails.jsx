@@ -39,6 +39,7 @@ import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { createConversation } from "../../api/messages";
+import { menuAmountLabel } from "../../utils/quotationPricing";
 
 export default function AdminBookingDetails() {
   const { id } = useParams();
@@ -720,6 +721,13 @@ export default function AdminBookingDetails() {
                     <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
                       <div>
                         <strong className="text-slate-900">{item.name || item}</strong>
+                        {/* The amount the quotation settled on, so the kitchen
+                            reads the same order the customer accepted. */}
+                        {menuAmountLabel(item) && (
+                          <span className="ml-1.5 text-[11px] font-semibold text-slate-500">
+                            {menuAmountLabel(item)}
+                          </span>
+                        )}
                         {item.note && <span className="block text-slate-400 text-[11px]">{item.note}</span>}
                       </div>
                       <span className="font-semibold text-slate-700">{item.price ? fmt(item.price) : "Included"}</span>

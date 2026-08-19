@@ -68,10 +68,20 @@ const BookingSchema = new mongoose.Schema(
     landmark: String,
     zip_code: String,
 
+    // Carried over from the quotation that produced this booking, so the
+    // kitchen reads the same quantities and units the customer agreed to.
+    // See Quotation.menu_items for what each field means.
     menu_items: [
       {
         name: String,
         note: String,
+        quantity: { type: Number, default: 1 },
+        unit: String,
+        pricing_type: {
+          type: String,
+          enum: ["per_guest", "quantity"],
+          default: "per_guest",
+        },
         price: Number,
       },
     ],

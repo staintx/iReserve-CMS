@@ -25,6 +25,7 @@ import DetailGrid from "./portal/DetailGrid";
 import AmountSummary from "./portal/AmountSummary";
 import { ACTION_DANGER } from "./portal/actionStyles";
 import { formatCurrency, formatEventDate, formatShortDate, formatTime } from "../../utils/format";
+import { MENU_PRICING, menuLineTotal, menuQuantityOf } from "../../utils/quotationPricing";
 import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationDiff";
 import { groupInclusions } from "../../lib/packageDisplay";
 
@@ -688,19 +689,45 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                     Menu
                   </h4>
                   <ul className="space-y-2.5">
-                    {quotation.menu_items.map((item, idx) => (
-                      <li key={idx} className="flex items-baseline justify-between gap-4">
-                        <div className="min-w-0">
-                          <span className="text-sm text-foreground">{item.name}</span>
-                          {item.note && (
-                            <span className="mt-0.5 block text-xs text-muted-foreground">{item.note}</span>
-                          )}
-                        </div>
-                        <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
-                          {Number(item.price) > 0 ? formatCurrency(item.price) : "Included"}
-                        </span>
-                      </li>
-                    ))}
+                    {/* The same three numbers the admin priced the line on —
+                        how much, at what rate, for what total — because the
+                        old single figure showed a per-head rate next to a
+                        total the customer could not reconcile it with. */}
+                    {quotation.menu_items.map((item, idx) => {
+                      const units = menuQuantityOf(item, guestCount);
+                      const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
+                      const unitLabel = String(item.unit || "").trim();
+                      const lineTotal = menuLineTotal(item, guestCount);
+                      const basis = byQuantity
+                        ? `${units} ${unitLabel || (units === 1 ? "unit" : "units")} × ${formatCurrency(item.price)}`
+                        : `${units} ${units === 1 ? "guest" : "guests"} × ${formatCurrency(item.price)} per guest`;
+                      return (
+                        <li key={idx} className="flex items-baseline justify-between gap-4">
+                          <div className="min-w-0">
+                            <span className="text-sm text-foreground">
+                              {item.name}
+                              {byQuantity && (
+                                <span className="ml-1.5 font-sans text-xs font-semibold text-muted-foreground">
+                                  ×{units}
+                                  {unitLabel ? ` ${unitLabel}` : ""}
+                                </span>
+                              )}
+                            </span>
+                            {Number(item.price) > 0 && (
+                              <span className="mt-0.5 block font-sans text-xs tabular-nums text-muted-foreground">
+                                {basis}
+                              </span>
+                            )}
+                            {item.note && (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">{item.note}</span>
+                            )}
+                          </div>
+                          <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                            {lineTotal > 0 ? formatCurrency(lineTotal) : "Included"}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

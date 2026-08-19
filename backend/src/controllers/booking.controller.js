@@ -2428,7 +2428,16 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   let menuItems = [];
   if (includeFood) {
     if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
-      menuItems = quotation.menu_items;
+      // Quantity, unit, pricing mode and the item note all travel with the
+      // dish so the booking states the same order the customer agreed to.
+      menuItems = quotation.menu_items.map((dish) => ({
+        name: dish.name,
+        note: dish.note,
+        quantity: dish.quantity,
+        unit: dish.unit,
+        pricing_type: dish.pricing_type,
+        price: dish.price,
+      }));
     } else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
       menuItems = inquiry.selected_menu.map(m => (typeof m === 'object' ? { name: m.name || String(m), price: m.price || 0 } : { name: String(m), price: 0 }));
     }

@@ -31,6 +31,22 @@ function isPastEventDate(value) {
   return startOfEventDay < startOfToday;
 }
 
+/**
+ * Whether a quotation's validity date has already run out.
+ *
+ * Same day-granularity rule as the event date: a quotation valid "until
+ * today" is still valid for the rest of today. Issuing one that expired
+ * before it was sent gives the customer nothing they can accept.
+ */
+function isPastDay(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const now = new Date();
+  return startOfDay < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 /** Peso amounts inside validation messages, so the admin reads real figures. */
 const peso = (value) =>
   `PHP ${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -71,6 +87,11 @@ function validateQuotationPayload(body, totals) {
     }
     if (negative(item?.price)) {
       errors[`menu_items.${index}.price`] = "A dish price cannot be negative.";
+    }
+    // Only meaningful on a line charged by its own units; a per-guest dish
+    // takes its quantity from the guest count, which is validated above.
+    if (item?.pricing_type === "quantity" && Number(item?.quantity) < 1) {
+      errors[`menu_items.${index}.quantity`] = "Quantity must be at least 1.";
     }
   });
 
@@ -120,6 +141,13 @@ function validateQuotationPayload(body, totals) {
   if (totals.totalCost <= 0) {
     errors.total_cost =
       "This quotation totals zero. Add the pricing before sending it to the customer.";
+  }
+
+  if (!body.expiration_date) {
+    errors.expiration_date = "Set the date this quotation stops being valid.";
+  } else if (isPastDay(body.expiration_date)) {
+    errors.expiration_date =
+      "This quotation would already have expired. Choose today or a later date.";
   }
 
   // The deposit is what reserves the date. A quotation the customer can accept

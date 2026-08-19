@@ -60,6 +60,13 @@ const nameOf = (item) =>
  * quantity. `amountKey` says which field carries the money, and `addedDetail` /
  * `removedDetail` say how appearing and disappearing should read, because
  * gaining a fee and gaining a deduction mean opposite things to a customer.
+ *
+ * `withNote` opts a list into reporting changes to how a line was *described*
+ * rather than priced — the pricing mode, the unit, and the item note. Only
+ * menu lines carry those, and they matter here because renegotiating "2 bilao
+ * instead of per head" can leave the total untouched while changing what was
+ * actually agreed. A revision that only reworded the arrangement would
+ * otherwise show up as no change at all.
  */
 function diffLineItems(
   previous = [],
@@ -67,6 +74,7 @@ function diffLineItems(
   {
     label,
     withQuantity,
+    withNote = false,
     amountKey = "price",
     addedDetail = (amount) => (amount > 0 ? `Added · +${money(amount)}` : "Added"),
     removedDetail = () => "Removed",
@@ -120,6 +128,44 @@ function diffLineItems(
         to: money(afterAmount),
       });
     }
+
+    if (withNote) {
+      // How the line is charged. Stated in the words the builder uses for the
+      // two modes rather than the stored enum.
+      const modeLabel = (entry) =>
+        entry?.pricing_type === "quantity" ? "per unit" : "per guest";
+      if (modeLabel(before) !== modeLabel(item)) {
+        changes.push({
+          kind: "updated",
+          label,
+          name: itemName,
+          from: modeLabel(before),
+          to: modeLabel(item),
+        });
+      }
+
+      const unitOf = (entry) => String(entry?.unit || "").trim();
+      if (unitOf(before) !== unitOf(item)) {
+        changes.push({
+          kind: "updated",
+          label,
+          name: itemName,
+          from: unitOf(before) || "no unit",
+          to: unitOf(item) || "no unit",
+        });
+      }
+
+      const noteOf = (entry) => String(entry?.note || "").trim();
+      if (noteOf(before) !== noteOf(item)) {
+        changes.push({
+          kind: "updated",
+          label,
+          name: itemName,
+          from: noteOf(before) || "no note",
+          to: noteOf(item) || "no note",
+        });
+      }
+    }
   });
 
   prevByName.forEach((item, key) => {
@@ -172,9 +218,14 @@ export function diffQuotationVersions(previous, current) {
         amount > 0 ? `Removed from package · -${money(amount)}` : "Removed from package",
       removedDetail: () => "Restored to package",
     }),
+    // Quantity counts here now that a dish can be quoted by the bilao rather
+    // than per head: "2 → 3 bilao of Shanghai" is a change the customer is
+    // entitled to see spelled out, not folded into a total. `withNote` adds
+    // the pricing mode, the unit and the item note for the same reason.
     ...diffLineItems(previous?.menu_items || [], current?.menu_items || [], {
       label: "Menu item",
-      withQuantity: false,
+      withQuantity: true,
+      withNote: true,
     }),
     ...diffLineItems(previous?.add_ons || [], current?.add_ons || [], {
       label: "Add-on",

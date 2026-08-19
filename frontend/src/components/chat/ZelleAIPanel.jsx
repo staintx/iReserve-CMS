@@ -445,20 +445,20 @@ export default function ZelleAIPanel() {
             />
           )}
           {/* HEADER WITH TABS */}
-          <div className="bg-primary text-primary-foreground p-3.5 shadow-md relative flex flex-col gap-2.5">
+          <div className="bg-gradient-to-r from-[#1B366B] via-[#2C4B8A] to-[#1E3A73] text-white p-3.5 shadow-md relative flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
-                    {activeTab === "zelle" ? <Sparkles className="w-4 h-4 text-amber-300" /> : <Headphones className="w-4 h-4" />}
+                  <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-2xs">
+                    {activeTab === "zelle" ? <Sparkles className="w-4 h-4 text-amber-300" /> : <Headphones className="w-4 h-4 text-white" />}
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-primary rounded-full" />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#1B366B] rounded-full" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-sm leading-snug">
+                  <h3 className="font-serif font-bold text-sm leading-snug text-white tracking-wide">
                     {activeTab === "zelle" ? "Zelle AI Assistant" : "Caezelle Support Team"}
                   </h3>
-                  <p className="text-[10px] text-primary-foreground/80">
+                  <p className="text-[10px] text-white/85 font-medium">
                     {activeTab === "zelle" ? "Instant 24/7 AI Assistance" : "Event Coordinators • Replies in minutes"}
                   </p>
                 </div>
@@ -468,7 +468,7 @@ export default function ZelleAIPanel() {
                 {activeTab === "zelle" && (
                   <button
                     onClick={handleResetZelle}
-                    className="text-primary-foreground/70 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+                    className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
                     title="Restart conversation"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -477,7 +477,7 @@ export default function ZelleAIPanel() {
                 {user && activeTab === "zelle" && (
                   <button
                     onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                    className="text-primary-foreground/70 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+                    className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
                     title="Previous Conversations"
                   >
                     <History className="w-3.5 h-3.5" />
@@ -485,7 +485,7 @@ export default function ZelleAIPanel() {
                 )}
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-primary-foreground/70 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer hidden sm:block"
+                  className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer hidden sm:block"
                   aria-label={isExpanded ? "Minimize" : "Maximize"}
                   title={isExpanded ? "Minimize" : "Maximize"}
                 >
@@ -493,7 +493,7 @@ export default function ZelleAIPanel() {
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-primary-foreground/80 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+                  className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
                   aria-label="Close chat"
                 >
                   <X className="w-4 h-4" />
@@ -502,30 +502,30 @@ export default function ZelleAIPanel() {
             </div>
 
             {/* TAB SELECTOR */}
-            <div className="flex items-center p-0.5 bg-black/20 rounded-xl">
+            <div className="flex items-center p-1 bg-black/25 rounded-xl border border-white/10 backdrop-blur-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab("zelle")}
                 className={cn(
-                  "flex-1 py-1 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                  "flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
                   activeTab === "zelle"
-                    ? "bg-white text-primary shadow-xs"
-                    : "text-primary-foreground/80 hover:text-white"
+                    ? "bg-white text-[#1B366B] shadow-sm"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
                 )}
               >
-                <Sparkles className="w-3 h-3" /> Zelle AI
+                <Sparkles className={cn("w-3 h-3", activeTab === "zelle" ? "text-amber-500" : "text-white/80")} /> Zelle AI
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("support")}
                 className={cn(
-                  "flex-1 py-1 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                  "flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
                   activeTab === "support"
-                    ? "bg-white text-primary shadow-xs"
-                    : "text-primary-foreground/80 hover:text-white"
+                    ? "bg-white text-[#1B366B] shadow-sm"
+                    : "text-white/80 hover:text-white hover:bg-white/10"
                 )}
               >
-                <Headphones className="w-3 h-3" /> Message Staff
+                <Headphones className={cn("w-3 h-3", activeTab === "support" ? "text-[#1B366B]" : "text-white/80")} /> Message Staff
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Modal from "../../common/Modal";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
+import ZelleQuoteDraft from "../ui/ZelleQuoteDraft";
 import {
   Calculator,
   Send,
@@ -189,10 +190,10 @@ function SummaryRow({ label, value, detail, tone = "default", strong, indent }) 
     tone === "deduct"
       ? "text-emerald-300"
       : tone === "muted"
-      ? "text-slate-300"
-      : strong
-      ? "text-white"
-      : "text-slate-200";
+        ? "text-slate-300"
+        : strong
+          ? "text-white"
+          : "text-slate-200";
   return (
     <div className={`flex items-baseline justify-between gap-3 ${indent ? "pl-3" : ""}`}>
       <span className={`min-w-0 text-xs ${strong ? "font-semibold text-white" : "text-slate-300"}`}>
@@ -510,23 +511,23 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             // before a field existed still picks up the inquiry's value for it.
             ...(pendingDraft?.draft_details
               ? Object.fromEntries(
-                  Object.entries(pendingDraft.draft_details).filter(
-                    ([key, value]) =>
-                      key !== "_id" && value !== undefined && value !== null && value !== ""
-                  )
+                Object.entries(pendingDraft.draft_details).filter(
+                  ([key, value]) =>
+                    key !== "_id" && value !== undefined && value !== null && value !== ""
                 )
+              )
               : {}),
             ...(pendingDraft?.draft_details?.event_type
               ? {
-                  event_type:
-                    matchEventType(pendingDraft.draft_details.event_type) || OTHER_EVENT_TYPE,
-                  event_type_other: isOtherEventType(pendingDraft.draft_details.event_type)
-                    ? pendingDraft.draft_details.event_type
-                    : "",
-                }
+                event_type:
+                  matchEventType(pendingDraft.draft_details.event_type) || OTHER_EVENT_TYPE,
+                event_type_other: isOtherEventType(pendingDraft.draft_details.event_type)
+                  ? pendingDraft.draft_details.event_type
+                  : "",
+              }
               : {}),
             ...(pendingDraft?.draft_details &&
-            typeof pendingDraft.draft_details.include_food === "boolean"
+              typeof pendingDraft.draft_details.include_food === "boolean"
               ? { include_food: pendingDraft.draft_details.include_food }
               : {}),
           }));
@@ -642,17 +643,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           !customerSelection.wantedFood
             ? []
             : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
-                if (item && typeof item === "object") {
-                  return {
-                    name: item.name || "",
-                    note: offerCoversFood
-                      ? `${item.category || item.note || "Included"} · covered by the offer`
-                      : item.category || item.note || "",
-                    price: offerCoversFood || !item.price ? "" : String(item.price),
-                  };
-                }
-                return { name: String(item || ""), note: "", price: "" };
-              })
+              if (item && typeof item === "object") {
+                return {
+                  name: item.name || "",
+                  note: offerCoversFood
+                    ? `${item.category || item.note || "Included"} · covered by the offer`
+                    : item.category || item.note || "",
+                  price: offerCoversFood || !item.price ? "" : String(item.price),
+                };
+              }
+              return { name: String(item || ""), note: "", price: "" };
+            })
         );
 
         setAddOns(
@@ -858,9 +859,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (cateringIncluded && menuItems.length === 0) {
       notes.push(
         customerSelection.dishes.length > 0
-          ? `The customer picked ${customerSelection.dishes.length} dish${
-              customerSelection.dishes.length === 1 ? "" : "es"
-            }, but none are on this quotation. Add them back or confirm the catering is being dropped.`
+          ? `The customer picked ${customerSelection.dishes.length} dish${customerSelection.dishes.length === 1 ? "" : "es"
+          }, but none are on this quotation. Add them back or confirm the catering is being dropped.`
           : "This booking includes catering, but no dishes are quoted yet."
       );
     }
@@ -1341,7 +1341,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       setSubmitting(false);
       notify(
         err.response?.data?.message ||
-          "The event details could not be saved, so the quotation was not sent. Try again.",
+        "The event details could not be saved, so the quotation was not sent. Try again.",
         "error"
       );
       return;
@@ -1412,6 +1412,49 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             Left column: the quotation, in the order it is built
         ------------------------------------------------------------------ */}
         <div ref={formRef} className="flex-1 space-y-4 overflow-y-auto pb-10 pr-1 lg:pr-3">
+          {/* AI Quotation Recommendation Header */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border border-amber-500/30 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                <Sparkles size={15} />
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-xs text-foreground block truncate">Zelle AI Quotation Assistant</span>
+                <p className="text-[11px] text-muted-foreground truncate">Analyze requirements to generate a complete quotation draft</p>
+              </div>
+            </div>
+            <ZelleQuoteDraft
+              inquiryId={inquiry?._id}
+              currentPackageName={packageName}
+              guestCount={details.guest_count}
+              onApplyRecommendation={(rec) => {
+                if (rec.recommended_package) setPackageName(rec.recommended_package);
+                if (rec.starting_price || rec.estimated_package_cost) {
+                  setStartingPrice(String(rec.starting_price || rec.estimated_package_cost));
+                }
+                if (Array.isArray(rec.inclusions) && rec.inclusions.length > 0) {
+                  setInclusions(rec.inclusions.map((name) => ({ name, removed: false, deduction: "", fromPackage: true })));
+                }
+                if (Array.isArray(rec.recommended_addons) && rec.recommended_addons.length > 0) {
+                  setAddOns(
+                    rec.recommended_addons.map((a) => ({
+                      name: typeof a === "object" ? a.name : a,
+                      price: typeof a === "object" && a.price ? String(a.price) : "2500",
+                      quantity: "1",
+                      pricing_type: a.pricing_type || "fixed",
+                    }))
+                  );
+                }
+                if (rec.deposit_amount) {
+                  setDepositAmount(String(rec.deposit_amount));
+                }
+                if (rec.admin_notes) {
+                  setAdminNotes((prev) => (prev ? prev + "\n" + rec.admin_notes : rec.admin_notes));
+                }
+              }}
+            />
+          </div>
+
           {savedDraft && (
             <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 sm:flex-row sm:items-center sm:justify-between">
               <span className="flex items-start gap-2.5">
@@ -1713,26 +1756,26 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 inquiry.dietary_restrictions ||
                 inquiry.dietary_requirements ||
                 inquiry.special_requests) && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
-                    From the customer
-                  </p>
-                  {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
-                    <p>
-                      <span className="font-semibold text-amber-950">Dietary and allergies: </span>
-                      {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
-                        .filter(Boolean)
-                        .join(". ")}
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                      From the customer
                     </p>
-                  )}
-                  {inquiry.special_requests && (
-                    <p className="mt-1 whitespace-pre-line">
-                      <span className="font-semibold text-amber-950">Special requests: </span>
-                      {inquiry.special_requests}
-                    </p>
-                  )}
-                </div>
-              )}
+                    {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
+                      <p>
+                        <span className="font-semibold text-amber-950">Dietary and allergies: </span>
+                        {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
+                          .filter(Boolean)
+                          .join(". ")}
+                      </p>
+                    )}
+                    {inquiry.special_requests && (
+                      <p className="mt-1 whitespace-pre-line">
+                        <span className="font-semibold text-amber-950">Special requests: </span>
+                        {inquiry.special_requests}
+                      </p>
+                    )}
+                  </div>
+                )}
             </div>
           </SectionCard>
 
@@ -1741,81 +1784,81 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             inquiry.event_theme ||
             (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) ||
             (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
-            <SectionCard
-              icon={Sparkles}
-              title="Bespoke event setup brief"
-              description="The design request as the customer described it. Reference only."
-              aside={
-                <span className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                  {inquiry.is_custom_setup ? "Fully custom request" : "Custom preferences"}
-                </span>
-              }
-            >
-              <div className="space-y-3 text-xs text-slate-700">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {inquiry.event_theme && (
+              <SectionCard
+                icon={Sparkles}
+                title="Bespoke event setup brief"
+                description="The design request as the customer described it. Reference only."
+                aside={
+                  <span className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                    {inquiry.is_custom_setup ? "Fully custom request" : "Custom preferences"}
+                  </span>
+                }
+              >
+                <div className="space-y-3 text-xs text-slate-700">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {inquiry.event_theme && (
+                      <div>
+                        <span className={LABEL_CLASS}>Theme</span>
+                        <span className="font-semibold text-slate-900">{inquiry.event_theme}</span>
+                      </div>
+                    )}
+                    {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
+                      <div>
+                        <span className={LABEL_CLASS}>Palette</span>
+                        <span className="font-semibold text-slate-900">
+                          {inquiry.event_palette.join(", ")}
+                        </span>
+                      </div>
+                    )}
+                    {inquiry.budget_range && (
+                      <div>
+                        <span className={LABEL_CLASS}>Customer budget</span>
+                        <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
                     <div>
-                      <span className={LABEL_CLASS}>Theme</span>
-                      <span className="font-semibold text-slate-900">{inquiry.event_theme}</span>
+                      <span className={LABEL_CLASS}>Requested scope</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {inquiry.custom_setup_scope.map((scope, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                          >
+                            <Check size={11} className="text-primary" /> {scope}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
-                    <div>
-                      <span className={LABEL_CLASS}>Palette</span>
-                      <span className="font-semibold text-slate-900">
-                        {inquiry.event_palette.join(", ")}
-                      </span>
-                    </div>
+
+                  {inquiry.custom_setup_notes && (
+                    <p className="whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-2.5 leading-relaxed">
+                      {inquiry.custom_setup_notes}
+                    </p>
                   )}
-                  {inquiry.budget_range && (
-                    <div>
-                      <span className={LABEL_CLASS}>Customer budget</span>
-                      <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
+
+                  {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {inquiry.inspiration_images.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block h-16 w-16 overflow-hidden rounded-md border border-slate-200 transition-colors hover:border-primary"
+                          title="Open full image in a new tab"
+                        >
+                          <img src={url} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover" />
+                        </a>
+                      ))}
                     </div>
                   )}
                 </div>
-
-                {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
-                  <div>
-                    <span className={LABEL_CLASS}>Requested scope</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {inquiry.custom_setup_scope.map((scope, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
-                        >
-                          <Check size={11} className="text-primary" /> {scope}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {inquiry.custom_setup_notes && (
-                  <p className="whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-2.5 leading-relaxed">
-                    {inquiry.custom_setup_notes}
-                  </p>
-                )}
-
-                {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {inquiry.inspiration_images.map((url, idx) => (
-                      <a
-                        key={idx}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block h-16 w-16 overflow-hidden rounded-md border border-slate-200 transition-colors hover:border-primary"
-                        title="Open full image in a new tab"
-                      >
-                        <img src={url} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </SectionCard>
-          )}
+              </SectionCard>
+            )}
 
           {/* --- 2. Package and starting price ------------------------------- */}
           {/* A Special Offer arrives with one figure already settled and a list
@@ -1964,9 +2007,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 <span className="text-slate-500">
                   Removed inclusions
                   <strong
-                    className={`ml-2 tabular-nums ${
-                      totals.inclusionDeductions > 0 ? "text-emerald-700" : "text-slate-800"
-                    }`}
+                    className={`ml-2 tabular-nums ${totals.inclusionDeductions > 0 ? "text-emerald-700" : "text-slate-800"
+                      }`}
                   >
                     {totals.inclusionDeductions > 0
                       ? `- ${formatCurrency(totals.inclusionDeductions)}`
@@ -2014,18 +2056,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 {inclusions.map((entry, index) => (
                   <li
                     key={index}
-                    className={`rounded-lg border p-2.5 transition-colors ${
-                      entry.removed
+                    className={`rounded-lg border p-2.5 transition-colors ${entry.removed
                         ? "border-emerald-200 bg-emerald-50/50"
                         : "border-slate-200 bg-white"
-                    }`}
+                      }`}
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            entry.removed ? "bg-emerald-500" : "bg-primary"
-                          }`}
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${entry.removed ? "bg-emerald-500" : "bg-primary"
+                            }`}
                         />
                         <input
                           id={`qb-inclusions.${index}.name`}
@@ -2033,9 +2073,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                           value={entry.name}
                           onChange={(e) => handleInclusionName(index, e.target.value)}
                           placeholder="Inclusion description"
-                          className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${
-                            entry.removed ? "line-through decoration-slate-400" : ""
-                          }`}
+                          className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${entry.removed ? "line-through decoration-slate-400" : ""
+                            }`}
                         />
                       </div>
 
@@ -2151,11 +2190,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   a declined catering request look identical otherwise, and one
                   of them means the admin has lost the customer's selection. */}
               <div
-                className={`mb-3 flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${
-                  cateringIncluded
+                className={`mb-3 flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${cateringIncluded
                     ? "border-primary/25 bg-primary/5 text-slate-700"
                     : "border-slate-300 bg-slate-50 text-slate-700"
-                }`}
+                  }`}
               >
                 {cateringIncluded ? (
                   <Utensils size={15} className="mt-0.5 shrink-0 text-primary" />
@@ -2227,103 +2265,103 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </label>
 
               {cateringIncluded && (
-              <>
-              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
-                <select
-                  value={selectedCatalogDish}
-                  onChange={(e) => setSelectedCatalogDish(e.target.value)}
-                  className={`${inputClass(false)} text-xs`}
-                >
-                  <option value="">Pick a dish from the menu catalog</option>
-                  {catalogMenuItems.map((item) => (
-                    <option key={item._id} value={item._id}>
-                      {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleAddCatalogDish}
-                  disabled={!selectedCatalogDish}
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
-                >
-                  <Plus size={13} /> Add dish
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMenuItems((prev) => [...prev, { name: "", price: "", note: "" }])}
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  <Plus size={13} /> Custom dish
-                </button>
-              </div>
+                <>
+                  <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
+                    <select
+                      value={selectedCatalogDish}
+                      onChange={(e) => setSelectedCatalogDish(e.target.value)}
+                      className={`${inputClass(false)} text-xs`}
+                    >
+                      <option value="">Pick a dish from the menu catalog</option>
+                      {catalogMenuItems.map((item) => (
+                        <option key={item._id} value={item._id}>
+                          {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleAddCatalogDish}
+                      disabled={!selectedCatalogDish}
+                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
+                    >
+                      <Plus size={13} /> Add dish
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMenuItems((prev) => [...prev, { name: "", price: "", note: "" }])}
+                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <Plus size={13} /> Custom dish
+                    </button>
+                  </div>
 
-              {menuItems.length === 0 ? (
-                <p className="py-3 text-center text-xs italic text-slate-500">
-                  No dishes on this quotation yet. Add the ones this event covers so they can be
-                  priced per guest.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {menuItems.map((item, index) => (
-                    <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
-                      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                        <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-                          <input
-                            id={`qb-menu_items.${index}.name`}
-                            type="text"
-                            value={item.name}
-                            onChange={(e) => handleMenuChange(index, "name", e.target.value)}
-                            placeholder="Dish name"
-                            className={`${inputClass(errors[`menu_items.${index}.name`])} py-1.5 text-xs font-semibold`}
-                          />
-                          <input
-                            type="text"
-                            value={item.note || ""}
-                            onChange={(e) => handleMenuChange(index, "note", e.target.value)}
-                            placeholder="Note or category (optional)"
-                            className={`${inputClass(false)} py-1.5 text-xs`}
-                          />
-                        </div>
+                  {menuItems.length === 0 ? (
+                    <p className="py-3 text-center text-xs italic text-slate-500">
+                      No dishes on this quotation yet. Add the ones this event covers so they can be
+                      priced per guest.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {menuItems.map((item, index) => (
+                        <li key={index} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                            <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                              <input
+                                id={`qb-menu_items.${index}.name`}
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => handleMenuChange(index, "name", e.target.value)}
+                                placeholder="Dish name"
+                                className={`${inputClass(errors[`menu_items.${index}.name`])} py-1.5 text-xs font-semibold`}
+                              />
+                              <input
+                                type="text"
+                                value={item.note || ""}
+                                onChange={(e) => handleMenuChange(index, "note", e.target.value)}
+                                placeholder="Note or category (optional)"
+                                className={`${inputClass(false)} py-1.5 text-xs`}
+                              />
+                            </div>
 
-                        <div className="flex items-center gap-3 lg:shrink-0">
-                          <div className="w-32">
-                            <MoneyInput
-                              id={`qb-menu_items.${index}.price`}
-                              value={item.price}
-                              placeholder="Per pax"
-                              error={errors[`menu_items.${index}.price`]}
-                              onChange={(value) => handleMenuChange(index, "price", value)}
-                              className="py-1.5 text-xs"
-                            />
+                            <div className="flex items-center gap-3 lg:shrink-0">
+                              <div className="w-32">
+                                <MoneyInput
+                                  id={`qb-menu_items.${index}.price`}
+                                  value={item.price}
+                                  placeholder="Per pax"
+                                  error={errors[`menu_items.${index}.price`]}
+                                  onChange={(value) => handleMenuChange(index, "price", value)}
+                                  className="py-1.5 text-xs"
+                                />
+                              </div>
+                              <div className="min-w-[104px] text-right">
+                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                  {totals.guestCount} pax
+                                </span>
+                                <span className="text-xs font-bold tabular-nums text-slate-800">
+                                  {formatCurrency(money(item.price) * totals.guestCount)}
+                                </span>
+                              </div>
+                              <RowAction
+                                onClick={() => handleRemoveMenuItem(index)}
+                                icon={Trash2}
+                                label="Remove"
+                                title="Remove this dish from the quotation"
+                              />
+                            </div>
                           </div>
-                          <div className="min-w-[104px] text-right">
-                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                              {totals.guestCount} pax
-                            </span>
-                            <span className="text-xs font-bold tabular-nums text-slate-800">
-                              {formatCurrency(money(item.price) * totals.guestCount)}
-                            </span>
-                          </div>
-                          <RowAction
-                            onClick={() => handleRemoveMenuItem(index)}
-                            icon={Trash2}
-                            label="Remove"
-                            title="Remove this dish from the quotation"
-                          />
-                        </div>
-                      </div>
-                      {(errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]) && (
-                        <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
-                          <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                          {errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              </>
+                          {(errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]) && (
+                            <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                              <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                              {errors[`menu_items.${index}.name`] || errors[`menu_items.${index}.price`]}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </SectionCard>
           )}
@@ -2383,9 +2421,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     return (
                       <li
                         key={index}
-                        className={`rounded-lg border p-2.5 transition-colors ${
-                          item.removed ? "border-slate-300 bg-slate-50" : "border-slate-200 bg-white"
-                        }`}
+                        className={`rounded-lg border p-2.5 transition-colors ${item.removed ? "border-slate-300 bg-slate-50" : "border-slate-200 bg-white"
+                          }`}
                       >
                         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                           <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2396,9 +2433,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                               disabled={item.removed}
                               onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
                               placeholder="Add-on or service name"
-                              className={`${inputClass(errors[`add_ons.${index}.name`])} py-1.5 text-xs font-semibold ${
-                                item.removed ? "line-through decoration-slate-400" : ""
-                              }`}
+                              className={`${inputClass(errors[`add_ons.${index}.name`])} py-1.5 text-xs font-semibold ${item.removed ? "line-through decoration-slate-400" : ""
+                                }`}
                             />
                             <select
                               value={item.pricing_type || "fixed"}
@@ -2445,9 +2481,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 Line total
                               </span>
                               <span
-                                className={`text-xs font-bold tabular-nums ${
-                                  item.removed ? "text-slate-400 line-through" : "text-slate-800"
-                                }`}
+                                className={`text-xs font-bold tabular-nums ${item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                                  }`}
                               >
                                 {formatCurrency(addOnLineTotal(item))}
                               </span>
@@ -2816,9 +2851,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         </span>
                         {change.detail ? (
                           <span
-                            className={`ml-1.5 ${
-                              change.kind === "removed" ? "text-emerald-300" : "text-slate-200"
-                            }`}
+                            className={`ml-1.5 ${change.kind === "removed" ? "text-emerald-300" : "text-slate-200"
+                              }`}
                           >
                             {change.detail}
                           </span>
@@ -2856,8 +2890,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               {submitting
                 ? "Sending"
                 : quotation
-                ? "Send revised quotation"
-                : "Send quotation"}
+                  ? "Send revised quotation"
+                  : "Send quotation"}
             </button>
             {/* Parks the work as it stands. Required fields are checked when
                 sending, not here, so an admin is never forced to invent a

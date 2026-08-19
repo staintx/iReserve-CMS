@@ -4,7 +4,7 @@ import CustomerLayout from "../../components/layout/CustomerLayout";
 import CustomerFooter from "../../components/layout/CustomerFooter";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, X, Sparkles } from "lucide-react";
 import {
   capacityLabel,
   eventTypeForPackage,
@@ -376,7 +376,7 @@ export default function PackageDetails() {
                     </div>
                   )}
 
-                  <div className="ls-detail-actions">
+                  <div className="ls-detail-actions flex-wrap gap-2">
                     <button
                       type="button"
                       className="ls-btn ls-btn--primary"
@@ -394,6 +394,21 @@ export default function PackageDetails() {
                       }
                     >
                       Request Custom Booking
+                    </button>
+                    <button
+                      type="button"
+                      className="ls-btn inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent("open-zelle-chat", {
+                          detail: {
+                            tab: "zelle",
+                            prompt: `Can you tell me more about ${data.name}, its inclusions, and budget suitability?`
+                          }
+                        }));
+                      }}
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      Ask Zelle AI
                     </button>
                   </div>
                 </div>

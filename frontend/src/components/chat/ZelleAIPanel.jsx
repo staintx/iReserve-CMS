@@ -19,7 +19,10 @@ import {
   Headphones,
   Calendar,
   Package,
-  Layers
+  Layers,
+  History,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -27,6 +30,8 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Badge } from "../ui/badge";
 import { cn } from "@/lib/utils";
 import ZelleMessage from "./ZelleMessage";
+import ZelleAIFab from "./ZelleAIFab";
+import ConversationHistoryDrawer from "./ConversationHistoryDrawer";
 
 const ZELLE_SUGGESTIONS = [
   "✨ Recommend wedding packages",
@@ -143,12 +148,15 @@ const mergeMessageLists = (existingMessages, fetchedMessages, targetConversation
   return result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 };
 
-export default function FloatingChatWidget() {
+export default function ZelleAIPanel() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { notify } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [allConversations, setAllConversations] = useState([]);
   const [activeTab, setActiveTab] = useState("zelle"); // 'zelle' | 'support'
 
   // --- Zelle AI State ---
@@ -205,8 +213,6 @@ export default function FloatingChatWidget() {
     const t = setTimeout(() => {
       if (activeTab === "zelle") {
         zelleEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      } else {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }
     }, 60);
     return () => clearTimeout(t);
@@ -411,11 +417,33 @@ export default function FloatingChatWidget() {
 
   return (
     <>
+      {isOpen && isExpanded && (
+        <div 
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm animate-in fade-in duration-300" 
+          onClick={() => setIsExpanded(false)} 
+        />
+      )}
       {isOpen ? (
         <div
-          className="fixed right-4 sm:right-6 z-50 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
-          style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
+          className={cn(
+            "fixed z-50 border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+            isExpanded
+              ? "inset-4 sm:inset-10 rounded-3xl md:w-[900px] md:h-[800px] md:max-h-[85vh] md:m-auto"
+              : "right-4 sm:right-6 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-3xl origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+          )}
+          style={!isExpanded ? { bottom: "var(--chat-fab-bottom, 5.5rem)" } : {}}
         >
+          {/* HISTORY DRAWER */}
+          {user && activeTab === "zelle" && (
+            <ConversationHistoryDrawer
+              isOpen={isHistoryOpen}
+              conversations={allConversations}
+              activeConvId={zelleConvId}
+              onSelectConversation={(id) => { setIsHistoryOpen(false); }}
+              onDeleteConversation={(id) => {}}
+              onNewConversation={() => { handleResetZelle(); setIsHistoryOpen(false); }}
+            />
+          )}
           {/* HEADER WITH TABS */}
           <div className="bg-primary text-primary-foreground p-3.5 shadow-md relative flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
@@ -428,7 +456,7 @@ export default function FloatingChatWidget() {
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-sm leading-snug">
-                    {activeTab === "zelle" ? "Zelle AI Concierge" : "Caezelle Support Team"}
+                    {activeTab === "zelle" ? "Zelle AI Assistant" : "Caezelle Support Team"}
                   </h3>
                   <p className="text-[10px] text-primary-foreground/80">
                     {activeTab === "zelle" ? "Instant 24/7 AI Assistance" : "Human Team • Replies in minutes"}
@@ -446,6 +474,23 @@ export default function FloatingChatWidget() {
                     <RotateCcw className="w-3.5 h-3.5" />
                   </button>
                 )}
+                {user && activeTab === "zelle" && (
+                  <button
+                    onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                    className="text-primary-foreground/70 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+                    title="Previous Conversations"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="text-primary-foreground/70 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer hidden sm:block"
+                  aria-label={isExpanded ? "Minimize" : "Maximize"}
+                  title={isExpanded ? "Minimize" : "Maximize"}
+                >
+                  {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                </button>
                 <button
                   onClick={() => setIsOpen(false)}
                   className="text-primary-foreground/80 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
@@ -480,7 +525,7 @@ export default function FloatingChatWidget() {
                     : "text-primary-foreground/80 hover:text-white"
                 )}
               >
-                <Headphones className="w-3 h-3" /> Human Support
+                <Headphones className="w-3 h-3" /> Message Staff
               </button>
             </div>
           </div>
@@ -667,20 +712,9 @@ export default function FloatingChatWidget() {
             </>
           )}
         </div>
-      ) : (
-        /* TRIGGER BUTTON */
-        <Button
-          className="fixed right-4 sm:right-6 z-50 h-14 w-14 rounded-full shadow-2xl bg-gradient-to-tr from-primary to-amber-600 text-white hover:scale-105 active:scale-95 transition-all duration-300 ease-out flex items-center justify-center border-2 border-background cursor-pointer animate-in fade-in zoom-in-75"
-          style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
-          size="icon"
-          type="button"
-          onClick={() => setIsOpen(true)}
-          aria-label="Open Zelle AI"
-          title="Chat with Zelle AI"
-        >
-          <Sparkles className="w-6 h-6 text-amber-200" />
-        </Button>
-      )}
+      ) : null}
+
+      <ZelleAIFab isOpen={isOpen} onClick={() => setIsOpen(!isOpen)} />
     </>
   );
 }

@@ -14,7 +14,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import FloatingChatWidget from "../chat/FloatingChatWidget";
+import ZelleAIPanel from "../chat/ZelleAIPanel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -432,7 +432,7 @@ export default function CustomerLayout({
         {children}
       </main>
 
-      <FloatingChatWidget />
+      <ZelleAIPanel />
 
       {showLogoutConfirm && (
         <ConfirmDialog

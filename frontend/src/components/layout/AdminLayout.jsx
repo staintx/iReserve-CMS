@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdminSidebar from "./AdminSidebar";
+import AdminCopilotPanel from "../admin/ui/AdminCopilotPanel";
 import { Menu } from "lucide-react";
 import { Button } from "../ui/button";
 
@@ -28,6 +29,9 @@ export default function AdminLayout({ children }) {
           </div>
         </main>
       </div>
+
+      {/* Global Admin AI Copilot Panel */}
+      <AdminCopilotPanel />
     </div>
   );
 }

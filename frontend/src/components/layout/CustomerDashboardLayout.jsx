@@ -4,7 +4,7 @@ import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
 import NotificationBell from "../common/NotificationBell";
-import { LayoutDashboard, Calendar, MessageSquare, LogOut, ChevronLeft, FileText, Menu, X } from "lucide-react";
+import { LayoutDashboard, Calendar, MessageSquare, LogOut, ChevronLeft, FileText, Menu, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 

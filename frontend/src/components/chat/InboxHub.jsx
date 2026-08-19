@@ -498,20 +498,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     };
   }, [activeId, user?._id, isCustomerRole]);
 
-  useEffect(() => {
-    isInitialScroll.current = true;
-  }, [activeId]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: isInitialScroll.current ? "auto" : "smooth" 
-    });
-    if (messages.length > 0) {
-      setTimeout(() => {
-        isInitialScroll.current = false;
-      }, 50);
-    }
-  }, [messages, typingUsers]);
 
   const handleSend = async (overrideBody = null) => {
     const textToSend = (overrideBody !== null ? overrideBody : draft).trim();

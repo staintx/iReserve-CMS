@@ -10,7 +10,6 @@ import { Button } from "../ui/button";
 
 const navItems = [
   { to: "/customer/dashboard", label: "Dashboard", desc: "Overview of your events", icon: LayoutDashboard },
-  { to: "/customer/assistant", label: "Zelle AI Assistant", desc: "Concierge, Quotes & Pay", icon: Sparkles, isAi: true },
   { to: "/customer/inquiries", label: "My Inquiries", desc: "View quote requests", icon: FileText },
   { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status", icon: Calendar },
   { to: "/customer/messages", label: "Messages", desc: "Chat with our team", icon: MessageSquare }

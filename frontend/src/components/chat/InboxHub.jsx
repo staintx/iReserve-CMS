@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import useToast from "../../hooks/useToast";
 import { listConversations, getConversation, getMessages, sendMessage, markConversationAsRead } from "../../api/messages";
+import { getZelleResponseDraft } from "../../api/zelle";
 import { getSocket } from "../../api/socket";
 import { 
   Search, 
@@ -253,6 +254,9 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showDetailsPane, setShowDetailsPane] = useState(!isCustomerRole);
+
+  const [isAiDrafting, setIsAiDrafting] = useState(false);
+  const [aiDraft, setAiDraft] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
@@ -943,8 +947,35 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
           {/* Quick Replies Bar for Admin / Manager */}
           {!isCustomerRole && (
             <div className="px-4 py-2 border-t border-border bg-card/60 flex items-center gap-2 overflow-x-auto hide-scrollbar">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" /> Quick Reply:
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={async () => {
+                  if (!activeId || isAiDrafting) return;
+                  setIsAiDrafting(true);
+                  try {
+                    const res = await getZelleResponseDraft({
+                      conversation_id: activeId,
+                      intent_notes: "Answer customer inquiry politely and provide helpful catering next steps",
+                    });
+                    if (res?.draft) {
+                      setAiDraft(res.draft);
+                    }
+                  } catch (e) {
+                    notify("Failed to generate AI response draft.", "error");
+                  } finally {
+                    setIsAiDrafting(false);
+                  }
+                }}
+                disabled={isAiDrafting || !activeId}
+                className="text-xs h-7 rounded-full bg-gradient-to-r from-amber-500/10 to-primary/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 shrink-0 font-medium"
+              >
+                <Sparkles className={cn("w-3.5 h-3.5 text-amber-500 mr-1", isAiDrafting && "animate-spin")} />
+                {isAiDrafting ? "Drafting with Zelle..." : "Draft with Zelle"}
+              </Button>
+
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0 flex items-center gap-1 ml-2">
+                Quick Reply:
               </span>
               {QUICK_REPLIES.map((reply, idx) => (
                 <button
@@ -956,6 +987,41 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                   {reply.length > 35 ? reply.slice(0, 35) + "..." : reply}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* AI Response Draft Banner */}
+          {aiDraft && (
+            <div className="px-4 py-3 bg-amber-50/70 dark:bg-amber-950/30 border-t border-amber-500/30 flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Zelle AI Suggested Response Draft:</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="xs"
+                    className="h-6 text-[11px] bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                    onClick={() => {
+                      setDraft(aiDraft);
+                      setAiDraft(null);
+                    }}
+                  >
+                    Insert into Message Box
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="h-6 text-[11px] text-muted-foreground"
+                    onClick={() => setAiDraft(null)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-foreground/90 whitespace-pre-wrap bg-card/90 p-2.5 rounded-xl border border-border/60 leading-relaxed font-sans">
+                {aiDraft}
+              </p>
             </div>
           )}
 

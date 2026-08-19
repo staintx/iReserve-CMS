@@ -5,6 +5,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import QuotationBuilderModal from "../../components/admin/quotation/QuotationBuilderModal";
 import ConvertBookingModal from "../../components/admin/quotation/ConvertBookingModal";
+import ZelleQuoteDraft from "../../components/admin/ui/ZelleQuoteDraft";
 import { 
   User, Mail, Phone, Calendar, Clock, MapPin, 
   DollarSign, Info, ArrowLeft, CheckCircle2,
@@ -163,8 +164,16 @@ export default function AdminQuoteDetails() {
 
           <div className="flex flex-wrap items-center gap-2 pt-1 sm:pt-0">
             {!isConverted && (
+              <ZelleQuoteDraft
+                inquiryId={quote._id}
+                currentPackageName={quote.package_id?.name || quote.package_name_snapshot}
+                guestCount={quote.guest_count}
+                onApplyRecommendation={() => setShowConvertModal(true)}
+              />
+            )}
+            {!isConverted && (
               <button 
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs hover:shadow transition-all"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs hover:shadow transition-all cursor-pointer"
                 onClick={() => setShowConvertModal(true)}
               >
                 <Activity size={14} className="text-primary-400" />

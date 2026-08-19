@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import useToast from "../../hooks/useToast";
 import { listConversations, getMessages, sendMessage, createConversation, markConversationAsRead } from "../../api/messages";
+import { sendZelleCustomerMessage, getZelleCustomerHistory, clearZelleCustomerHistory } from "../../api/zelle";
 import { getSocket } from "../../api/socket";
 import { 
   MessageSquare, 
@@ -14,14 +15,28 @@ import {
   LogIn, 
   User,
   ChevronRight,
-  ExternalLink
+  RotateCcw,
+  Headphones,
+  Calendar,
+  Package,
+  Layers
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
+import { Badge } from "../ui/badge";
 import { cn } from "@/lib/utils";
+import ZelleMessage from "./ZelleMessage";
 
-const QUICK_REPLIES = [
+const ZELLE_SUGGESTIONS = [
+  "✨ Recommend wedding packages",
+  "📅 Is Dec 15 available?",
+  "💰 Package for 100 pax under ₱60k",
+  "📝 Help me draft an inquiry",
+  "🥩 What beef viands are available?"
+];
+
+const SUPPORT_QUICK_REPLIES = [
   "Can I modify my booking?",
   "What's included in my package?",
   "Payment options?",
@@ -128,95 +143,116 @@ const mergeMessageLists = (existingMessages, fetchedMessages, targetConversation
   return result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 };
 
-const sendMessageThroughSocket = (socket, payload) => {
-  return new Promise((resolve, reject) => {
-    if (!socket?.connected) {
-      reject(new Error("Socket unavailable"));
-      return;
-    }
-
-    socket.emit("message:send", payload, (response) => {
-      if (!response?.ok) {
-        reject(new Error(response?.message || "Could not send message."));
-        return;
-      }
-      resolve(response.message);
-    });
-  });
-};
-
-const sendMessageWithFallback = async ({ socket, conversationId, payload }) => {
-  if (socket?.connected) {
-    try {
-      return await sendMessageThroughSocket(socket, payload);
-    } catch (socketErr) {
-      console.debug("Socket send failed, falling back to REST:", socketErr.message);
-    }
-  }
-
-  return sendMessage(conversationId, payload);
-};
-
-const formatTimeAgo = (dateString) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "";
-  const diffMs = Date.now() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-};
-
 export default function FloatingChatWidget() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { notify } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [conversation, setConversation] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState("");
+  const [activeTab, setActiveTab] = useState("zelle"); // 'zelle' | 'support'
+
+  // --- Zelle AI State ---
+  const [zelleMessages, setZelleMessages] = useState([]);
+  const [zelleDraft, setZelleDraft] = useState("");
+  const [isZelleLoading, setIsZelleLoading] = useState(false);
+  const [zelleConvId, setZelleConvId] = useState(null);
+  const [guestSessionId, setGuestSessionId] = useState(() => {
+    let s = localStorage.getItem("zelle_session_id");
+    if (!s) {
+      s = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      localStorage.setItem("zelle_session_id", s);
+    }
+    return s;
+  });
+
+  // --- Support Staff Chat State ---
+  const [supportConversation, setSupportConversation] = useState(null);
+  const [supportMessages, setSupportMessages] = useState([]);
+  const [supportDraft, setSupportDraft] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
   const [showAttachmentInput, setShowAttachmentInput] = useState(false);
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [isSupportLoading, setIsSupportLoading] = useState(false);
+  const [isSupportSending, setIsSupportSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
 
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const zelleEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const isInitialScroll = useRef(true);
+
+  // Listen to external triggers (Contextual Inline Helpers!)
+  useEffect(() => {
+    const handleContextualPrompt = (e) => {
+      const { prompt, tab } = e.detail || {};
+      setIsOpen(true);
+      if (tab) setActiveTab(tab);
+      if (prompt) {
+        if (activeTab === "zelle" || tab === "zelle") {
+          handleSendZelle(prompt);
+        } else {
+          setSupportDraft(prompt);
+        }
+      }
+    };
+
+    window.addEventListener("open-zelle-chat", handleContextualPrompt);
+    return () => window.removeEventListener("open-zelle-chat", handleContextualPrompt);
+  }, []);
 
   // Auto scroll to bottom
   useEffect(() => {
-    if (!isOpen) {
-      isInitialScroll.current = true;
-      return;
-    }
-    let t = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: isInitialScroll.current ? "auto" : "smooth" 
-      });
-      if (messages.length > 0) {
-        isInitialScroll.current = false;
+    if (!isOpen) return;
+    const t = setTimeout(() => {
+      if (activeTab === "zelle") {
+        zelleEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }
     }, 60);
     return () => clearTimeout(t);
-  }, [messages, typingUsers, isOpen]);
+  }, [zelleMessages, isZelleLoading, supportMessages, typingUsers, isOpen, activeTab]);
 
-  // Load support conversation when widget opens & user is logged in
+  // Load Zelle conversation history on mount/open
   useEffect(() => {
-    if (!isOpen || !user) return;
+    if (!isOpen || activeTab !== "zelle") return;
 
     let isMounted = true;
-    const initChat = async () => {
-      setIsLoading(true);
+    const fetchZelleHistory = async () => {
       try {
-        let conversationsList = await listConversations();
+        const history = await getZelleCustomerHistory(guestSessionId);
+        if (!isMounted) return;
+        if (history?.messages?.length > 0) {
+          setZelleMessages(history.messages);
+          setZelleConvId(history.conversation_id);
+        } else {
+          // Default initial AI welcome bubble
+          setZelleMessages([
+            {
+              role: "model",
+              text: `Hello! 👋 I'm **Zelle**, your AI Concierge for Caezelle's Catering Services.\n\nI can help you explore catering packages, check date availability, estimate budgets, or draft an inquiry for your upcoming event.\n\nHow can I assist you today?`,
+              timestamp: new Date().toISOString(),
+              ui_cards: [],
+            },
+          ]);
+        }
+      } catch (err) {
+        console.debug("Failed to load Zelle history:", err);
+      }
+    };
+
+    fetchZelleHistory();
+    return () => { isMounted = false; };
+  }, [isOpen, activeTab, user]);
+
+  // Load Support staff conversation
+  useEffect(() => {
+    if (!isOpen || activeTab !== "support" || !user) return;
+
+    let isMounted = true;
+    const initSupportChat = async () => {
+      setIsSupportLoading(true);
+      try {
+        const conversationsList = await listConversations();
         let supportConv = conversationsList?.find((c) => c.type === "support" || !c.booking_id);
 
         if (!supportConv) {
@@ -224,421 +260,425 @@ export default function FloatingChatWidget() {
         }
 
         if (!isMounted) return;
-        setConversation(supportConv);
+        setSupportConversation(supportConv);
 
         if (supportConv?._id) {
           const msgs = await getMessages(supportConv._id);
-          if (isMounted) setMessages((prev) => mergeMessageLists(prev, msgs || [], supportConv._id));
+          if (isMounted) setSupportMessages((prev) => mergeMessageLists(prev, msgs || [], supportConv._id));
           await markConversationAsRead(supportConv._id).catch(() => {});
         }
       } catch (err) {
-        console.error("Error loading chat widget:", err);
+        console.error("Error loading support chat:", err);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) setIsSupportLoading(false);
       }
     };
 
-    initChat();
+    initSupportChat();
     return () => { isMounted = false; };
-  }, [isOpen, user]);
+  }, [isOpen, activeTab, user]);
 
-  // Active polling net for floating widget when open (every 3 seconds)
-  useEffect(() => {
-    if (!isOpen || !conversation?._id) return;
-    const interval = setInterval(async () => {
-      try {
-        const fetchedMsgs = await getMessages(conversation._id);
-        if (fetchedMsgs && Array.isArray(fetchedMsgs)) {
-          setMessages((prev) => mergeMessageLists(prev, fetchedMsgs, conversation._id));
-        }
-      } catch (e) {}
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [isOpen, conversation?._id]);
+  // Handle Send Zelle message
+  const handleSendZelle = async (overrideText = null) => {
+    const textToSend = (overrideText !== null ? overrideText : zelleDraft).trim();
+    if (!textToSend || isZelleLoading) return;
 
-  const convIdRef = useRef(conversation?._id);
-  useEffect(() => {
-    convIdRef.current = conversation?._id;
-  }, [conversation?._id]);
+    const userMessage = {
+      role: "user",
+      text: textToSend,
+      timestamp: new Date().toISOString(),
+    };
 
-  // Real-time socket integration
+    setZelleMessages((prev) => [...prev, userMessage]);
+    if (overrideText === null) setZelleDraft("");
+    setIsZelleLoading(true);
+
+    try {
+      const response = await sendZelleCustomerMessage({
+        message: textToSend,
+        conversation_id: zelleConvId,
+        session_id: guestSessionId,
+      });
+
+      if (response?.conversation_id) {
+        setZelleConvId(response.conversation_id);
+      }
+
+      const botMessage = {
+        role: "model",
+        text: response?.text || "I'm sorry, I couldn't generate a response. Please try again.",
+        ui_cards: response?.ui_cards || [],
+        timestamp: new Date().toISOString(),
+      };
+
+      setZelleMessages((prev) => [...prev, botMessage]);
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to reach Zelle AI.", "error");
+      setZelleMessages((prev) => [
+        ...prev,
+        {
+          role: "model",
+          text: "I experienced a connection issue. Please check your network and try again.",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsZelleLoading(false);
+    }
+  };
+
+  // Handle Reset Zelle conversation
+  const handleResetZelle = async () => {
+    try {
+      await clearZelleCustomerHistory(zelleConvId);
+      setZelleConvId(null);
+      setZelleMessages([
+        {
+          role: "model",
+          text: `Conversation restarted! How can I assist you with your catering plans?`,
+          timestamp: new Date().toISOString(),
+          ui_cards: [],
+        },
+      ]);
+      notify("Zelle AI conversation reset.", "info");
+    } catch (e) {
+      notify("Could not reset chat.", "error");
+    }
+  };
+
+  // Socket setup for Support tab
   useEffect(() => {
-    if (!isOpen || !user) return undefined;
+    if (!isOpen || activeTab !== "support" || !user) return undefined;
 
     const socket = getSocket();
     socketRef.current = socket;
-    const joinedConversationId = convIdRef.current;
+    const joinedId = supportConversation?._id;
 
-    const joinRoom = () => {
-      if (joinedConversationId && socket.connected) {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        socket.emit("conversation:join", { conversationId: joinedConversationId, token });
-      }
-    };
-
-    if (!socket.connected) {
-      socket.connect();
-    } else {
-      joinRoom();
-    }
-
-    const onConnect = () => {
-      joinRoom();
-    };
+    if (!socket.connected) socket.connect();
 
     const handleNewMessage = (msg) => {
       if (!msg) return;
       const convId = typeof msg.conversation_id === "object" ? msg.conversation_id?._id : msg.conversation_id;
-      const currentConvId = convIdRef.current;
-      if (!currentConvId || String(convId) !== String(currentConvId)) return;
-
-      setMessages((prev) => mergeMessageIntoList(prev, msg));
-      markConversationAsRead(currentConvId).catch(() => {});
+      if (!joinedId || String(convId) !== String(joinedId)) return;
+      setSupportMessages((prev) => mergeMessageIntoList(prev, msg));
+      markConversationAsRead(joinedId).catch(() => {});
     };
 
-    const handleTypingStart = (payload) => {
-      if (!payload?.user_id || payload.user_id === user?._id) return;
-      setTypingUsers((prev) => (prev.some((item) => item.user_id === payload.user_id) ? prev : [...prev, payload]));
-    };
-
-    const handleTypingStop = (payload) => {
-      if (!payload?.user_id) return;
-      setTypingUsers((prev) => prev.filter((item) => item.user_id !== payload.user_id));
-    };
-
-    socket.on("connect", onConnect);
     socket.on("message:new", handleNewMessage);
-    socket.on("typing:start", handleTypingStart);
-    socket.on("typing:stop", handleTypingStop);
-
     return () => {
-      if (joinedConversationId && socket.connected) {
-        socket.emit("conversation:leave", joinedConversationId);
-      }
-      socket.off("connect", onConnect);
       socket.off("message:new", handleNewMessage);
-      socket.off("typing:start", handleTypingStart);
-      socket.off("typing:stop", handleTypingStop);
-      setTypingUsers([]);
     };
-  }, [isOpen, conversation?._id, user]);
+  }, [isOpen, activeTab, supportConversation?._id, user]);
 
-  const handleSend = async (overrideBody = null) => {
-    const textToSend = (overrideBody !== null ? overrideBody : draft).trim();
-    const attachmentsToSend = attachmentUrl.trim() 
-      ? [{ url: attachmentUrl.trim(), fileName: "Attachment Link", fileType: "link" }] 
-      : [];
+  const handleSendSupport = async (overrideBody = null) => {
+    const textToSend = (overrideBody !== null ? overrideBody : supportDraft).trim();
+    if (!textToSend || isSupportSending || !user) return;
 
-    if ((!textToSend && attachmentsToSend.length === 0) || isSending) return;
+    setIsSupportSending(true);
+    let activeConvId = supportConversation?._id;
 
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
-    setIsSending(true);
-    let activeConvId = conversation?._id;
     try {
       if (!activeConvId) {
         const created = await createConversation({ customer_id: user._id });
-        setConversation(created);
+        setSupportConversation(created);
         activeConvId = created._id;
       }
 
-      const clientMessageId = window.crypto?.randomUUID?.() || `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const clientMessageId = window.crypto?.randomUUID?.() || `msg-${Date.now()}`;
       const optimisticMessage = createOptimisticMessage({
         clientMessageId,
         conversationId: activeConvId,
         user,
         body: textToSend,
-        attachments: attachmentsToSend
+        attachments: [],
       });
 
-      setMessages((prev) => [...prev, optimisticMessage]);
+      setSupportMessages((prev) => [...prev, optimisticMessage]);
 
-      const sendPayload = {
-        conversationId: activeConvId,
+      const newMsg = await sendMessage(activeConvId, {
         body: textToSend,
-        attachments: attachmentsToSend,
         client_message_id: clientMessageId,
-        token: typeof window !== "undefined" ? localStorage.getItem("token") : null
-      };
-
-      const newMsg = await sendMessageWithFallback({
-        socket: socketRef.current,
-        conversationId: activeConvId,
-        payload: sendPayload
       });
 
-      setMessages((prev) => mergeMessageIntoList(prev, newMsg));
-
-      if (overrideBody === null) setDraft("");
-      setAttachmentUrl("");
-      setShowAttachmentInput(false);
-      socketRef.current?.emit("typing:stop", activeConvId);
+      setSupportMessages((prev) => mergeMessageIntoList(prev, newMsg));
+      if (overrideBody === null) setSupportDraft("");
     } catch (err) {
-      setMessages((prev) => prev.filter((item) => item.client_message_id !== clientMessageId && item._id !== clientMessageId));
-      notify(err.response?.data?.message || "Could not send message.", "error");
+      notify("Failed to send message.", "error");
     } finally {
-      setIsSending(false);
+      setIsSupportSending(false);
     }
   };
-
-  const handleDraftChange = (e) => {
-    setDraft(e.target.value);
-    if (!socketRef.current || !conversation?._id) return;
-    socketRef.current.emit("typing:start", conversation._id);
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      socketRef.current?.emit("typing:stop", conversation._id);
-    }, 1200);
-  };
-
-  const unreadCount = user
-    ? messages.filter((m) => m.sender_id?._id !== user?._id).length
-    : 0;
 
   return (
     <>
       {isOpen ? (
-        /* OPEN CHAT CONVERSATION CARD (REPLACES TRIGGER CIRCLE) */
         <div
-          className="fixed right-4 sm:right-6 z-50 w-[92vw] max-w-90 sm:w-95 h-130 max-h-[82vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+          className="fixed right-4 sm:right-6 z-50 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
           style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
         >
-          {/* HEADER */}
-          <div className="bg-primary text-primary-foreground p-4 flex items-center justify-between shadow-md relative">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
-                  <MessageSquare className="w-5 h-5 fill-white/20" />
-                </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-primary rounded-full" />
-              </div>
-              <div>
-                <h3 className="font-serif font-bold text-sm leading-snug">Caezelles Support</h3>
-                <p className="text-[11px] text-primary-foreground/80">Usually replies in minutes</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-primary-foreground/80 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
-              aria-label="Close chat"
-              title="Close conversation"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* CHAT MESSAGES BODY */}
-          <ScrollArea className="flex-1 p-4 bg-muted/10">
-            {!user ? (
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4 my-auto py-12">
-                <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                  <User className="w-7 h-7" />
+          {/* HEADER WITH TABS */}
+          <div className="bg-primary text-primary-foreground p-3.5 shadow-md relative flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
+                    {activeTab === "zelle" ? <Sparkles className="w-4 h-4 text-amber-300" /> : <Headphones className="w-4 h-4" />}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-primary rounded-full" />
                 </div>
                 <div>
-                  <h4 className="font-serif font-bold text-base text-foreground">Chat with Caezelle's Support</h4>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Sign in to message our catering team directly and track your event inquiries.
+                  <h3 className="font-serif font-bold text-sm leading-snug">
+                    {activeTab === "zelle" ? "Zelle AI Concierge" : "Caezelle Support Team"}
+                  </h3>
+                  <p className="text-[10px] text-primary-foreground/80">
+                    {activeTab === "zelle" ? "Instant 24/7 AI Assistance" : "Human Team • Replies in minutes"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 w-full pt-2">
-                  <Button onClick={() => navigate("/login")} size="sm" className="flex-1 text-xs">
-                    <LogIn className="w-3.5 h-3.5 mr-1" /> Log In
-                  </Button>
-                  <Button onClick={() => navigate("/signup")} variant="outline" size="sm" className="flex-1 text-xs">
-                    Sign Up
-                  </Button>
+              </div>
+
+              <div className="flex items-center gap-1">
+                {activeTab === "zelle" && (
+                  <button
+                    onClick={handleResetZelle}
+                    className="text-primary-foreground/70 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+                    title="Restart conversation"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="text-primary-foreground/80 hover:text-white p-1.5 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+                  aria-label="Close chat"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* TAB SELECTOR */}
+            <div className="flex items-center p-0.5 bg-black/20 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setActiveTab("zelle")}
+                className={cn(
+                  "flex-1 py-1 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                  activeTab === "zelle"
+                    ? "bg-white text-primary shadow-xs"
+                    : "text-primary-foreground/80 hover:text-white"
+                )}
+              >
+                <Sparkles className="w-3 h-3" /> Zelle AI
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("support")}
+                className={cn(
+                  "flex-1 py-1 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                  activeTab === "support"
+                    ? "bg-white text-primary shadow-xs"
+                    : "text-primary-foreground/80 hover:text-white"
+                )}
+              >
+                <Headphones className="w-3 h-3" /> Human Support
+              </button>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* TAB 1: ZELLE AI CONCIERGE */}
+          {/* ========================================================================= */}
+          {activeTab === "zelle" && (
+            <>
+              <ScrollArea className="flex-1 p-3.5 bg-muted/10">
+                <div className="space-y-3.5 pb-2">
+                  {zelleMessages.map((msg, index) => (
+                    <ZelleMessage
+                      key={index}
+                      message={msg}
+                      onSelectPackage={(pkgName) => handleSendZelle(`Tell me more about ${pkgName}`)}
+                      onStartInquiry={(dateStr) => handleSendZelle(`I want to draft an inquiry for ${dateStr}`)}
+                    />
+                  ))}
+
+                  {/* AI Typing Indicator */}
+                  {isZelleLoading && (
+                    <div className="flex items-center gap-2 text-xs italic text-muted-foreground bg-card border border-border/80 px-3 py-1.5 rounded-2xl w-fit animate-pulse">
+                      <Sparkles className="w-3.5 h-3.5 text-primary animate-spin" />
+                      <span>Zelle is checking packages and data...</span>
+                    </div>
+                  )}
+
+                  <div ref={zelleEndRef} />
+                </div>
+              </ScrollArea>
+
+              {/* QUICK SUGGESTIONS */}
+              <div className="p-2 bg-card/80 border-t border-border/60">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
+                  {ZELLE_SUGGESTIONS.map((suggestion, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendZelle(suggestion)}
+                      disabled={isZelleLoading}
+                      className="text-[11px] whitespace-nowrap bg-muted/80 hover:bg-muted text-foreground px-2.5 py-1 rounded-full border border-border/60 transition-colors font-medium shrink-0 cursor-pointer"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <div className="space-y-4 pb-2">
-                {/* Auto Welcome bubble */}
-                <div className="flex items-start gap-2">
-                  <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] shrink-0">
-                    CS
+
+              {/* INPUT BAR */}
+              <div className="p-3 bg-card border-t border-border">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendZelle();
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Input
+                    placeholder="Ask Zelle anything about packages, dates..."
+                    value={zelleDraft}
+                    onChange={(e) => setZelleDraft(e.target.value)}
+                    disabled={isZelleLoading}
+                    className="text-xs h-10 rounded-2xl border-input bg-background"
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={isZelleLoading || !zelleDraft.trim()}
+                    className="h-10 w-10 rounded-2xl shrink-0 bg-primary text-primary-foreground shadow-sm hover:scale-105 transition-transform"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </form>
+              </div>
+            </>
+          )}
+
+          {/* ========================================================================= */}
+          {/* TAB 2: HUMAN SUPPORT STAFF */}
+          {/* ========================================================================= */}
+          {activeTab === "support" && (
+            <>
+              <ScrollArea className="flex-1 p-4 bg-muted/10">
+                {!user ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4 my-auto py-12">
+                    <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                      <User className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h4 className="font-serif font-bold text-base text-foreground">Sign in to message our team</h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Sign in to message our staff coordinators directly and track custom quotes.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 w-full pt-2">
+                      <Button onClick={() => navigate("/login")} size="sm" className="flex-1 text-xs">
+                        <LogIn className="w-3.5 h-3.5 mr-1" /> Log In
+                      </Button>
+                      <Button onClick={() => navigate("/signup")} variant="outline" size="sm" className="flex-1 text-xs">
+                        Sign Up
+                      </Button>
+                    </div>
                   </div>
-                  <div className="bg-card border border-border/80 text-foreground px-3.5 py-2.5 rounded-2xl rounded-bl-xs text-xs shadow-2xs max-w-[85%] leading-relaxed">
-                    Hello! Welcome to Caezelles Catering. How can we help you today?
-                  </div>
-                </div>
-
-                {isLoading && (
-                  <div className="text-center text-[11px] text-muted-foreground py-4 animate-pulse">
-                    Loading messages...
-                  </div>
-                )}
-
-                {messages.map((msg) => {
-                  const isMe = msg.sender_id?._id === user?._id;
-
-                  return (
-                    <div
-                      key={msg._id}
-                      className={cn("flex items-end gap-2", isMe ? "justify-end" : "justify-start")}
-                    >
-                      {!isMe && (
-                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] shrink-0">
-                          CS
-                        </div>
-                      )}
-                      <div className={cn("flex flex-col max-w-[82%]", isMe ? "items-end" : "items-start")}>
-                        <div
-                          className={cn(
-                            "px-3.5 py-2.5 rounded-2xl text-xs whitespace-pre-wrap wrap-break-word shadow-2xs leading-relaxed",
-                            isMe
-                              ? "bg-primary text-primary-foreground rounded-br-xs"
-                              : "bg-card border border-border text-foreground rounded-bl-xs"
-                          )}
-                        >
-                          {msg.body}
-
-                          {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
-                            <div className="mt-2 space-y-1 border-t border-border/30 pt-1.5">
-                              {msg.attachments.map((att, aIdx) => (
-                                <a
-                                  key={aIdx}
-                                  href={att.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex items-center gap-1.5 text-[11px] underline"
-                                >
-                                  <Paperclip className="w-3 h-3 shrink-0" />
-                                  <span className="truncate">{att.fileName || att.url}</span>
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1 px-1">
-                          <span>{formatTimeAgo(msg.createdAt)}</span>
-                          {isMe && <CheckCheck className="w-3 h-3 text-primary opacity-80" />}
-                        </div>
+                ) : (
+                  <div className="space-y-4 pb-2">
+                    <div className="flex items-start gap-2">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] shrink-0">
+                        CS
+                      </div>
+                      <div className="bg-card border border-border/80 text-foreground px-3.5 py-2.5 rounded-2xl rounded-bl-xs text-xs shadow-2xs max-w-[85%] leading-relaxed">
+                        Hello! Welcome to Caezelle's Catering Support. How can our team help you today?
                       </div>
                     </div>
-                  );
-                })}
 
-                {typingUsers.length > 0 && (
-                  <div className="flex items-center gap-2 text-[11px] italic text-muted-foreground bg-card border border-border px-3 py-1 rounded-full w-fit">
-                    <span>Team is typing</span>
-                    <span className="flex gap-0.5">
-                      <span className="w-1 h-1 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1 h-1 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1 h-1 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </span>
+                    {isSupportLoading && (
+                      <div className="text-center text-[11px] text-muted-foreground py-4 animate-pulse">
+                        Loading messages...
+                      </div>
+                    )}
+
+                    {supportMessages.map((msg) => {
+                      const isMe = msg.sender_id?._id === user?._id;
+                      return (
+                        <div key={msg._id} className={cn("flex items-end gap-2", isMe ? "justify-end" : "justify-start")}>
+                          {!isMe && (
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] shrink-0">
+                              CS
+                            </div>
+                          )}
+                          <div className={cn("flex flex-col max-w-[82%]", isMe ? "items-end" : "items-start")}>
+                            <div
+                              className={cn(
+                                "px-3.5 py-2.5 rounded-2xl text-xs whitespace-pre-wrap break-words shadow-2xs leading-relaxed",
+                                isMe
+                                  ? "bg-primary text-primary-foreground rounded-br-xs"
+                                  : "bg-card border border-border text-foreground rounded-bl-xs"
+                              )}
+                            >
+                              {msg.body}
+                            </div>
+                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1 px-1">
+                              <span>
+                                {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}
+                              </span>
+                              {isMe && <CheckCheck className="w-3 h-3 text-primary opacity-80" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
+              </ScrollArea>
 
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </ScrollArea>
-
-          {/* QUICK REPLIES */}
-          {user && (
-            <div className="p-2.5 bg-card/80 border-t border-border/60">
-              <p className="text-[10px] text-muted-foreground mb-1.5 px-1 font-medium">Quick replies:</p>
-              <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto hide-scrollbar">
-                {QUICK_REPLIES.map((reply, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSend(reply)}
-                    disabled={isSending}
-                    className="text-[11px] bg-muted hover:bg-muted/80 text-foreground px-2.5 py-1 rounded-full border border-border/60 transition-colors text-left font-normal"
-                  >
-                    {reply}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ATTACHMENT INPUT OVERLAY */}
-          {showAttachmentInput && user && (
-            <div className="px-3 py-1.5 bg-muted/40 border-t border-border flex items-center gap-1.5">
-              <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Paste URL..."
-                value={attachmentUrl}
-                onChange={(e) => setAttachmentUrl(e.target.value)}
-                className="h-7 text-xs bg-background flex-1"
-              />
-              <Button size="xs" variant="ghost" onClick={() => setShowAttachmentInput(false)} className="h-7 w-7 p-0">
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          )}
-
-          {/* INPUT BAR */}
-          {user ? (
-            <div className="p-3 bg-card border-t border-border">
-              <form
-                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                className="flex items-center gap-2"
-              >
-                <div className="relative flex-1 flex items-center">
-                  <Input
-                    placeholder="Type your message..."
-                    value={draft}
-                    onChange={handleDraftChange}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
+              {user && (
+                <div className="p-3 bg-card border-t border-border">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendSupport();
                     }}
-                    className="pr-8 text-xs h-10 rounded-2xl border-input bg-background"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAttachmentInput(!showAttachmentInput)}
-                    className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Attach link"
+                    className="flex items-center gap-2"
                   >
-                    <Paperclip className="w-4 h-4" />
-                  </button>
+                    <Input
+                      placeholder="Message our team directly..."
+                      value={supportDraft}
+                      onChange={(e) => setSupportDraft(e.target.value)}
+                      disabled={isSupportSending}
+                      className="text-xs h-10 rounded-2xl border-input bg-background"
+                    />
+                    <Button
+                      type="submit"
+                      size="icon"
+                      disabled={isSupportSending || !supportDraft.trim()}
+                      className="h-10 w-10 rounded-2xl shrink-0 bg-primary text-primary-foreground shadow-sm"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </form>
                 </div>
-
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={isSending || (!draft.trim() && !attachmentUrl.trim())}
-                  className="h-10 w-10 rounded-2xl shrink-0 bg-primary text-primary-foreground shadow-sm hover:scale-105 transition-transform"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </form>
-            </div>
-          ) : (
-            <div className="p-3 bg-card border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-              <span>Full chat hub available in portal</span>
-              <Button variant="ghost" size="xs" onClick={() => navigate("/customer/messages")} className="text-primary gap-1">
-                Go to Inbox <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
+              )}
+            </>
           )}
         </div>
       ) : (
-        /* COLLAPSED FLOATING TRIGGER BUTTON */
+        /* TRIGGER BUTTON */
         <Button
-          className="fixed right-4 sm:right-6 z-50 h-14 w-14 rounded-full shadow-2xl bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all duration-300 ease-out flex items-center justify-center border-2 border-background cursor-pointer animate-in fade-in zoom-in-75"
+          className="fixed right-4 sm:right-6 z-50 h-14 w-14 rounded-full shadow-2xl bg-gradient-to-tr from-primary to-amber-600 text-white hover:scale-105 active:scale-95 transition-all duration-300 ease-out flex items-center justify-center border-2 border-background cursor-pointer animate-in fade-in zoom-in-75"
           style={{ bottom: "var(--chat-fab-bottom, 1.5rem)" }}
           size="icon"
           type="button"
           onClick={() => setIsOpen(true)}
-          aria-label="Open chat widget"
-          title="Chat with Caezelle Support"
+          aria-label="Open Zelle AI"
+          title="Chat with Zelle AI"
         >
-          <MessageSquare className="w-6 h-6" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold h-5 min-w-5 rounded-full px-1 flex items-center justify-center border-2 border-background animate-pulse">
-              {unreadCount}
-            </span>
-          )}
+          <Sparkles className="w-6 h-6 text-amber-200" />
         </Button>
       )}
     </>

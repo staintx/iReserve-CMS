@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ManagerSidebar from "./ManagerSidebar";
+import AdminCopilotPanel from "../admin/ui/AdminCopilotPanel";
 import { Menu } from "lucide-react";
 
 export default function ManagerLayout({ children }) {
@@ -27,6 +28,9 @@ export default function ManagerLayout({ children }) {
           </div>
         </main>
       </div>
+
+      {/* Global Admin/Manager Copilot Panel */}
+      <AdminCopilotPanel />
     </div>
   );
 }

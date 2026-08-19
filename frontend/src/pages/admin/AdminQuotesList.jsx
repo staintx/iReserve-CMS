@@ -213,8 +213,10 @@ export default function AdminQuotesList() {
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-slate-900 tracking-tight">Admin Quotations</h1>
-            <p className="text-sm text-slate-500 mt-1">Manage and track formal quotations generated for customer inquiries.</p>
+            <h1 className="text-3xl font-serif font-bold text-slate-900 tracking-tight">Quotations</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              One row per inquiry, showing its current quoted version. Expand a row to see every revision behind it.
+            </p>
           </div>
           <button
             onClick={loadData}
@@ -231,7 +233,10 @@ export default function AdminQuotesList() {
               <FileText size={24} />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Issued Quotations</p>
+              {/* "Issued" was wrong as well as unclear: this counts one row
+                  per inquiry thread, drafts included, and a draft has been
+                  issued to nobody. */}
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">All Quotations</p>
               <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.totalQuotations}</h3>
             </div>
           </div>
@@ -274,7 +279,7 @@ export default function AdminQuotesList() {
           {/* Status Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
             {[
-              { id: "all_quotes", label: `Issued Quotations (${metrics.totalQuotations})` },
+              { id: "all_quotes", label: `All Quotations (${metrics.totalQuotations})` },
               { id: "sent", label: `Sent (${metrics.sentQuotations})` },
               { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
               { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` },

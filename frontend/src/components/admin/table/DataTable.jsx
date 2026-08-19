@@ -5,8 +5,26 @@ import { Checkbox } from "../../ui/checkbox";
  * Column-config driven so every admin table renders through one component
  * instead of hand-rolled <table> markup per page.
  *
- * columns: [{ key, header, render(row), className, headerClassName, stopRowClick }]
+ * columns: [{ key, header, render(row), className, headerClassName, stopRowClick, width }]
+ *
+ * `pinLastColumn` keeps the final column — always the row's actions —
+ * parked against the right edge while the rest of the table scrolls
+ * under it. On a wide table the actions were the first thing pushed
+ * off screen, which is backwards: they are the reason the row is being
+ * read. Pinning costs an opaque background on that one cell, which is
+ * why the row tint below is a solid colour rather than a translucent
+ * one — anything see-through lets the scrolled content show through
+ * the pinned column.
  */
+
+// #EBF2FB is `powder` at 50% over white: the same tint as before, mixed
+// down rather than composited, so the pinned cell can reuse it as-is.
+const rowTone = (selected, highlighted) => {
+  if (selected) return { row: "bg-[#EBF2FB]", cell: "bg-[#EBF2FB]" };
+  if (highlighted) return { row: "bg-emerald-50", cell: "bg-emerald-50" };
+  return { row: "bg-card hover:bg-muted", cell: "bg-card group-hover:bg-muted" };
+};
+
 export default function DataTable({
   columns,
   rows,
@@ -21,6 +39,7 @@ export default function DataTable({
   selectedIds = [],
   onSelectedIdsChange,
   minWidth = "720px",
+  pinLastColumn = false,
 }) {
   const allIds = rows.map(getRowId);
   const allSelected = selectable && rows.length > 0 && allIds.every((id) => selectedIds.includes(id));
@@ -49,6 +68,15 @@ export default function DataTable({
   };
 
   const colCount = columns.length + (selectable ? 1 : 0);
+  const lastIndex = columns.length - 1;
+
+  // The divider and its short shadow are what tell the reader the column
+  // is pinned rather than just last, so the scrolled content clearly
+  // passes *under* it.
+  const pinnedClass = (index) =>
+    pinLastColumn && index === lastIndex
+      ? "sticky right-0 z-[2] border-l border-border shadow-[-10px_0_10px_-10px_rgba(15,23,42,0.14)]"
+      : "";
 
   return (
     <div className="overflow-x-auto">
@@ -56,7 +84,7 @@ export default function DataTable({
         <thead className="bg-muted border-b border-border sticky top-0 z-10">
           <tr>
             {selectable && (
-              <th className="w-10 px-4 py-3">
+              <th className="w-10 px-4 py-3 bg-muted">
                 <Checkbox
                   checked={someSelected ? "indeterminate" : allSelected}
                   onCheckedChange={toggleAll}
@@ -65,10 +93,11 @@ export default function DataTable({
                 />
               </th>
             )}
-            {columns.map((col) => (
+            {columns.map((col, index) => (
               <th
                 key={col.key}
-                className={`px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap ${col.headerClassName || ""}`}
+                style={col.width ? { width: col.width } : undefined}
+                className={`bg-muted px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap ${pinnedClass(index)} ${col.headerClassName || ""}`}
               >
                 {col.header}
               </th>
@@ -99,28 +128,30 @@ export default function DataTable({
             rows.map((row) => {
               const id = getRowId(row);
               const selected = selectedIds.includes(id);
+              const tone = rowTone(selected, rowHighlight?.(row));
               return (
                 <tr
                   key={id}
                   onClick={handleRowClick(row)}
-                  className={`transition-colors ${onRowClick ? "cursor-pointer" : ""} ${
-                    selected ? "bg-powder/50" : rowHighlight?.(row) ? "bg-emerald-50" : "hover:bg-muted"
-                  }`}
+                  className={`group transition-colors ${onRowClick ? "cursor-pointer" : ""} ${tone.row}`}
                 >
                   {selectable && (
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selected} onCheckedChange={() => toggleOne(id)} aria-label="Select row" />
                     </td>
                   )}
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={`px-4 py-3 ${col.className || ""}`}
-                      onClick={col.stopRowClick ? (e) => e.stopPropagation() : undefined}
-                    >
-                      {col.render ? col.render(row) : row[col.key]}
-                    </td>
-                  ))}
+                  {columns.map((col, index) => {
+                    const pinned = pinLastColumn && index === lastIndex;
+                    return (
+                      <td
+                        key={col.key}
+                        className={`px-4 py-3 transition-colors ${pinned ? `${tone.cell} ${pinnedClass(index)}` : ""} ${col.className || ""}`}
+                        onClick={col.stopRowClick ? (e) => e.stopPropagation() : undefined}
+                      >
+                        {col.render ? col.render(row) : row[col.key]}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })

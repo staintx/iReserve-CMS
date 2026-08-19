@@ -8,6 +8,7 @@ const { packageSchema, packageUpdateSchema } = require("../validations/package.v
 
 const uploadFields = upload.fields([{ name: "image", maxCount: 1 }, { name: "gallery", maxCount: 10 }]);
 
+router.post("/ai-parse", protect, authorize("admin"), upload.single("file"), ctrl.parseWithAI);
 router.post("/", protect, authorize("admin"), uploadFields, validate(packageSchema), ctrl.create);
 router.get("/", optionalProtect, ctrl.getAll);
 router.get("/:id", optionalProtect, ctrl.getById);

@@ -5,6 +5,7 @@ import SingleImageField from "./SingleImageField";
 import MultiImageField from "./MultiImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
+import AIPackageParserModal from "./AIPackageParserModal";
 import { OFFER_TYPES } from "../../../lib/specialOffers";
 import { resolveGroup } from "../../../lib/menuCategories";
 
@@ -106,6 +107,7 @@ export default function PackageModal({
 }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isParserOpen, setIsParserOpen] = useState(false);
 
   // ============ FORM STATE ============
   const [formData, setFormData] = useState({
@@ -879,20 +881,49 @@ export default function PackageModal({
 
   // ============ RENDER ============
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
+    <>
+      <AIPackageParserModal
+        isOpen={isParserOpen}
+        onClose={() => setIsParserOpen(false)}
+        onParsed={(data) => {
+          setFormData((prev) => ({
+            ...prev,
+            ...data,
+            // Keep existing arrays if they are empty in parsed data, otherwise overwrite
+            inclusions: data.inclusions?.length ? data.inclusions : prev.inclusions,
+            add_ons: data.add_ons?.length ? data.add_ons : prev.add_ons,
+            scaffold_size_options: data.scaffold_size_options?.length ? data.scaffold_size_options : prev.scaffold_size_options,
+          }));
+        }}
+      />
+      
+      <div className="fixed inset-0 z-[60] flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="bg-white w-full max-w-2xl h-full flex flex-col shadow-2xl animate-in slide-in-from-right overflow-hidden">
         {/* ============ HEADER ============ */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="flex items-center gap-2 font-bold text-foreground text-lg">
-            {isOffer && <Sparkles size={17} className="text-amber-500" />}
-            {isOffer
-              ? pkg
-                ? "Edit Special Offer"
-                : "Add New Special Offer"
-              : pkg
-                ? "Edit Package"
-                : "Add New Package"}
-          </h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <h2 className="flex items-center gap-2 font-bold text-foreground text-lg">
+              {isOffer && <Sparkles size={17} className="text-amber-500" />}
+              {isOffer
+                ? pkg
+                  ? "Edit Special Offer"
+                  : "Add New Special Offer"
+                : pkg
+                  ? "Edit Package"
+                  : "Add New Package"}
+            </h2>
+            {!pkg && (
+              <button
+                type="button"
+                onClick={() => setIsParserOpen(true)}
+                className="group relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-violet-600/10 hover:from-blue-600/15 hover:via-indigo-600/15 hover:to-violet-600/15 px-3 py-1 text-xs font-bold text-indigo-600 border border-indigo-200/80 hover:border-indigo-300 shadow-xs hover:shadow-sm transition-all duration-200 active:scale-95 cursor-pointer"
+                title="Automatically extract and populate package data using AI"
+              >
+                <Sparkles size={13} className="text-indigo-600 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <span>Auto-Fill with AI</span>
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
@@ -2463,5 +2494,6 @@ export default function PackageModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

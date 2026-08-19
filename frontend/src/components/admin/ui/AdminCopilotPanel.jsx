@@ -295,7 +295,7 @@ export default function AdminCopilotPanel() {
       ) : (
         /* FLOATING COPILOT TRIGGER BUTTON IN ADMIN */
         <Button
-          className="fixed right-6 z-50 h-13 px-4 rounded-full shadow-2xl bg-gradient-to-r from-slate-900 via-primary to-slate-900 text-white hover:scale-105 active:scale-95 transition-all duration-300 ease-out flex items-center gap-2 border-2 border-white/20 cursor-pointer animate-in fade-in zoom-in-75"
+          className="fixed right-6 z-30 h-13 px-4 rounded-full shadow-2xl bg-gradient-to-r from-slate-900 via-primary to-slate-900 text-white hover:scale-105 active:scale-95 transition-all duration-300 ease-out flex items-center gap-2 border-2 border-white/20 cursor-pointer animate-in fade-in zoom-in-75"
           style={{ bottom: "1.5rem" }}
           type="button"
           onClick={() => setIsOpen(true)}

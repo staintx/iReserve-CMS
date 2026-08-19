@@ -52,6 +52,7 @@ export const AdminAPI = {
   createPackage: (data) => api.post("/packages", data),
   updatePackage: (id, data) => api.put(`/packages/${id}`, data),
   deletePackage: (id) => api.delete(`/packages/${id}`),
+  parsePackageWithAI: (formData) => api.post("/packages/ai-parse", formData, { headers: { "Content-Type": "multipart/form-data" } }),
 
   // Menu
   getMenu: () => api.get("/menu"),

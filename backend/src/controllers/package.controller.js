@@ -1,4 +1,5 @@
 const Package = require("../models/Package");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
 const {
@@ -465,4 +466,72 @@ exports.remove = async (req, res) => {
   }
 
   res.json({ message: "Deleted" });
+};
+
+exports.parseWithAI = async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
+    
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    const prompt = `You are a data extraction assistant for an event catering CMS.
+Extract the package details from the provided text or image into a strict JSON object.
+Use the following schema:
+{
+  "name": "string (Package Name)",
+  "package_type": "Event Setup Only",
+  "offer_type": "regular",
+  "guest_min": "number (minimum guests, omit if none)",
+  "guest_max": "number (maximum guests, omit if none)",
+  "setup_price": "number (if applicable)",
+  "description": "string",
+  "fullDescription": "string",
+  "inclusions": ["string (e.g. '[Category] Item (Qty)')", "..."],
+  "add_ons": [{"name": "string", "qty": "string"}],
+  "scaffold_size_options": [
+    {
+      "label": "e.g. 20x40 Setup",
+      "width_ft": 20,
+      "length_ft": 40,
+      "guest_min": 100,
+      "guest_max": 150
+    }
+  ]
+}
+
+Guidelines for inclusions: Prefix each inclusion with a category in brackets, e.g., "[Dining & Service Inventory] Plates", "[Event Setup & Furniture] Couch". If quantity is specified, put it at the end in parentheses, e.g., "[Dining & Service Inventory] Glasses (100)".
+If the document is a table with multiple sizes and guest capacities, extract them into scaffold_size_options.
+Return ONLY valid JSON, without markdown formatting or code blocks.`;
+
+    const parts = [prompt];
+    
+    if (req.file) {
+      const mimeType = req.file.mimetype;
+      parts.push({
+        inlineData: {
+          data: req.file.buffer.toString("base64"),
+          mimeType
+        }
+      });
+    } else if (req.body.text) {
+      parts.push(req.body.text);
+    } else {
+      return res.status(400).json({ error: "No file or text provided" });
+    }
+
+    const result = await model.generateContent(parts);
+    const response = await result.response;
+    let text = response.text().trim();
+    if (text.startsWith("\`\`\`json")) text = text.substring(7);
+    if (text.startsWith("\`\`\`")) text = text.substring(3);
+    if (text.endsWith("\`\`\`")) text = text.substring(0, text.length - 3).trim();
+    
+    const parsedData = JSON.parse(text);
+    res.json(parsedData);
+  } catch (error) {
+    console.error("AI Parse Error:", error);
+    res.status(500).json({ error: "Failed to parse with AI", details: error.message });
+  }
 };

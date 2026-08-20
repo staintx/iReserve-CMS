@@ -6,7 +6,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed/seed.js",
-    "seed:offers": "node src/seed/seedSpecialOffers.js"
+    "seed:offers": "node src/seed/seedSpecialOffers.js",
+    "migrate:combos": "node src/seed/migrateComboPacks.js"
   },
   "keywords": [],
   "author": "",

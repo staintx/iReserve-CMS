@@ -45,9 +45,10 @@ import {
 import {
   isSpecialOffer,
   offerBaseFoodPrice,
-  offerMenuRules,
-  offerPricePerPerson,
-  offerSetupCharge,
+  offerFoodItems,
+  offerGuestCount,
+  offerInclusions,
+  offerPricePerPax,
 } from "../../../lib/specialOffers";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
 import { formatCurrency } from "../../../utils/format";
@@ -415,38 +416,58 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
 
   /**
-   * When the booking came from a Special Offer, what that offer promised.
+   * When the booking came from a Special Offer, what that combo promised.
    *
-   * Read straight from the offer's stored configuration and the size the
+   * Read straight from the combo's stored configuration and the size the
    * customer chose, so the builder states the same terms the customer was sold
    * rather than the admin having to remember them. Nothing here is priced: the
-   * base is the offer's own figure, and everything else is this builder's job.
+   * base is the combo's own figure, and everything else is this builder's job.
+   *
+   * The food comes from the snapshot the request stored where there is one, so
+   * a combo re-plated since it was booked still reads as what was actually
+   * sold; only an older request falls back to the combo as it stands today.
    */
   const offerContext = useMemo(() => {
     if (!isSpecialOffer(packageRecord)) return null;
 
-    const guests = Number(details.guest_count) || Number(inquiry?.guest_count) || 0;
-    const perPerson = offerPricePerPerson(packageRecord);
-    const setup = offerSetupCharge(packageRecord, inquiry?.selected_scaffold_option_id);
+    const perPax = offerPricePerPax(packageRecord);
+    const snapshot = Array.isArray(inquiry?.offer_food_snapshot)
+      ? inquiry.offer_food_snapshot
+      : [];
+    const food = snapshot.length > 0 ? snapshot : offerFoodItems(packageRecord);
 
     return {
       name: packageRecord.name,
-      guests,
-      perPerson,
-      basePrice: offerBaseFoodPrice(packageRecord, guests),
-      setup,
-      // What the per-person price buys, in the offer's own words.
-      included: offerMenuRules(packageRecord).map((rule) =>
-        rule.selectable === false || !Number(rule.required_count)
-          ? rule.label
-          : `${rule.required_count} × ${rule.label}`,
+      // A combo is sold for its own guest count, so that is the number the
+      // base price was built from — not whatever this builder currently shows.
+      guests: offerGuestCount(packageRecord) || Number(inquiry?.guest_count) || 0,
+      perPax,
+      basePrice:
+        Number(inquiry?.offer_base_price) || offerBaseFoodPrice(packageRecord),
+      // The dishes alone. These become the quotation's food lines, at ₱0.
+      food: food.map((item) =>
+        item.menu_category
+          ? `${item.item_name} (${item.menu_category})`
+          : item.item_name,
       ),
+      // Everything the price per pax buys, in the combo's own words — the
+      // dishes and what comes with them. Displayed, not priced: the inclusions
+      // are seeded into the quotation's own inclusion list, not charged again
+      // as food.
+      included: [
+        ...food.map((item) =>
+          item.menu_category
+            ? `${item.item_name} (${item.menu_category})`
+            : item.item_name,
+        ),
+        ...offerInclusions(packageRecord),
+      ],
     };
   }, [
     packageRecord,
-    details.guest_count,
     inquiry?.guest_count,
-    inquiry?.selected_scaffold_option_id,
+    inquiry?.offer_base_price,
+    inquiry?.offer_food_snapshot,
   ]);
 
   /**
@@ -674,57 +695,47 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setStartingPrice(derived ? String(derived) : "");
         }
 
-        /**
-         * A Special Offer's starting price above is its base price — the food
-         * the per-person rate buys, and the only figure the offer decides.
-         *
-         * Set-up, equipment, crew and everything else are this builder's job.
-         * The one thing seeded is a size the offer covers: a ₱0 line naming it,
-         * so the admin can see the offer already gave that away rather than
-         * charging for it by accident. A size the offer does not cover is left
-         * for the admin to price — seeding ₱0 there would read as a decision
-         * someone made.
-         */
-        if (isSpecialOffer(packageRecord)) {
-          const setup = offerSetupCharge(
-            packageRecord,
-            inquiry?.selected_scaffold_option_id,
-          );
-          if (setup.isFree) {
-            setAdditionalFees([
-              {
-                name: `Event set-up (${setup.label}) — free with this offer`,
-                amount: "0",
-              },
-            ]);
-          }
-        }
+        // A combo's starting price above is its price — the food the rate per
+        // pax buys, and the only figure the combo decides. Nothing else is
+        // seeded for one: a combo is food, so there is no set-up line, no
+        // equipment and no package add-ons to carry over. Anything further on
+        // this quotation is a charge the admin is adding, deliberately.
 
         // The dishes the customer actually chose, seeded with the catalog rate
         // so the admin adjusts a real number rather than typing one from
         // nothing. A customer who declined catering gets no food lines at all,
         // so no food charge can reach a booking that did not ask for it.
         //
-        // On a Special Offer the dishes are already paid for by the per-person
-        // base price above, so they are listed at zero: the admin sees exactly
-        // what was chosen without the offer's food being charged twice.
-        const offerCoversFood = isSpecialOffer(packageRecord);
-        setMenuItems(
-          !customerSelection.wantedFood
-            ? []
-            : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
-                if (item && typeof item === "object") {
-                  return menuRow({
-                    name: item.name || "",
-                    note: offerCoversFood
-                      ? `${item.category || item.note || "Included"} · covered by the offer`
-                      : item.category || item.note || "",
-                    price: offerCoversFood || !item.price ? "" : String(item.price),
-                  });
-                }
-                return menuRow({ name: String(item || "") });
-              })
-        );
+        // A combo chose no dishes — it *is* its dishes, and they are already
+        // paid for by the base price above. Its food is listed at zero so the
+        // admin sees exactly what is being served without the combo's food
+        // being charged twice.
+        if (offerContext) {
+          setMenuItems(
+            offerContext.food.map((name) =>
+              menuRow({
+                name,
+                note: "Covered by the combo price",
+                price: "",
+              }),
+            ),
+          );
+        } else {
+          setMenuItems(
+            !customerSelection.wantedFood
+              ? []
+              : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
+                  if (item && typeof item === "object") {
+                    return menuRow({
+                      name: item.name || "",
+                      note: item.category || item.note || "",
+                      price: !item.price ? "" : String(item.price),
+                    });
+                  }
+                  return menuRow({ name: String(item || "") });
+                })
+          );
+        }
 
         setAddOns(
           (Array.isArray(inquiry?.service_items) ? inquiry.service_items : []).map((item) => {
@@ -950,7 +961,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         `The deposit covers ${depositShare.toFixed(0)} percent of the total, leaving little on the balance.`
       );
     }
-    if (cateringIncluded && chargeableMenuItems.length === 0) {
+    if (cateringIncluded && chargeableMenuItems.length === 0 && !offerContext) {
       notes.push(
         customerSelection.dishes.length > 0
           ? `The customer picked ${customerSelection.dishes.length} dish${
@@ -964,8 +975,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         `${unresolvedDishes} of the customer's chosen dishes could not be loaded from the menu catalog, most likely because they were deleted. Check the booking before quoting.`
       );
     }
-    const capacityMax = Number(packageRecord?.guest_max) || 0;
-    const capacityMin = Number(packageRecord?.guest_min) || 0;
+    const capacityMax = offerContext ? 0 : Number(packageRecord?.guest_max) || 0;
+    const capacityMin = offerContext ? 0 : Number(packageRecord?.guest_min) || 0;
     if (capacityMax && totals.guestCount > capacityMax) {
       notes.push(
         `${totals.guestCount} guests is above this package's capacity of ${capacityMax}. Price the extra coverage or move to a larger package.`
@@ -984,6 +995,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     cateringIncluded,
     chargeableMenuItems.length,
     customerSelection.dishes.length,
+    offerContext,
     unresolvedDishes,
   ]);
 
@@ -2026,15 +2038,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             )}
 
           {/* --- 2. Package and starting price ------------------------------- */}
-          {/* A Special Offer arrives with one figure already settled and a list
-              of things the customer was told are covered. Stating both here,
-              before the pricing fields, is what stops food that the offer paid
+          {/* A combo arrives with one figure already settled and a list of
+              things the customer was told are covered. Stating both here,
+              before the pricing fields, is what stops food that the combo paid
               for being charged again further down. */}
           {offerContext && (
             <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
-                  <Sparkles size={11} /> Special Offer
+                  <Sparkles size={11} /> Combo Pack
                 </span>
                 <span className="text-sm font-bold text-slate-900">
                   {offerContext.name}
@@ -2044,51 +2056,36 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-amber-200 bg-white p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Base offer price
+                    Combo food price
                   </p>
                   <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
                     {formatCurrency(offerContext.basePrice)}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {offerContext.guests} guests ×{" "}
-                    {formatCurrency(offerContext.perPerson)} per person — seeded
+                    {formatCurrency(offerContext.perPax)} per pax — seeded
                     as the starting price below.
                   </p>
                 </div>
 
                 <div className="rounded-lg border border-amber-200 bg-white p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Set-up
+                    Event set-up
                   </p>
-                  {offerContext.setup.isFree ? (
-                    <>
-                      <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700">
-                        {formatCurrency(0)}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {offerContext.setup.label} — free set-up, because this
-                        offer covers it at that size.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="mt-1 text-sm font-semibold text-slate-700">
-                        Priced in this quotation
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {offerContext.setup.hasSize
-                          ? `${offerContext.setup.label} is not covered by the offer. Add it under additional charges.`
-                          : "No size was chosen. Add any set-up under additional charges."}
-                      </p>
-                    </>
-                  )}
+                  <p className="mt-1 text-sm font-semibold text-slate-700">
+                    Not part of this combo
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    A combo is food. If this customer also needs their venue set
+                    up, price it below as an additional charge.
+                  </p>
                 </div>
               </div>
 
               {offerContext.included.length > 0 && (
                 <div className="mt-3">
                   <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Included by the offer — already paid for by the base price
+                    Included in the combo — already paid for by the combo price
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {offerContext.included.map((entry) => (
@@ -2103,14 +2100,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   <p className="mt-2 text-xs text-slate-500">
                     The customer&apos;s dishes are listed below at {formatCurrency(0)}
                     for the record. Leave them there — pricing them again would
-                    charge for food this offer already covers.
+                    charge for food this combo already covers.
                   </p>
                 </div>
               )}
 
               <p className="mt-3 text-xs text-slate-600">
                 Equipment, crew, add-ons and any additional requests are not part
-                of the offer. Add them below; this quotation is what settles them.
+                of the combo. Add them below; this quotation is what settles them.
               </p>
             </div>
           )}
@@ -2119,7 +2116,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             step={2}
             accent="primary"
             icon={Package}
-            title={offerContext ? "Offer and base price" : "Package and starting price"}
+            title={offerContext ? "Combo and food price" : "Package and starting price"}
             description="The baseline this quotation is built from, before anything is added or removed."
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2136,12 +2133,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </Field>
 
               <Field
-                label={offerContext ? "Base offer price" : "Starting price"}
+                label={offerContext ? "Combo food price" : "Starting price"}
                 required
                 error={errors.package_starting_price}
                 hint={
                   offerContext
-                    ? `${offerContext.guests} guests × ${formatCurrency(offerContext.perPerson)} per person. Adjust only if the guest count changed.`
+                    ? `${offerContext.guests} guests × ${formatCurrency(offerContext.perPax)} per pax. Adjust only if the combo changed.`
                     : totals.startingPrice > 0
                       ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
                       : "This package has no price on record. Enter the baseline for this quotation."
@@ -2165,7 +2162,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs">
                 <span className="text-slate-500">
-                  {offerContext ? "Base offer price" : "Starting price"}
+                  {offerContext ? "Combo food price" : "Starting price"}
                   <strong className="ml-2 tabular-nums text-slate-800">
                     {formatCurrency(totals.startingPrice)}
                   </strong>
@@ -2369,7 +2366,33 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   <UtensilsCrossed size={15} className="mt-0.5 shrink-0 text-slate-500" />
                 )}
                 <div className="min-w-0">
-                  {customerSelection.wantedFood ? (
+                  {/* A combo customer chose a meal, not dishes. Saying they
+                      "did not pick specific dishes" would read as an open menu
+                      the admin still has to agree — the opposite of what a
+                      combo is. */}
+                  {offerContext ? (
+                    <>
+                      <p className="font-semibold text-slate-900">
+                        The customer booked the {offerContext.name} combo, which
+                        decides the food.
+                      </p>
+                      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                        {offerContext.food.map((name, index) => (
+                          <li
+                            key={`${name}-${index}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                          >
+                            <Check size={11} className="text-amber-500" />
+                            {name}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-1.5">
+                        Already paid for by the combo price above — do not charge
+                        for it again.
+                      </p>
+                    </>
+                  ) : customerSelection.wantedFood ? (
                     <>
                       <p className="font-semibold text-slate-900">
                         The customer asked for catering and chose{" "}

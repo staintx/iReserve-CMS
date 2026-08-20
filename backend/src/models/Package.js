@@ -32,10 +32,18 @@ const PackageSchema = new mongoose.Schema(
         price: Number,
         guest_min: Number,  // ✅ Added guest range per scaffold option
         guest_max: Number,  // ✅ Added guest range per scaffold option
-        // The offer covers the setup at this size. Configured per size so a
-        // rule like "20x40 is free set-up" is data rather than code. Sizes
-        // without it are still selectable — what they cost is settled on the
-        // quotation.
+        /**
+         * Legacy: a size the package covers the set-up for at no charge.
+         *
+         * It existed for Special Offers, which used to carry scaffold sizes of
+         * their own. An offer is now a combo pack and sells no event space, so
+         * the admin form no longer offers the flag and nothing sets it. Kept
+         * because rows configured with it still price and display from it, and
+         * dropping the field would silently change what they cost.
+         *
+         * It was never a rule about catering: a package's setup fee is charged
+         * whether or not food is ordered, and no code waives it for a meal.
+         */
         free_setup: { type: Boolean, default: false },
       },
     ],
@@ -76,10 +84,10 @@ const PackageSchema = new mongoose.Schema(
     /**
      * Regular package or Special Offer.
      *
-     * Special Offers are the same kind of record, listed and managed under
-     * their own tab, and priced per person from `price_per_guest` against a
-     * real (not estimated) guest count. Everything else on this schema still
-     * applies to them — see utils/specialOffers.js for the rules.
+     * A Special Offer is a combo pack: the same kind of record, listed and
+     * managed under its own tab, sold as a fixed meal for a fixed `guest_count`
+     * at a fixed `price_per_guest` per pax. Everything else on this schema
+     * still applies to them — see utils/specialOffers.js for the rules.
      */
     offer_type: {
       type: String,
@@ -88,31 +96,27 @@ const PackageSchema = new mongoose.Schema(
     },
 
     /**
-     * Hard cap on the guest count, enforced when configured. Only Special
-     * Offers enforce it: a regular package's guest range is guidance around an
-     * estimate, an offer's cap is a limit on what is being sold.
+     * Special Offers only: how many guests the combo feeds.
+     *
+     * It is the combo's own number, not a range and not an estimate — a 10-pax
+     * combo is booked for 10 guests — which is why it sits apart from
+     * `guest_min`/`guest_max`, the advisory range a regular package carries.
      */
-    max_guests: Number,
+    guest_count: Number,
 
     /**
-     * The offer's food rules, built from the existing menu catalogue.
+     * Special Offers only: the combo's food, exactly as it is served.
      *
-     * Each rule is one course the customer chooses from ("1 Viand", "3 Main
-     * Courses"), or one that is simply included and never chosen (rice, water)
-     * when `selectable` is false. `menu_items` is the allow-list for that rule,
-     * so no dish list is ever hardcoded.
+     * A fixed list rather than a set of rules, because a combo is a decided
+     * meal: the customer chooses nothing. `menu_category` is the course the
+     * dish belongs to ("Main Course", "Noodles") and groups the list for
+     * display; `sort_order` is the arrangement the admin gave it.
      */
-    offer_menu_rules: [
+    offer_food_items: [
       {
-        // The menu course this rule draws from, as resolved by the shared
-        // category taxonomy. Display only — `menu_items` is the allow-list
-        // that actually decides what the customer may pick.
-        group_id: String,
-        label: String,
-        required_count: { type: Number, default: 1 },
-        selectable: { type: Boolean, default: true },
-        note: String,
-        menu_items: [{ type: mongoose.Schema.Types.ObjectId, ref: "MenuItem" }],
+        menu_category: String,
+        item_name: String,
+        sort_order: { type: Number, default: 0 },
       },
     ],
   },

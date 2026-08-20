@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Sparkles,
   Users,
-  Tag,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -26,10 +25,10 @@ import { EVENT_TYPES } from "../../lib/eventTypes";
 import {
   OFFER_TYPES,
   isSpecialOffer,
-  offerGuestCap,
-  offerPricePerPerson,
-  offerMenuRules,
-  freeSetupOptions,
+  offerGuestCount,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+  offerFoodItems,
 } from "../../lib/specialOffers";
 
 /**
@@ -50,11 +49,11 @@ const TABS = [
   {
     id: OFFER_TYPES.SPECIAL,
     label: "Special Offers",
-    title: "Special Offers",
+    title: "Combo Packs",
     blurb:
-      "Fixed per-person offers. The guest count is exact rather than an estimate, and the food comes from your existing menu.",
-    cta: "New Special Offer",
-    empty: "Create your first special offer to get started",
+      "Fixed combo meals. Each one serves a set number of guests at a set price per pax, and the food that comes with it is decided here.",
+    cta: "New Combo",
+    empty: "Create your first combo pack to get started",
   },
 ];
 
@@ -168,18 +167,27 @@ export default function AdminPackages() {
     "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 0 });
 
   /**
-   * The one line that says what this package costs. An offer is priced per
-   * person against a real guest count; a regular package is priced by the
-   * scaffold size the customer picks.
+   * The one line that says what this package costs. A combo is priced per pax
+   * against its own guest count; a regular package is priced by the scaffold
+   * size the customer picks.
    */
   const priceLine = (pkg) => {
     if (isSpecialOffer(pkg)) {
-      const perPerson = offerPricePerPerson(pkg);
+      const perPax = offerPricePerPax(pkg);
+      const pax = offerGuestCount(pkg);
+      if (!perPax) {
+        return {
+          headline: "Price not set",
+          detail: "Set a price per pax so this combo can be booked",
+        };
+      }
       return {
-        headline: perPerson ? `${fmt(perPerson)} / person` : "Price not set",
-        detail: perPerson
-          ? "Base price — set-up and extras are quoted separately"
-          : "Set a price per person so this offer can be booked",
+        headline: `${fmt(perPax)} / pax`,
+        // The combo's real food price, because "₱350 / pax" alone is the one
+        // number an admin is most likely to read as the total.
+        detail: pax
+          ? `${fmt(offerBaseFoodPrice(pkg))} for ${pax} guests — set-up and extras quoted separately`
+          : "Set a guest count so this combo can be booked",
       };
     }
     if (pkg.setup_price) {
@@ -276,7 +284,7 @@ export default function AdminPackages() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={
                   isOfferTab
-                    ? "Search special offers by name..."
+                    ? "Search combos by name..."
                     : "Search packages by name..."
                 }
                 className="bg-transparent text-sm focus:outline-none flex-1"
@@ -372,7 +380,7 @@ export default function AdminPackages() {
                 Showing{" "}
                 <strong className="text-foreground">{filteredPackages.length}</strong>{" "}
                 of <strong className="text-foreground">{inTab.length}</strong>{" "}
-                {isOfferTab ? "special offers" : "packages"}
+                {isOfferTab ? "combos" : "packages"}
               </span>
               {hasActiveFilters && (
                 <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -393,9 +401,8 @@ export default function AdminPackages() {
               {filteredPackages.map((pkg) => {
                 const offer = isSpecialOffer(pkg);
                 const price = priceLine(pkg);
-                const cap = offer ? offerGuestCap(pkg) : null;
-                const rules = offer ? offerMenuRules(pkg) : [];
-                const freeSetup = offer ? freeSetupOptions(pkg) : [];
+                const pax = offer ? offerGuestCount(pkg) : null;
+                const food = offer ? offerFoodItems(pkg) : [];
 
                 return (
                   <AdminCard
@@ -445,22 +452,25 @@ export default function AdminPackages() {
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       {offer ? (
                         <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500 text-white">
-                          <Sparkles size={11} /> Special Offer
+                          <Sparkles size={11} /> Combo Pack
                         </span>
                       ) : (
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
                           Event Setup
                         </span>
                       )}
-                      {cap && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-white text-amber-700 border border-amber-200">
-                          <Users size={11} /> Max {cap} guests
-                        </span>
-                      )}
-                      {freeSetup.length > 0 && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <Tag size={11} /> Free set-up ·{" "}
-                          {freeSetup.map((o) => o.label).join(", ")}
+                      {/* A combo without a guest count cannot be booked, so the
+                          gap is named rather than left blank. */}
+                      {offer && (
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                            pax
+                              ? "bg-white text-amber-700 border-amber-200"
+                              : "bg-red-50 text-red-600 border-red-200"
+                          }`}
+                        >
+                          <Users size={11} />{" "}
+                          {pax ? `Serves ${pax} guests` : "No guest count set"}
                         </span>
                       )}
                     </div>
@@ -479,32 +489,40 @@ export default function AdminPackages() {
                       )}
                     </div>
 
-                    {/* What the customer gets: the food rules for an offer, the
+                    {/* What the customer gets: the dishes for a combo, the
                         inclusion list for a regular package. */}
                     <div>
                       <p className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
-                        {offer ? "Food rules" : "Inclusions"}
+                        {offer ? "Food" : "Inclusions"}
                       </p>
                       <ul className="space-y-1 mb-4 h-24 overflow-y-auto">
                         {offer ? (
-                          rules.length > 0 ? (
-                            rules.map((rule, i) => (
+                          food.length > 0 ? (
+                            food.map((item, i) => (
                               <li
                                 key={i}
                                 className="text-sm text-foreground flex items-center gap-2 truncate"
-                                title={rule.label}
+                                title={
+                                  item.menu_category
+                                    ? `${item.menu_category} — ${item.item_name}`
+                                    : item.item_name
+                                }
                               >
                                 <div className="w-1.5 h-1.5 bg-amber-400 rounded-full flex-shrink-0" />
                                 <span className="truncate">
-                                  {rule.selectable === false || !rule.required_count
-                                    ? `${rule.label} — included`
-                                    : `${rule.required_count} × ${rule.label}`}
+                                  {item.item_name}
+                                  {item.menu_category ? (
+                                    <span className="text-gray-400">
+                                      {" "}
+                                      · {item.menu_category}
+                                    </span>
+                                  ) : null}
                                 </span>
                               </li>
                             ))
                           ) : (
                             <li className="text-sm text-gray-400 italic">
-                              No food rules configured yet
+                              No food items configured yet
                             </li>
                           )
                         ) : (
@@ -567,7 +585,7 @@ export default function AdminPackages() {
                 )}
               </div>
               <h3 className="text-lg font-semibold text-foreground mb-1">
-                {isOfferTab ? "No special offers found" : "No packages found"}
+                {isOfferTab ? "No combos found" : "No packages found"}
               </h3>
               <p className="text-sm text-gray-500">
                 {hasActiveFilters || search
@@ -597,7 +615,7 @@ export default function AdminPackages() {
       {cancelTarget && (
         <ConfirmDialog
           title={
-            isSpecialOffer(cancelTarget) ? "Delete Special Offer" : "Delete Package"
+            isSpecialOffer(cancelTarget) ? "Delete Combo" : "Delete Package"
           }
           message={`Are you sure you want to delete "${cancelTarget.name}"? This action cannot be undone.`}
           onConfirm={() => handleDelete(cancelTarget._id)}

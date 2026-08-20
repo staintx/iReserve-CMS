@@ -1,22 +1,36 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Plus, Trash2, Pencil, Check, Sparkles } from "lucide-react";
+import {
+  X,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  Sparkles,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
 import MultiImageField from "./MultiImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import AIPackageParserModal from "./AIPackageParserModal";
-import { OFFER_TYPES } from "../../../lib/specialOffers";
-import { resolveGroup } from "../../../lib/menuCategories";
+import { OFFER_TYPES, offerFoodItems, offerInclusions } from "../../../lib/specialOffers";
+import { resolveGroup, CATEGORY_GROUPS } from "../../../lib/menuCategories";
 
 /**
  * One form for both kinds of package.
  *
- * A Special Offer is the same record with `offer_type: "special"`: it is priced
- * per person against a real guest count, may cap that count, and configures its
- * food as rules over the existing menu catalogue. Everything else on this form
- * — inclusions, add-ons, scaffold sizes, equipment, media — applies to both,
- * which is why there is no second package system to maintain.
+ * A Special Offer is the same record with `offer_type: "special"`, sold as a
+ * **combo pack**: a fixed meal, for a fixed guest count, at a fixed price per
+ * pax. Its food is a list the admin writes out — the combo *is* those dishes —
+ * and its inclusions are plain lines rather than inventory classes.
+ *
+ * A combo is food, so the event-space half of this form — scaffold sizes,
+ * setup equipment, the base setup price and package add-ons — does not appear
+ * on one and is not saved for one. Those sections belong to a regular package
+ * and are unchanged for it. Name, description and media are shared, which is
+ * why there is still one form rather than two.
  *
  * `defaultOfferType` is the tab the admin created from, so the form opens
  * already set to the type they were looking at.
@@ -27,9 +41,14 @@ import { resolveGroup } from "../../../lib/menuCategories";
  *
  * There is no price field. A scaffold option is a supported size and the guest
  * range it fits; what that size costs is settled on the quotation.
- * `allowFreeSetup` is the offer-only flag that marks a size the offer covers.
+ *
+ * There is no free-set-up flag either. It existed only for Special Offers, back
+ * when an offer carried scaffold sizes of its own; an offer is now a combo pack
+ * and sells no event space, so nothing can set the flag any more. The field is
+ * still read where stored — see Package.scaffold_size_options — so packages
+ * configured with it keep displaying and pricing as they always have.
  */
-function ScaffoldFields({ value, onChange, allowFreeSetup, compact = false }) {
+function ScaffoldFields({ value, onChange, compact = false }) {
   const set = (patch) => onChange({ ...value, ...patch });
   const input = compact
     ? "w-20 rounded border border-blue-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
@@ -84,17 +103,6 @@ function ScaffoldFields({ value, onChange, allowFreeSetup, compact = false }) {
         <span className="text-xs text-gray-400">guests</span>
       </div>
 
-      {allowFreeSetup && (
-        <label className="flex w-fit items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-1.5 text-xs font-medium text-emerald-800">
-          <input
-            type="checkbox"
-            className="accent-emerald-600"
-            checked={Boolean(value.free_setup)}
-            onChange={(e) => set({ free_setup: e.target.checked })}
-          />
-          This offer covers set-up at this size (FREE SET-UP)
-        </label>
-      )}
     </div>
   );
 }
@@ -124,17 +132,17 @@ export default function PackageModal({
     // Guest & Capacity
     guest_min: "",
     guest_max: "",
-    // Special Offers only: the hard cap on the guest count the price is
-    // built from. Blank means no cap.
-    max_guests: "",
+    // Special Offers only: how many guests the combo serves. Not a range and
+    // not a cap — it is the number the price is built from.
+    guest_count: "",
 
     // Pricing
     setup_price: "",
-    // Special Offers only: the fixed per-person base food price.
+    // Special Offers only: the fixed price per pax.
     price_per_guest: "",
 
-    // Special Offers only: the food rules, built over the existing menu.
-    offer_menu_rules: [],
+    // Special Offers only: the combo's food, exactly as it is served.
+    offer_food_items: [],
 
     // Descriptions
     description: "",
@@ -159,6 +167,11 @@ export default function PackageModal({
     name: "",
     qty: "",
   });
+
+  // Combo inclusions are plain lines ("Buffet setup"), typed one at a time.
+  const [comboInclusionInput, setComboInclusionInput] = useState("");
+  const [editingComboInclusionIdx, setEditingComboInclusionIdx] = useState(null);
+  const [editComboInclusionValue, setEditComboInclusionValue] = useState("");
 
   // In-line editing states
   const [editingInclusionStr, setEditingInclusionStr] = useState(null);
@@ -213,27 +226,23 @@ export default function PackageModal({
         available: pkg.available !== false,
         guest_min: pkg.guest_min || "",
         guest_max: pkg.guest_max || "",
-        max_guests: pkg.max_guests || "",
+        guest_count: pkg.guest_count || "",
         setup_price: pkg.setup_price || "",
         price_per_guest: pkg.price_per_guest || "",
-        // The rules arrive with their menu items populated; the form keeps
-        // just the ids, which is what the API takes back.
-        offer_menu_rules: (pkg.offer_menu_rules || []).map((rule) => ({
-          group_id: rule.group_id || "",
-          label: rule.label || "",
-          // A rule saved before the count carried this meaning may say
-          // `selectable: false` with a count still on it; the count is the one
-          // that decides, so an unpicked course reads back as zero.
-          required_count:
-            rule.selectable === false ? 0 : Number(rule.required_count) || 0,
-          note: rule.note || "",
-          menu_items: (rule.menu_items || []).map((item) =>
-            String(item?._id || item),
-          ),
+        // Reopened in the order it was saved in, which is the order the combo
+        // is served and displayed in.
+        offer_food_items: offerFoodItems(pkg).map((item) => ({
+          menu_category: item.menu_category,
+          item_name: item.item_name,
         })),
         description: pkg.description || "",
         fullDescription: pkg.fullDescription || "",
-        inclusions: pkg.inclusions || [],
+        // A combo's inclusions are plain lines; anything saved with an old
+        // inventory-class prefix reads back without it.
+        inclusions:
+          pkg.offer_type === OFFER_TYPES.SPECIAL
+            ? offerInclusions(pkg)
+            : pkg.inclusions || [],
         add_ons: normalizedAddOns,
         setup_equipment: pkg.setup_equipment || [],
         scaffold_size_options: pkg.scaffold_size_options || [],
@@ -245,9 +254,10 @@ export default function PackageModal({
     }
   }, [pkg, defaultOfferType]);
 
-  // The catalogue the offer's food rules are built from. Loaded once, because
-  // "allowed menu items per category" must come from real menu data rather
-  // than from a list written into this form.
+  // The kitchen's real catalogue. A combo's dishes are typed rather than
+  // picked — a combo may serve something that is not a standing menu item —
+  // but the catalogue is offered as suggestions, so the usual case is one
+  // keystroke and the names stay consistent with the menu.
   const [menuItems, setMenuItems] = useState([]);
   useEffect(() => {
     AdminAPI.getMenu()
@@ -257,56 +267,45 @@ export default function PackageModal({
 
   const isOffer = formData.offer_type === OFFER_TYPES.SPECIAL;
 
+  // What the combo's food costs, from the two numbers the admin just typed.
+  // The same arithmetic the customer, the booking and the quotation all use.
+  const comboTotal =
+    Math.max(0, Math.floor(Number(formData.guest_count) || 0)) *
+    Math.max(0, Number(formData.price_per_guest) || 0);
+
   const scaffoldOptions = formData.scaffold_size_options || [];
-  // Memoised because `usedRuleGroups` derives from it: a fresh [] each render
-  // would recompute that set every time.
-  const offerRules = useMemo(
-    () => formData.offer_menu_rules || [],
-    [formData.offer_menu_rules],
+  const foodItems = useMemo(
+    () => formData.offer_food_items || [],
+    [formData.offer_food_items],
   );
 
-  // Rules collapse to a summary once configured; only one is open at a time,
-  // because editing two at once is not a thing anyone does and two expanded
-  // dish grids make the section unreadable.
-  const [expandedRuleIdx, setExpandedRuleIdx] = useState(null);
-  // Per-rule dish filter, keyed by index. Kept out of the rule itself so it is
-  // never saved — it is a view state, not configuration.
-  const [ruleSearch, setRuleSearch] = useState({});
-
-  // Courses already claimed by another rule. Two rules over the same course
-  // would compete for one pool of dishes, which no offer expresses.
-  const usedRuleGroups = useMemo(
-    () => new Set(offerRules.map((rule) => rule.group_id).filter(Boolean)),
-    [offerRules],
-  );
-
-  // A newly added rule is scrolled to and opened, so "Add" from the foot of a
+  // A newly added row is scrolled to and focused, so "Add" from the foot of a
   // long list lands the admin on the thing they just created rather than
   // somewhere above it.
-  const ruleRowRefs = useRef({});
-  const pendingRuleFocus = useRef(null);
+  const foodRowRefs = useRef({});
+  const pendingFoodFocus = useRef(null);
 
-  const registerRuleRow = (index, node) => {
-    if (node) ruleRowRefs.current[index] = node;
-    else delete ruleRowRefs.current[index];
+  const registerFoodRow = (index, node) => {
+    if (node) foodRowRefs.current[index] = node;
+    else delete foodRowRefs.current[index];
   };
 
   useEffect(() => {
-    const index = pendingRuleFocus.current;
+    const index = pendingFoodFocus.current;
     if (index === null || index === undefined) return;
-    pendingRuleFocus.current = null;
-    const node = ruleRowRefs.current[index];
+    pendingFoodFocus.current = null;
+    const node = foodRowRefs.current[index];
     node?.scrollIntoView({ block: "center", behavior: "smooth" });
-    node?.querySelector("select")?.focus();
-  }, [offerRules.length]);
+    node?.querySelector("input")?.focus();
+  }, [foodItems.length]);
 
-  // A regular package is built for one event-space size, so once it has one the
-  // add form gives way to "Replace". An offer supports as many as it lists —
-  // the Full Package needs several — so its form stays open.
-  const canAddScaffold = isOffer || scaffoldOptions.length === 0;
+  // A package is built for one event-space size, so once it has one the add
+  // form gives way to "Replace". (Combos never reach this section — they sell
+  // no event space — so there is no second case to keep open for.)
+  const canAddScaffold = scaffoldOptions.length === 0;
 
-  // Menu items grouped the way the customer-facing menu reads, so an admin
-  // picking "3 Main Courses" is choosing from the mains they actually sell.
+  // Menu items grouped the way the customer-facing menu reads, so the dish
+  // suggestions under "Chicken BBQ" are the mains the kitchen actually sells.
   const menuByGroup = useMemo(() => {
     const groups = new Map();
     menuItems.forEach((item) => {
@@ -316,6 +315,36 @@ export default function PackageModal({
     });
     return [...groups.values()];
   }, [menuItems]);
+
+  /**
+   * The course names offered on a combo food row.
+   *
+   * The shared taxonomy first — it is the vocabulary the rest of the product
+   * groups food by — then any course the kitchen already uses that it does not
+   * cover, so an admin never has to invent a name the menu already has. The
+   * field stays free text: a combo may serve something the menu does not list.
+   */
+  const categorySuggestions = useMemo(() => {
+    const names = CATEGORY_GROUPS.map((group) => group.label);
+    const seen = new Set(names.map((name) => name.toLowerCase()));
+    menuByGroup.forEach((group) => {
+      if (group.label && !seen.has(group.label.toLowerCase())) {
+        seen.add(group.label.toLowerCase());
+        names.push(group.label);
+      }
+    });
+    return names;
+  }, [menuByGroup]);
+
+  /** Dish suggestions for a row, narrowed to its course when it names one. */
+  const dishSuggestionsFor = (category) => {
+    const wanted = String(category || "").trim().toLowerCase();
+    const group = wanted
+      ? menuByGroup.find((entry) => entry.label.toLowerCase() === wanted)
+      : null;
+    const pool = group ? group.items : menuItems;
+    return [...new Set(pool.map((item) => item.name).filter(Boolean))];
+  };
 
   // ============ INCLUSION HELPERS & CATEGORIZATION ============
   const parseInclusion = (str) => {
@@ -613,109 +642,94 @@ export default function PackageModal({
     }));
   };
 
-  // ============ HANDLERS - Special Offer food rules ============
-  // A rule is three decisions: which course, how many the customer picks, and
-  // which dishes they may pick from. A count of 0 means the course comes with
-  // the offer and is never chosen (rice, water). Allowed items always come from
-  // the live menu catalogue, never from a list written into this file.
-  const handleAddOfferRule = () => {
+  // ============ HANDLERS - Combo food & inclusions ============
+  // A combo's food is a written list: one row per dish, each naming the course
+  // it belongs to. There is nothing to compute — what the admin types is what
+  // the customer is served, which is the whole point of a combo.
+  const handleAddFoodItem = () => {
     setFormData((prev) => {
-      const rules = prev.offer_menu_rules || [];
-      // Open the new rule and queue the scroll, so adding from the foot of a
-      // long list does not leave the admin looking at the wrong row.
-      const nextIndex = rules.length;
-      setExpandedRuleIdx(nextIndex);
-      pendingRuleFocus.current = nextIndex;
+      const items = prev.offer_food_items || [];
+      pendingFoodFocus.current = items.length;
       return {
         ...prev,
-        offer_menu_rules: [
-          ...rules,
-          { group_id: "", label: "", required_count: 1, note: "", menu_items: [] },
-        ],
+        offer_food_items: [...items, { menu_category: "", item_name: "" }],
       };
     });
   };
 
-  const handleUpdateOfferRule = (index, patch) => {
+  const handleUpdateFoodItem = (index, patch) => {
     setFormData((prev) => {
-      const rules = [...(prev.offer_menu_rules || [])];
-      rules[index] = { ...rules[index], ...patch };
-      return { ...prev, offer_menu_rules: rules };
+      const items = [...(prev.offer_food_items || [])];
+      items[index] = { ...items[index], ...patch };
+      return { ...prev, offer_food_items: items };
     });
   };
 
-  const handleRemoveOfferRule = (index) => {
+  const handleRemoveFoodItem = (index) => {
     setFormData((prev) => ({
       ...prev,
-      offer_menu_rules: (prev.offer_menu_rules || []).filter((_, i) => i !== index),
+      offer_food_items: (prev.offer_food_items || []).filter(
+        (_, i) => i !== index,
+      ),
     }));
-    // Rules are keyed by index, so removing one shifts everything after it.
-    // Collapsing avoids leaving the editor open on a different rule than the
-    // admin was looking at.
-    setExpandedRuleIdx(null);
-    setRuleSearch({});
-  };
-
-  const handleToggleOfferRuleItem = (index, itemId) => {
-    setFormData((prev) => {
-      const rules = [...(prev.offer_menu_rules || [])];
-      const current = rules[index]?.menu_items || [];
-      const id = String(itemId);
-      rules[index] = {
-        ...rules[index],
-        menu_items: current.includes(id)
-          ? current.filter((entry) => entry !== id)
-          : [...current, id],
-      };
-      return { ...prev, offer_menu_rules: rules };
-    });
   };
 
   /**
-   * Choosing the course a rule draws from.
+   * Moves a dish one place up or down.
    *
-   * Selecting one narrows the dish list to that course and, as a starting
-   * point, allows all of it — which is the common case ("any main", "any
-   * dessert") and leaves the admin deselecting the odd exception rather than
-   * ticking twenty boxes. The display name follows the course unless the admin
-   * has already typed one of their own, so "Viand" is never overwritten.
+   * Order is stored (`sort_order`) and is the order the combo reads in
+   * everywhere else, so it is worth being able to correct without deleting and
+   * retyping the row.
    */
-  const handleSelectOfferRuleGroup = (index, groupId) => {
-    // The dish list changes entirely, so a filter typed against the old course
-    // would hide the new one's dishes.
-    setRuleSearch((prev) => ({ ...prev, [index]: "" }));
+  const handleMoveFoodItem = (index, direction) => {
     setFormData((prev) => {
-      const rules = [...(prev.offer_menu_rules || [])];
-      const rule = rules[index] || {};
-      const group = menuByGroup.find((entry) => entry.id === groupId);
-      const previousGroup = menuByGroup.find((entry) => entry.id === rule.group_id);
-
-      const keptLabel =
-        rule.label && rule.label !== previousGroup?.label ? rule.label : group?.label || "";
-
-      rules[index] = {
-        ...rule,
-        group_id: groupId,
-        label: keptLabel,
-        menu_items: group ? group.items.map((item) => String(item._id)) : [],
-      };
-      return { ...prev, offer_menu_rules: rules };
+      const items = [...(prev.offer_food_items || [])];
+      const target = index + direction;
+      if (target < 0 || target >= items.length) return prev;
+      [items[index], items[target]] = [items[target], items[index]];
+      return { ...prev, offer_food_items: items };
     });
   };
 
-  /** Allow or clear every dish in the course a rule is showing. */
-  const handleToggleAllRuleItems = (index, items, select) => {
+  // Combo inclusions: plain lines, no inventory class. Duplicates are refused
+  // rather than silently added, because two "Serving utensils" rows read as a
+  // mistake on the customer's card.
+  const handleAddComboInclusion = () => {
+    const value = comboInclusionInput.trim();
+    if (!value) return;
+    const existing = formData.inclusions || [];
+    if (existing.some((entry) => entry.toLowerCase() === value.toLowerCase())) {
+      notify(`"${value}" is already included.`, "error");
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: [...(prev.inclusions || []), value],
+    }));
+    setComboInclusionInput("");
+  };
+
+  const handleSaveComboInclusion = (index) => {
+    const value = editComboInclusionValue.trim();
+    if (!value) {
+      notify("An inclusion needs a name.", "error");
+      return;
+    }
     setFormData((prev) => {
-      const rules = [...(prev.offer_menu_rules || [])];
-      const current = new Set(rules[index]?.menu_items || []);
-      items.forEach((item) => {
-        const id = String(item._id);
-        if (select) current.add(id);
-        else current.delete(id);
-      });
-      rules[index] = { ...rules[index], menu_items: [...current] };
-      return { ...prev, offer_menu_rules: rules };
+      const items = [...(prev.inclusions || [])];
+      items[index] = value;
+      return { ...prev, inclusions: items };
     });
+    setEditingComboInclusionIdx(null);
+    setEditComboInclusionValue("");
+  };
+
+  const handleRemoveComboInclusion = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      inclusions: (prev.inclusions || []).filter((_, i) => i !== index),
+    }));
+    setEditingComboInclusionIdx(null);
   };
 
   const handleSetDefaultScaffoldOption = (id) => {
@@ -730,13 +744,19 @@ export default function PackageModal({
     (inc) => isDiningInclusion(inc),
   );
 
+  // Named apart from the state it reads so the inclusion section's three tabs
+  // stay one concept. The section itself renders for regular packages only —
+  // a combo's inclusions are plain lines with a section of their own.
+  const inclusionTab = activeClassTab;
+
   // ============ HANDLERS - Form Submit ============
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Both types need a name and an event type. What they need beyond that
     // differs, because what they are priced on differs: an offer is sold at a
-    // fixed rate per person, a regular package at a base setup price.
+    // fixed rate per pax against its own guest count, a regular package at a
+    // base setup price.
     if (!formData.name.trim() || !formData.event_type) {
       notify("Package name and event type are required.", "error");
       return;
@@ -753,9 +773,17 @@ export default function PackageModal({
       return;
     }
 
-    if (isOffer && !Number(formData.price_per_guest)) {
+    if (isOffer && !(Number(formData.price_per_guest) >= 0)) {
       notify(
-        "Set the price per person. A special offer is priced from that rate times the guest count.",
+        "Set the price per pax. A combo is priced from that rate times its guest count.",
+        "error",
+      );
+      return;
+    }
+
+    if (isOffer && !(Number(formData.guest_count) >= 1)) {
+      notify(
+        "Set how many guests this combo serves. It must be at least 1.",
         "error",
       );
       return;
@@ -771,26 +799,22 @@ export default function PackageModal({
       return;
     }
 
-    // A selectable rule the customer cannot satisfy would block every booking
-    // of this offer, so it is caught here rather than at booking time.
+    // A combo with no food is not a combo, and a nameless row would be saved
+    // as nothing at all — both are caught here rather than at booking time.
     if (isOffer) {
-      const brokenRule = (formData.offer_menu_rules || []).find(
-        (rule) =>
-          Number(rule.required_count) > 0 &&
-          (rule.menu_items || []).length < Number(rule.required_count),
-      );
-      if (brokenRule) {
+      const items = formData.offer_food_items || [];
+      if (items.length === 0) {
         notify(
-          `"${brokenRule.label || "A food rule"}" lets the customer choose ${brokenRule.required_count} but allows only ${(brokenRule.menu_items || []).length} dish(es). Allow more dishes, or lower the number.`,
+          "Add at least one food item. A combo is the dishes it serves.",
           "error",
         );
         return;
       }
-      const unnamedRule = (formData.offer_menu_rules || []).find(
-        (rule) => !String(rule.label || "").trim(),
-      );
-      if (unnamedRule) {
-        notify('Every food rule needs a name, e.g. "Viand".', "error");
+      if (items.some((item) => !String(item.item_name || "").trim())) {
+        notify(
+          'Every food item needs a name, e.g. "Chicken BBQ". Remove the blank rows or fill them in.',
+          "error",
+        );
         return;
       }
     }
@@ -804,34 +828,43 @@ export default function PackageModal({
           formData.event_type === "Other"
             ? String(formData.event_type_other || "").trim() || "Other"
             : formData.event_type,
-        // The per-size price used to be dropped here, which meant every save
-        // wiped the setup prices the backend actually charges from
+        // The event-space build, which only a regular package has. The
+        // per-size price used to be dropped here, which meant every save wiped
+        // the setup prices the backend actually charges from
         // (booking.controller#calculateBookingPrice reads `opt.price`). It is
         // now a field on this form, so it is kept.
-        scaffold_size_options: (formData.scaffold_size_options || []).map(
-          (option) => ({
-            ...option,
-            price: option.free_setup ? 0 : Number(option.price) || 0,
-            free_setup: Boolean(option.free_setup),
-          }),
-        ),
+        //
+        // A combo sends empty: it sells no event space, so it has no sizes, no
+        // equipment to reserve and no extras sold alongside. The server clears
+        // these for an offer too — this is the client half of the same rule, so
+        // a package converted to a combo does not carry its old build across.
+        scaffold_size_options: isOffer
+          ? []
+          : (formData.scaffold_size_options || []).map((option) => ({
+              ...option,
+              price: option.free_setup ? 0 : Number(option.price) || 0,
+              free_setup: Boolean(option.free_setup),
+            })),
+        default_scaffold_option_id: isOffer
+          ? ""
+          : formData.default_scaffold_option_id || "",
+        setup_equipment: isOffer ? [] : formData.setup_equipment || [],
+        add_ons: isOffer ? [] : formData.add_ons || [],
         // Only a Special Offer carries these. Sending them on a regular
-        // package would leave a cap or a food rule enforcing itself invisibly.
-        // Only the type that uses it sends it, so switching type cannot leave
-        // a stale figure behind on the saved record.
+        // package would leave a guest count or a dish list sitting on a record
+        // that does not use them. Only the type that uses it sends it, so
+        // switching type cannot leave a stale figure behind on the saved record.
         setup_price: isOffer ? "" : formData.setup_price || "",
-        max_guests: isOffer ? formData.max_guests || "" : "",
+        guest_count: isOffer ? formData.guest_count || "" : "",
         price_per_guest: isOffer ? formData.price_per_guest || "" : "",
-        offer_menu_rules: isOffer
-          ? (formData.offer_menu_rules || []).map((rule) => ({
-              group_id: String(rule.group_id || ""),
-              label: String(rule.label || "").trim(),
-              required_count: Number(rule.required_count) || 0,
-              note: String(rule.note || "").trim(),
-              // A course nobody picks from needs no allow-list.
-              menu_items:
-                Number(rule.required_count) > 0 ? rule.menu_items || [] : [],
-            }))
+        // Saved in the order shown; the server renumbers `sort_order` from it.
+        offer_food_items: isOffer
+          ? (formData.offer_food_items || [])
+              .map((item) => ({
+                menu_category: String(item.menu_category || "").trim(),
+                item_name: String(item.item_name || "").trim(),
+              }))
+              .filter((item) => item.item_name)
           : [],
       };
 
@@ -840,7 +873,7 @@ export default function PackageModal({
           normalizedFormData[key].forEach((val) => data.append(`${key}[]`, val));
         } else if (key === "setup_equipment" || key === "add_ons") {
           data.append(key, JSON.stringify(normalizedFormData[key]));
-        } else if (key === "scaffold_size_options" || key === "offer_menu_rules") {
+        } else if (key === "scaffold_size_options" || key === "offer_food_items") {
           data.append(key, JSON.stringify(normalizedFormData[key]));
         } else {
           data.append(key, normalizedFormData[key]);
@@ -860,7 +893,7 @@ export default function PackageModal({
         data.append("gallery_to_remove[]", url);
       });
 
-      const noun = isOffer ? "Special offer" : "Package";
+      const noun = isOffer ? "Combo" : "Package";
       if (pkg && pkg._id) {
         await AdminAPI.updatePackage(pkg._id, data);
         notify(`${noun} updated successfully`, "success");
@@ -885,13 +918,21 @@ export default function PackageModal({
       <AIPackageParserModal
         isOpen={isParserOpen}
         onClose={() => setIsParserOpen(false)}
+        offerType={formData.offer_type}
         onParsed={(data) => {
           setFormData((prev) => ({
             ...prev,
             ...data,
+            // The extractor never changes what is being created — the tab
+            // decided that, and a document that reads like a package must not
+            // turn a combo into one.
+            offer_type: prev.offer_type,
             // Keep existing arrays if they are empty in parsed data, otherwise overwrite
             inclusions: data.inclusions?.length ? data.inclusions : prev.inclusions,
             add_ons: data.add_ons?.length ? data.add_ons : prev.add_ons,
+            offer_food_items: data.offer_food_items?.length
+              ? data.offer_food_items
+              : prev.offer_food_items,
             scaffold_size_options: data.scaffold_size_options?.length ? data.scaffold_size_options : prev.scaffold_size_options,
           }));
         }}
@@ -906,8 +947,8 @@ export default function PackageModal({
               {isOffer && <Sparkles size={17} className="text-amber-500" />}
               {isOffer
                 ? pkg
-                  ? "Edit Special Offer"
-                  : "Add New Special Offer"
+                  ? "Edit Combo"
+                  : "New Combo Pack"
                 : pkg
                   ? "Edit Package"
                   : "Add New Package"}
@@ -954,7 +995,7 @@ export default function PackageModal({
                     {
                       id: OFFER_TYPES.SPECIAL,
                       title: "Special Offer",
-                      blurb: "Fixed price per person. Guest count is exact.",
+                      blurb: "A fixed combo meal for a set guest count, priced per pax.",
                     },
                   ].map((option) => {
                     const selected = formData.offer_type === option.id;
@@ -1009,7 +1050,7 @@ export default function PackageModal({
               {/* Package Name */}
               <div className="col-span-2">
                 <label className="block text-sm text-gray-600 mb-1">
-                  {isOffer ? "Offer Name" : "Package Name"}{" "}
+                  {isOffer ? "Combo Name" : "Package Name"}{" "}
                   <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -1017,7 +1058,7 @@ export default function PackageModal({
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
                   placeholder={
                     isOffer
-                      ? "e.g. Full Package"
+                      ? "e.g. Classic Celebration Combo"
                       : "e.g. Elegant White Wedding Setup"
                   }
                   value={formData.name}
@@ -1073,7 +1114,9 @@ export default function PackageModal({
                     Availability Status
                   </p>
                   <p className="text-xs text-gray-500">
-                    Toggle to make package visible to customers
+                    {isOffer
+                      ? "Unavailable combos are hidden from customers and cannot be booked"
+                      : "Toggle to make package visible to customers"}
                   </p>
                 </div>
                 <button
@@ -1104,7 +1147,11 @@ export default function PackageModal({
                 </label>
                 <textarea
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-20"
-                  placeholder="Brief summary of the setup package (1-2 sentences)"
+                  placeholder={
+                    isOffer
+                      ? "Shown on the combo card, e.g. A balanced combo designed for small celebrations."
+                      : "Brief summary of the setup package (1-2 sentences)"
+                  }
                   value={formData.description}
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
@@ -1117,7 +1164,11 @@ export default function PackageModal({
                 </label>
                 <textarea
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary h-32"
-                  placeholder="Detailed description of what this setup package includes"
+                  placeholder={
+                    isOffer
+                      ? "Shown on the combo's detail page — what the meal is and who it suits"
+                      : "Detailed description of what this setup package includes"
+                  }
                   value={formData.fullDescription}
                   onChange={(e) =>
                     setFormData({
@@ -1130,21 +1181,23 @@ export default function PackageModal({
             </div>
           </section>
 
-          {/* SECTION 3: Pricing & Guest Rules --------------------------------
+          {/* SECTION 3: Pricing & Guest Count --------------------------------
               What this package is sold on, and nothing else. A regular package
-              is sold on a base set-up price; an offer on a rate per person
-              against a guest count it may cap. Only the fields the chosen type
-              actually uses are shown, so neither reads as half-filled. */}
+              is sold on a base set-up price; a combo on a guest count and a
+              rate per pax, both fixed. Only the fields the chosen type actually
+              uses are shown, so neither reads as half-filled. */}
           <section>
-            <h3 className="font-bold text-foreground mb-1">Pricing & Guest Rules</h3>
+            <h3 className="font-bold text-foreground mb-1">
+              {isOffer ? "Pricing & Guest Count" : "Pricing & Guest Rules"}
+            </h3>
             <p className="mb-4 text-xs text-gray-500">
               {isOffer
-                ? "Base offer price = guest count × price per person. Set-up, equipment and extras stay with the quotation."
+                ? "Combo price = guest count × price per pax. Set-up, equipment and extras stay with the quotation."
                 : "The starting price for this package. The quotation remains the final pricing authority."}
             </p>
             <div className="grid grid-cols-2 gap-4">
               {/* Base Setup Price — regular packages only. An offer is sold at
-                  a rate per person; what its set-up costs is settled on the
+                  a rate per pax; what its set-up costs is settled on the
                   quotation, so asking for a figure here would invent one. */}
               {!isOffer && (
                 <div>
@@ -1165,20 +1218,42 @@ export default function PackageModal({
                 </div>
               )}
 
-              {/* ---- Special Offer pricing --------------------------------
-                  The offer's own two numbers. Both are configuration: nothing
-                  about ₱500, ₱330 or a 100-guest cap lives in code. */}
+              {/* ---- Combo pricing ----------------------------------------
+                  A combo's own two numbers, and the total that follows from
+                  them. All three are configuration: no figure lives in code. */}
               {isOffer && (
                 <>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">
-                      Price Per Person (₱) <span className="text-red-400">*</span>
+                      Guest Count (pax) <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                      placeholder="e.g. 10"
+                      value={formData.guest_count}
+                      onChange={(e) => {
+                        if (Number(e.target.value) < 0) return;
+                        setFormData({ ...formData, guest_count: e.target.value });
+                      }}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      How many guests this combo serves. Customers book it for
+                      exactly this number.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">
+                      Price Per Pax (₱) <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="number"
                       min="0"
                       className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      placeholder="e.g. 500"
+                      placeholder="e.g. 350"
                       value={formData.price_per_guest}
                       onChange={(e) => {
                         if (Number(e.target.value) < 0) return;
@@ -1188,370 +1263,170 @@ export default function PackageModal({
                         });
                       }}
                     />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Base food price = guest count × this rate.
-                    </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Maximum Guest Count
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      placeholder="Leave blank for no limit"
-                      value={formData.max_guests}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) return;
-                        setFormData({ ...formData, max_guests: e.target.value });
-                      }}
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Enforced at booking when set — customers cannot exceed it.
+                  {/* The number the customer actually pays for the food, shown
+                      as it is typed — the two fields above are easy to read as
+                      a total when they are not one. */}
+                  {comboTotal > 0 && (
+                    <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
+                      Combo food price:{" "}
+                      <strong>₱{comboTotal.toLocaleString("en-PH")}</strong> ·{" "}
+                      {Number(formData.guest_count)} guests × ₱
+                      {Number(formData.price_per_guest).toLocaleString("en-PH")}{" "}
+                      per pax. Set-up, equipment and extras are quoted
+                      separately.
                     </p>
-                  </div>
+                  )}
                 </>
               )}
             </div>
           </section>
 
-          {/* SECTION 4: Food Rules -------------------------------------------
-              What the offer feeds people, as rules over the existing menu
-              rather than a dish list. One rule is three decisions: which
-              course, how many the customer picks, and which dishes they may
-              pick from. `Choose 0` means the course simply comes with the offer.
+          {/* SECTION 4: Combo Food ------------------------------------------
+              What the combo serves, written out. A combo is a decided meal, so
+              this is a list rather than a set of rules: one row per dish, each
+              naming the course it belongs to, in the order it is presented.
 
-              Rules collapse to a one-line summary once configured, so ten of
-              them stay readable, and only the one being edited is expanded.
-              The add control repeats at the foot of the list — with many rules
-              configured, a button at the top alone is off-screen exactly when
-              it is wanted. */}
+              Dish and course names are free text with suggestions drawn from
+              the live menu — a combo may serve something the standing menu does
+              not list, but the usual case is one keystroke and names that match
+              the rest of the product. */}
           {isOffer && (
             <section>
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h3 className="flex items-center gap-2 font-bold text-foreground">
                     <Sparkles size={15} className="text-amber-500" />
-                    Food Rules
+                    Combo Food <span className="text-red-400">*</span>
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Allowed dishes come from your menu, so keeping the menu
-                    current keeps every offer current.
+                    Every dish this combo serves. Customers see exactly this
+                    list — they choose nothing.
                   </p>
                 </div>
-                <Btn variant="secondary" size="sm" onClick={handleAddOfferRule}>
-                  <Plus size={12} /> Add food rule
+                <Btn variant="secondary" size="sm" onClick={handleAddFoodItem}>
+                  <Plus size={12} /> Add item
                 </Btn>
               </div>
 
+              <datalist id="combo-course-suggestions">
+                {categorySuggestions.map((label) => (
+                  <option key={label} value={label} />
+                ))}
+              </datalist>
+
               <div className="space-y-2 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
-                {offerRules.length === 0 ? (
+                {foodItems.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-amber-200 bg-white/60 py-6 text-center text-sm italic text-gray-400">
-                    No food rules yet. Add one per course — e.g. Viand, choose 1.
+                    No food yet. Add the dishes this combo serves — e.g. Main
+                    Course, Chicken BBQ.
                   </p>
                 ) : (
-                  offerRules.map((rule, index) => {
-                    const chosen = rule.menu_items || [];
-                    const required = Number(rule.required_count) || 0;
-                    const included = required === 0;
-                    const group = menuByGroup.find((g) => g.id === rule.group_id);
-                    const pool = group ? group.items : menuItems;
-                    const shortOfItems = !included && chosen.length < required;
-                    const expanded = expandedRuleIdx === index;
-
-                    /* ---- Collapsed summary row ------------------------------
-                       VIAND · Choose 1 · 4 allowed dishes · Edit | Remove */
-                    if (!expanded) {
-                      return (
-                        <div
-                          key={index}
-                          ref={(node) => registerRuleRow(index, node)}
-                          className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-white px-3 py-2.5 shadow-2xs ${
-                            shortOfItems ? "border-red-300" : "border-amber-200"
-                          }`}
+                  foodItems.map((item, index) => (
+                    <div
+                      key={index}
+                      ref={(node) => registerFoodRow(index, node)}
+                      className="flex flex-wrap items-end gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2.5 shadow-2xs"
+                    >
+                      {/* Reordering: the stored order is the order the combo
+                          reads in everywhere, so it is worth correcting in
+                          place rather than by retyping the rows. */}
+                      <div className="flex flex-col">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveFoodItem(index, -1)}
+                          disabled={index === 0}
+                          aria-label={`Move ${item.item_name || "item"} up`}
+                          className="rounded px-1 text-gray-400 transition-colors hover:text-primary disabled:opacity-30"
                         >
-                          <span className="min-w-[7rem] flex-1 truncate text-sm font-bold uppercase tracking-wide text-foreground">
-                            {rule.label || (
-                              <span className="italic text-gray-400 normal-case">
-                                Unnamed rule
-                              </span>
-                            )}
-                          </span>
-
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                              included
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-amber-100 text-amber-800"
-                            }`}
-                          >
-                            {included ? "Included" : `Choose ${required}`}
-                          </span>
-
-                          <span
-                            className={`shrink-0 text-xs ${
-                              shortOfItems ? "font-semibold text-red-500" : "text-gray-500"
-                            }`}
-                          >
-                            {included
-                              ? rule.note || "Comes with the offer"
-                              : `${chosen.length} allowed dish${chosen.length === 1 ? "" : "es"}${
-                                  shortOfItems ? ` — needs ${required}` : ""
-                                }`}
-                          </span>
-
-                          <span className="ml-auto flex shrink-0 items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedRuleIdx(index)}
-                              className="rounded px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/5"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveOfferRule(index)}
-                              className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                              title="Remove rule"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </span>
-                        </div>
-                      );
-                    }
-
-                    /* ---- Expanded editor ------------------------------------ */
-                    const search = (ruleSearch[index] || "").trim().toLowerCase();
-                    const visiblePool = search
-                      ? pool.filter((item) =>
-                          String(item.name || "").toLowerCase().includes(search),
-                        )
-                      : pool;
-                    const allVisibleChosen =
-                      visiblePool.length > 0 &&
-                      visiblePool.every((item) => chosen.includes(String(item._id)));
-
-                    return (
-                      <div
-                        key={index}
-                        ref={(node) => registerRuleRow(index, node)}
-                        className="rounded-lg border-2 border-primary/40 bg-white p-3 shadow-sm"
-                      >
-                        <div className="flex flex-wrap items-end gap-2">
-                          <div className="min-w-[9rem] flex-1">
-                            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                              Food category
-                            </label>
-                            <select
-                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                              value={rule.group_id || ""}
-                              onChange={(e) =>
-                                handleSelectOfferRuleGroup(index, e.target.value)
-                              }
-                            >
-                              <option value="">Any course</option>
-                              {menuByGroup.map((g) => (
-                                <option
-                                  key={g.id}
-                                  value={g.id}
-                                  // The same course twice is two rules fighting
-                                  // over one pool of dishes, which no offer in
-                                  // the catalogue expresses.
-                                  disabled={
-                                    g.id !== rule.group_id && usedRuleGroups.has(g.id)
-                                  }
-                                >
-                                  {g.label} ({g.items.length})
-                                  {g.id !== rule.group_id && usedRuleGroups.has(g.id)
-                                    ? " — already used"
-                                    : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="min-w-[8rem] flex-1">
-                            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                              Shown as
-                            </label>
-                            <input
-                              type="text"
-                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                              placeholder="e.g. Viand"
-                              value={rule.label}
-                              onChange={(e) =>
-                                handleUpdateOfferRule(index, { label: e.target.value })
-                              }
-                            />
-                          </div>
-
-                          <div className="w-24">
-                            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                              Choose
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                              value={rule.required_count}
-                              onChange={(e) =>
-                                handleUpdateOfferRule(index, {
-                                  required_count: Math.max(0, Number(e.target.value) || 0),
-                                })
-                              }
-                            />
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setExpandedRuleIdx(null)}
-                            className="mb-0.5 flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
-                          >
-                            <Check size={12} /> Done
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveOfferRule(index)}
-                            className="mb-0.5 rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                            title="Remove rule"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-
-                        {included ? (
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                              Always included
-                            </span>
-                            <input
-                              type="text"
-                              className="min-w-[12rem] flex-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                              placeholder="Note for the customer, e.g. Included for every guest."
-                              value={rule.note || ""}
-                              onChange={(e) =>
-                                handleUpdateOfferRule(index, { note: e.target.value })
-                              }
-                            />
-                          </div>
-                        ) : (
-                          <div className="mt-3">
-                            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                                Allowed dishes{" "}
-                                <span
-                                  className={
-                                    shortOfItems
-                                      ? "font-bold text-red-500"
-                                      : "text-gray-400"
-                                  }
-                                >
-                                  ({chosen.length} allowed
-                                  {shortOfItems ? ` — needs at least ${required}` : ""})
-                                </span>
-                              </p>
-                              <div className="flex items-center gap-2">
-                                {/* A long catalogue is unusable as a wall of
-                                    chips; filtering is what makes picking six
-                                    dishes out of eighty quick. */}
-                                {pool.length > 8 && (
-                                  <input
-                                    type="search"
-                                    placeholder="Search dishes"
-                                    className="w-36 rounded-md border border-gray-200 px-2 py-1 text-xs focus:border-amber-500 focus:outline-none"
-                                    value={ruleSearch[index] || ""}
-                                    onChange={(e) =>
-                                      setRuleSearch((prev) => ({
-                                        ...prev,
-                                        [index]: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                )}
-                                {visiblePool.length > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleToggleAllRuleItems(
-                                        index,
-                                        visiblePool,
-                                        !allVisibleChosen,
-                                      )
-                                    }
-                                    className="shrink-0 text-[11px] font-semibold text-amber-600 hover:text-amber-700"
-                                  >
-                                    {allVisibleChosen
-                                      ? "Clear shown"
-                                      : `Allow ${search ? "shown" : "all"}`}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-
-                            {pool.length === 0 ? (
-                              <p className="rounded border border-dashed border-gray-200 py-3 text-center text-xs italic text-gray-400">
-                                No dishes in this course yet. Add them under Menu
-                                Management first.
-                              </p>
-                            ) : visiblePool.length === 0 ? (
-                              <p className="rounded border border-dashed border-gray-200 py-3 text-center text-xs italic text-gray-400">
-                                No dishes match “{ruleSearch[index]}”.
-                              </p>
-                            ) : (
-                              <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50/60 p-2">
-                                {visiblePool.map((item) => {
-                                  const picked = chosen.includes(String(item._id));
-                                  return (
-                                    <button
-                                      key={item._id}
-                                      type="button"
-                                      aria-pressed={picked}
-                                      onClick={() =>
-                                        handleToggleOfferRuleItem(index, item._id)
-                                      }
-                                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                                        picked
-                                          ? "border-amber-400 bg-amber-100 font-semibold text-amber-800"
-                                          : "border-gray-200 bg-white text-gray-600 hover:border-amber-300"
-                                      }`}
-                                    >
-                                      {item.name}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          <ChevronUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveFoodItem(index, 1)}
+                          disabled={index === foodItems.length - 1}
+                          aria-label={`Move ${item.item_name || "item"} down`}
+                          className="rounded px-1 text-gray-400 transition-colors hover:text-primary disabled:opacity-30"
+                        >
+                          <ChevronDown size={14} />
+                        </button>
                       </div>
-                    );
-                  })
+
+                      <div className="min-w-[9rem] flex-1">
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Menu category
+                        </label>
+                        <input
+                          type="text"
+                          list="combo-course-suggestions"
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                          placeholder="e.g. Main Course"
+                          value={item.menu_category || ""}
+                          onChange={(e) =>
+                            handleUpdateFoodItem(index, {
+                              menu_category: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="min-w-[11rem] flex-[2]">
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                          Item name <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          list={`combo-dish-suggestions-${index}`}
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm focus:outline-none ${
+                            String(item.item_name || "").trim()
+                              ? "border-gray-200 focus:border-amber-500"
+                              : "border-red-300 focus:border-red-400"
+                          }`}
+                          placeholder="e.g. Chicken BBQ"
+                          value={item.item_name || ""}
+                          onChange={(e) =>
+                            handleUpdateFoodItem(index, {
+                              item_name: e.target.value,
+                            })
+                          }
+                        />
+                        <datalist id={`combo-dish-suggestions-${index}`}>
+                          {dishSuggestionsFor(item.menu_category).map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFoodItem(index)}
+                        className="mb-1 rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        title="Remove item"
+                        aria-label={`Remove ${item.item_name || "item"}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
                 )}
 
                 {/* The add control the admin actually reaches: right where the
-                    last rule ends, however many there are. */}
+                    last row ends, however many there are. */}
                 <button
                   type="button"
-                  onClick={handleAddOfferRule}
+                  onClick={handleAddFoodItem}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-white/70 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:border-amber-500 hover:bg-white"
                 >
-                  <Plus size={14} /> Add food rule
+                  <Plus size={14} /> Add food item
                 </button>
-
-                {offerRules.length > 0 && (
-                  <p className="text-[11px] text-gray-500">
-                    Set <strong>Choose</strong> to 0 for a course that simply
-                    comes with the offer and is never picked, like rice or water.
-                  </p>
-                )}
               </div>
             </section>
           )}
 
-          {/* SECTION 5: Scaffold / Event Space ------------------------------
+          {/* SECTION 5: Scaffold / Event Space — regular packages only -------
+              A combo is food: it sells no event space, so it has no sizes to
+              support and no size to mark as covering the set-up. ---------------
               A scaffold option is a supported event-space size and the guest
               capacity it fits. It carries no price: what a given size costs is
               a quotation decision, not a package one.
@@ -1559,15 +1434,13 @@ export default function PackageModal({
               A regular package supports one size — its own. A Special Offer may
               list several, and may mark one as covering the set-up (the client's
               "20x40 = FREE SET-UP"), which is why the flag lives on the size. */}
+          {!isOffer && (
           <section>
             <div className="mb-4">
-              <h3 className="font-bold text-foreground">
-                {isOffer ? "Scaffold Sizes & Capacity" : "Scaffold Size & Capacity"}
-              </h3>
+              <h3 className="font-bold text-foreground">Scaffold Size & Capacity</h3>
               <p className="text-xs text-gray-500">
-                {isOffer
-                  ? "The event-space sizes this offer supports. Mark one as free set-up if the offer covers it — every other size is priced on the quotation."
-                  : "The event-space size this package is built for, and the guest range it fits. Pricing stays on the quotation."}
+                The event-space size this package is built for, and the guest
+                range it fits. Pricing stays on the quotation.
               </p>
             </div>
 
@@ -1588,7 +1461,6 @@ export default function PackageModal({
                           <ScaffoldFields
                             value={editScaffoldData}
                             onChange={setEditScaffoldData}
-                            allowFreeSetup={isOffer}
                             compact
                           />
                           <div className="mt-2 flex gap-1.5">
@@ -1622,7 +1494,7 @@ export default function PackageModal({
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           {/* Only a list of several needs a default chosen. */}
-                          {isOffer && scaffoldOptions.length > 1 && (
+                          {scaffoldOptions.length > 1 && (
                             <input
                               type="radio"
                               name="default_scaffold"
@@ -1631,13 +1503,13 @@ export default function PackageModal({
                                 handleSetDefaultScaffoldOption(opt._id || opt.id || idx)
                               }
                               className="shrink-0 accent-primary"
-                              title="Offer this size first"
+                              title="Show this size first"
                             />
                           )}
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium">
                               {opt.label || `${opt.width_ft}ft × ${opt.length_ft}ft`}
-                              {isOffer && scaffoldOptions.length > 1 && isDefault && (
+                              {scaffoldOptions.length > 1 && isDefault && (
                                 <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
                                   Default
                                 </span>
@@ -1705,7 +1577,6 @@ export default function PackageModal({
                   <ScaffoldFields
                     value={newScaffoldOption}
                     onChange={setNewScaffoldOption}
-                    allowFreeSetup={isOffer}
                   />
 
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1762,22 +1633,158 @@ export default function PackageModal({
               )}
             </div>
           </section>
+          )}
 
 
-          {/* SECTION 6: Inclusions & Add-ons (shared by both package types) */}
+          {/* SECTION 5b: Combo Inclusions -----------------------------------
+              What comes with the combo besides the food — buffet setup, serving
+              utensils, plates. Plain lines the admin types, because a combo's
+              inclusions are what the customer is told they get, not items drawn
+              from the inventory the way a setup package's are. */}
+          {isOffer && (
+            <section>
+              <div className="mb-4">
+                <h3 className="font-bold text-foreground">Combo Inclusions</h3>
+                <p className="text-xs text-gray-500">
+                  What comes with the combo besides the dishes, e.g. buffet
+                  setup, serving utensils, disposable plates.
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                    placeholder="e.g. Buffet setup"
+                    value={comboInclusionInput}
+                    onChange={(e) => setComboInclusionInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter adds the line rather than submitting the form —
+                      // typing six inclusions should not need six trips to the
+                      // mouse.
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      handleAddComboInclusion();
+                    }}
+                  />
+                  <Btn
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAddComboInclusion}
+                  >
+                    <Plus size={12} /> Add
+                  </Btn>
+                </div>
+
+                {(formData.inclusions || []).length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-gray-200 bg-white/60 py-5 text-center text-sm italic text-gray-400">
+                    No inclusions yet.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {(formData.inclusions || []).map((inc, index) => {
+                      const editing = editingComboInclusionIdx === index;
+
+                      if (editing) {
+                        return (
+                          <li
+                            key={index}
+                            className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-2"
+                          >
+                            <input
+                              type="text"
+                              autoFocus
+                              className="flex-1 rounded border border-blue-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                              value={editComboInclusionValue}
+                              onChange={(e) =>
+                                setEditComboInclusionValue(e.target.value)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                handleSaveComboInclusion(index);
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveComboInclusion(index)}
+                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
+                            >
+                              <Check size={12} /> Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingComboInclusionIdx(null)}
+                              className="rounded px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100"
+                            >
+                              Cancel
+                            </button>
+                          </li>
+                        );
+                      }
+
+                      return (
+                        <li
+                          key={index}
+                          className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-2xs"
+                        >
+                          <Check size={13} className="shrink-0 text-emerald-500" />
+                          <span className="flex-1 truncate text-foreground">
+                            {inc}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingComboInclusionIdx(index);
+                              setEditComboInclusionValue(inc);
+                            }}
+                            className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-primary"
+                            title="Edit inclusion"
+                            aria-label={`Edit ${inc}`}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveComboInclusion(index)}
+                            className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            title="Remove inclusion"
+                            aria-label={`Remove ${inc}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* SECTION 6: Inclusions & Add-ons — regular packages only.
+              A combo's inclusions are plain lines with their own section above,
+              and it has no add-ons: extras are sold alongside an event-space
+              build, which a combo is not. */}
+          {!isOffer && (
           <section>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-bold text-foreground">
-                  Inclusions & Add-ons
+                  {isOffer ? "Add-ons" : "Inclusions & Add-ons"}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Configure the 3 package classes shown to customers on the website & inquiries.
+                  {isOffer
+                    ? "Optional extras a customer can add to this combo. Priced on the quotation."
+                    : "Configure the 3 package classes shown to customers on the website & inquiries."}
                 </p>
               </div>
             </div>
 
-            {/* 3-Class Segmented Tabs */}
+            {/* 3-Class Segmented Tabs. A combo has no inventory classes to
+                switch between, so it shows no tab bar at all. */}
+            {!isOffer && (
             <div className="flex bg-gray-100 p-1 rounded-xl w-full border border-gray-200/80 text-xs font-semibold mb-4 gap-1">
               <button
                 type="button"
@@ -1827,10 +1834,11 @@ export default function PackageModal({
                 </span>
               </button>
             </div>
+            )}
 
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-4">
               {/* TAB 1: Event Setup & Furniture */}
-              {activeClassTab === "setup" && (
+              {inclusionTab === "setup" && (
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -2037,7 +2045,7 @@ export default function PackageModal({
               )}
 
               {/* TAB 2: Dining & Service Inventory */}
-              {activeClassTab === "dining" && (
+              {inclusionTab === "dining" && (
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -2244,7 +2252,7 @@ export default function PackageModal({
               )}
 
               {/* TAB 3: ADD ONS */}
-              {activeClassTab === "addons" && (
+              {inclusionTab === "addons" && (
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -2441,6 +2449,7 @@ export default function PackageModal({
               )}
             </div>
           </section>
+          )}
 
           {/* SECTION 7: Media */}
           <section>

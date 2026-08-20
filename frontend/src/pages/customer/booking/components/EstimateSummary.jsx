@@ -34,10 +34,10 @@ export default function EstimateSummary({
     depositPercentage,
     depositAmount,
     guests,
-    // "Estimated guests" everywhere except a Special Offer, whose count is
-    // exact because the price is built directly from it.
+    // "Estimated guests" everywhere except a combo pack, whose count is fixed
+    // by the combo itself.
     guestsLabel = "Estimated guests",
-    // Special Offers only. What the base price buys, and what it does not —
+    // Combo packs only. What the combo price buys, and what it does not —
     // present so the total is never mistaken for the final bill.
     offerName,
     included,
@@ -139,15 +139,15 @@ export default function EstimateSummary({
           </ul>
         )}
 
-        {/* What the offer covers, and what it does not. Two plain lists, so a
-            customer reading ₱50,000 cannot come away thinking set-up and
+        {/* What the combo covers, and what it does not. Two plain lists, so a
+            customer reading ₱25,000 cannot come away thinking set-up and
             equipment were part of it. */}
         {(included?.length > 0 || quotedSeparately?.length > 0) && (
           <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
             {included?.length > 0 && (
               <div>
                 <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#C5A059]">
-                  Included in this offer
+                  Included in this combo
                 </p>
                 <ul className="space-y-1 text-[13px] text-white/75">
                   {included.map((entry) => (
@@ -205,9 +205,10 @@ export default function EstimateSummary({
         <p className="border-t border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs leading-relaxed text-white/60">
           {offerName ? (
             <>
-              Your quotation adds any set-up, equipment and extras to this base
-              price. The {depositPercentage}% deposit is worked out from that
-              final total and reserves your date once you accept it.
+              This is the combo price. Anything else you and our team agree —
+              delivery, or an event set-up booked alongside it — is added on
+              your quotation, and the {depositPercentage}% deposit is worked out
+              from that final total and reserves your date once you accept it.
             </>
           ) : (
             <>

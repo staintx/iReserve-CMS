@@ -4,7 +4,9 @@ const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
 const {
   OFFER_TYPES,
-  normalizeOfferMenuRules,
+  comboPayload,
+  normalizeOfferFoodItems,
+  normalizeOfferInclusions,
 } = require("../utils/specialOffers");
 
 /**
@@ -65,6 +67,14 @@ const normalizeList = (value) => {
   return [];
 };
 
+/**
+ * Whether an incoming body describes a combo. Read before the payload is built
+ * so the event-space parsing above can be skipped entirely rather than done and
+ * then thrown away.
+ */
+const isSpecialOfferBody = (body) =>
+  normalizeOfferType(body?.offer_type) === OFFER_TYPES.SPECIAL;
+
 const canViewUnavailable = (user) => {
   if (!user) return false;
   return ["admin", "staff"].includes(user.role);
@@ -114,7 +124,7 @@ exports.create = async (req, res) => {
   }
 
   let scaffold_size_options = [];
-  if (req.body.scaffold_size_options) {
+  if (req.body.scaffold_size_options && !isSpecialOfferBody(req.body)) {
     try {
       scaffold_size_options = normalizeScaffoldOptions(
         JSON.parse(req.body.scaffold_size_options)
@@ -152,22 +162,40 @@ exports.create = async (req, res) => {
   }
 
   const offer_type = normalizeOfferType(req.body.offer_type);
+  const isOffer = offer_type === OFFER_TYPES.SPECIAL;
 
-  const payload = {
+  // A combo is sold as "N guests at ₱X each", so neither number is optional:
+  // without them the offer has no price and no size, and every surface that
+  // renders it would have to invent one.
+  if (isOffer) {
+    const guestCount = Math.floor(Number(req.body.guest_count) || 0);
+    if (guestCount < 1) {
+      return res.status(400).json({
+        message: "Set how many guests this combo serves. It must be at least 1.",
+      });
+    }
+    if (!(Number(req.body.price_per_guest) >= 0)) {
+      return res.status(400).json({
+        message: "Set this combo's price per pax.",
+      });
+    }
+  }
+
+  const basePayload = {
     ...req.body,
     package_type: req.body.package_type || "Event Setup Only",
     offer_type,
-    // A cap only means something on a Special Offer, where the guest count is
-    // the real number the price is built from.
-    max_guests:
-      offer_type === OFFER_TYPES.SPECIAL && req.body.max_guests
-        ? Number(req.body.max_guests)
-        : undefined,
-    offer_menu_rules:
-      offer_type === OFFER_TYPES.SPECIAL
-        ? normalizeOfferMenuRules(req.body.offer_menu_rules)
-        : [],
-    inclusions: normalizeList(req.body.inclusions),
+    // The guest count belongs to a combo, where it is the number the price is
+    // built from. A regular package carries a guest range instead.
+    guest_count: isOffer ? Math.floor(Number(req.body.guest_count)) : undefined,
+    offer_food_items: isOffer
+      ? normalizeOfferFoodItems(req.body.offer_food_items)
+      : [],
+    // A combo's inclusions are plain lines the admin typed; a package's carry
+    // the inventory class they came from, which normalizeList keeps intact.
+    inclusions: isOffer
+      ? normalizeOfferInclusions(req.body.inclusions)
+      : normalizeList(req.body.inclusions),
     add_ons,
     features,
     setup_equipment,
@@ -177,18 +205,25 @@ exports.create = async (req, res) => {
     gallery,
   };
 
-  // Normalize empty default scaffold option id
-  if (
-    payload.default_scaffold_option_id === "" ||
-    payload.default_scaffold_option_id === null
-  ) {
-    delete payload.default_scaffold_option_id;
-  }
+  // A combo is food: the event-space build a regular package sells is stripped
+  // here, in one place, so nothing about scaffolds, setup or add-ons can reach
+  // an offer however it was sent.
+  const payload = isOffer ? comboPayload(basePayload) : basePayload;
 
-  // ✅ Auto-set default scaffold option if not provided
-  if (!payload.default_scaffold_option_id && scaffold_size_options.length > 0) {
-    payload.default_scaffold_option_id =
-      scaffold_size_options[0]._id || scaffold_size_options[0].id || "0";
+  if (!isOffer) {
+    // Normalize empty default scaffold option id
+    if (
+      payload.default_scaffold_option_id === "" ||
+      payload.default_scaffold_option_id === null
+    ) {
+      delete payload.default_scaffold_option_id;
+    }
+
+    // ✅ Auto-set default scaffold option if not provided
+    if (!payload.default_scaffold_option_id && scaffold_size_options.length > 0) {
+      payload.default_scaffold_option_id =
+        scaffold_size_options[0]._id || scaffold_size_options[0].id || "0";
+    }
   }
 
   const pkg = await Package.create(payload);
@@ -223,10 +258,9 @@ exports.getAll = async (req, res) => {
     query.offer_type = { $ne: OFFER_TYPES.SPECIAL };
   }
 
-  const packages = await Package.find(query).populate(
-    "offer_menu_rules.menu_items",
-    "name description category price image_url available"
-  );
+  // A combo's food is stored on the offer itself, so nothing here needs
+  // populating: the list the customer sees is the list that was saved.
+  const packages = await Package.find(query);
   res.json(packages);
 };
 
@@ -235,10 +269,7 @@ exports.getById = async (req, res) => {
     ? { _id: req.params.id }
     : { _id: req.params.id, available: true };
 
-  const pkg = await Package.findOne(query).populate(
-    "offer_menu_rules.menu_items",
-    "name description category price image_url available"
-  );
+  const pkg = await Package.findOne(query);
   if (!pkg) return res.status(404).json({ message: "Package not found" });
   res.json(pkg);
 };
@@ -247,10 +278,15 @@ exports.update = async (req, res) => {
   const current = await Package.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Package not found" });
 
+  const offerType = normalizeOfferType(req.body.offer_type ?? current.offer_type);
+  const isOffer = offerType === OFFER_TYPES.SPECIAL;
+
   let data = {
     ...req.body,
     inclusions: req.body.inclusions
-      ? normalizeList(req.body.inclusions)
+      ? isOffer
+        ? normalizeOfferInclusions(req.body.inclusions)
+        : normalizeList(req.body.inclusions)
       : undefined,
     gallery_to_remove: req.body.gallery_to_remove
       ? normalizeList(req.body.gallery_to_remove)
@@ -273,7 +309,7 @@ exports.update = async (req, res) => {
     }
   }
 
-  if (req.body.scaffold_size_options) {
+  if (req.body.scaffold_size_options && !isOffer) {
     try {
       data.scaffold_size_options = normalizeScaffoldOptions(
         JSON.parse(req.body.scaffold_size_options),
@@ -287,23 +323,34 @@ exports.update = async (req, res) => {
   // The type decides whether the offer-only fields mean anything. Resolved
   // against the stored package when the body does not restate it, so a partial
   // update can never silently demote a Special Offer to a regular package.
-  const offerType = normalizeOfferType(req.body.offer_type ?? current.offer_type);
   data.offer_type = offerType;
 
-  if (offerType === OFFER_TYPES.SPECIAL) {
-    if (req.body.max_guests !== undefined) {
-      // Explicitly null rather than undefined: mongoose drops undefined from an
-      // update, so clearing a cap has to be a value the update actually carries.
-      data.max_guests = req.body.max_guests ? Number(req.body.max_guests) : null;
+  if (isOffer) {
+    if (req.body.guest_count !== undefined) {
+      const guestCount = Math.floor(Number(req.body.guest_count) || 0);
+      if (guestCount < 1) {
+        return res.status(400).json({
+          message: "Set how many guests this combo serves. It must be at least 1.",
+        });
+      }
+      data.guest_count = guestCount;
     }
-    if (req.body.offer_menu_rules !== undefined) {
-      data.offer_menu_rules = normalizeOfferMenuRules(req.body.offer_menu_rules);
+    if (
+      req.body.price_per_guest !== undefined &&
+      !(Number(req.body.price_per_guest) >= 0)
+    ) {
+      return res.status(400).json({ message: "Set this combo's price per pax." });
+    }
+    if (req.body.offer_food_items !== undefined) {
+      data.offer_food_items = normalizeOfferFoodItems(req.body.offer_food_items);
     }
   } else {
-    // Converting an offer back to a regular package clears the fields only an
-    // offer uses, rather than leaving a stale cap enforcing itself invisibly.
-    data.max_guests = null;
-    data.offer_menu_rules = [];
+    // Converting an offer back to a regular package clears the fields only a
+    // combo uses, rather than leaving a stale guest count or dish list behind.
+    // Explicitly null rather than undefined: mongoose drops undefined from an
+    // update, so clearing has to be a value the update actually carries.
+    data.guest_count = null;
+    data.offer_food_items = [];
   }
 
   if (req.body.menu_items) {
@@ -327,6 +374,10 @@ exports.update = async (req, res) => {
   if (data.add_ons === undefined) delete data.add_ons;
   if (data.scaffold_size_options === undefined)
     delete data.scaffold_size_options;
+
+  // The same boundary as on create, and the reason a regular package converted
+  // to a combo does not keep the scaffold sizes it used to be sold in.
+  if (isOffer) data = comboPayload(data);
 
   if (req.files) {
     const uploadTasks = [];
@@ -396,7 +447,7 @@ exports.update = async (req, res) => {
     "guest_min", // ✅ Added to tracking
     "guest_max", // ✅ Added to tracking
     "offer_type",
-    "max_guests",
+    "guest_count",
     "booking_requirements",
     "cancellation_policy",
   ];
@@ -476,13 +527,45 @@ exports.parseWithAI = async (req, res) => {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    const prompt = `You are a data extraction assistant for an event catering CMS.
+    /**
+     * The two documents an admin pastes here describe different things, so the
+     * extractor is asked for the shape that matches what they are creating: a
+     * combo pack is a fixed meal for a fixed guest count, a package is a setup
+     * with a size table. Asking for one schema and getting the other is what
+     * fills a combo's guest count with a scaffold capacity.
+     */
+    const isOffer = req.body.offer_type === OFFER_TYPES.SPECIAL;
+
+    const comboPrompt = `You are a data extraction assistant for an event catering CMS.
+Extract the COMBO PACK details from the provided text or image into a strict JSON object.
+A combo pack is a fixed combo meal: a set list of dishes, for a fixed number of guests, at a fixed price per pax.
+Use the following schema:
+{
+  "name": "string (Combo Name)",
+  "guest_count": "number (how many guests the combo serves)",
+  "price_per_guest": "number (price per pax/person, digits only)",
+  "description": "string (one or two sentences for the combo card)",
+  "fullDescription": "string (longer description)",
+  "offer_food_items": [
+    { "menu_category": "e.g. Main Course, Noodles, Rice, Dessert, Beverage", "item_name": "e.g. Chicken BBQ" }
+  ],
+  "inclusions": ["string, e.g. Buffet setup", "Serving utensils", "..."]
+}
+
+Guidelines:
+- "guest_count" is how many people the combo feeds (e.g. "Good for 10 pax" is 10). It is NOT a range.
+- "price_per_guest" is the per-head rate. If only a total price and a guest count are given, divide to get it.
+- Every dish is its own entry in offer_food_items, with the course it belongs to as menu_category.
+- inclusions are non-food items that come with the combo. Plain text, no bracketed category prefix.
+- Omit any field the document does not state. Never invent a price or a guest count.
+Return ONLY valid JSON, without markdown formatting or code blocks.`;
+
+    const packagePrompt = `You are a data extraction assistant for an event catering CMS.
 Extract the package details from the provided text or image into a strict JSON object.
 Use the following schema:
 {
   "name": "string (Package Name)",
   "package_type": "Event Setup Only",
-  "offer_type": "regular",
   "guest_min": "number (minimum guests, omit if none)",
   "guest_max": "number (maximum guests, omit if none)",
   "setup_price": "number (if applicable)",
@@ -504,6 +587,8 @@ Use the following schema:
 Guidelines for inclusions: Prefix each inclusion with a category in brackets, e.g., "[Dining & Service Inventory] Plates", "[Event Setup & Furniture] Couch". If quantity is specified, put it at the end in parentheses, e.g., "[Dining & Service Inventory] Glasses (100)".
 If the document is a table with multiple sizes and guest capacities, extract them into scaffold_size_options.
 Return ONLY valid JSON, without markdown formatting or code blocks.`;
+
+    const prompt = isOffer ? comboPrompt : packagePrompt;
 
     const parts = [prompt];
     

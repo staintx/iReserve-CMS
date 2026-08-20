@@ -5,7 +5,13 @@ import { focusRing } from "../lib/bookingUI";
 import EstimateSummary from "../components/EstimateSummary";
 import { cn } from "@/lib/utils";
 import { policyHighlights } from "@/lib/policy";
-import { guestCountLabel } from "@/lib/specialOffers";
+import {
+  guestCountLabel,
+  offerFoodByCategory,
+  offerInclusions,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+} from "@/lib/specialOffers";
 import {
   SERVICE_TYPES,
   SERVICE_LABELS,
@@ -101,6 +107,7 @@ export default function StepReviewBooking({
   errors = {},
   setTurnstileToken,
   offer = null,
+  deliveryMethod = "setup",
 }) {
   // What is actually being booked, which on a setup package is only settled by
   // the customer's answer on the menu step. Reviewing the raw service type
@@ -108,8 +115,19 @@ export default function StepReviewBooking({
   // — to a customer who had just picked their dishes.
   const serviceType = serviceTypeForRequest(form);
   const includesFood = cateringRequested(form);
-  const isFoodOnly = serviceType === SERVICE_TYPES.FOOD_ONLY;
-  const isPickup = isFoodOnly && form.delivery_method === "pickup";
+
+  /**
+   * Whether this booking has a venue to describe or an address to deliver to.
+   *
+   * A different question from what is being sold, and read from how the order
+   * is fulfilled — the same split the server draws in utils/venue.js. It used
+   * to be read off the service type, which was fine while "Food Only" only ever
+   * meant a delivery; a combo pack sells food *and* is served at the venue, and
+   * keying the layout off the service type would have hidden the event type and
+   * venue the customer had just entered two steps earlier.
+   */
+  const atVenue = deliveryMethod === "setup";
+  const isPickup = deliveryMethod === "pickup";
 
   const guestCount = parseInt(form.guest_count, 10) || 0;
   const selectedMenu = form.selected_menu || [];
@@ -164,9 +182,9 @@ export default function StepReviewBooking({
               label="Service"
               value={SERVICE_LABELS[serviceType] || serviceType}
             />
-            {/* Named for what it is on this path: an offer's count is the
-                number its price is built from, everything else is an estimate
-                that can still move at quotation. */}
+            {/* Named for what it is on this path: a combo's count is fixed by
+                the combo, everything else is an estimate that can still move at
+                quotation. */}
             <Row
               label={guestCountLabel(offer)}
               value={guestCount ? `${guestCount} guests` : ""}
@@ -224,7 +242,7 @@ export default function StepReviewBooking({
           </Section>
 
           <Section
-            title={isFoodOnly ? "Delivery" : "Venue"}
+            title={atVenue ? "Venue" : "Delivery"}
             onEdit={edit(editTargets.details)}
           >
             {isPickup ? (
@@ -236,15 +254,15 @@ export default function StepReviewBooking({
             ) : (
               <>
                 <Row
-                  label={isFoodOnly ? "Deliver to" : "Address"}
+                  label={atVenue ? "Address" : "Deliver to"}
                   value={address}
                   wide
                 />
                 {form.landmark && <Row label="Landmark" value={form.landmark} />}
-                {!isFoodOnly && form.venue_type && (
+                {atVenue && form.venue_type && (
                   <Row label="Venue type" value={form.venue_type} />
                 )}
-                {isFoodOnly && form.delivery_instructions && (
+                {!atVenue && form.delivery_instructions && (
                   <Row
                     label="Delivery notes"
                     value={form.delivery_instructions}
@@ -253,42 +271,77 @@ export default function StepReviewBooking({
                 )}
               </>
             )}
-            {!isFoodOnly && <Row label="Event type" value={eventType} />}
-            {!isFoodOnly && themeValue && (
+            {atVenue && <Row label="Event type" value={eventType} />}
+            {atVenue && themeValue && (
               <Row label="Theme" value={themeValue} />
             )}
           </Section>
 
-          {/* Shown whenever food is part of this booking, and on the paths that
-              offered the catering question at all, so a customer who declined
-              sees their own answer confirmed rather than nothing. */}
-          {(includesFood || form.service_type !== SERVICE_TYPES.SETUP_ONLY) && (
-            <Section title="Food & Catering" onEdit={edit(editTargets.food)}>
-              {!includesFood ? (
+          {/* A combo's food is the combo's, so it is confirmed as what it is:
+              a named meal at a settled price, not a list the customer chose and
+              not something the quotation still has to price. */}
+          {offer ? (
+            <Section title="Combo Meal" onEdit={edit(editTargets.packageSetup)}>
+              <Row label="Combo" value={offer.name} />
+              <Row
+                label="Price"
+                value={
+                  offerPricePerPax(offer) > 0
+                    ? `₱${offerPricePerPax(offer).toLocaleString("en-PH")} / pax · ₱${offerBaseFoodPrice(
+                        offer,
+                      ).toLocaleString("en-PH")} for the food`
+                    : "To be confirmed on your quotation"
+                }
+                wide
+              />
+              {offerFoodByCategory(offer).map((course) => (
                 <Row
-                  label="Catering"
+                  key={course.category}
+                  label={course.category}
+                  value={course.items.join(", ")}
                   wide
-                  value="No catering selected (Event Setup Only)"
                 />
-              ) : (
-                <>
-                  <Row
-                    label="Dishes"
-                    wide
-                    value={
-                      selectedMenu.length > 0
-                        ? selectedMenu.map((item) => item.name).join(", ")
-                        : "None selected. We will suggest options with your quotation."
-                    }
-                  />
-                  <Row
-                    label="Pricing"
-                    wide
-                    value="Per-guest price will be set by caterer on your official quotation"
-                  />
-                </>
+              ))}
+              {offerInclusions(offer).length > 0 && (
+                <Row
+                  label="Inclusions"
+                  value={offerInclusions(offer).join(", ")}
+                  wide
+                />
               )}
             </Section>
+          ) : (
+            /* Shown whenever food is part of this booking, and on the paths that
+               offered the catering question at all, so a customer who declined
+               sees their own answer confirmed rather than nothing. */
+            (includesFood || form.service_type !== SERVICE_TYPES.SETUP_ONLY) && (
+              <Section title="Food & Catering" onEdit={edit(editTargets.food)}>
+                {!includesFood ? (
+                  <Row
+                    label="Catering"
+                    wide
+                    value="No catering selected (Event Setup Only)"
+                  />
+                ) : (
+                  <>
+                    <Row
+                      label="Dishes"
+                      wide
+                      value={
+                        selectedMenu.length > 0
+                          ? selectedMenu.map((item) => item.name).join(", ")
+                          : "None selected. We will suggest options with your quotation."
+                      }
+                    />
+                    <Row
+                      label="Pricing"
+                      wide
+                      value="Per-guest price will be set by caterer on your official quotation"
+                    />
+                  </>
+                )}
+              </Section>
+            )
           )}
 
           {hasDietary && (

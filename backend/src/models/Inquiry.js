@@ -29,16 +29,21 @@ const InquirySchema = new mongoose.Schema(
     // package is later renamed or deleted.
     package_name_snapshot: String,
 
-    // Special Offers only. `guest_count × price per person`, the base FOOD
-    // price the offer promises. The quotation remains the final authority on
-    // what is owed — this is the figure it starts from.
+    // Special Offers only. `guest_count × price per pax`, the base FOOD price
+    // the combo promises. The quotation remains the final authority on what is
+    // owed — this is the figure it starts from.
     offer_base_price: Number,
-    // Whether the offer covers the setup at the size the customer chose.
-    // There is no amount beside it on purpose: an offer's scaffold options
-    // carry no price, and what an uncovered size costs is decided on the
-    // quotation. Free setup belongs to a size, never to ordering food.
-    offer_setup_is_free: { type: Boolean, default: false },
 
+    // The combo's food as it stood when the request was sent. The package
+    // relation above stays the source of truth; this is what keeps the request
+    // readable after the combo is re-plated, renamed or taken down — the same
+    // reason `package_name_snapshot` exists.
+    offer_food_snapshot: [
+      {
+        menu_category: String,
+        item_name: String,
+      },
+    ],
     
     event_type: { type: String, required: true },
     event_theme: String,
@@ -107,7 +112,9 @@ const InquirySchema = new mongoose.Schema(
       }
     ],
 
-    // The chosen scaffold footprint for setup bookings.
+    // The chosen scaffold footprint for setup bookings. Only an event-space
+    // build has one — a combo pack is food, so a Special Offer request carries
+    // none of these (see utils/specialOffers.js#PACKAGE_ONLY_REQUEST_FIELDS).
     selected_scaffold_option_id: String,
     scaffold_width: Number,
     scaffold_length: Number,

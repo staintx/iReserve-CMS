@@ -12,10 +12,9 @@ import {
 } from "../../lib/packageDisplay";
 import {
   isSpecialOffer,
-  offerGuestCap,
-  offerPricePerPerson,
-  offerMenuRules,
-  freeSetupOptions,
+  offerGuestCount,
+  offerPricePerPax,
+  offerFoodItems,
 } from "../../lib/specialOffers";
 
 const peso = (amount) =>
@@ -409,13 +408,18 @@ export default function Landing() {
               {packageShowcase.map((pkg) => {
                 /* One promoted offer sits among the packages rather than in a
                    band of its own. It is the same card with the offer
-                   treatment — dark ground, badge, per-person rate — so it is
+                   treatment — dark ground, badge, rate per pax — so it is
                    unmistakable without becoming a different component. */
                 if (isSpecialOffer(pkg)) {
-                  const perPerson = offerPricePerPerson(pkg);
-                  const cap = offerGuestCap(pkg);
-                  const freeSetup = freeSetupOptions(pkg);
-                  const rules = offerMenuRules(pkg).slice(0, 3);
+                  const perPax = offerPricePerPax(pkg);
+                  const pax = offerGuestCount(pkg);
+                  // The first few dishes, as a taste of the combo. The detail
+                  // page is where the whole meal is laid out.
+                  const food = offerFoodItems(pkg).slice(0, 3);
+                  const moreFood = Math.max(
+                    0,
+                    offerFoodItems(pkg).length - food.length,
+                  );
 
                   return (
                     <article className="ls-pkg ls-offer" key={pkg._id || pkg.name}>
@@ -423,46 +427,47 @@ export default function Landing() {
                         {pkg.image_url ? (
                           <img
                             src={pkg.image_url}
-                            alt={`${pkg.name} special offer`}
+                            alt={`${pkg.name} combo pack`}
                             loading="lazy"
                           />
                         ) : (
                           <div className="ls-pkg-media-empty">{pkg.name}</div>
                         )}
-                        <span className="ls-offer-tag">Special Offer</span>
+                        <span className="ls-offer-tag">Combo Pack</span>
                       </div>
 
                       <div className="ls-pkg-body">
                         <h3>{pkg.name}</h3>
 
-                        {perPerson > 0 && (
+                        {/* A combo's headline is its rate per pax. A combo
+                            with no rate set is unfinished configuration, so
+                            nothing is printed rather than a ₱0 nobody set. */}
+                        {perPax > 0 && (
                           <p className="ls-offer-price">
-                            <strong>{peso(perPerson)}</strong>
-                            <span>per person</span>
+                            <strong>{peso(perPax)}</strong>
+                            <span>per pax</span>
                           </p>
                         )}
 
                         <div className="ls-offer-chips">
-                          {cap && <span className="ls-offer-chip">Up to {cap} guests</span>}
-                          {freeSetup.map((option) => (
-                            <span
-                              className="ls-offer-chip ls-offer-chip--free"
-                              key={option.label || option._id}
-                            >
-                              Free set-up · {option.label}
-                            </span>
-                          ))}
+                          {pax > 0 && (
+                            <span className="ls-offer-chip">{pax} guests</span>
+                          )}
+                          {pkg.badge_text && (
+                            <span className="ls-offer-chip">{pkg.badge_text}</span>
+                          )}
                         </div>
 
-                        {rules.length > 0 && (
+                        {pkg.description && (
+                          <p className="ls-pkg-desc">{pkg.description}</p>
+                        )}
+
+                        {food.length > 0 && (
                           <ul className="ls-offer-includes">
-                            {rules.map((rule, index) => (
-                              <li key={index}>
-                                {rule.selectable === false || !rule.required_count
-                                  ? `${rule.label} — included`
-                                  : `${rule.required_count} × ${rule.label}`}
-                              </li>
+                            {food.map((item, index) => (
+                              <li key={index}>{item.item_name}</li>
                             ))}
+                            {moreFood > 0 && <li>+{moreFood} more</li>}
                           </ul>
                         )}
 
@@ -472,7 +477,7 @@ export default function Landing() {
                             className="ls-btn ls-btn--primary ls-btn--block"
                             onClick={() => navigate(`/packages/${pkg._id}`)}
                           >
-                            View offer
+                            View combo
                           </button>
                         </div>
                       </div>

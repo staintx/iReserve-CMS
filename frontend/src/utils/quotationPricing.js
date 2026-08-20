@@ -139,14 +139,16 @@ export function derivePackageStartingPrice(inquiry, guestCount) {
 
   const pkg = inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
 
-  // A Special Offer's starting price is its base FOOD price — the fixed
-  // per-person rate times the guest count the customer actually booked. The
-  // setup for their chosen size is a separate line the builder seeds beside
-  // it, so the two never collapse into one figure the admin cannot unpick.
+  // A combo's starting price is its base FOOD price — its own guest count
+  // times its own rate per pax. The figure stored on the request wins, because
+  // it is what the customer was quoted at the time; the combo is recomputed
+  // from only when a request predates that field. The setup for their chosen
+  // size is a separate line the builder seeds beside it, so the two never
+  // collapse into one figure the admin cannot unpick.
   if (isSpecialOffer(pkg)) {
     const stored = positive(inquiry?.offer_base_price);
     if (stored) return money(stored);
-    return money(offerBaseFoodPrice(pkg, count(guestCount, 1) || 1));
+    return money(offerBaseFoodPrice(pkg));
   }
 
   const scaffold = positive(inquiry?.scaffold_price);

@@ -11,7 +11,13 @@ import { focusRing } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
 import { resolveGroup, CATEGORY_GROUPS } from "@/lib/menuCategories";
-import { offerMenuRules, offerRuleProgress } from "@/lib/specialOffers";
+import {
+  offerFoodByCategory,
+  offerInclusions,
+  offerGuestCount,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+} from "@/lib/specialOffers";
 
 /** One selectable dish. Price is never shown here — the per-guest rate is
     quotation-based, not a fixed number, so it is only ever summarised in the
@@ -118,8 +124,6 @@ export default function StepMenuSelection({
   estimate,
   isFullService,
   offer = null,
-  offerRules = [],
-  errors = {},
 }) {
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
 
@@ -273,103 +277,82 @@ export default function StepMenuSelection({
   );
 
   // ---------------------------------------------------------------------------
-  // Special Offer
+  // Special Offer — a combo pack
   // ---------------------------------------------------------------------------
-  // The one path with required courses, because the offer's per-person price
-  // buys a specific meal. Every course, every count and every allowed dish here
-  // comes from the offer's own configuration — nothing about which dishes fit
-  // which course is decided in this file.
+  // The one path with nothing to choose. A combo is a decided meal: these are
+  // the dishes, this is what comes with them, and the price per pax buys all of
+  // it. Every line below comes from the combo's own configuration — no dish, no
+  // course and no inclusion is written into this file.
   //
-  // There is also no "skip catering" toggle: the food *is* the offer.
+  // There is also no "skip catering" toggle: the food *is* the combo.
   if (offer) {
-    const selectedIds = selected.map((item) => String(item._id));
-    // The full rule list (including the courses that are simply included and
-    // never chosen), so the customer sees everything the price covers.
-    const allRules = offerMenuRules(offer);
-    const includedRules = allRules.filter(
-      (rule) => rule.selectable === false || !Number(rule.required_count),
-    );
-
-    const itemById = new Map(
-      (menuItems || []).map((item) => [String(item._id), item]),
-    );
-    // Rules arrive with their allowed items populated by the API; the loaded
-    // catalogue is preferred so availability and images are current.
-    const itemsForRule = (rule) =>
-      (rule.menu_items || [])
-        .map((entry) => itemById.get(String(entry?._id || entry)) || entry)
-        .filter((item) => item && item._id);
+    const courses = offerFoodByCategory(offer);
+    const inclusions = offerInclusions(offer);
+    const pax = offerGuestCount(offer);
+    const perPax = offerPricePerPax(offer);
 
     return (
       <StepShell aside={<EstimateSummary estimate={estimate} />}>
         <SH
-          title={`Choose your ${offer.name} menu`}
-          sub="Pick the courses your offer includes. Your price per person stays the same whichever dishes you choose."
+          title={`Your ${offer.name}`}
+          sub="This combo comes as it is — here is everything you're getting. Tell us below about any allergies or requests."
         />
 
-        {errors.selected_menu && (
-          <p
-            role="alert"
-            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700"
-          >
-            {errors.selected_menu}
-          </p>
-        )}
-
         <div className="space-y-4">
-          {offerRules.map((rule, index) => {
-            const progress = offerRuleProgress(rule, selectedIds);
-            const items = itemsForRule(rule);
+          <Card className="p-4">
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <p className="text-base font-semibold text-[#1E293B]">
+                {pax > 0 ? `${pax} guests` : "Guest count to be confirmed"}
+              </p>
+              {perPax > 0 && (
+                <p className="text-[13px] text-[#64748B]">
+                  ₱{perPax.toLocaleString("en-PH")} per pax
+                  {pax > 0
+                    ? ` · ₱${offerBaseFoodPrice(offer).toLocaleString("en-PH")} for the food`
+                    : ""}
+                </p>
+              )}
+            </div>
+          </Card>
 
-            return (
-              <Card key={rule._id || `${rule.label}-${index}`} className="p-4">
-                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="text-base font-semibold text-[#1E293B]">
-                    {rule.label}
-                  </h3>
-                  {/* Says what is still needed, not just what is wrong — the
-                      count is the whole rule, so it is stated plainly. */}
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-1 text-xs font-semibold",
-                      progress.complete
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-amber-50 text-amber-700",
-                    )}
-                  >
-                    {progress.complete
-                      ? `${progress.required} of ${progress.required} chosen`
-                      : `Choose ${progress.remaining} more of ${progress.required}`}
-                  </span>
-                </div>
+          {courses.length > 0 && (
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold text-[#1E293B]">
+                Food
+              </h3>
+              <div className="space-y-3">
+                {courses.map((course) => (
+                  <div key={course.category}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                      {course.category}
+                    </p>
+                    <ul className="mt-1 space-y-1 text-[14px] text-[#1E293B]">
+                      {course.items.map((name, index) => (
+                        <li key={`${name}-${index}`} className="flex items-start gap-2">
+                          <Check
+                            size={14}
+                            className="mt-1 shrink-0 text-[#4C81E0]"
+                          />
+                          <span>{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
-                {rule.note && (
-                  <p className="mb-3 text-[13px] text-[#64748B]">{rule.note}</p>
-                )}
-
-                <DishGrid
-                  items={items}
-                  isSelected={isSelected}
-                  onToggle={toggle}
-                  emptyMessage="No dishes are configured for this course yet. Tell us in the notes below and we'll sort it on your quotation."
-                />
-              </Card>
-            );
-          })}
-
-          {includedRules.length > 0 && (
+          {inclusions.length > 0 && (
             <Card className="p-4">
               <h3 className="mb-2 text-base font-semibold text-[#1E293B]">
-                Also included
+                Inclusions
               </h3>
               <ul className="space-y-1.5 text-[13px] text-[#64748B]">
-                {includedRules.map((rule, index) => (
+                {inclusions.map((item, index) => (
                   <li key={index} className="flex items-start gap-2">
                     <Check size={14} className="mt-0.5 shrink-0 text-[#4C81E0]" />
-                    <span>
-                      {rule.label}
-                      {rule.note ? ` — ${rule.note}` : ""}
-                    </span>
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>

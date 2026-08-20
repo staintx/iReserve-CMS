@@ -18,7 +18,18 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-export default function AIPackageParserModal({ isOpen, onClose, onParsed }) {
+/**
+ * `offerType` tells the extractor what it is reading. A combo pack and a setup
+ * package are different documents describing different things — one has a guest
+ * count and a dish list, the other a size table and a base price — so the tab
+ * the admin is creating from decides which shape is asked for.
+ */
+export default function AIPackageParserModal({
+  isOpen,
+  onClose,
+  onParsed,
+  offerType = "regular",
+}) {
   const [activeTab, setActiveTab] = useState("file"); // 'file' or 'text'
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
@@ -172,9 +183,10 @@ Supported Sizes:
       } else {
         formData.append("text", textInput);
       }
+      formData.append("offer_type", offerType);
 
       const res = await AdminAPI.parsePackageWithAI(formData);
-      notify("Package details extracted successfully!", "success");
+      notify("Details extracted successfully!", "success");
       onParsed(res.data);
       onClose();
 

@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
+import {
+  isSpecialOffer,
+  offerGuestCount,
+  offerPricePerPax,
+} from "../../lib/specialOffers";
 import useToast from "../../hooks/useToast";
 
 const steps = [
@@ -235,10 +240,24 @@ export default function AdminBookingWizard() {
                         name: eq.name || eq.item_name || "Equipment Item",
                         quantity: Number(eq.quantity || 1)
                       })) : [];
-                      setForm((prev) => ({ 
-                        ...prev, 
+                      // A combo is a fixed meal for a fixed number of guests,
+                      // so picking one settles the count here as it does in the
+                      // customer flow. Leaving the admin to type it is how a
+                      // 10-pax combo ends up stored against 40 guests.
+                      const isCombo = isSpecialOffer(pkg);
+                      const comboPax = isCombo ? offerGuestCount(pkg) : 0;
+                      setForm((prev) => ({
+                        ...prev,
                         package_id: pkg._id,
-                        inventory_items: pkgEquip.length > 0 ? pkgEquip : prev.inventory_items
+                        ...(comboPax > 0 ? { guest_count: String(comboPax) } : {}),
+                        // A combo is food and reserves no equipment. Whatever a
+                        // previously selected package put here is not part of
+                        // this booking.
+                        inventory_items: isCombo
+                          ? []
+                          : pkgEquip.length > 0
+                            ? pkgEquip
+                            : prev.inventory_items
                       }));
                     }}
                   >
@@ -247,7 +266,13 @@ export default function AdminBookingWizard() {
                     </div>
                     <div className="package-card-body">
                       <h3 className="package-card-title">{pkg.name}</h3>
-                      <p className="package-card-desc">{pkg.size || "Package"}</p>
+                      <p className="package-card-desc">
+                        {isSpecialOffer(pkg)
+                          ? `Combo · ${offerGuestCount(pkg) || "?"} guests · ₱${offerPricePerPax(
+                              pkg,
+                            ).toLocaleString("en-PH")}/pax`
+                          : pkg.package_type || "Package"}
+                      </p>
                     </div>
                   </button>
                 ))}

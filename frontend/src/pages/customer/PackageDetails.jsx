@@ -17,10 +17,11 @@ import {
 } from "../../lib/packageDisplay";
 import {
   isSpecialOffer,
-  offerGuestCap,
-  offerPricePerPerson,
-  offerMenuRules,
-  freeSetupOptions,
+  offerGuestCount,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+  offerFoodByCategory,
+  offerInclusions,
 } from "../../lib/specialOffers";
 import { SERVICE_TYPES } from "./booking/lib/bookingRules";
 
@@ -111,10 +112,9 @@ export default function PackageDetails() {
   const contactEmail = businessInfo.email || DEFAULT_BUSINESS_INFO.email;
 
   const offer = isSpecialOffer(data);
-  const perPerson = offer ? offerPricePerPerson(data) : 0;
-  const offerCap = offer ? offerGuestCap(data) : null;
-  const offerRules = offer ? offerMenuRules(data) : [];
-  const offerFreeSetup = offer ? freeSetupOptions(data) : [];
+  const perPax = offer ? offerPricePerPax(data) : 0;
+  const offerPax = offer ? offerGuestCount(data) : 0;
+  const offerCourses = offer ? offerFoodByCategory(data) : [];
 
   const bookingState = data
     ? {
@@ -130,23 +130,34 @@ export default function PackageDetails() {
         packageId: data._id,
         packageName: data.name,
         packagePrice: offer
-          ? perPerson
+          ? perPax
           : data.setup_price || perGuestPrice(data) || 0,
-        guestMin: data.guest_min || null,
-        // The offer's cap is the wizard's hard ceiling on the guest count,
-        // because the price is built directly from that number.
-        guestMax: offerCap || data.guest_max || null,
+        // A combo serves the number of guests it was built for, so the wizard
+        // is handed that one number rather than a range to pick within.
+        guestMin: offer ? offerPax || null : data.guest_min || null,
+        guestMax: offer ? offerPax || null : data.guest_max || null,
       }
     : null;
 
-  const scaffoldOptions = Array.isArray(data?.scaffold_size_options)
-    ? data.scaffold_size_options.filter(
-        (option) => option?.label || option?.width_ft || option?.price,
-      )
-    : [];
+  // Sizes are a regular package's: they describe the event space it builds.
+  // A combo is food, so it has none to show — and showing an empty table, or
+  // one inherited from a record that used to be a package, would promise a
+  // set-up the combo does not include.
+  const scaffoldOptions =
+    !offer && Array.isArray(data?.scaffold_size_options)
+      ? data.scaffold_size_options.filter(
+          (option) => option?.label || option?.width_ft || option?.price,
+        )
+      : [];
 
-  const inclusionGroups = groupInclusions(data?.inclusions);
-  const addOns = Array.isArray(data?.add_ons)
+  // A package's inclusions carry the inventory class they came from and are
+  // grouped by it; a combo's are plain lines the admin typed, so they are
+  // listed as they were written.
+  const inclusionGroups = offer ? [] : groupInclusions(data?.inclusions);
+  const comboInclusions = offer ? offerInclusions(data) : [];
+  // Add-ons are sold alongside a regular package. A combo has none — the same
+  // reason it has no sizes.
+  const addOns = !offer && Array.isArray(data?.add_ons)
     ? data.add_ons.filter((item) => item?.name || typeof item === "string")
     : [];
 
@@ -257,19 +268,14 @@ export default function PackageDetails() {
                   <h1>{data.name}</h1>
                   {data.description && <p className="ls-lede">{data.description}</p>}
 
-                  {/* An offer's headline is one number and one benefit, so
-                      they lead rather than sitting inside the fact list. */}
+                  {/* A combo says what it is and how many it feeds, and
+                      leads with both rather than burying them in the facts. */}
                   {offer && (
                     <div className="ls-offer-chips" style={{ marginBottom: 4 }}>
-                      <span className="ls-offer-chip">Special offer</span>
-                      {offerFreeSetup.map((option) => (
-                        <span
-                          className="ls-offer-chip ls-offer-chip--free"
-                          key={option.label || option._id}
-                        >
-                          Free set-up · {option.label}
-                        </span>
-                      ))}
+                      <span className="ls-offer-chip">Combo pack</span>
+                      {data.badge_text && (
+                        <span className="ls-offer-chip">{data.badge_text}</span>
+                      )}
                     </div>
                   )}
 
@@ -277,15 +283,19 @@ export default function PackageDetails() {
                     <div>
                       <dt>Price</dt>
                       <dd>
-                        {offer && perPerson > 0
-                          ? `${peso(perPerson)} per person`
+                        {offer && perPax > 0
+                          ? `${peso(perPax)} per pax${
+                              offerPax
+                                ? ` · ${peso(offerBaseFoodPrice(data))} for ${offerPax} guests`
+                                : ""
+                            }`
                           : priceLabel(data)}
                       </dd>
                     </div>
-                    {offer && offerCap ? (
+                    {offer && offerPax ? (
                       <div>
                         <dt>Guest count</dt>
-                        <dd>Up to {offerCap} guests</dd>
+                        <dd>{offerPax} guests</dd>
                       </div>
                     ) : (
                       capacity && (
@@ -295,7 +305,7 @@ export default function PackageDetails() {
                         </div>
                       )
                     )}
-                    {inclusionGroups.length > 0 && (
+                    {(inclusionGroups.length > 0 || comboInclusions.length > 0) && (
                       <div>
                         <dt>Includes</dt>
                         <dd>
@@ -343,11 +353,11 @@ export default function PackageDetails() {
                                   <td>{dims}</td>
                                   <td>{guests}</td>
                                   {/* What a size costs is a quotation
-                                      decision, so this says whether the offer
+                                      decision, so this says whether the package
                                       covers it — never a number. */}
                                   <td>
                                     {option.free_setup
-                                      ? "Free with this offer"
+                                      ? "Free with this package"
                                       : "Priced on quotation"}
                                   </td>
                                 </tr>
@@ -359,17 +369,16 @@ export default function PackageDetails() {
                     </div>
                   )}
 
-                  {/* What the per-person price feeds people, from the offer's
-                      configured rules. Nothing here is written into the page. */}
-                  {offerRules.length > 0 && (
+                  {/* The meal itself, grouped by course, from the combo's
+                      own food list. Nothing here is written into the page. */}
+                  {offerCourses.length > 0 && (
                     <div className="ls-detail-sizes">
-                      <p className="ls-detail-sizes-label">What every guest gets</p>
+                      <p className="ls-detail-sizes-label">What this combo serves</p>
                       <ul className="ls-offer-includes">
-                        {offerRules.map((rule, index) => (
-                          <li key={index}>
-                            {rule.selectable === false || !rule.required_count
-                              ? `${rule.label}${rule.note ? ` — ${rule.note}` : " — included"}`
-                              : `${rule.required_count} × ${rule.label}, your choice from our menu`}
+                        {offerCourses.map((course) => (
+                          <li key={course.category}>
+                            <strong>{course.category}</strong> ·{" "}
+                            {course.items.join(", ")}
                           </li>
                         ))}
                       </ul>
@@ -384,7 +393,7 @@ export default function PackageDetails() {
                         navigate("/customer/book", { state: bookingState })
                       }
                     >
-                      {offer ? "Book this offer" : "Book this package"}
+                      {offer ? "Book this combo" : "Book this package"}
                     </button>
                     <button
                       type="button"
@@ -428,8 +437,26 @@ export default function PackageDetails() {
             <div className="ls-inner ls-detail-body">
               {longDescription && longDescription !== data.description && (
                 <section className="ls-detail-section" aria-labelledby="about-title">
-                  <h2 id="about-title">About this package</h2>
+                  <h2 id="about-title">
+                    {offer ? "About this combo" : "About this package"}
+                  </h2>
                   <p className="ls-detail-prose">{longDescription}</p>
+                </section>
+              )}
+
+              {comboInclusions.length > 0 && (
+                <section className="ls-detail-section" aria-labelledby="combo-includes-title">
+                  <h2 id="combo-includes-title">What this combo includes</h2>
+                  <ul className="ls-inclusion-list">
+                    {comboInclusions.map((item, index) => (
+                      <li key={`${item}-${index}`}>
+                        <span className="ls-inclusion-check" aria-hidden="true">
+                          <Check size={12} strokeWidth={3} />
+                        </span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
 
@@ -538,7 +565,7 @@ export default function PackageDetails() {
                   className="ls-btn ls-btn--onink"
                   onClick={() => navigate("/customer/book", { state: bookingState })}
                 >
-                  {offer ? "Book this offer" : "Book this package"}
+                  {offer ? "Book this combo" : "Book this package"}
                 </button>
                 <button
                   type="button"

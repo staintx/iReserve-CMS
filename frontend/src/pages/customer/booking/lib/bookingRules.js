@@ -1,9 +1,10 @@
 import {
   isSpecialOffer,
   offerBaseFoodPrice,
-  offerMenuRules,
-  offerPricePerPerson,
-  offerSetupCharge,
+  offerFoodItems,
+  offerGuestCount,
+  offerInclusions,
+  offerPricePerPax,
 } from "@/lib/specialOffers";
 
 // -----------------------------------------------------------------------------
@@ -259,77 +260,55 @@ export function buildEstimate({
     businessInfo?.deposit_percentage ?? DEFAULT_DEPOSIT_PERCENTAGE;
 
   // ---------------------------------------------------------------------------
-  // Special Offers
+  // Special Offers — combo packs
   // ---------------------------------------------------------------------------
   // The one path where the customer is shown a real number rather than "quoted
-  // later": an offer's per-person rate is fixed and its guest count is exact,
-  // so `guests × rate` is what the food actually costs. Setup stays its own
-  // line and is only ₱0 where the offer's chosen size says so — ordering food
-  // never waives it. The quotation is still where the final total is settled.
+  // later": a combo's rate per pax and its guest count are both fixed, so
+  // `pax × rate` is what it actually costs, and it is settled before the
+  // customer types anything.
+  //
+  // There is one line and no others. A combo is food: it has no set-up to price
+  // and no package add-ons to add, so nothing here reads a scaffold size or an
+  // add-on list. The quotation is still where the final total is settled.
   if (isSpecialOffer(packageDetails)) {
-    const perPerson = offerPricePerPerson(packageDetails);
+    const perPax = offerPricePerPax(packageDetails);
+    const pax = offerGuestCount(packageDetails);
 
-    if (guests <= 0) {
-      blockers.push("Enter your guest count to see this offer's price.");
+    if (pax <= 0 || perPax <= 0) {
+      // Unfinished configuration, not a price of zero. Saying so beats showing
+      // a ₱0 that reads like a quote.
+      blockers.push(
+        `${packageDetails.name || "This combo"} is not priced yet. We'll confirm it on your quotation.`,
+      );
     } else {
       lines.push({
         id: "offer-food",
-        label: "Base offer price",
-        detail: `${guests} guests × ${peso(perPerson)} per person`,
-        amount: offerBaseFoodPrice(packageDetails, guests),
+        label: "Combo food price",
+        detail: `${pax} guests × ${peso(perPax)} per pax`,
+        amount: offerBaseFoodPrice(packageDetails),
       });
     }
 
-    // What the base price actually buys, in the offer's own words. Stated
-    // plainly because the opposite — a customer assuming set-up and equipment
-    // are in the ₱50,000 — is the misreading this offer invites.
-    const included = offerMenuRules(packageDetails).map((rule) =>
-      rule.selectable === false || !Number(rule.required_count)
-        ? rule.label
-        : `${rule.required_count} × ${rule.label}`,
-    );
-
-    // Set-up is never priced here. The offer either covers it at the size the
-    // customer picked — which is worth showing, because it is the benefit they
-    // were sold — or it is one of the charges the quotation settles.
-    const setup = offerSetupCharge(
-      packageDetails,
-      form?.selected_scaffold_option_id,
-    );
-    if (setup.isFree) {
-      included.push(`${setup.label} — free set-up`);
-    }
-
-    const offerAddOns = [
-      ...(form?.selected_package_addons || []),
-      ...(form?.additional_services || []),
+    // What the combo price actually buys, in the combo's own words: the dishes
+    // it serves and what comes with them. Stated plainly because the opposite —
+    // a customer assuming set-up and equipment are in the figure — is the
+    // misreading a fixed price invites.
+    const included = [
+      ...offerFoodItems(packageDetails).map((item) =>
+        item.menu_category
+          ? `${item.item_name} (${item.menu_category})`
+          : item.item_name,
+      ),
+      ...offerInclusions(packageDetails),
     ];
-    offerAddOns.forEach((addOn, index) => {
-      const quantity = num(addOn?.quantity) || 1;
-      const amount = num(addOn?.price) * quantity;
-      if (amount <= 0) return;
-      lines.push({
-        id: `addon-${addOn?.item_id || addOn?.name || index}`,
-        label: addOn?.name || "Add-on",
-        detail:
-          quantity > 1
-            ? `${quantity} x ${num(addOn?.price).toLocaleString("en-PH")}`
-            : null,
-        amount,
-        isAddOn: true,
-      });
-    });
 
-    // Everything the offer does not cover. Named rather than priced: these are
-    // exactly the charges the quotation decides, and putting a number on them
-    // here would be inventing one.
-    const quotedSeparately = [];
-    if (setup.hasSize && !setup.isFree) {
-      quotedSeparately.push(`Event set-up (${setup.label})`);
-    } else if (!setup.hasSize) {
-      quotedSeparately.push("Event set-up, if you need it");
-    }
-    quotedSeparately.push("Equipment and crew", "Any additional requests");
+    // What the combo is not. Named rather than priced: a combo sells food, and
+    // what an event set-up would cost is a different product's question — one
+    // this panel has no figure for and must not invent.
+    const quotedSeparately = [
+      "Event set-up and styling — book a package if you need it",
+      "Any additional requests",
+    ];
 
     const offerTotal = lines.reduce((sum, line) => sum + line.amount, 0);
     return {
@@ -339,16 +318,18 @@ export function buildEstimate({
       hasTotal: blockers.length === 0 && offerTotal > 0,
       depositPercentage,
       depositAmount: (offerTotal * depositPercentage) / 100,
-      guests,
-      // An offer's count is the number its price is built from, so the panel
-      // does not call it an estimate.
+      // The combo's own count, not the form's — they are the same number by the
+      // time anything is submitted, and the combo is the one that decided it.
+      guests: pax || guests,
+      // A combo's count is fixed by the combo, so the panel does not call it an
+      // estimate.
       guestsLabel: "Guests",
-      // The two lists the offer summary renders. Only an offer has them, so
+      // The two lists the combo summary renders. Only a combo has them, so
       // every other path leaves them undefined and the panel omits the block.
       offerName: packageDetails.name,
       included,
       quotedSeparately,
-      totalLabel: "Base offer price",
+      totalLabel: "Combo price",
     };
   }
 

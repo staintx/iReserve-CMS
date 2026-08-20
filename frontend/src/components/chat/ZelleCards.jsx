@@ -202,7 +202,23 @@ export function PackageCarouselCard({ data, onSelectPackage }) {
         <span>{data.title || "Recommended Packages"}</span>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2 pt-0.5 hide-scrollbar snap-x">
-        {data.packages.map((pkg) => (
+        {data.packages.map((pkg) => {
+          // A combo pack answers different questions from a package: what it
+          // costs per pax and how many guests it feeds, rather than a rate and
+          // a capacity range. The tool sends whichever pair applies, so the
+          // card reads the one that is there instead of printing a blank.
+          const isCombo = pkg.offer_type === "special";
+          const price =
+            (isCombo ? pkg.price_per_pax : pkg.price_per_guest) ||
+            pkg.setup_price ||
+            "Inquire for quote";
+          const guests = isCombo
+            ? pkg.guest_count
+              ? `Serves ${pkg.guest_count} guests`
+              : ""
+            : pkg.guest_capacity;
+
+          return (
           <div
             key={pkg.id || pkg.name}
             className="snap-start shrink-0 w-64 p-4 rounded-3xl bg-card border border-border/80 shadow-md hover:border-primary/50 transition-all flex flex-col justify-between"
@@ -210,19 +226,34 @@ export function PackageCarouselCard({ data, onSelectPackage }) {
             <div>
               <div className="flex items-start justify-between gap-1 mb-1">
                 <h4 className="font-serif font-bold text-xs text-foreground line-clamp-1">{pkg.name}</h4>
-                {pkg.offer_type === "special" && (
+                {isCombo && (
                   <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30">
-                    Special Offer
+                    Combo Pack
                   </Badge>
                 )}
               </div>
               <div className="flex items-baseline gap-1 text-primary font-bold text-sm mb-1.5">
-                <span>{pkg.price_per_guest || pkg.setup_price || "Inquire for quote"}</span>
+                <span>{price}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-2">
-                <Users className="w-3 h-3 shrink-0" />
-                <span>{pkg.guest_capacity}</span>
-              </p>
+              {guests && (
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1 mb-2">
+                  <Users className="w-3 h-3 shrink-0" />
+                  <span>{guests}</span>
+                </p>
+              )}
+              {/* A combo's dishes are the thing a customer is choosing between,
+                  so they lead; a package has no food of its own and shows its
+                  inclusions instead. */}
+              {isCombo && pkg.food_items?.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {pkg.food_items.slice(0, 3).map((course, i) => (
+                    <div key={i} className="text-[10px] text-foreground/80 flex items-center gap-1 truncate">
+                      <span className="w-1 h-1 rounded-full bg-amber-500 shrink-0" />
+                      <span className="truncate">{course.items?.join(", ")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {pkg.inclusions?.length > 0 && (
                 <div className="space-y-1 mb-3">
                   {pkg.inclusions.slice(0, 3).map((inc, i) => (
@@ -254,7 +285,8 @@ export function PackageCarouselCard({ data, onSelectPackage }) {
               </Button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

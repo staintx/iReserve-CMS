@@ -237,10 +237,11 @@ export default function StepPackageSelection({
   const isCustomSetup = Boolean(form.is_custom_setup);
 
   // This step chooses a *setup* package and its scaffold size. A Special Offer
-  // is a different proposition — a fixed per-person price with its own food
-  // rules and guest cap — and is booked from its own card on the Packages page,
-  // which is where those terms are actually explained. Listing one here would
-  // drop a customer into a setup-shaped flow that cannot satisfy its rules.
+  // is a different proposition — a combo pack, whose food and guest count are
+  // both fixed — and is booked from its own card on the Packages page, which is
+  // where those terms are actually explained. Listing one here would drop a
+  // customer into a setup-shaped flow that would then ask them to choose the
+  // very things the combo already decided.
   const matchingPackages = (packages || []).filter(
     (pkg) =>
       !isSpecialOffer(pkg) &&

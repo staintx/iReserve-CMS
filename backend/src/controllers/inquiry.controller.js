@@ -4,15 +4,20 @@ const BlockedDate = require("../models/BlockedDate");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
-const { cateringRequested, serviceTypeForRequest } = require("../utils/catering");
+const {
+  SERVICE_TYPES,
+  cateringRequested,
+  serviceTypeForRequest,
+} = require("../utils/catering");
 const {
   BOOKING_TYPES,
   isSpecialOffer,
   bookingTypeForPackage,
-  offerGuestCap,
+  offerGuestCount,
   offerBaseFoodPrice,
-  offerSetupCharge,
-  validateOfferSelection,
+  offerFoodSnapshot,
+  offerBookingProblem,
+  applyComboRequestBoundary,
 } = require("../utils/specialOffers");
 
 // Customer submits a new inquiry
@@ -51,53 +56,50 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   if (!payload.include_food) payload.selected_menu = [];
 
   /**
-   * Special Offers. The guest count here is a real number the price is built
-   * from, not an estimate, so the cap is enforced and the base food price is
-   * computed server-side. The quotation is still the final authority on the
-   * total — this only records what the offer itself promises.
+   * Special Offers. A combo is a fixed meal for a fixed number of guests at a
+   * fixed price per pax, so the server settles all three from the combo itself
+   * rather than from anything the browser sent: the guest count is the combo's,
+   * the food is the combo's, and the price follows from the two.
+   *
+   * A combo is food and nothing else, so the event-space answers a setup
+   * booking carries — which scaffold size, how big, what it cost — are dropped
+   * rather than stored against a request that never had a setup to size.
    */
   if (isSpecialOffer(pkg)) {
-    const guests = Math.floor(Number(payload.guest_count) || 0);
-    const cap = offerGuestCap(pkg);
-
-    if (guests < 1) {
-      return res.status(400).json({
-        message: `Enter the guest count for ${pkg.name}. This offer is priced per person.`,
-      });
+    const problem = offerBookingProblem(pkg, payload.guest_count);
+    if (problem) {
+      return res.status(400).json({ message: problem });
     }
 
-    if (cap && guests > cap) {
-      return res.status(400).json({
-        message: `${pkg.name} covers up to ${cap} guests. You entered ${guests}. Lower the guest count, or ask us about a custom booking.`,
-      });
-    }
+    // The combo's own count, not the browser's. A request that arrived with a
+    // different one was already rejected above; this is what makes the stored
+    // count and the stored price impossible to disagree.
+    payload.guest_count = offerGuestCount(pkg);
 
-    const problems = validateOfferSelection(pkg, payload.selected_menu);
-    if (problems.length > 0) {
-      return res.status(400).json({
-        message: `Your ${pkg.name} food selection is not complete. ${problems.join(" ")}`,
-      });
-    }
-
-    // Food comes with the offer, so the catering question does not apply.
+    // Food comes with the combo, so the catering question does not apply, and
+    // there are no chosen dishes: the combo decides them.
+    //
+    // The service type says what is being sold, and a combo sells food — not an
+    // event set-up it does not include. Whether our team stands in the venue is
+    // a separate question, answered by `delivery_method` and read by
+    // utils/venue.js, so calling this Food Only costs the booking nothing on
+    // the conflict calendar.
     payload.include_food = true;
-    payload.service_type = serviceTypeForRequest({ ...payload, include_food: true });
+    payload.service_type = SERVICE_TYPES.FOOD_ONLY;
+    payload.selected_menu = [];
+    payload.offer_food_snapshot = offerFoodSnapshot(pkg);
 
-    const setup = offerSetupCharge(pkg, payload.selected_scaffold_option_id);
-    payload.offer_base_price = offerBaseFoodPrice(pkg, guests);
-    // Whether the offer covers the setup at the size chosen. There is no
-    // amount to record: what an uncovered size costs is decided on the
-    // quotation, and writing a number here would be inventing one.
-    payload.offer_setup_is_free = setup.isFree;
-    // A scaffold price is never carried on an offer, so the shared field is
-    // left unset rather than stamped with a zero that reads like a decision.
-    delete payload.scaffold_price;
+    payload.offer_base_price = offerBaseFoodPrice(pkg);
+
+    // Everything an event-space build would have answered, dropped in one
+    // place — the boundary between the two kinds of request, defined once.
+    applyComboRequestBoundary(payload);
   } else {
     // Only a Special Offer carries these. A regular or custom request that
     // sent them anyway must not have them stored.
     delete payload.offer_base_price;
     delete payload.offer_setup_price;
-    delete payload.offer_setup_is_free;
+    delete payload.offer_food_snapshot;
   }
 
   if (Array.isArray(payload.additional_services) && (!payload.service_items || payload.service_items.length === 0)) {

@@ -1,24 +1,32 @@
 /**
  * Special Offers, in one place.
  *
- * A Special Offer is a Package with `offer_type: "special"`. It is not a second
- * package system: it reuses the same collection, the same admin form, the same
- * booking flow and the same quotation, and differs only in how its base food
- * price is worked out and in what the customer is asked for.
+ * A Special Offer is a **combo pack**: a fixed meal, for a fixed number of
+ * guests, at a fixed price per pax. It is a Package with
+ * `offer_type: "special"` — not a second package system. It reuses the same
+ * collection, the same admin form, the same booking flow and the same
+ * quotation, and differs only in how its base food price is worked out and in
+ * what the customer is asked for.
  *
  * The three rules that make an offer an offer:
  *
- *   1. Price is per person and fixed — `price_per_guest × guest_count` is the
+ *   1. Price is per pax and fixed — `price_per_guest × guest_count` is the
  *      base FOOD price, nothing else.
- *   2. The guest count is the real number, not an estimate, so `max_guests`
- *      (when configured) is enforced rather than advisory.
- *   3. The food is chosen from admin-configured rules against the existing menu
- *      catalogue — never a hardcoded dish list.
+ *   2. The guest count belongs to the combo, not to the customer. A 10-pax
+ *      combo is booked for 10 guests; the booking's guest count is that
+ *      number, which is why nothing here reads a count off the request.
+ *   3. The food is the combo's own fixed list of dishes. The customer picks
+ *      nothing — that is what makes it a combo rather than a menu.
  *
- * Setup is always a separate charge from the food. An offer may declare that a
- * particular scaffold size carries no setup fee (`free_setup` on the option),
- * which is a configured property of that size, not a rule about catering. The
- * setup fee is never waived for ordering food.
+ * A combo is **food and nothing else**. The event-space build a regular package
+ * sells — scaffold sizes, setup equipment, a base setup price, package add-ons —
+ * is not part of a combo and is never configured on one. Those fields stay on
+ * the shared schema because regular packages need them; `PACKAGE_ONLY_FIELDS`
+ * below is the one list that keeps them off an offer, applied on every write.
+ *
+ * This is also why nothing here waives a setup fee: a combo has no setup to
+ * waive, and a regular package's setup fee is charged whether or not catering
+ * is ordered. Neither kind of record can discount the other's.
  *
  * Mirrors `frontend/src/lib/specialOffers.js` — the two must agree, because the
  * wizard derives these before submitting and this derives them again on the way
@@ -59,138 +67,250 @@ function bookingTypeForPackage(pkg) {
 }
 
 /**
- * The hard guest cap, when one is configured. `max_guests` is the offer's own
- * field; `guest_max` is read as a fallback so an offer configured through the
- * shared capacity field still enforces something real.
+ * How many guests the combo is built for.
+ *
+ * This is the combo's own number and the only guest count a Special Offer
+ * booking can have. `guest_max` is read only as a fallback for offers the combo
+ * migration has not reached yet — a combo saved since carries no guest range at
+ * all, because a range is a regular package's way of being quoted.
  */
-function offerGuestCap(pkg) {
-  return positive(pkg?.max_guests) || positive(pkg?.guest_max) || null;
+function offerGuestCount(pkg) {
+  return positive(pkg?.guest_count) || positive(pkg?.guest_max) || 0;
 }
 
+/** What one guest costs on this combo. */
+const offerPricePerPax = (pkg) =>
+  isSpecialOffer(pkg) ? positive(pkg?.price_per_guest) : 0;
+
 /**
- * `guest_count × price per person` — the offer's base price, and the only
- * figure an offer itself decides. Everything else (setup, equipment, crew,
- * add-ons, other charges) is settled on the quotation.
+ * `guest count × price per pax` — the combo's price, and the only figure an
+ * offer decides. A combo is food, so this is the whole of what it sells; any
+ * further charge on the booking is one the quotation adds, not one the combo
+ * carries.
+ *
+ * Both numbers come from the combo, so this takes no guest count: there is no
+ * second answer a request could supply.
  */
-function offerBaseFoodPrice(pkg, guestCount) {
+function offerBaseFoodPrice(pkg) {
   if (!isSpecialOffer(pkg)) return 0;
-  return money(positive(pkg?.price_per_guest) * Math.floor(positive(guestCount)));
+  return money(offerPricePerPax(pkg) * Math.floor(offerGuestCount(pkg)));
 }
 
-/** The scaffold option a request selected, if it names one. */
-function scaffoldOptionOf(pkg, optionId) {
-  const options = Array.isArray(pkg?.scaffold_size_options)
-    ? pkg.scaffold_size_options
-    : [];
-  if (!options.length) return null;
-  if (!optionId) return null;
-  return (
-    options.find((option) => String(option?._id) === String(optionId)) || null
-  );
+/** The combo's food, in the order the admin arranged it. */
+function offerFoodItems(pkg) {
+  return (Array.isArray(pkg?.offer_food_items) ? pkg.offer_food_items : [])
+    .filter((item) => item && String(item.item_name || "").trim())
+    .map((item, index) => ({
+      menu_category: String(item.menu_category || "").trim(),
+      item_name: String(item.item_name || "").trim(),
+      sort_order: Number.isFinite(Number(item.sort_order))
+        ? Number(item.sort_order)
+        : index,
+    }))
+    .sort((a, b) => a.sort_order - b.sort_order);
 }
 
 /**
- * Whether this request's setup is covered by the offer, and what to call it.
+ * The combo's food grouped by course, in first-appearance order.
  *
- * An offer configures which sizes it supports and, optionally, which one it
- * throws the setup in for — "20x40 = FREE SET-UP" is that flag on that size,
- * which is how the rule lives as data rather than as dimensions in code.
- *
- * There is deliberately no amount here. A scaffold option carries no price: any
- * charge for a size the offer does not cover is decided on the quotation, which
- * is the pricing authority. Returning a number would mean inventing one.
- *
- * Free setup belongs to a *size*, never to ordering food — the setup fee is not
- * waived for catering, only for the size the offer says it covers.
+ * Grouping presents the stored order rather than re-sorting it, so the customer
+ * sees the courses in the sequence the admin built them.
  */
-function offerSetupCharge(pkg, optionId) {
-  const option = scaffoldOptionOf(pkg, optionId);
-  return {
-    isFree: Boolean(option?.free_setup),
-    label: option?.label || "Setup",
-    hasSize: Boolean(option),
-  };
-}
-
-/** Rules as stored, filtered to the usable ones. */
-function offerMenuRules(pkg) {
-  return (Array.isArray(pkg?.offer_menu_rules) ? pkg.offer_menu_rules : []).filter(
-    (rule) => rule && String(rule.label || "").trim(),
-  );
-}
-
-const idOf = (value) => String(value?._id || value || "");
-
-/**
- * Whether a set of chosen dish ids satisfies the offer's food rules.
- *
- * Returns a list of human-readable problems — empty when the selection is
- * valid. Rules the admin marked `selectable: false` (rice, water: included and
- * never chosen) are skipped, and a rule with no allowed items configured yet
- * cannot be enforced, so it is skipped too rather than blocking every booking.
- */
-function validateOfferSelection(pkg, selectedIds) {
-  if (!isSpecialOffer(pkg)) return [];
-
-  const chosen = new Set((selectedIds || []).map(idOf).filter(Boolean));
-  const problems = [];
-
-  offerMenuRules(pkg).forEach((rule) => {
-    if (rule.selectable === false) return;
-
-    const allowed = (Array.isArray(rule.menu_items) ? rule.menu_items : []).map(idOf);
-    if (allowed.length === 0) return;
-
-    const required = Math.max(0, Math.floor(Number(rule.required_count) || 0));
-    if (required === 0) return;
-
-    const picked = allowed.filter((id) => chosen.has(id));
-    if (picked.length !== required) {
-      problems.push(
-        `${rule.label}: choose exactly ${required} ${
-          required === 1 ? "item" : "items"
-        } (you chose ${picked.length}).`,
-      );
-    }
+function offerFoodByCategory(pkg) {
+  const groups = new Map();
+  offerFoodItems(pkg).forEach((item) => {
+    const category = item.menu_category || "Included";
+    if (!groups.has(category)) groups.set(category, { category, items: [] });
+    groups.get(category).items.push(item.item_name);
   });
-
-  return problems;
+  return [...groups.values()];
 }
 
 /**
- * Parses the rules as they arrive from the admin form. Rules travel as JSON in
- * a multipart body, so this is the one place that decides what a rule is.
+ * What is written onto a booking so it still reads correctly after the combo
+ * is edited or taken down. The package relation stays the source of truth.
  */
-function normalizeOfferMenuRules(raw) {
-  let rules = raw;
+const offerFoodSnapshot = (pkg) =>
+  offerFoodItems(pkg).map(({ menu_category, item_name }) => ({
+    menu_category,
+    item_name,
+  }));
+
+/**
+ * The combo's inclusions as the customer reads them.
+ *
+ * Regular packages store inclusions prefixed with the inventory class they came
+ * from ("[Dining & Service Inventory] Plates"). A combo's are typed as plain
+ * lines, so the prefix is stripped here for the offers configured the old way.
+ */
+const offerInclusions = (pkg) =>
+  (Array.isArray(pkg?.inclusions) ? pkg.inclusions : [])
+    .map((entry) => String(entry || "").replace(/^\s*\[[^\]]*\]\s*/, "").trim())
+    .filter(Boolean);
+
+/**
+ * Package fields a combo never carries.
+ *
+ * Every one of these describes the event-space build a regular package sells:
+ * the sizes it comes in, the equipment reserved for it, what that setup costs,
+ * the extras sold alongside it, the catalogue dishes it links to, and the guest
+ * range it is quoted against. A combo answers none of those questions — it is a
+ * fixed meal for a fixed number of guests — so they are cleared rather than
+ * left on the record to be inherited by accident.
+ *
+ * They stay on the shared schema because regular packages depend on them. This
+ * list is the boundary, applied by `comboPayload` on every write.
+ */
+const PACKAGE_ONLY_FIELDS = [
+  "scaffold_size_options",
+  "default_scaffold_option_id",
+  "setup_equipment",
+  "setup_price",
+  "add_ons",
+  "menu_items",
+  "guest_min",
+  "guest_max",
+];
+
+/**
+ * Request fields that only mean something on an event-space build, and so are
+ * never stored on a combo booking: which scaffold size was picked, how big it
+ * is, and what it cost.
+ */
+const PACKAGE_ONLY_REQUEST_FIELDS = [
+  "selected_scaffold_option_id",
+  "scaffold_width",
+  "scaffold_length",
+  "scaffold_base_area",
+  "scaffold_price",
+];
+
+/**
+ * The cleared value for a package-only field.
+ *
+ * Arrays empty and scalars null rather than undefined, because mongoose drops
+ * undefined from an update: clearing has to be a value the write actually
+ * carries, or a package converted to a combo keeps its scaffold sizes forever.
+ */
+const clearedValue = (field) =>
+  ["scaffold_size_options", "setup_equipment", "add_ons", "menu_items"].includes(
+    field,
+  )
+    ? []
+    : null;
+
+/**
+ * A combo's payload: what was sent, minus everything only a regular package
+ * uses, plus the one classification a combo always has.
+ *
+ * One function so create, update, and any future write cannot disagree about
+ * where the line between the two kinds of record falls.
+ */
+function comboPayload(payload = {}) {
+  const next = { ...payload };
+  PACKAGE_ONLY_FIELDS.forEach((field) => {
+    next[field] = clearedValue(field);
+  });
+  // A combo is food. Nothing about it is an event-space build, so it is not
+  // filed as one.
+  next.package_type = "Food Only";
+  return next;
+}
+
+/**
+ * The same boundary for an inquiry or booking made against a combo, applied to
+ * the request in place.
+ *
+ * In place because the callers hold the payload they are about to save and need
+ * these keys *gone* from it — copying the survivors into a new object would
+ * leave the originals sitting on the record it is built from.
+ */
+function applyComboRequestBoundary(target) {
+  if (!target) return target;
+  PACKAGE_ONLY_REQUEST_FIELDS.forEach((field) => {
+    delete target[field];
+  });
+  // Equipment is reserved from a package's setup_equipment, which a combo has
+  // none of — anything here came from somewhere else and is not this booking's.
+  target.inventory_items = [];
+  return target;
+}
+
+/**
+ * Why this combo cannot be booked as asked, phrased for the customer. Empty
+ * when it can.
+ *
+ * A combo feeds the number of guests it was built for, so a request for a
+ * different count is not a version of this combo — it is a different order,
+ * and the answer is another combo or a custom booking. Nothing here scales a
+ * combo up or invents a multi-unit price: neither is a rule the product has.
+ */
+function offerBookingProblem(pkg, guestCount) {
+  if (!isSpecialOffer(pkg)) return "";
+
+  if (pkg.available === false) {
+    return `${pkg.name} is not available right now. Please choose another combo.`;
+  }
+
+  const pax = offerGuestCount(pkg);
+  if (pax < 1) {
+    return `${pkg.name} has no guest count set yet, so it cannot be booked. Please choose another combo.`;
+  }
+  if (offerPricePerPax(pkg) <= 0) {
+    return `${pkg.name} has no price set yet, so it cannot be booked. Please choose another combo.`;
+  }
+
+  const requested = Math.floor(Number(guestCount) || 0);
+  if (requested && requested !== pax) {
+    return `${pkg.name} is a ${pax}-guest combo. Your booking is for ${requested} guests — book it for ${pax}, or ask us for a custom booking.`;
+  }
+
+  return "";
+}
+
+/**
+ * Parses the combo's food as it arrives from the admin form. Food items travel
+ * as JSON in a multipart body, so this is the one place that decides what a
+ * food item is.
+ */
+function normalizeOfferFoodItems(raw) {
+  let items = raw;
   if (typeof raw === "string") {
     try {
-      rules = JSON.parse(raw);
+      items = JSON.parse(raw);
     } catch {
       return [];
     }
   }
-  if (!Array.isArray(rules)) return [];
+  if (!Array.isArray(items)) return [];
 
-  return rules
-    .map((rule) => {
-      const required = Math.max(0, Math.floor(Number(rule?.required_count) || 0));
-      return {
-        // Which course of the menu this rule draws from. Kept so the admin form
-        // can reopen a saved rule showing the same list it was built from.
-        group_id: String(rule?.group_id || "").trim(),
-        label: String(rule?.label || "").trim(),
-        required_count: required,
-        // One number decides this: a course the customer picks nothing from is
-        // a course that simply comes with the offer.
-        selectable: required > 0,
-        note: String(rule?.note || "").trim(),
-        menu_items: (Array.isArray(rule?.menu_items) ? rule.menu_items : [])
-          .map(idOf)
-          .filter(Boolean),
-      };
-    })
-    .filter((rule) => rule.label);
+  return items
+    .map((item) => ({
+      menu_category: String(item?.menu_category || "").trim(),
+      item_name: String(item?.item_name || "").trim(),
+    }))
+    .filter((item) => item.item_name)
+    // Position is the admin's arrangement, renumbered on save so a removed row
+    // never leaves a gap that later reorders the list by itself.
+    .map((item, index) => ({ ...item, sort_order: index }));
+}
+
+/** Plain inclusion lines, deduped and emptied of blanks. */
+function normalizeOfferInclusions(raw) {
+  let items = raw;
+  if (typeof raw === "string") {
+    items = raw.split(",");
+  }
+  if (!Array.isArray(items)) return [];
+
+  const seen = new Set();
+  return items
+    .map((entry) => String(entry || "").trim())
+    .filter((entry) => {
+      if (!entry || seen.has(entry.toLowerCase())) return false;
+      seen.add(entry.toLowerCase());
+      return true;
+    });
 }
 
 module.exports = {
@@ -199,12 +319,19 @@ module.exports = {
   BOOKING_TYPE_LABELS,
   isSpecialOffer,
   bookingTypeForPackage,
-  offerGuestCap,
+  offerGuestCount,
+  offerPricePerPax,
   offerBaseFoodPrice,
-  offerSetupCharge,
-  offerMenuRules,
-  scaffoldOptionOf,
-  validateOfferSelection,
-  normalizeOfferMenuRules,
+  offerFoodItems,
+  offerFoodByCategory,
+  offerFoodSnapshot,
+  offerInclusions,
+  PACKAGE_ONLY_FIELDS,
+  PACKAGE_ONLY_REQUEST_FIELDS,
+  comboPayload,
+  applyComboRequestBoundary,
+  offerBookingProblem,
+  normalizeOfferFoodItems,
+  normalizeOfferInclusions,
   money,
 };

@@ -59,8 +59,8 @@ export default function StepDeliveryDetails({
         <Card className="p-4">
           <SectionTitle icon={Users}>How many guests</SectionTitle>
           {/* An estimate, deliberately: a custom booking's count can still
-              change at quotation, ocular, or revision. Only a Special Offer
-              (never this path) asks for an exact guest count. */}
+              change at quotation, ocular, or revision. Only a combo pack
+              (never this path) has a fixed guest count. */}
           <Field
             label="Estimated guest count"
             required

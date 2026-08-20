@@ -14,6 +14,16 @@ const User = require("../models/User");
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const { notifyAdmins } = require("../utils/notify");
+const {
+  isSpecialOffer,
+  offerGuestCount,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+  offerFoodByCategory,
+  offerFoodSnapshot,
+  offerInclusions,
+  offerBookingProblem,
+} = require("../utils/specialOffers");
 
 /**
  * Execute approved tool call by name
@@ -38,25 +48,53 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
 
         const packages = await Package.find(query)
           .select(
-            "name description price_per_guest guest_min guest_max price_label setup_price features inclusions offer_type package_type service_type image_url"
+            "name description price_per_guest guest_min guest_max guest_count price_label setup_price features inclusions offer_food_items offer_type package_type service_type image_url available"
           )
           .limit(10)
           .lean();
 
         return {
           count: packages.length,
-          packages: packages.map((p) => ({
-            id: p._id,
-            name: p.name,
-            offer_type: p.offer_type,
-            package_type: p.package_type || p.service_type,
-            price_per_guest: p.price_per_guest ? `₱${p.price_per_guest.toLocaleString()}/person` : null,
-            setup_price: p.setup_price ? `₱${p.setup_price.toLocaleString()}` : null,
-            guest_capacity: `${p.guest_min || 50} - ${p.guest_max || 200} guests`,
-            description: p.description,
-            inclusions: (p.inclusions || []).slice(0, 5),
-            features: (p.features || []).slice(0, 5),
-          })),
+          packages: packages.map((p) => {
+            // A Special Offer is a combo pack: a fixed meal for a fixed number
+            // of guests at a fixed price per pax. Described in those terms, so
+            // the assistant never quotes it as a per-guest package the customer
+            // can size themselves.
+            if (isSpecialOffer(p)) {
+              const pax = offerGuestCount(p);
+              const perPax = offerPricePerPax(p);
+              return {
+                id: p._id,
+                name: p.name,
+                offer_type: p.offer_type,
+                kind: "Combo pack (fixed meal, fixed guest count)",
+                guest_count: pax || null,
+                price_per_pax: perPax ? `₱${perPax.toLocaleString()}/pax` : null,
+                combo_total:
+                  pax && perPax
+                    ? `₱${offerBaseFoodPrice(p).toLocaleString()} for ${pax} guests`
+                    : null,
+                available: p.available !== false,
+                description: p.description,
+                food_items: offerFoodByCategory(p),
+                inclusions: offerInclusions(p),
+              };
+            }
+
+            return {
+              id: p._id,
+              name: p.name,
+              offer_type: p.offer_type,
+              package_type: p.package_type || p.service_type,
+              price_per_guest: p.price_per_guest ? `₱${p.price_per_guest.toLocaleString()}/person` : null,
+              setup_price: p.setup_price ? `₱${p.setup_price.toLocaleString()}` : null,
+              guest_capacity: `${p.guest_min || 50} - ${p.guest_max || 200} guests`,
+              available: p.available !== false,
+              description: p.description,
+              inclusions: (p.inclusions || []).slice(0, 5),
+              features: (p.features || []).slice(0, 5),
+            };
+          }),
         };
       }
 
@@ -65,7 +103,6 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
         if (mongoose.Types.ObjectId.isValid(params.package_name_or_id)) {
           pkg = await Package.findById(params.package_name_or_id)
             .populate("menu_items", "name category price")
-            .populate("offer_menu_rules.menu_items", "name category")
             .lean();
         }
         if (!pkg && params.package_name_or_id) {
@@ -73,7 +110,6 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
             name: new RegExp(params.package_name_or_id, "i"),
           })
             .populate("menu_items", "name category price")
-            .populate("offer_menu_rules.menu_items", "name category")
             .lean();
         }
 
@@ -81,22 +117,55 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           return { error: `Package '${params.package_name_or_id}' was not found.` };
         }
 
+        const scaffoldSizes = (pkg.scaffold_size_options || []).map((s) => ({
+          label: s.label,
+          dimensions: `${s.width_ft}x${s.length_ft} ft (${s.area_ft2} sq ft)`,
+          free_setup: s.free_setup,
+        }));
+
+        // A combo answers a different set of questions from a package: how many
+        // it serves, what it costs per pax, what food comes with it, and what
+        // else is included. It has no guest range to quote, because it is sold
+        // at one size only.
+        if (isSpecialOffer(pkg)) {
+          const pax = offerGuestCount(pkg);
+          const perPax = offerPricePerPax(pkg);
+          return {
+            id: pkg._id,
+            name: pkg.name,
+            offer_type: pkg.offer_type,
+            kind: "Combo pack (fixed meal, fixed guest count)",
+            available: pkg.available !== false,
+            guest_count: pax || null,
+            price_per_pax: perPax ? `₱${perPax.toLocaleString()}` : null,
+            combo_total:
+              pax && perPax
+                ? `₱${offerBaseFoodPrice(pkg).toLocaleString()} for ${pax} guests`
+                : null,
+            description: pkg.fullDescription || pkg.description,
+            food_items: offerFoodByCategory(pkg),
+            inclusions: offerInclusions(pkg),
+            // No scaffold sizes: a combo is food, and has no event-space build
+            // to quote. Offering one here is how the assistant would come to
+            // promise setup a combo does not include.
+            booking_note:
+              "This combo is a fixed meal booked for its own guest count. It does not include event setup, scaffolding or equipment rental — those are a regular package, and anything extra is priced on the quotation.",
+          };
+        }
+
         return {
           id: pkg._id,
           name: pkg.name,
           offer_type: pkg.offer_type,
           package_type: pkg.package_type,
+          available: pkg.available !== false,
           price_per_guest: pkg.price_per_guest ? `₱${pkg.price_per_guest.toLocaleString()}` : null,
           setup_price: pkg.setup_price ? `₱${pkg.setup_price.toLocaleString()}` : null,
           guest_range: `${pkg.guest_min || 0} - ${pkg.guest_max || 0} guests`,
           description: pkg.fullDescription || pkg.description,
           inclusions: pkg.inclusions,
           features: pkg.features,
-          available_scaffold_sizes: (pkg.scaffold_size_options || []).map((s) => ({
-            label: s.label,
-            dimensions: `${s.width_ft}x${s.length_ft} ft (${s.area_ft2} sq ft)`,
-            free_setup: s.free_setup,
-          })),
+          available_scaffold_sizes: scaffoldSizes,
         };
       }
 
@@ -395,6 +464,15 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           pkg = await Package.findById(params.package_id);
         }
 
+        // A combo is a fixed meal for a fixed number of guests, so a draft that
+        // asks for a different count is refused here exactly as it is on the
+        // inquiry route — the assistant must not be the one path that can book
+        // a 10-pax combo for 40 people.
+        if (isSpecialOffer(pkg)) {
+          const problem = offerBookingProblem(pkg, params.guest_count);
+          if (problem) return { success: false, message: problem };
+        }
+
         const inquiryData = {
           customer_id: user._id,
           package_id: pkg?._id || null,
@@ -403,9 +481,27 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           event_type: params.event_type,
           event_date: parsedDate,
           start_time: params.start_time || "12:00 PM",
-          guest_count: Number(params.guest_count) || 50,
-          service_type: params.service_type || "Food and Event Setup",
-          include_food: params.service_type !== "Event Setup Only",
+          // A combo brings its own count, its own food and its own base price;
+          // everything else is whatever the customer told the assistant.
+          guest_count: isSpecialOffer(pkg)
+            ? offerGuestCount(pkg)
+            : Number(params.guest_count) || 50,
+          ...(isSpecialOffer(pkg)
+            ? {
+                offer_base_price: offerBaseFoodPrice(pkg),
+                offer_food_snapshot: offerFoodSnapshot(pkg),
+              }
+            : {}),
+          // A combo sells food. What it does not sell is an event set-up, so
+          // it is not filed as one — and it still holds the venue, because
+          // `delivery_method` is what says so (see utils/venue.js).
+          service_type: isSpecialOffer(pkg)
+            ? "Food Only"
+            : params.service_type || "Food and Event Setup",
+          ...(isSpecialOffer(pkg) ? { delivery_method: "setup" } : {}),
+          include_food: isSpecialOffer(pkg)
+            ? true
+            : params.service_type !== "Event Setup Only",
           budget_range: params.budget_range || "",
           province: params.province || "",
           municipality: params.municipality || "",

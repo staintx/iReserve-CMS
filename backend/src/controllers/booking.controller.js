@@ -66,10 +66,14 @@ const {
   sendBookingStatusEmail,
 } = require("../utils/booking-emails");
 const { cateringRequested } = require("../utils/catering");
+const { occupiesVenue } = require("../utils/venue");
 const {
   bookingTypeForPackage,
   isSpecialOffer,
   offerBaseFoodPrice,
+  offerGuestCount,
+  offerBookingProblem,
+  applyComboRequestBoundary,
 } = require("../utils/specialOffers");
 
 const calculateBookingPrice = async (body) => {
@@ -89,15 +93,20 @@ const calculateBookingPrice = async (body) => {
     const pkg = await Package.findById(body.package_id);
     if (pkg && isSpecialOffer(pkg)) {
       /**
-       * A Special Offer decides exactly one figure: its base price, which is
-       * `guest count × price per person`, and which covers the food.
+       * A Special Offer decides exactly one figure: its price, which is
+       * `combo guest count × price per pax`, and which covers the food.
        *
-       * Setup, equipment, crew and everything else are settled on the
-       * quotation — an offer's scaffold options carry no price, so there is no
-       * setup amount to add here without inventing one.
+       * Both numbers belong to the combo, so the booking's guest count is not
+       * read here — a combo is sold for the count it was built for, and the
+       * request it came from was rejected if it said otherwise.
+       *
+       * No setup price is added and none is looked for: a combo is food, and
+       * carries no scaffold size, setup fee or equipment to charge for. The
+       * setup branches below are a regular package's, and stay untouched — a
+       * package's setup fee is charged whether or not catering comes with it.
        */
       offerCoversFood = true;
-      sum += offerBaseFoodPrice(pkg, guestCount);
+      sum += offerBaseFoodPrice(pkg);
     } else if (pkg) {
       const packageType = pkg.package_type || "Event Setup Only";
       if (packageType === "Event Setup Only") {
@@ -201,13 +210,21 @@ const normalizeText = (value) =>
     .replace(/\s+/g, " ");
 
 const sameLocation = (requestLocation, existingLocation) => {
-  // Food Only / Pickup orders do not occupy the venue and shouldn't trigger a location conflict
-  if (requestLocation?.delivery_method === "pickup") return false;
-  if (requestLocation?.service_type === "Food Only") return false;
-  if (requestLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
-  
-  // Existing Food Only orders don't block the venue either
-  if (existingLocation?.event_type?.toLowerCase().includes("food delivery")) return false;
+  /**
+   * Two bookings clash only if both are actually *at* the venue.
+   *
+   * Asked of `occupiesVenue`, which reads `delivery_method` — the field that
+   * describes how an order is fulfilled. It used to be asked of `service_type`,
+   * which describes what is being *sold*; that conflated a food order the
+   * kitchen delivers with one our team stays and serves, and left a combo pack
+   * unable to be called food without also being excused from the calendar.
+   *
+   * Both sides are checked, because a delivery that never reaches the venue
+   * does not block one either — which the old code said only for records whose
+   * event type happened to be named "food delivery".
+   */
+  if (!occupiesVenue(requestLocation)) return false;
+  if (!occupiesVenue(existingLocation)) return false;
 
   // If the request doesn't have a municipality yet, we can't definitively say it's the same location.
   // Returning true here would cause province-only conflicts.
@@ -438,6 +455,33 @@ exports.create = asyncHandler(async (req, res) => {
     delete req.body.street;
     delete req.body.landmark;
     delete req.body.zip_code;
+  }
+
+  /**
+   * A Special Offer is a combo pack: a fixed meal for a fixed number of guests.
+   * A booking made against one has to agree with it, or its stored guest count
+   * would contradict the price computed from the combo's own numbers below.
+   *
+   * The same rule the inquiry route and the assistant apply, so no path can
+   * book a 10-pax combo for 40 people.
+   */
+  if (req.body.package_id) {
+    const bookedPackage = await Package.findById(req.body.package_id);
+    if (bookedPackage) {
+      const problem = offerBookingProblem(bookedPackage, req.body.guest_count);
+      if (problem) return res.status(400).json({ message: problem });
+
+      if (isSpecialOffer(bookedPackage)) {
+        // The combo's own count and food, not the caller's — a combo decides
+        // both, and the price below is built from them.
+        req.body.guest_count = offerGuestCount(bookedPackage);
+        req.body.include_food = true;
+        // A combo is food: it has no scaffold to size and no equipment to
+        // reserve, so an event-space answer sent alongside one is dropped
+        // rather than stored and later priced.
+        applyComboRequestBoundary(req.body);
+      }
+    }
   }
 
   // Check Blocked Dates
@@ -2440,6 +2484,17 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       }));
     } else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
       menuItems = inquiry.selected_menu.map(m => (typeof m === 'object' ? { name: m.name || String(m), price: m.price || 0 } : { name: String(m), price: 0 }));
+    } else if (Array.isArray(inquiry.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0) {
+      // A combo chose no dishes — it *is* its dishes. Carried across from the
+      // snapshot so a booking converted without a quotation still says what is
+      // being served, at ₱0 because the combo's base price already covers it.
+      menuItems = inquiry.offer_food_snapshot.map((item) => ({
+        name: item.item_name,
+        note: item.menu_category
+          ? `${item.menu_category} · covered by the combo price`
+          : "Covered by the combo price",
+        price: 0,
+      }));
     }
   }
 

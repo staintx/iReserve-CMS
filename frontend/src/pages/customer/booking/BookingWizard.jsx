@@ -37,9 +37,8 @@ import {
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import {
   isSpecialOffer,
-  offerGuestCap,
-  selectableOfferRules,
-  validateOfferSelection,
+  offerGuestCount,
+  offerBookingProblem,
 } from "../../../lib/specialOffers";
 import { formatEventDate } from "../../../utils/format";
 
@@ -228,17 +227,19 @@ export default function BookingWizard() {
   // page passed in. Only with none of those does the flow fall back to an open
   // range. Previously a package chosen inside the wizard was ignored entirely,
   // so a 40-150 guest package silently accepted 1 or 900.
-  // A Special Offer changes three things about this flow, all of them
-  // consequences of one fact: its price is `guest count × a fixed rate`, so
-  // the guest count is the real number rather than an opening estimate.
-  //   1. Its `max_guests` is a hard ceiling, not guidance.
-  //   2. The field is called "Guest count", never "Estimated guest count".
-  //   3. Its food is chosen against the offer's rules rather than freely.
+  // A Special Offer is a combo pack, which changes four things about this
+  // flow, all of them consequences of one fact: the combo is a decided meal
+  // for a decided number of guests, and it is food.
+  //   1. Its guest count is the combo's own, so the field is filled and locked
+  //      rather than asked for.
+  //   2. That number is what the price is built from, so it is never an
+  //      "estimated" count.
+  //   3. Its food is shown rather than chosen — there is nothing to pick.
+  //   4. It has no event-space build, so the scaffold size and the package
+  //      add-ons — both of which belong to a setup package — are not asked
+  //      about, not seeded, and not submitted.
   const isOffer = isSpecialOffer(packageDetails);
-  const offerRules = useMemo(
-    () => (isOffer ? selectableOfferRules(packageDetails) : []),
-    [isOffer, packageDetails],
-  );
+  const offerPax = isOffer ? offerGuestCount(packageDetails) : 0;
 
   const { guestMin, guestMax } = useMemo(() => {
     const positive = (candidate) => {
@@ -246,11 +247,10 @@ export default function BookingWizard() {
       return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     };
 
-    // An offer's cap wins over every other bound, because exceeding it means
-    // the offer no longer applies at all.
-    const cap = isOffer ? offerGuestCap(packageDetails) : null;
-    if (cap) {
-      return { guestMin: positive(packageDetails?.guest_min) || 1, guestMax: cap };
+    // A combo is sold at one size. Both bounds are that size, so nothing
+    // downstream has a range to interpret.
+    if (isOffer && offerPax > 0) {
+      return { guestMin: offerPax, guestMax: offerPax };
     }
 
     // Deliberately not clamped to the chosen setup size. Guest count is how
@@ -269,6 +269,7 @@ export default function BookingWizard() {
     return { guestMin: 1, guestMax: 1000 };
   }, [
     isOffer,
+    offerPax,
     packageDetails,
     initialGuestMin,
     initialGuestMax,
@@ -296,6 +297,20 @@ export default function BookingWizard() {
     form.package_id === "none"
       ? ""
       : form.package_id || initialPackageId || "";
+
+  /**
+   * How this order reaches the customer — which is a different question from
+   * what is being sold, and the one that decides whether our team is standing
+   * in the venue (see backend/src/utils/venue.js).
+   *
+   * Only the Food Only path lets the customer choose; every other path, a combo
+   * pack included, is served at the venue by us. Derived once because the
+   * availability check and the submitted request must send the same answer: the
+   * check used to send the untouched `delivery` default while the request
+   * stored `setup`, so the server was asked about one kind of booking and given
+   * another.
+   */
+  const deliveryMethod = isFoodOnly ? form.delivery_method : "setup";
 
   // Food Only never occupies the venue, so it is not subject to the
   // venue-conflict check that gates the other paths.
@@ -330,11 +345,22 @@ export default function BookingWizard() {
     } else {
       // Started from Package page
       steps.push({ id: "EventDetails", label: "Event details", key: "event" });
-      steps.push({ id: "MenuSelection", label: "Menu", key: "menu" });
+      // A combo's food is shown, not chosen, so the step is named for what it
+      // actually does on that path.
+      steps.push({
+        id: "MenuSelection",
+        label: isOffer ? "Your combo" : "Menu",
+        key: "menu",
+      });
       if (form.include_food !== false) {
         steps.push({ id: "DietaryNeeds", label: "Dietary needs", key: "dietary" });
       }
-      steps.push({ id: "PackageAddOns", label: "Extras", key: "addons" });
+      // Package add-ons are sold alongside an event-space build. A combo has
+      // none, so the step would be an empty screen between the meal and the
+      // customer's details.
+      if (!isOffer) {
+        steps.push({ id: "PackageAddOns", label: "Extras", key: "addons" });
+      }
     }
 
     steps.push({ id: "ContactInfo", label: "Contact", key: "contact" });
@@ -347,6 +373,7 @@ export default function BookingWizard() {
     isEventSetupOnly,
     isFoodAndEventSetup,
     form.include_food,
+    isOffer,
   ]);
 
   const currentStepId = wizardSteps[step]?.id;
@@ -506,91 +533,75 @@ export default function BookingWizard() {
       .catch(() => setPackageDetails(null));
   }, [selectedPackageId]);
 
-  // A Special Offer is a food offer: the per-person price is what buys the
-  // meal, so there is no "do you want catering?" question to answer and the
-  // toggle that asks it never applies.
+  // A Special Offer is a combo: the price per pax is what buys the meal, so
+  // there is no "do you want catering?" question to answer, no dishes to pick,
+  // and the guest count is the combo's own number rather than something the
+  // customer supplies. Set here, once, so every downstream surface — the
+  // estimate, the review page, the submitted payload — reads the same figure
+  // the server will price from.
   useEffect(() => {
     if (!isOffer) return;
-    setForm((prev) =>
-      prev.include_food === true
-        ? prev
-        : { ...prev, include_food: true, service_type: SERVICE_TYPES.FULL_SERVICE },
-    );
-  }, [isOffer]);
+    setForm((prev) => {
+      const next = { ...prev };
+      let changed = false;
 
-  // An offer is booked straight from its card, so it never passes through the
-  // setup-package step that normally chooses a scaffold size. Without a size
-  // selected, an offer that includes free setup at one of them could never
-  // apply it. Seed the offer's own default (or its first size) so the free
-  // setup it advertises is what the customer actually gets; they can still
-  // change it on the Event Details step.
-  const seededOfferSize = useRef(null);
-  useEffect(() => {
-    if (!isOffer) return;
-    const options = Array.isArray(packageDetails?.scaffold_size_options)
-      ? packageDetails.scaffold_size_options
-      : [];
-    if (options.length === 0) return;
-    if (seededOfferSize.current === String(packageDetails._id)) return;
-    if (form.selected_scaffold_option_id) {
-      seededOfferSize.current = String(packageDetails._id);
-      return;
-    }
+      // A combo sells food, and says so. It is not filed as an event set-up
+      // it does not include — and it still holds the venue, because that is
+      // `deliveryMethod`'s answer, not this field's.
+      //
+      // Safe for the step list: `isFoodOnly` also requires `isCustomBooking`,
+      // and a combo is only ever reached from its own card, so this never
+      // reroutes the wizard onto the delivery path.
+      if (
+        prev.include_food !== true ||
+        prev.service_type !== SERVICE_TYPES.FOOD_ONLY
+      ) {
+        next.include_food = true;
+        next.service_type = SERVICE_TYPES.FOOD_ONLY;
+        changed = true;
+      }
+      if (offerPax > 0 && Number(prev.guest_count) !== offerPax) {
+        next.guest_count = String(offerPax);
+        changed = true;
+      }
+      // A combo decides its own dishes, so anything carried in from an earlier
+      // package in the same session is not part of this order.
+      if ((prev.selected_menu || []).length > 0) {
+        next.selected_menu = [];
+        changed = true;
+      }
 
-    const option =
-      options.find(
-        (entry) =>
-          String(entry._id) === String(packageDetails.default_scaffold_option_id),
-      ) || options[0];
-    if (!option?._id) return;
+      // Nor is anything event-space. A customer who looked at a setup package
+      // first can arrive here with a scaffold size, equipment and add-ons
+      // attached; none of it belongs to a combo, and leaving it on the form
+      // would put it on the estimate and then on the request.
+      if (prev.selected_scaffold_option_id) {
+        next.selected_scaffold_option_id = "";
+        next.scaffold_width = undefined;
+        next.scaffold_length = undefined;
+        next.scaffold_base_area = undefined;
+        next.scaffold_price = 0;
+        changed = true;
+      }
+      if ((prev.inventory_items || []).length > 0) {
+        next.inventory_items = [];
+        changed = true;
+      }
+      if ((prev.selected_package_addons || []).length > 0) {
+        next.selected_package_addons = [];
+        changed = true;
+      }
 
-    seededOfferSize.current = String(packageDetails._id);
-    setForm((prev) => ({
-      ...prev,
-      selected_scaffold_option_id: String(option._id),
-      scaffold_width: option.width_ft,
-      scaffold_length: option.length_ft,
-      scaffold_base_area:
-        option.area_ft2 ??
-        (option.width_ft && option.length_ft
-          ? option.width_ft * option.length_ft
-          : undefined),
-      scaffold_price: option.free_setup ? 0 : Number(option.price) || 0,
-    }));
-  }, [isOffer, packageDetails, form.selected_scaffold_option_id]);
-
-  // Changing the size on an offer re-prices the setup line, so the change is
-  // applied through one handler rather than in each place that offers it.
-  const selectOfferScaffold = useCallback(
-    (optionId) => {
-      const options = Array.isArray(packageDetails?.scaffold_size_options)
-        ? packageDetails.scaffold_size_options
-        : [];
-      const option = options.find(
-        (entry) => String(entry._id) === String(optionId),
-      );
-      if (!option) return;
-
-      setForm((prev) => ({
-        ...prev,
-        selected_scaffold_option_id: String(option._id),
-        scaffold_width: option.width_ft,
-        scaffold_length: option.length_ft,
-        scaffold_base_area:
-          option.area_ft2 ??
-          (option.width_ft && option.length_ft
-            ? option.width_ft * option.length_ft
-            : undefined),
-        scaffold_price: option.free_setup ? 0 : Number(option.price) || 0,
-      }));
-    },
-    [packageDetails],
-  );
+      return changed ? next : prev;
+    });
+  }, [isOffer, offerPax]);
 
   // A setup package brings its own equipment; carry it onto the inquiry so the
-  // team sees what has to be reserved.
+  // team sees what has to be reserved. A combo brings none — it is food, and
+  // has no event space to equip.
   useEffect(() => {
     if (!packageDetails) return;
+    if (isOffer) return;
     if (form.service_type === SERVICE_TYPES.FOOD_ONLY) return;
     const equipment = packageDetails.setup_equipment;
     if (!Array.isArray(equipment) || equipment.length === 0) return;
@@ -603,7 +614,7 @@ export default function BookingWizard() {
         quantity: Number(item.quantity || 1),
       })),
     }));
-  }, [packageDetails, form.service_type]);
+  }, [packageDetails, form.service_type, isOffer]);
 
   // Seed the menu from the package the customer started from, matched against
   // the loaded catalog so prices and categories are available. They can still
@@ -648,7 +659,7 @@ export default function BookingWizard() {
       municipality: form.municipality,
       barangay: form.barangay,
       street: form.street,
-      delivery_method: form.delivery_method,
+      delivery_method: deliveryMethod,
       service_type: form.service_type,
     };
 
@@ -694,7 +705,7 @@ export default function BookingWizard() {
     form.municipality,
     form.barangay,
     form.street,
-    form.delivery_method,
+    deliveryMethod,
     form.service_type,
     availabilityNonce,
   ]);
@@ -809,14 +820,17 @@ export default function BookingWizard() {
           if (!form.barangay) errors.barangay = "Select the barangay.";
 
           const guests = parseNumber(form.guest_count) || 0;
+          if (isOffer) {
+            // A combo is booked for the count it was built for, so the only
+            // thing to check is that the two still agree — and the answer is
+            // the server's own, so the wizard cannot let through a request the
+            // API will refuse.
+            const problem = offerBookingProblem(packageDetails, guests);
+            if (problem) errors.guest_count = problem;
+            break;
+          }
           if (guests <= 0) {
-            errors.guest_count = isOffer
-              ? "Enter your guest count. This offer is priced per person."
-              : "Enter how many guests you're expecting.";
-          } else if (isOffer && guests > guestMax) {
-            // A cap on an offer is a limit on what is being sold, so it is
-            // stated as one rather than as a generic range.
-            errors.guest_count = `${packageDetails?.name || "This offer"} covers up to ${guestMax} guests. Lower the count, or book a custom event instead.`;
+            errors.guest_count = "Enter how many guests you're expecting.";
           } else if (guests < guestMin || guests > guestMax) {
             errors.guest_count = `Enter a guest count between ${guestMin} and ${guestMax}.`;
           } else if (setupCapacity?.status === "over") {
@@ -839,22 +853,9 @@ export default function BookingWizard() {
           break;
         }
 
-        case "MenuSelection": {
-          // Dishes are otherwise a free choice with no required categories and
-          // no cap, on every service path. A Special Offer is the exception:
-          // its per-person price buys a specific set of courses, so its own
-          // configured rules are what has to be satisfied here.
-          if (!isOffer) break;
-          const problems = validateOfferSelection(
-            packageDetails,
-            (form.selected_menu || []).map((item) => item?._id || item),
-          );
-          if (problems.length > 0) {
-            errors.selected_menu = problems[0];
-            message = problems[0];
-          }
-          break;
-        }
+        // MenuSelection has nothing to validate: dishes are a free choice
+        // with no required categories and no cap, and a combo's food is fixed
+        // by the combo, so there is nothing the customer could get wrong.
 
         case "ContactInfo": {
           [
@@ -1107,12 +1108,27 @@ export default function BookingWizard() {
         ...(form.selected_package_addons || []),
         ...(form.additional_services || []),
       ],
-      delivery_method: isFoodOnly ? form.delivery_method : "setup",
-      // Dishes only travel with a request that asked for food. The catering
-      // toggle already clears them, so this is the belt to that braces.
-      selected_menu: includeFood
-        ? (form.selected_menu || []).map((item) => item._id || item)
-        : [],
+      delivery_method: deliveryMethod,
+      // A combo is food: it has no scaffold size to record and no equipment to
+      // reserve. Cleared here as well as on the server, so what the customer
+      // was shown and what is stored cannot disagree.
+      ...(isOffer
+        ? {
+            selected_scaffold_option_id: undefined,
+            scaffold_width: undefined,
+            scaffold_length: undefined,
+            scaffold_base_area: undefined,
+            scaffold_price: undefined,
+            inventory_items: [],
+          }
+        : {}),
+      // Dishes only travel with a request that asked for food, and never with
+      // a combo — its food is the combo's own and the server records it from
+      // there, so sending a dish list here could only contradict it.
+      selected_menu:
+        includeFood && !isOffer
+          ? (form.selected_menu || []).map((item) => item._id || item)
+          : [],
     };
 
     if (selectedPackageId) payload.package_id = selectedPackageId;
@@ -1259,7 +1275,6 @@ export default function BookingWizard() {
             errors={fieldErrors}
             setupCapacity={setupCapacity}
             offer={isOffer ? packageDetails : null}
-            onSelectOfferScaffold={selectOfferScaffold}
           />
         );
 
@@ -1284,11 +1299,9 @@ export default function BookingWizard() {
             menuItems={menuItems}
             estimate={estimate}
             isFullService={!isFoodOnly}
-            // A Special Offer replaces free browsing with its own courses:
-            // pick exactly what the offer includes, from what it allows.
+            // A combo replaces browsing entirely: the step shows the meal the
+            // combo serves, because there is nothing to choose.
             offer={isOffer ? packageDetails : null}
-            offerRules={offerRules}
-            errors={fieldErrors}
           />
         );
 
@@ -1336,6 +1349,7 @@ export default function BookingWizard() {
             errors={fieldErrors}
             setTurnstileToken={setTurnstileToken}
             offer={isOffer ? packageDetails : null}
+            deliveryMethod={deliveryMethod}
           />
         );
 

@@ -1,4 +1,4 @@
-import { PartyPopper, MapPin, Package, Palette } from "lucide-react";
+import { PartyPopper, MapPin, Package, Palette, Users } from "lucide-react";
 import {
   Card,
   SH,
@@ -12,9 +12,11 @@ import {
 import EstimateSummary from "../components/EstimateSummary";
 import ThemePicker from "../components/ThemePicker";
 import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
-import { guestCountLabel, guestCountHelp } from "../../../../lib/specialOffers";
-import { focusRing } from "../lib/bookingUI";
-import { cn } from "@/lib/utils";
+import {
+  guestCountLabel,
+  guestCountHelp,
+  offerGuestCount,
+} from "../../../../lib/specialOffers";
 
 const VENUE_TYPES = [
   "Covered Court",
@@ -42,7 +44,6 @@ export default function StepEventDetails({
   errors = {},
   setupCapacity = null,
   offer = null,
-  onSelectOfferScaffold = () => {},
 }) {
   const handleGuestChange = (nextValue) => {
     setForm((prev) => ({ ...prev, guest_count: String(nextValue) }));
@@ -52,9 +53,11 @@ export default function StepEventDetails({
     form.venue_type && !VENUE_TYPES.includes(form.venue_type);
   const currentCount = parseInt(form.guest_count, 10) || guestMin;
 
-  const offerSizes = offer && Array.isArray(offer.scaffold_size_options)
-    ? offer.scaffold_size_options.filter((option) => option?._id)
-    : [];
+  // A combo serves the number of guests it was built for, so the count is not
+  // a question — it is stated. The counter is replaced rather than disabled,
+  // because a disabled stepper reads as something the customer is failing to
+  // reach rather than as a fact about what they picked.
+  const comboPax = offer ? offerGuestCount(offer) : 0;
 
   return (
     <StepShell aside={<EstimateSummary estimate={estimate} />}>
@@ -62,7 +65,7 @@ export default function StepEventDetails({
         title="Event Details"
         sub={
           offer
-            ? "Your venue and guest count. This offer is priced per person, so the count sets your food price."
+            ? "Your venue. This combo already covers the guest count and the food."
             : "Your venue and guest count. Both affect your price."
         }
         aside={
@@ -130,81 +133,40 @@ export default function StepEventDetails({
 
             {/* Regular and custom bookings collect an *estimated* guest count:
                 it is an opening figure that can still move at quotation, ocular
-                or revision. A Special Offer's count is the number its price is
-                built from, so it is asked for as the guest count and capped. */}
+                or revision. A combo's count belongs to the combo, so it is
+                shown rather than asked for. */}
             <Field
               label={guestCountLabel(offer)}
-              required
+              required={!comboPax}
               hint={
                 offer
-                  ? `${guestCountHelp(offer)}${
-                      guestMax ? ` Up to ${guestMax} guests.` : ""
-                    }`
+                  ? guestCountHelp(offer)
                   : setupCapacity?.status === "ok"
                     ? setupCapacity.message
                     : `${guestCountHelp(offer)} ${guestMin} to ${guestMax} guests.`
               }
               error={errors.guest_count || (setupCapacity?.status === "under" ? setupCapacity.message : "")}
             >
-              <GuestCounter
-                value={currentCount}
-                onChange={handleGuestChange}
-                min={guestMin}
-                max={guestMax}
-              />
+              {comboPax > 0 ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                  <Users size={16} className="text-[#4C81E0]" />
+                  <strong className="text-[15px] font-semibold text-[#1E293B]">
+                    {comboPax} guests
+                  </strong>
+                  <span className="text-[13px] text-[#64748B]">
+                    · set by {offer.name}
+                  </span>
+                </div>
+              ) : (
+                <GuestCounter
+                  value={currentCount}
+                  onChange={handleGuestChange}
+                  min={guestMin}
+                  max={guestMax}
+                />
+              )}
             </Field>
 
-            {/* An offer is booked straight from its card, so this is where its
-                setup size is chosen. The size decides the setup charge — and,
-                where the offer says so, whether there is one at all. */}
-            {offerSizes.length > 0 && (
-              <Field
-                label="Set-up size"
-                hint="Your food price is per person. Set-up is separate — this offer covers it at some sizes, and your quotation prices the rest."
-              >
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {offerSizes.map((option) => {
-                    const selected =
-                      String(form.selected_scaffold_option_id) === String(option._id);
-                    return (
-                      <button
-                        key={option._id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => onSelectOfferScaffold(option._id)}
-                        className={cn(
-                          "rounded-xl border p-3 text-left transition-colors",
-                          selected
-                            ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]"
-                            : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50",
-                          focusRing,
-                        )}
-                      >
-                        <span className="block text-sm font-semibold text-[#1E293B]">
-                          {option.label ||
-                            `${option.width_ft} × ${option.length_ft} ft`}
-                        </span>
-                        <span
-                          className={cn(
-                            "mt-0.5 block text-xs font-semibold",
-                            option.free_setup ? "text-emerald-600" : "text-[#64748B]",
-                          )}
-                        >
-                          {option.free_setup
-                            ? "Free set-up with this offer"
-                            : "Set-up priced on your quotation"}
-                        </span>
-                        {(option.guest_min || option.guest_max) && (
-                          <span className="mt-0.5 block text-xs text-[#94A3B8]">
-                            Fits {option.guest_min || 0}–{option.guest_max || "∞"} guests
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-            )}
           </div>
         </Card>
 

@@ -5,7 +5,7 @@
 const CUSTOMER_TOOLS = [
   {
     name: "get_packages",
-    description: "Fetch list of active catering packages and special offers. Can filter by event type or service type.",
+    description: "Fetch active catering packages and Special Offers. A Special Offer is a combo pack: a fixed meal for a fixed guest count at a fixed price per pax. Can filter by event type, service type, or offer type.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -19,14 +19,14 @@ const CUSTOMER_TOOLS = [
         },
         offer_type: {
           type: "STRING",
-          description: "Filter by offer type: 'regular' or 'special' (Special Offers).",
+          description: "Filter by offer type: 'regular' (packages) or 'special' (combo packs).",
         },
       },
     },
   },
   {
     name: "get_package_details",
-    description: "Get full details, inclusions, menu rules, and pricing for a specific package.",
+    description: "Get full details for one package or combo pack: description, pricing, inclusions, and — for a combo — its guest count and the exact food items it includes.",
     parameters: {
       type: "OBJECT",
       properties: {

@@ -1,165 +1,86 @@
 /**
- * Creates the two Special Offers the client launches with.
+ * Creates the combo packs the client launches with.
  *
  * Everything here is configuration written into the database, not behaviour:
- * the prices, the guest cap, the food rules and the free-setup size are all
+ * the guest count, the price per pax, the food items and the inclusions are all
  * ordinary Package fields an admin can edit afterwards in Service Management →
  * Packages → Special Offers. Nothing in the application reads this file.
  *
- * Menu items are matched against the existing catalogue by category, so the
- * offers allow whatever the kitchen actually offers rather than a dish list
- * invented here. Run it after the menu is seeded:
+ * A combo is food. There are no scaffold sizes, setup equipment or add-ons here
+ * because a combo has none — that is a regular package.
  *
  *     node src/seed/seedSpecialOffers.js
  *
- * Re-running updates the two offers in place rather than duplicating them.
+ * Re-running updates the combos in place rather than duplicating them.
  */
 
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 
 const Package = require("../models/Package");
-const MenuItem = require("../models/MenuItem");
-const { resolveGroupId } = require("../utils/menuCategories");
 
 dotenv.config();
 
-/** Every available dish whose category resolves to one of these groups. */
-const itemsInGroups = (menu, groupIds) =>
-  menu
-    .filter(
-      (item) =>
-        item.available !== false && groupIds.includes(resolveGroupId(item.category)),
-    )
-    .map((item) => item._id);
+/** Food rows in the order they are served, numbered as stored. */
+const food = (rows) =>
+  rows.map(([menu_category, item_name], index) => ({
+    menu_category,
+    item_name,
+    sort_order: index,
+  }));
 
-const buildOffers = (menu) => [
+const OFFERS = [
   {
-    name: "Full Package",
+    name: "Classic Celebration Combo",
     description:
-      "Complete catering for up to 100 guests at a fixed price per person, with free set-up on our 20x40 scaffold.",
+      "A balanced combo designed for small celebrations — good food for ten, at one fixed price per pax.",
     fullDescription:
-      "Three main courses, a vegetable dish, rice, dessert, drinks and water — priced per person. Choose the 20x40 size and the set-up is free; other sizes are quoted.",
+      "Chicken BBQ, pancit, steamed rice and iced tea for ten guests, served with buffet setup and everything needed to eat. Priced per pax; event set-up beyond the buffet, equipment and any extras are quoted separately.",
     offer_type: "special",
-    package_type: "Food + Event Setup",
+    package_type: "Food Only",
     event_type: "Birthday",
-    price_per_guest: 500,
-    max_guests: 100,
+    guest_count: 10,
+    price_per_guest: 350,
     available: true,
-    badge_text: "Free set-up at 20x40",
-    inclusions: [
-      "[Food] 3 Main Courses",
-      "[Food] 1 Vegetable Dish",
-      "[Food] Rice",
-      "[Food] Dessert",
-      "[Food] Drinks",
-      "[Food] Water",
-    ],
-    offer_menu_rules: [
-      {
-        label: "Main Courses",
-        required_count: 3,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["mains"]),
-      },
-      {
-        label: "Vegetable Dish",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["vegetables"]),
-      },
-      {
-        label: "Dessert",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["desserts"]),
-      },
-      {
-        label: "Drinks",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["drinks"]),
-      },
-      {
-        label: "Rice",
-        required_count: 0,
-        selectable: false,
-        note: "Included for every guest.",
-        menu_items: itemsInGroups(menu, ["rice"]),
-      },
-      {
-        label: "Water",
-        required_count: 0,
-        selectable: false,
-        note: "Included for every guest.",
-        menu_items: itemsInGroups(menu, ["water"]),
-      },
-    ],
-    // Supported sizes only. The 20x40 is the one the client said carries free
-    // set-up; the others are simply selectable, and what they cost is settled
-    // on the quotation. No prices appear here because the client gave none.
-    scaffold_size_options: [
-      { label: "20x40 Setup", width_ft: 20, length_ft: 40, area_ft2: 800, free_setup: true },
-      { label: "20x20 Setup", width_ft: 20, length_ft: 20, area_ft2: 400, free_setup: false },
-      { label: "40x40 Setup", width_ft: 40, length_ft: 40, area_ft2: 1600, free_setup: false },
-    ],
+    badge_text: "Serves 10",
+    offer_food_items: food([
+      ["Main Course", "Chicken BBQ"],
+      ["Noodles", "Pancit"],
+      ["Rice", "Steamed Rice"],
+      ["Beverage", "Iced Tea"],
+    ]),
+    inclusions: ["Buffet setup", "Serving utensils", "Disposable plates"],
   },
   {
-    name: "Student Budget Menu",
+    name: "Fiesta Combo",
     description:
-      "A budget-friendly set menu at a fixed price per person — pick one item from each course.",
+      "A full fiesta spread for fifty guests at a fixed price per pax.",
     fullDescription:
-      "One viand, one fried dish, one pasta, one drink and one dessert, priced per person. Set-up, equipment and any extras are quoted separately.",
+      "Two mains, a vegetable dish, pancit, rice, dessert and drinks for fifty guests, served with everything needed to eat. Event set-up and styling are a regular package and are quoted separately.",
     offer_type: "special",
-    package_type: "Food + Event Setup",
-    event_type: "Other",
-    price_per_guest: 330,
+    package_type: "Food Only",
+    event_type: "Birthday",
+    guest_count: 50,
+    price_per_guest: 500,
     available: true,
-    badge_text: "Budget friendly",
-    // Written through the same Inclusions structure the regular packages use,
-    // so nothing about this offer needs a concept of its own.
+    badge_text: "Serves 50",
+    offer_food_items: food([
+      ["Main Course", "Lechon Belly"],
+      ["Main Course", "Beef Caldereta"],
+      ["Vegetables", "Chopsuey"],
+      ["Noodles", "Pancit Bihon"],
+      ["Rice", "Steamed Rice"],
+      ["Dessert", "Buko Pandan"],
+      ["Beverage", "Iced Tea"],
+    ]),
     inclusions: [
-      "[Dining & Service Inventory] Food Warmer",
-      "[Dining & Service Inventory] Serving Spoons",
-      "[Dining & Service Inventory] Plates",
-      "[Dining & Service Inventory] Cutlery Sets",
-      "[Dining & Service Inventory] Glasses",
+      "Buffet setup",
+      "Food warmers",
+      "Serving spoons",
+      "Plates and cutlery",
+      "Glasses",
+      "Iced tea dispenser",
     ],
-    offer_menu_rules: [
-      {
-        label: "Viand",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["mains"]),
-      },
-      {
-        label: "Fried",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["mains", "appetizers"]),
-      },
-      {
-        label: "Pasta",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["noodles"]),
-      },
-      {
-        label: "Drink",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["drinks"]),
-      },
-      {
-        label: "Dessert",
-        required_count: 1,
-        selectable: true,
-        menu_items: itemsInGroups(menu, ["desserts"]),
-      },
-    ],
-    // No sizes configured: this offer is a set menu, and any set-up it is
-    // booked alongside is priced on the quotation.
-    scaffold_size_options: [],
   },
 ];
 
@@ -167,14 +88,7 @@ const run = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
 
-    const menu = await MenuItem.find({}, "_id category available").lean();
-    if (menu.length === 0) {
-      console.warn(
-        "⚠  No menu items found. The offers will be created with empty food rules — set their allowed items in the admin once the menu exists.",
-      );
-    }
-
-    for (const offer of buildOffers(menu)) {
+    for (const offer of OFFERS) {
       const existing = await Package.findOne({
         name: offer.name,
         offer_type: "special",
@@ -183,10 +97,10 @@ const run = async () => {
       if (existing) {
         Object.assign(existing, offer);
         await existing.save();
-        console.log(`↻ Updated Special Offer "${offer.name}"`);
+        console.log(`↻ Updated combo "${offer.name}"`);
       } else {
         await Package.create(offer);
-        console.log(`✅ Created Special Offer "${offer.name}"`);
+        console.log(`✅ Created combo "${offer.name}"`);
       }
     }
 

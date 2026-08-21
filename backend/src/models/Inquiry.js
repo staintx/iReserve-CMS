@@ -167,6 +167,12 @@ const InquirySchema = new mongoose.Schema(
     archived: { type: Boolean, default: false },
     archived_at: { type: Date },
     
+    payment_status: {
+      type: String,
+      enum: ["unpaid", "pending", "deposit_paid", "fully_paid"],
+      default: "unpaid",
+    },
+
     revision_count: { type: Number, default: 0 },
     
     is_migrated: { type: Boolean, default: false },

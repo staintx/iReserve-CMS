@@ -253,16 +253,6 @@ io.on("connection", (socket) => {
 			}
 
 			if (sender.role === "customer") {
-				if (managerId && senderId !== managerId) {
-					await createNotification({
-						userId: managerId,
-						title: "New customer message",
-						body: `${senderName}: "${snippet.slice(0, 60)}"`,
-						type: "info",
-						link: `/manager/messages/${conversation._id}`,
-						meta: { conversation_id: conversation._id }
-					}, io);
-				}
 				await notifyAdmins({
 					title: "New customer message",
 					body: `${senderName}: "${snippet.slice(0, 60)}"`,
@@ -271,6 +261,7 @@ io.on("connection", (socket) => {
 					meta: { conversation_id: conversation._id }
 				}, io);
 			}
+
 		} catch (notificationErr) {
 			console.error("Chat notification dispatch failed:", notificationErr.message);
 		}

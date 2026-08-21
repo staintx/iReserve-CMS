@@ -2442,6 +2442,20 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     }
   }
 
+  // Admin Guard: Require an approved deposit payment before converting to booking (unless explicit manual bypass)
+  const Payment = require("../models/Payment");
+  const approvedPayment = await Payment.findOne({
+    inquiry_id: inquiryId,
+    payment_type: { $in: ["deposit", "full"] },
+    status: "approved",
+  });
+
+  if (!approvedPayment && req.body.bypass_deposit !== true) {
+    return res.status(400).json({
+      message: "Cannot convert inquiry to booking: The down payment deposit has not been approved yet.",
+    });
+  }
+
   // Find latest quotation if available (prefer Accepted, fallback to latest)
   let quotation = await Quotation.findOne({ inquiry_id: inquiryId, status: "Accepted" });
   if (!quotation) {
@@ -2598,8 +2612,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     contact_method: inquiry.contact_method || "Email",
     
     total_price: totalPrice,
-    payment_status: "pending",
-    status: "pending deposit",
+    payment_status: approvedPayment ? "deposit_paid" : "pending",
+    status: approvedPayment ? "confirmed" : "pending deposit",
     ...(req.body.event_manager_id || req.body.manager_id
       ? { event_manager_id: req.body.event_manager_id || req.body.manager_id }
       : {}),
@@ -2616,10 +2630,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     await quotation.save();
   }
 
-  const Payment = require("../models/Payment");
   await Payment.updateMany({ inquiry_id: inquiryId }, { booking_id: newBooking._id });
 
-  const existingPayment = await Payment.findOne({ booking_id: newBooking._id });
   let depositAmount = quotation?.deposit_amount;
   if (!depositAmount || depositAmount <= 0) {
     const BusinessInfo = require("../models/BusinessInfo");
@@ -2629,16 +2641,19 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     depositAmount = (newBooking.total_price * depositPercentage) / 100;
   }
   
-  if (!existingPayment && depositAmount > 0) {
-    await Payment.create({
-      booking_id: newBooking._id,
-      customer_id: newBooking.customer_id,
-      amount: depositAmount,
-      currency: "PHP",
-      payment_type: "deposit",
-      status: "pending",
-      gateway: "paymongo"
-    });
+  if (!approvedPayment && depositAmount > 0) {
+    const existingPayment = await Payment.findOne({ booking_id: newBooking._id });
+    if (!existingPayment) {
+      await Payment.create({
+        booking_id: newBooking._id,
+        customer_id: newBooking.customer_id,
+        amount: depositAmount,
+        currency: "PHP",
+        payment_type: "deposit",
+        status: "pending",
+        gateway: "paymongo"
+      });
+    }
   }
 
   const { syncBookingStatus } = require("./payment.controller");

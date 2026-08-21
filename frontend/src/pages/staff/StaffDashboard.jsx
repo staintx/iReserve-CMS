@@ -23,8 +23,12 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  ClipboardList
+  ClipboardList,
+  Lock,
+  Sparkles
 } from "lucide-react";
+import { getEventTimingStatus } from "../../utils/format";
+
 
 const buildCalendar = (year, monthIndex) => {
   const firstDay = new Date(year, monthIndex, 1);
@@ -142,6 +146,10 @@ export default function StaffDashboard() {
     return sorted[0];
   }, [bookings]);
 
+  const verifiableEventsCount = useMemo(() => {
+    return bookings.filter((b) => getEventTimingStatus(b).isStarted).length;
+  }, [bookings]);
+
   const KPIS = [
     { 
       title: "Active Assigned Events", 
@@ -169,11 +177,11 @@ export default function StaffDashboard() {
     },
     { 
       title: "Equipment Verification", 
-      value: "Enabled", 
-      sub: "Count & return logging", 
+      value: verifiableEventsCount > 0 ? `${verifiableEventsCount} Active` : "Locked", 
+      sub: verifiableEventsCount > 0 ? "Ready for live/return count" : "Opens at event start", 
       trend: "", 
-      up: true, 
-      color: "#22C55E" 
+      up: verifiableEventsCount > 0, 
+      color: verifiableEventsCount > 0 ? "#22C55E" : "#94A3B8" 
     },
   ];
 
@@ -241,16 +249,36 @@ export default function StaffDashboard() {
                 const role = getMyAssignedRole(booking);
                 const equipmentCount = (booking.equipment_returns || booking.inventory_items || []).length;
                 const managerName = booking.event_manager_id?.full_name || "Assigned Manager";
+                const timing = getEventTimingStatus(booking);
 
                 return (
                   <AdminCard key={booking._id} className="!p-5 space-y-4 hover:border-primary/50 transition-all">
-                    {/* Top Row: Role & Status */}
-                    <div className="flex items-center justify-between pb-3 border-b border-border">
-                      <div className="flex items-center gap-2">
+                    {/* Top Row: Role, Event Phase & Status */}
+                    <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-border">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="px-2.5 py-1 rounded-lg bg-amber-100/90 text-amber-950 border border-amber-300 font-bold text-xs flex items-center gap-1">
                           <UserCheck size={13} className="text-amber-700" />
                           <span>Role: {role}</span>
                         </span>
+
+                        {timing.isUpcoming && (
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold text-[11px] flex items-center gap-1">
+                            <Lock size={11} className="text-slate-500" />
+                            <span>Upcoming Shift</span>
+                          </span>
+                        )}
+                        {timing.isStarted && !timing.isFinished && (
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 font-bold text-[11px] flex items-center gap-1 animate-pulse">
+                            <Sparkles size={11} className="text-emerald-600" />
+                            <span>In Progress</span>
+                          </span>
+                        )}
+                        {timing.isFinished && (
+                          <span className="px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-300 font-bold text-[11px] flex items-center gap-1">
+                            <CheckCircle2 size={11} className="text-blue-600" />
+                            <span>Ready for Return Check</span>
+                          </span>
+                        )}
                       </div>
                       <Badge status={booking.status || "confirmed"} />
                     </div>
@@ -292,9 +320,9 @@ export default function StaffDashboard() {
                         <ShieldCheck size={14} className="text-amber-600" />
                         <span>Lead: <strong className="text-foreground">{managerName}</strong></span>
                       </div>
-                      <div className="flex items-center gap-1.5 font-semibold text-primary">
+                      <div className={`flex items-center gap-1.5 font-semibold ${timing.isStarted ? "text-primary" : "text-muted-foreground"}`}>
                         <PackageCheck size={14} />
-                        <span>{equipmentCount} Equipment Items</span>
+                        <span>{equipmentCount} {timing.isStarted ? "Equipment Items" : "Dispatched Items"}</span>
                       </div>
                     </div>
 
@@ -303,19 +331,31 @@ export default function StaffDashboard() {
                       <button
                         type="button"
                         onClick={() => navigate(`/staff/events/${booking._id}`)}
-                        className="w-full py-2 px-3 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5"
+                        className="w-full py-2 px-3 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <span>View Briefing &amp; Crew</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
-                        className="w-full py-2 px-3 bg-[#4C81E0] hover:bg-[#3b6bc4] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <PackageCheck size={13} />
-                        <span>Count &amp; Verify Gear</span>
-                      </button>
+                      {timing.isStarted ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
+                          className="w-full py-2 px-3 bg-[#4C81E0] hover:bg-[#3b6bc4] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <PackageCheck size={13} />
+                          <span>Count &amp; Verify Gear</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
+                          className="w-full py-2 px-3 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          title="Equipment returns can be verified once the event starts"
+                        >
+                          <Lock size={13} className="text-muted-foreground" />
+                          <span>Gear Manifest (Locked)</span>
+                        </button>
+                      )}
                     </div>
                   </AdminCard>
                 );

@@ -7,11 +7,11 @@ import {
   Calendar, 
   PackageCheck, 
   CalendarDays, 
-  MessageSquare,
   LogOut,
   UserCheck,
   Sparkles
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import ConfirmDialog from "../common/ConfirmDialog";
 import NotificationBell from "../common/NotificationBell";
@@ -124,16 +124,8 @@ export default function StaffSidebar({ mobileOpen, setMobileOpen }) {
               </>
             )}
           </NavLink>
-
-          <NavLink to="/staff/messages" className={linkClass} title={isCollapsed ? "Messages" : undefined}>
-            {({ isActive }) => (
-              <>
-                <MessageSquare className={iconClass(isActive)} />
-                {!isCollapsed && <span>Messages</span>}
-              </>
-            )}
-          </NavLink>
         </nav>
+
 
         {/* User Card & Logout */}
         <div className="p-3 border-t border-border mt-auto">

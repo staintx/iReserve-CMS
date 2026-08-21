@@ -62,10 +62,9 @@ import AdminNotifications from "../pages/admin/AdminNotifications";
 import ManagerDashboard from "../pages/manager/ManagerDashboard";
 import ManagerBookings from "../pages/manager/ManagerBookings";
 import ManagerStaff from "../pages/manager/ManagerStaff";
-import ManagerMessagesList from "../pages/manager/ManagerMessagesList";
-import ManagerMessagesChat from "../pages/manager/ManagerMessagesChat";
 import StaffDashboard from "../pages/staff/StaffDashboard";
 import StaffEventDetails from "../pages/staff/StaffEventDetails";
+
 
 const adminRoles = ["admin"];
 const managerRoles = ["manager"];
@@ -166,8 +165,8 @@ export default function AppRoutes() {
         <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
         <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuotesList /></ProtectedRoute>} />
         <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuoteDetails /></ProtectedRoute>} />
-        <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMessagesList /></ProtectedRoute>} />
-        <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMessagesChat /></ProtectedRoute>} />
+        <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
+        <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
         <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />
         <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminNotifications /></ProtectedRoute>} />
 
@@ -175,10 +174,9 @@ export default function AppRoutes() {
         <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerDashboard /></ProtectedRoute>} />
         <Route path="/manager/bookings" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerBookings /></ProtectedRoute>} />
         <Route path="/manager/staff" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerStaff /></ProtectedRoute>} />
-        <Route path="/manager/messages" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerMessagesList /></ProtectedRoute>} />
-        <Route path="/manager/messages/:id" element={<ProtectedRoute allowedRoles={managerRoles}><ManagerMessagesChat /></ProtectedRoute>} />
 
         {/* Staff (protected by role) */}
+
         <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={staffRoles}><StaffDashboard /></ProtectedRoute>} />
         <Route path="/staff/events/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />
         <Route path="/staff/bookings/:id" element={<ProtectedRoute allowedRoles={staffRoles}><StaffEventDetails /></ProtectedRoute>} />

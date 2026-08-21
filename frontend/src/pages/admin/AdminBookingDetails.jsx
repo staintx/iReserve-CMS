@@ -24,7 +24,10 @@ import {
   UserCheck,
   Boxes,
   PackageCheck,
-  PackagePlus
+  PackagePlus,
+  Eye,
+  ShieldCheck,
+  UserPlus
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -53,6 +56,8 @@ export default function AdminBookingDetails() {
   // Modals state
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [showCompleteOcularModal, setShowCompleteOcularModal] = useState(false);
+  const [showAssignManagerModal, setShowAssignManagerModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -65,8 +70,10 @@ export default function AdminBookingDetails() {
   const [revisionNote, setRevisionNote] = useState("");
   const [ocularDate, setOcularDate] = useState("");
   const [ocularTime, setOcularTime] = useState("");
+  const [ocularOutcome, setOcularOutcome] = useState("proceed");
+  const [ocularInspectionNotes, setOcularInspectionNotes] = useState("");
+  const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
   const [managers, setManagers] = useState([]);
-  const [isEditingManager, setIsEditingManager] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [savingManager, setSavingManager] = useState(false);
 
@@ -76,7 +83,7 @@ export default function AdminBookingDetails() {
     try {
       await AdminAPI.updateBooking(booking._id, { event_manager_id: selectedManagerId || null });
       notify("Event coordinator updated successfully.", "success");
-      setIsEditingManager(false);
+      setShowAssignManagerModal(false);
       loadData();
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update event manager.", "error");
@@ -149,6 +156,8 @@ export default function AdminBookingDetails() {
       if (bookingData.ocular_visit) {
         setOcularDate(bookingData.ocular_visit.scheduled_date ? new Date(bookingData.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
         setOcularTime(bookingData.ocular_visit.scheduled_time || "");
+        setOcularOutcome(bookingData.ocular_visit.outcome || "proceed");
+        setOcularInspectionNotes(bookingData.ocular_visit.notes || "");
       }
     } catch (err) {
       notify("Failed to load booking details.", "error");
@@ -195,14 +204,25 @@ export default function AdminBookingDetails() {
   
   let completedIdx = 0;
   const rawStatus = (booking.status || "").toLowerCase();
+  const ocularStatus = (booking.ocular_visit?.status || "").toLowerCase();
+  const ocularOutcomeVal = (booking.ocular_visit?.outcome || "").toLowerCase();
+  const hasOcularScheduledOrDone = ocularStatus === "completed" || ocularOutcomeVal === "proceed" || ocularStatus === "scheduled" || ocularStatus === "skipped";
 
-  if (rawStatus === "completed") completedIdx = 7;
-  else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) completedIdx = 6;
-  else if (booking.ocular_visit?.status === "scheduled" || rawStatus === "ocular scheduled") completedIdx = 5;
-  else if (["confirmed", "converted to booking"].includes(rawStatus)) completedIdx = 4;
-  else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") completedIdx = 3;
-  else if (rawStatus === "customer_accepted") completedIdx = 2;
-  else if (rawStatus === "quote_sent") completedIdx = 1;
+  if (rawStatus === "completed") {
+    completedIdx = 7;
+  } else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) {
+    completedIdx = 6;
+  } else if (hasOcularScheduledOrDone || rawStatus === "ocular scheduled") {
+    completedIdx = 5;
+  } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
+    completedIdx = 4;
+  } else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") {
+    completedIdx = 3;
+  } else if (rawStatus === "customer_accepted") {
+    completedIdx = 2;
+  } else if (rawStatus === "quote_sent") {
+    completedIdx = 1;
+  }
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const customerName = booking.customer_id?.full_name || `${booking.contact_first_name || ""} ${booking.contact_last_name || ""}`.trim() || "Customer";
@@ -408,6 +428,24 @@ export default function AdminBookingDetails() {
     .catch(err => notify(err.response?.data?.message || "Failed to confirm ocular schedule", "error"));
   };
 
+  const handleCompleteOcular = async (e) => {
+    e.preventDefault();
+    setIsSubmittingOcular(true);
+    try {
+      await AdminAPI.completeOcular(booking._id, {
+        outcome: ocularOutcome,
+        notes: ocularInspectionNotes.trim(),
+      });
+      notify("Ocular inspection outcome recorded successfully.", "success");
+      setShowCompleteOcularModal(false);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to complete ocular inspection.", "error");
+    } finally {
+      setIsSubmittingOcular(false);
+    }
+  };
+
   const openCustomerChat = async () => {
     try {
       const convo = await createConversation({ booking_id: booking._id });
@@ -597,64 +635,63 @@ export default function AdminBookingDetails() {
                 <span className="text-slate-500">Venue / Location</span>
                 <strong className="text-slate-900 text-right max-w-44 truncate">{booking.venue_type || booking.municipality || "TBA"}</strong>
               </div>
-              <div className="pt-1 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-slate-500 font-medium">Event Coordinator</span>
-                  {!isEditingManager && (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingManager(true)}
-                      className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 underline"
-                    >
-                      {booking.event_manager_id ? "Change" : "Assign"}
-                    </button>
-                  )}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Event Coordinator</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                      setShowAssignManagerModal(true);
+                    }}
+                    className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 hover:underline cursor-pointer transition-colors"
+                  >
+                    {booking.event_manager_id ? (
+                      <>
+                        <Edit size={11} /> Change
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={11} /> Assign
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                {!isEditingManager ? (
-                  <div className="flex items-center justify-between">
-                    <strong className="text-slate-900 font-bold">
-                      {booking.event_manager_id?.full_name || "Unassigned"}
-                    </strong>
-                    {booking.event_manager_id?.email && (
-                      <span className="text-[10px] text-slate-400">({booking.event_manager_id.email})</span>
-                    )}
+                {booking.event_manager_id ? (
+                  <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-amber-200 text-amber-950 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-300">
+                        {(booking.event_manager_id.full_name || "M").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
+                          <span>{booking.event_manager_id.full_name}</span>
+                          <span className="text-[10px] text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded font-semibold shrink-0">
+                            Manager
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                          {booking.event_manager_id.email || booking.event_manager_id.phone || "Assigned Coordinator"}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-2 mt-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                    <select
-                      value={selectedManagerId}
-                      onChange={(e) => setSelectedManagerId(e.target.value)}
-                      className="w-full p-1.5 text-xs rounded border border-slate-300 bg-white font-medium text-slate-900"
-                    >
-                      <option value="">-- Unassigned --</option>
-                      {managers.map((m) => (
-                        <option key={m._id} value={m._id}>
-                          {m.full_name} ({m.email})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
-                          setIsEditingManager(false);
-                        }}
-                        disabled={savingManager}
-                        className="px-2 py-1 text-[11px] text-slate-600 bg-white border border-slate-200 rounded hover:bg-slate-100"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleUpdateManager}
-                        disabled={savingManager}
-                        className="px-2.5 py-1 text-[11px] font-bold text-white bg-primary-600 hover:bg-primary-700 rounded shadow-2xs"
-                      >
-                        {savingManager ? "Saving..." : "Save Coordinator"}
-                      </button>
+                  <div 
+                    onClick={() => {
+                      setSelectedManagerId("");
+                      setShowAssignManagerModal(true);
+                    }}
+                    className="p-2.5 border border-dashed border-slate-200 hover:border-amber-400 bg-slate-50/60 hover:bg-amber-50/40 rounded-xl flex items-center justify-between cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 text-slate-400 group-hover:text-amber-800">
+                      <UserPlus size={14} />
+                      <span className="text-xs font-medium">No Coordinator Assigned</span>
                     </div>
+                    <span className="text-[11px] font-bold text-amber-700 group-hover:underline">
+                      + Assign Now
+                    </span>
                   </div>
                 )}
               </div>
@@ -704,6 +741,152 @@ export default function AdminBookingDetails() {
             </div>
           </AdminCard>
         </div>
+
+        {/* Ocular Visit & Venue Inspection Card */}
+        <AdminCard className="!p-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                <Eye className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-slate-900 text-base flex items-center gap-2">
+                  Ocular Visit &amp; Venue Inspection
+                  {booking.ocular_visit?.status === "completed" && (
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      {booking.ocular_visit.outcome === "proceed" ? "Inspection Passed ✓" : "Completed"}
+                    </span>
+                  )}
+                  {booking.ocular_visit?.status === "scheduled" && (
+                    <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2.5 py-0.5 rounded-full border border-blue-200">
+                      Scheduled
+                    </span>
+                  )}
+                  {booking.ocular_visit?.status === "requested" && (
+                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-200">
+                      Requested by Client
+                    </span>
+                  )}
+                  {(!booking.ocular_visit?.status || booking.ocular_visit?.status === "pending") && (
+                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                      Pending Schedule
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Site inspection schedule, venue layout verification, and measurements for this reservation.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Btn
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setOcularDate(booking.ocular_visit?.scheduled_date ? new Date(booking.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
+                  setOcularTime(booking.ocular_visit?.scheduled_time || "");
+                  setShowRescheduleModal(true);
+                }}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                {booking.ocular_visit?.scheduled_date ? "Reschedule / Edit Visit" : "Schedule Ocular Visit"}
+              </Btn>
+
+              {booking.ocular_visit?.status === "scheduled" && (
+                <Btn
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    setOcularOutcome(booking.ocular_visit?.outcome || "proceed");
+                    setOcularInspectionNotes(booking.ocular_visit?.notes || "");
+                    setShowCompleteOcularModal(true);
+                  }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Complete Inspection
+                </Btn>
+              )}
+
+              <Btn
+                size="sm"
+                variant="ghost"
+                onClick={() => navigate("/admin/bookings/ocular")}
+              >
+                View in Ocular Management &rarr;
+              </Btn>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs pt-2">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Visit Date &amp; Time</span>
+              <strong className="text-slate-900 font-bold text-sm block">
+                {booking.ocular_visit?.scheduled_date
+                  ? new Date(booking.ocular_visit.scheduled_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "Not Scheduled"}
+              </strong>
+              <span className="text-[11px] text-slate-500">
+                {booking.ocular_visit?.scheduled_time ? `@ ${booking.ocular_visit.scheduled_time}` : "Time TBA"}
+              </span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Status</span>
+              <strong className="text-slate-900 font-bold text-sm block capitalize">
+                {booking.ocular_visit?.status || "Pending"}
+              </strong>
+              <span className="text-[11px] text-slate-500">
+                {booking.ocular_visit?.completed_at
+                  ? `Completed on ${new Date(booking.ocular_visit.completed_at).toLocaleDateString()}`
+                  : "Awaiting site inspection"}
+              </span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Outcome</span>
+              <strong className="text-slate-900 font-bold text-sm block">
+                {booking.ocular_visit?.outcome === "proceed"
+                  ? "Inspection Passed (Proceed)"
+                  : booking.ocular_visit?.outcome === "revise"
+                  ? "Revision Needed"
+                  : booking.ocular_visit?.outcome === "reschedule"
+                  ? "Reschedule Needed"
+                  : booking.ocular_visit?.outcome === "cancel"
+                  ? "Cancelled"
+                  : "Pending Inspection"}
+              </strong>
+              <span className="text-[11px] text-slate-500">
+                {booking.ocular_visit?.outcome === "proceed"
+                  ? "Venue verified for setup"
+                  : booking.ocular_visit?.outcome
+                  ? "Follow-up required"
+                  : "Outcome not logged yet"}
+              </span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Assigned Coordinator</span>
+              <strong className="text-slate-900 font-bold text-sm block truncate">
+                {booking.event_manager_id?.full_name || "Unassigned"}
+              </strong>
+              <span className="text-[11px] text-slate-500 truncate block">
+                {booking.event_manager_id?.phone || booking.event_manager_id?.email || "No contact info"}
+              </span>
+            </div>
+          </div>
+
+          {/* Ocular Notes & Place Measurements */}
+          <div className="pt-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+              Ocular Notes &amp; Place Measurements
+            </span>
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+              {booking.ocular_visit?.notes || (
+                <span className="text-slate-400 italic">No ocular inspection notes or place measurements recorded yet.</span>
+              )}
+            </div>
+          </div>
+        </AdminCard>
 
         {/* Itemized Menu & Service Details */}
         <AdminCard className="!p-6 space-y-4">
@@ -1014,6 +1197,214 @@ export default function AdminBookingDetails() {
                 <Btn type="submit" variant="primary">Send Quote</Btn>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Schedule / Reschedule Ocular Visit */}
+        <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
+          <DialogContent className="sm:max-w-[450px]">
+            <form onSubmit={handleScheduleOcular}>
+              <DialogHeader>
+                <DialogTitle>
+                  {booking.ocular_visit?.scheduled_date ? "Reschedule Ocular Visit" : "Schedule Ocular Visit"}
+                </DialogTitle>
+                <DialogDescription>
+                  Set the inspection date and time for venue place measurements and site verification.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Ocular Visit Date</label>
+                  <Input 
+                    type="date" 
+                    required
+                    value={ocularDate} 
+                    onChange={(e) => setOcularDate(e.target.value)} 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Visit Time</label>
+                  <Input 
+                    type="time" 
+                    required
+                    value={ocularTime} 
+                    onChange={(e) => setOcularTime(e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Btn type="button" variant="secondary" onClick={() => setShowRescheduleModal(false)}>Cancel</Btn>
+                <Btn type="submit" variant="primary">Save Schedule</Btn>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Complete Ocular Inspection */}
+        <Dialog open={showCompleteOcularModal} onOpenChange={setShowCompleteOcularModal}>
+          <DialogContent className="sm:max-w-[480px]">
+            <form onSubmit={handleCompleteOcular}>
+              <DialogHeader>
+                <DialogTitle>Complete Ocular Inspection</DialogTitle>
+                <DialogDescription>
+                  Log the venue measurement findings, layout verification, and inspection outcome.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Inspection Outcome</label>
+                  <select
+                    value={ocularOutcome}
+                    onChange={(e) => setOcularOutcome(e.target.value)}
+                    className="w-full p-2.5 text-xs rounded-lg border border-slate-300 bg-white font-medium text-slate-900 focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="proceed">Inspection Passed — Proceed with Event</option>
+                    <option value="revise">Revision Needed — Requires Setup/Guest Adjustment</option>
+                    <option value="reschedule">Reschedule Needed — Site Not Ready</option>
+                    <option value="cancel">Cancel Booking — Venue Infeasible</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Inspection Notes &amp; Place Measurements</label>
+                  <textarea 
+                    rows={4}
+                    className="w-full text-xs rounded-xl border border-slate-200 p-3 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    placeholder="Log venue area dimensions, scaffold sizing, power outlets, kitchen access, terrain conditions..."
+                    value={ocularInspectionNotes} 
+                    onChange={(e) => setOcularInspectionNotes(e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Btn type="button" variant="secondary" onClick={() => setShowCompleteOcularModal(false)}>Cancel</Btn>
+                <Btn type="submit" variant="primary" disabled={isSubmittingOcular}>
+                  {isSubmittingOcular ? "Saving..." : "Record Outcome"}
+                </Btn>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Assign Event Coordinator / Manager */}
+        <Dialog open={showAssignManagerModal} onOpenChange={setShowAssignManagerModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center shrink-0 border border-amber-300">
+                  <ShieldCheck size={20} className="text-amber-700" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900">Assign Event Coordinator</DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500">
+                    Designate an active Event Manager to oversee scheduling, oculars, and catering staff.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-2.5 py-3 max-h-[360px] overflow-y-auto pr-1">
+              {/* Option: Unassigned */}
+              <div
+                onClick={() => setSelectedManagerId("")}
+                className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
+                  selectedManagerId === ""
+                    ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/20 text-slate-900"
+                    : "border-slate-200 hover:border-slate-300 bg-white text-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                    selectedManagerId === "" ? "bg-amber-200 text-amber-900 border border-amber-300" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    —
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">Unassigned (No Coordinator)</div>
+                    <div className="text-[11px] text-slate-400">Leave this booking unassigned for now</div>
+                  </div>
+                </div>
+                {selectedManagerId === "" && (
+                  <div className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center">
+                    <Check size={12} strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+
+              {/* List of Available Managers */}
+              {managers.map((mgr) => {
+                const isSelected = String(selectedManagerId) === String(mgr._id);
+                const initials = (mgr.full_name || "M").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+                return (
+                  <div
+                    key={mgr._id}
+                    onClick={() => setSelectedManagerId(mgr._id)}
+                    className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
+                      isSelected
+                        ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/20 text-slate-900 shadow-2xs"
+                        : "border-slate-200 hover:border-slate-300 bg-white text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                        isSelected ? "bg-amber-200 text-amber-900 border border-amber-300" : "bg-slate-100 text-slate-700"
+                      }`}>
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span className="truncate">{mgr.full_name}</span>
+                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded shrink-0">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
+                          {mgr.email && <span className="truncate">{mgr.email}</span>}
+                          {mgr.phone && <span>• {mgr.phone}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center shrink-0 ml-2">
+                        <Check size={12} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {managers.length === 0 && (
+                <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                  No active Event Managers found in staff directory.
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Btn 
+                type="button" 
+                variant="secondary" 
+                onClick={() => setShowAssignManagerModal(false)}
+                disabled={savingManager}
+              >
+                Cancel
+              </Btn>
+              <Btn 
+                type="button" 
+                variant="primary" 
+                onClick={handleUpdateManager}
+                disabled={savingManager}
+              >
+                {savingManager ? "Saving Coordinator..." : "Confirm & Save"}
+              </Btn>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

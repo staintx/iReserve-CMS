@@ -7,6 +7,7 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
   const [managers, setManagers] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [loadingManagers, setLoadingManagers] = useState(true);
+  const [bypassDeposit, setBypassDeposit] = useState(false);
 
   useEffect(() => {
     AdminAPI.getStaff()
@@ -24,6 +25,8 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
 
   if (!quote) return null;
 
+  const isDepositPaid = quote.payment_status === "deposit_paid" || quote.payment_status === "fully_paid";
+
   const customerName = quote.customer_id?.full_name 
     || `${quote.contact_first_name || ''} ${quote.contact_last_name || ''}`.trim() 
     || "Customer";
@@ -40,6 +43,8 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
 
   const totalAmount = quote.total_price || quote.total_cost || quote.subtotal || 0;
 
+  const canSubmit = (isDepositPaid || bypassDeposit) && Boolean(selectedManagerId);
+
   return (
     <Modal onClose={onClose} className="max-w-lg w-full p-0 overflow-hidden rounded-2xl shadow-2xl border-0">
       <div className="p-6 sm:p-8 flex flex-col items-center text-center space-y-5 bg-white relative">
@@ -48,7 +53,7 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
         <button 
           onClick={onClose}
           disabled={submitting}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
           aria-label="Close"
         >
           <X size={18} />
@@ -65,7 +70,7 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
             Convert Quotation to Confirmed Booking
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Are you sure you want to finalize this accepted quotation and convert it into an active, confirmed booking?
+            Finalize this accepted quotation, verify the down payment, and convert it into an active confirmed reservation.
           </p>
         </div>
 
@@ -102,14 +107,42 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
             </div>
 
             {totalAmount > 0 && (
-              <div className="flex items-center gap-2 text-slate-700 sm:col-span-2 pt-1 border-t border-slate-200/40">
-                <DollarSign size={14} className="text-emerald-500 shrink-0" />
-                <span className="text-slate-400">Quoted Total:</span>
-                <span className="font-bold text-emerald-700 text-sm">₱{Number(totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+              <div className="flex items-center justify-between text-slate-700 sm:col-span-2 pt-1 border-t border-slate-200/40">
+                <div className="flex items-center gap-1.5">
+                  <DollarSign size={14} className="text-emerald-500 shrink-0" />
+                  <span className="text-slate-400">Quoted Total:</span>
+                  <span className="font-bold text-slate-900">₱{Number(totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div>
+                  {isDepositPaid ? (
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
+                      Deposit Paid ✓
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                      Deposit Unpaid
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
+
+        {/* Offline Deposit Bypass Checkbox if Unpaid */}
+        {!isDepositPaid && (
+          <label className="w-full flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-left text-xs text-amber-950 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={bypassDeposit}
+              onChange={(e) => setBypassDeposit(e.target.checked)}
+              className="mt-0.5 rounded border-amber-300 text-primary focus:ring-primary h-4 w-4"
+            />
+            <span className="leading-snug">
+              <strong>Offline Deposit Verified:</strong> Customer has paid the deposit offline via Cash or Bank Transfer. Allow immediate conversion.
+            </span>
+          </label>
+        )}
 
         {/* Event Manager Assignment Box */}
         <div className="w-full bg-slate-50 rounded-xl p-4 border border-slate-200/80 text-left space-y-2">
@@ -142,10 +175,10 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
         </div>
 
         {/* Warning Notice */}
-        <div className="w-full p-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-left text-xs text-amber-800">
+        <div className="w-full p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start gap-2.5 text-left text-xs text-slate-700">
           <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="leading-snug">
-            <strong>Important:</strong> This action will lock the event date on the reservation calendar and assign the selected event manager.
+            <strong>Locking Date:</strong> This action will confirm the reservation on the calendar and allocate equipment inventory.
           </p>
         </div>
 
@@ -155,22 +188,26 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(selectedManagerId)}
-            disabled={submitting}
-            className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            onClick={() => onConfirm(selectedManagerId, bypassDeposit)}
+            disabled={submitting || !canSubmit}
+            className="w-full sm:w-auto px-6 py-2.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {submitting ? (
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             ) : (
               <CheckCircle2 size={15} />
             )}
-            {submitting ? "Converting..." : "Yes, Convert to Booking"}
+            {submitting
+              ? "Converting..."
+              : !isDepositPaid && !bypassDeposit
+              ? "Deposit Verification Required"
+              : "Yes, Convert to Booking"}
           </button>
         </div>
       </div>

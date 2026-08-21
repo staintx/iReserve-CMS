@@ -123,6 +123,45 @@ exports.getMyBooking = asyncHandler(async (req, res) => {
   res.json(booking);
 });
 
+const isBookingStartedOrFinished = (booking) => {
+  if (!booking) return false;
+  const status = String(booking.status || "").toLowerCase();
+  if (["completed", "ongoing"].includes(status)) {
+    return true;
+  }
+
+  if (!booking.event_date) return true;
+
+  const dateObj = new Date(booking.event_date);
+  if (Number.isNaN(dateObj.getTime())) return true;
+
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth();
+  const day = dateObj.getDate();
+
+  let hours = 0;
+  let minutes = 0;
+  if (booking.start_time) {
+    const match = String(booking.start_time).trim().match(/^(\d{1,2}):(\d{2})/);
+    if (match) {
+      hours = parseInt(match[1], 10);
+      minutes = parseInt(match[2], 10);
+    }
+  }
+
+  const startDateTime = new Date(year, month, day, hours, minutes, 0, 0);
+  const now = new Date();
+
+  return now >= startDateTime;
+};
+
+const formatBookingEventSchedule = (eventDate, startTime) => {
+  if (!eventDate) return "the scheduled event time";
+  const d = new Date(eventDate);
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return startTime ? `${dateStr} at ${startTime}` : dateStr;
+};
+
 exports.submitReport = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne({
     _id: req.params.id,
@@ -163,7 +202,14 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Assigned event not found" });
   }
 
-  const { returns, note } = req.body;
+  if (!isBookingStartedOrFinished(booking)) {
+    return res.status(400).json({
+      message: `Equipment return verification is locked until the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`
+    });
+  }
+
+  const returns = req.body.returns || req.body.equipment_returns;
+  const { note } = req.body;
 
   if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
     booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
@@ -182,7 +228,8 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
         (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
       );
       if (item) {
-        item.quantity_returned = Math.max(0, Number(ret.quantity_returned || 0));
+        item.quantity_returned = Math.max(0, Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0));
+        item.notes = ret.notes || "";
         item.verified_at = new Date();
         item.verified_by = req.user._id;
       }
@@ -215,6 +262,12 @@ exports.completeEvent = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Assigned event not found" });
   }
 
+  if (!isBookingStartedOrFinished(booking)) {
+    return res.status(400).json({
+      message: `Shift cannot be marked completed before the event starts (${formatBookingEventSchedule(booking.event_date, booking.start_time)}).`
+    });
+  }
+
   if (req.body.note && req.body.note.trim()) {
     if (!Array.isArray(booking.staff_reports)) booking.staff_reports = [];
     booking.staff_reports.push({
@@ -225,7 +278,8 @@ exports.completeEvent = asyncHandler(async (req, res) => {
     });
   }
 
-  if (Array.isArray(req.body.returns)) {
+  const returns = req.body.returns || req.body.equipment_returns;
+  if (Array.isArray(returns)) {
     if (!Array.isArray(booking.equipment_returns) || booking.equipment_returns.length === 0) {
       booking.equipment_returns = (booking.inventory_items || []).map((item) => ({
         inventory_id: item.inventory_id,
@@ -237,12 +291,13 @@ exports.completeEvent = asyncHandler(async (req, res) => {
       }));
     }
 
-    req.body.returns.forEach((ret) => {
+    returns.forEach((ret) => {
       const item = booking.equipment_returns.find(
         (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
       );
       if (item) {
-        item.quantity_returned = Math.max(0, Number(ret.quantity_returned || 0));
+        item.quantity_returned = Math.max(0, Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0));
+        item.notes = ret.notes || "";
         item.verified_at = new Date();
         item.verified_by = req.user._id;
       }

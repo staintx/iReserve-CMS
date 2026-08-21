@@ -18,7 +18,7 @@ const User = require("./models/User");
 const Conversation = require("./models/Conversation");
 const Message = require("./models/Message");
 const { canAccessConversation } = require("./utils/chatAccess");
-const { createNotification, notifyAdmins } = require("./utils/notify");
+const { createNotification, notifyAdmins, setIo } = require("./utils/notify");
 
 const authRoutes = require("./routes/auth.routes");
 
@@ -110,6 +110,9 @@ const io = new Server(server, {
 });
 
 app.set("io", io);
+// Register globally so notification helpers can push live even when a caller
+// has no request context to pull `io` from.
+setIo(io);
 
 startCronJobs(io);
 

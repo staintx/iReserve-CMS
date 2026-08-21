@@ -31,6 +31,36 @@ const list = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
 export const inclusionDeductionsOf = (removedInclusions) =>
   money(list(removedInclusions).reduce((sum, entry) => sum + money(entry?.deduction), 0));
 
+/**
+ * A signed number, for the one figure on a quotation that can go either way.
+ * See the server copy for the reasoning.
+ */
+export const signedMoney = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100) / 100;
+};
+
+/**
+ * What one inclusion's quantity change is worth, positive or negative.
+ *
+ * Fewer than the package included is a deduction, more is an extra charge, and
+ * the same arithmetic produces both. See the server copy for the reasoning.
+ */
+export const inclusionAdjustmentAmount = (entry) => {
+  const baseQuantity = count(entry?.base_quantity, 0);
+  const quantity = count(entry?.quantity, 0);
+  const unitPrice = money(entry?.unit_price);
+  if (!unitPrice) return 0;
+  return signedMoney((quantity - baseQuantity) * unitPrice);
+};
+
+/** Every quantity change on the package's inclusions, as one signed total. */
+export const inclusionAdjustmentsOf = (adjustments) =>
+  signedMoney(
+    list(adjustments).reduce((sum, entry) => sum + inclusionAdjustmentAmount(entry), 0)
+  );
+
 /** How a dish line is charged. See the server copy for the reasoning. */
 export const MENU_PRICING = { PER_GUEST: "per_guest", QUANTITY: "quantity" };
 
@@ -88,7 +118,12 @@ export function computeQuotationTotals(input = {}) {
 
   const startingPrice = money(input.package_starting_price);
   const inclusionDeductions = inclusionDeductionsOf(input.removed_inclusions);
-  const packagePrice = money(Math.max(0, startingPrice - inclusionDeductions));
+  // Signed: reducing an inclusion's quantity takes value off the package,
+  // raising it adds value on.
+  const inclusionAdjustments = inclusionAdjustmentsOf(input.inclusion_adjustments);
+  const packagePrice = money(
+    Math.max(0, startingPrice - inclusionDeductions + inclusionAdjustments)
+  );
 
   const menuSubtotal = menuSubtotalOf(input.menu_items, guestCount);
   const addOnsSubtotal = addOnsSubtotalOf(input.add_ons);
@@ -109,6 +144,7 @@ export function computeQuotationTotals(input = {}) {
     guestCount,
     startingPrice,
     inclusionDeductions,
+    inclusionAdjustments,
     packagePrice,
     menuSubtotal,
     addOnsSubtotal,

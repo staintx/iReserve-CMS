@@ -146,15 +146,16 @@ exports.createInquiry = asyncHandler(async (req, res) => {
 
   const inquiry = await Inquiry.create(payload);
   
+  const io = req.app.get("io");
+
   const { notifyAdmins } = require("../utils/notify");
   await notifyAdmins({
     title: "New Inquiry Submitted",
     body: `A new inquiry (${inquiry.reference}) has been submitted by ${inquiry.contact_first_name} ${inquiry.contact_last_name}.`,
     type: "new_inquiry",
     link: "/admin/bookings/inquiries"
-  });
-  
-  const io = req.app.get("io");
+  }, io);
+
   if (io) io.emit("system:refresh", { type: "inquiry", action: "create" });
 
   res.status(201).json(inquiry);

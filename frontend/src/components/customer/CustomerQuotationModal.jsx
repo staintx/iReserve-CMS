@@ -25,7 +25,13 @@ import DetailGrid from "./portal/DetailGrid";
 import AmountSummary from "./portal/AmountSummary";
 import { ACTION_DANGER } from "./portal/actionStyles";
 import { formatCurrency, formatEventDate, formatShortDate, formatTime } from "../../utils/format";
-import { MENU_PRICING, menuLineTotal, menuQuantityOf } from "../../utils/quotationPricing";
+import {
+  MENU_PRICING,
+  addOnLineTotal,
+  addOnQuantityOf,
+  menuLineTotal,
+  menuQuantityOf,
+} from "../../utils/quotationPricing";
 import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationDiff";
 import { groupInclusions } from "../../lib/packageDisplay";
 
@@ -241,7 +247,13 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     (sum, entry) => sum + (Number(entry?.deduction) || 0),
     0
   );
-  const showPackageBreakdown = startingPrice > 0 && inclusionDeductions > 0;
+  // Inclusions quoted at a different quantity than the package states. Signed:
+  // fewer than the package included comes off, more is added on.
+  const inclusionAdjustments = (
+    Array.isArray(quotation.inclusion_adjustments) ? quotation.inclusion_adjustments : []
+  ).filter((entry) => entry?.name && Number(entry?.amount));
+  const showPackageBreakdown =
+    startingPrice > 0 && (inclusionDeductions > 0 || inclusionAdjustments.length > 0);
   // Inclusions are stored as "[Category] Name (qty)" strings by the package
   // admin form. Printed raw they repeat the same bracketed category on every
   // line, which is most of the noise in this section. groupInclusions parses
@@ -642,6 +654,35 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                           </dd>
                         </div>
                       ))}
+                      {/* Said as the arithmetic the caterer did, not just its
+                          result: a customer who asked for three tables instead
+                          of six should be able to check the number themselves. */}
+                      {inclusionAdjustments.map((entry, idx) => {
+                        const amount = Number(entry.amount) || 0;
+                        const difference = Math.abs(
+                          (Number(entry.quantity) || 0) - (Number(entry.base_quantity) || 0)
+                        );
+                        return (
+                          <div key={`adj-${idx}`} className="flex items-baseline justify-between gap-4">
+                            <dt className="min-w-0 text-xs text-muted-foreground">
+                              {entry.quantity} instead of {entry.base_quantity}: {entry.name}
+                              {difference > 0 && Number(entry.unit_price) > 0 && (
+                                <span className="block tabular-nums opacity-80">
+                                  {difference} × {formatCurrency(entry.unit_price)}
+                                </span>
+                              )}
+                            </dt>
+                            <dd
+                              className={`font-sans text-xs font-medium tabular-nums ${
+                                amount < 0 ? "text-emerald-700" : "text-foreground"
+                              }`}
+                            >
+                              {amount < 0 ? "− " : "+ "}
+                              {formatCurrency(Math.abs(amount))}
+                            </dd>
+                          </div>
+                        );
+                      })}
                       <div className="flex items-baseline justify-between gap-4 border-t border-border pt-1.5">
                         <dt className="text-xs font-semibold text-foreground">Adjusted package price</dt>
                         <dd className="font-sans text-xs font-semibold tabular-nums text-foreground">
@@ -689,11 +730,10 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                     Menu
                   </h4>
                   <ul className="space-y-3">
-                    {/* Every value the admin priced the line on, in the same
-                        order and the same colours their builder shows: pricing
-                        mode, how many, at what rate, for what total, and the
-                        item note. A customer reading this and an admin reading
-                        the builder are looking at the same seven facts. */}
+                    {/* Every value the caterer priced the line on, in the
+                        order their builder shows it: how many, at what rate,
+                        for what total. A customer reading this and an admin
+                        reading the builder see the same facts. */}
                     {quotation.menu_items.map((item, idx) => {
                       const units = menuQuantityOf(item, guestCount);
                       const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
@@ -740,6 +780,11 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                       );
                     })}
                   </ul>
+                  {quotation.menu_notes && (
+                    <p className="mt-3 whitespace-pre-line border-l-2 border-border pl-3 text-xs italic leading-relaxed text-muted-foreground">
+                      {quotation.menu_notes}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -750,18 +795,20 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                   </h4>
                   <ul className="space-y-2.5">
                     {quotation.add_ons.map((item, idx) => {
-                      const itemTotal = (Number(item.price) || 0) * (Number(item.quantity) || 1);
+                      // Same rule the total was computed from, so what is
+                      // shown and what is charged can never disagree.
+                      const units = addOnQuantityOf(item);
+                      const itemTotal = addOnLineTotal(item);
                       return (
                         <li key={idx} className="flex items-baseline justify-between gap-4">
                           <div className="min-w-0">
                             <span className="text-sm text-foreground">{item.name}</span>
-                            {item.pricing_type === "quantity" || (item.quantity && item.quantity > 1) ? (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">
-                                {item.quantity} × {formatCurrency(item.price)}
-                              </span>
-                            ) : (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">
-                                One-time service
+                            <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
+                              {units} × {formatCurrency(item.price)}
+                            </span>
+                            {item.note && (
+                              <span className="mt-1 block border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
+                                {item.note}
                               </span>
                             )}
                           </div>

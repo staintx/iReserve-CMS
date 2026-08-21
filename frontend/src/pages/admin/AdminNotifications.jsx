@@ -4,6 +4,7 @@ import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import { NotificationAPI } from "../../api/notifications";
+import { getSocket } from "../../api/socket";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { getNotificationMeta, groupNotificationsByDay } from "../../components/common/notificationMeta";
@@ -45,6 +46,18 @@ export default function AdminNotifications() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Live updates: refresh the list as soon as the server pushes a new
+  // notification, so the admin never has to reload the page.
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket.connected) socket.connect();
+
+    const handleNew = () => load();
+
+    socket.on("notification:new", handleNew);
+    return () => socket.off("notification:new", handleNew);
   }, [load]);
 
   const changeFilter = (key) => {

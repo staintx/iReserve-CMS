@@ -86,6 +86,11 @@ const BookingSchema = new mongoose.Schema(
       },
     ],
 
+    // The catering arrangement as the quotation stated it, carried across at
+    // conversion so what the kitchen works from is what the customer agreed to.
+    // See Quotation.menu_notes.
+    menu_notes: String,
+
     dietary_restrictions: String,
     allergies: String,
     special_requests: String,
@@ -95,6 +100,7 @@ const BookingSchema = new mongoose.Schema(
         name: String,
         quantity: Number,
         price: Number,
+        note: String,
         pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
       },
     ],

@@ -521,7 +521,7 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           body: `A new inquiry draft (${inquiry.reference}) for ${inquiry.event_type} (${inquiry.guest_count} guests) was submitted via Zelle AI.`,
           type: "new_inquiry",
           link: "/admin/bookings/inquiries",
-        });
+        }, io);
 
         if (io) {
           io.emit("system:refresh", { type: "inquiry", action: "create", id: inquiry._id });

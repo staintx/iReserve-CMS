@@ -14,7 +14,6 @@ const DEFAULT_INFO = {
   instagram: "",
   terms_url: "",
   privacy_url: "",
-  deposit_percentage: 20,
   custom_event_setup_price: 15000,
   custom_food_and_event_price: 800,
   max_bookings_per_day: 2
@@ -29,8 +28,7 @@ const footerItems = [
   { label: "Facebook", key: "facebook" },
   { label: "Instagram", key: "instagram" },
   { label: "Terms", key: "terms_url" },
-  { label: "Privacy", key: "privacy_url" },
-  { label: "Deposit", key: "deposit_percentage" }
+  { label: "Privacy", key: "privacy_url" }
 ];
 
 export default function BusinessInfoPanel() {
@@ -129,17 +127,10 @@ export default function BusinessInfoPanel() {
               <textarea className="business-info-input business-info-textarea" rows="3" value={form.pickup_address} onChange={updateField("pickup_address")} placeholder="Address where customers collect pickup orders" />
               <small>Shown to customers who choose pickup. Leave blank to use the business address above.</small>
             </label>
-            <div className="form-grid-2">
-              <label className="business-info-field">
-                <span>Deposit Percentage (%)</span>
-                <input className="business-info-input" type="number" min="0" max="100" value={form.deposit_percentage} onChange={updateField("deposit_percentage")} placeholder="20" />
-              </label>
-              <label className="business-info-field">
-                <span>Max Bookings per Day</span>
-                <input className="business-info-input" type="number" min="1" value={form.max_bookings_per_day} onChange={updateField("max_bookings_per_day")} placeholder="2" />
-              </label>
-            </div>
-
+            <label className="business-info-field">
+              <span>Max Bookings per Day</span>
+              <input className="business-info-input" type="number" min="1" value={form.max_bookings_per_day} onChange={updateField("max_bookings_per_day")} placeholder="2" />
+            </label>
           </div>
 
           <div className="form-section">
@@ -199,10 +190,6 @@ export default function BusinessInfoPanel() {
             <div>
               <span className="business-info-preview-label">Hours</span>
               <strong>{previewInfo.hours || "Add business hours"}</strong>
-            </div>
-            <div>
-              <span className="business-info-preview-label">Deposit Required</span>
-              <strong>{previewInfo.deposit_percentage}% of total</strong>
             </div>
           </div>
 

@@ -31,7 +31,6 @@ exports.update = asyncHandler(async (req, res) => {
     instagram: req.body.instagram,
     terms_url: req.body.terms_url,
     privacy_url: req.body.privacy_url,
-    deposit_percentage: req.body.deposit_percentage,
     custom_event_setup_price: req.body.custom_event_setup_price,
     custom_food_and_event_price: req.body.custom_food_and_event_price,
     max_bookings_per_day: req.body.max_bookings_per_day,
@@ -54,7 +53,6 @@ exports.update = asyncHandler(async (req, res) => {
     "instagram",
     "terms_url",
     "privacy_url",
-    "deposit_percentage",
     "custom_event_setup_price",
     "custom_food_and_event_price",
     "max_bookings_per_day"

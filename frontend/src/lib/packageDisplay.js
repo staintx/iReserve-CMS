@@ -32,6 +32,46 @@ const scaffoldOptions = (pkg) =>
   Array.isArray(pkg?.scaffold_size_options) ? pkg.scaffold_size_options : [];
 
 /**
+ * The event space the booking is for, as one label.
+ *
+ * "Event space size" and "scaffold size" are the same thing said two ways: the
+ * footprint the customer picked off the package, stored on the request as
+ * `scaffold_width` / `scaffold_length` with the option's own id beside them.
+ * They are deliberately resolved to a single string here so no screen can grow
+ * two fields for one fact and let them disagree.
+ *
+ * Read in the order the booking itself decided it: the dimensions stored on the
+ * request, because that is what the customer chose and what they were priced
+ * on; then the package option those dimensions came from, for a request that
+ * saved only the id; and finally the option's own label, which is free text an
+ * admin wrote ("20 x 40", "Large"). Returns "" when the booking has no event
+ * space at all — a combo pack sells food, and food has no footprint — which is
+ * the signal to show nothing rather than an empty row.
+ */
+export function eventSpaceLabel(request, pkg) {
+  const dimension = (value) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount > 0 ? amount : null;
+  };
+
+  const option = scaffoldOptions(pkg).find(
+    (entry) => String(entry?._id) === String(request?.selected_scaffold_option_id)
+  );
+
+  const width = dimension(request?.scaffold_width) ?? dimension(option?.width_ft);
+  const length = dimension(request?.scaffold_length) ?? dimension(option?.length_ft);
+  if (width && length) return `${width}ft × ${length}ft`;
+
+  const label = String(option?.label || "").trim();
+  if (label) return label;
+
+  // Some requests recorded only the area. It is still the same one fact, so it
+  // is stated rather than dropped.
+  const area = dimension(request?.scaffold_base_area) ?? dimension(option?.area_ft2);
+  return area ? `${area} sq ft` : "";
+}
+
+/**
  * Guest capacity as [min, max]; either end may be null.
  *
  * `size` and `max_guests` are deliberately never read: neither is in the
@@ -100,6 +140,41 @@ export function parseInclusion(value) {
     name: match[2].trim(),
     qty: match[3]?.trim() || null,
   };
+}
+
+/**
+ * The part of an inclusion line a person would call its name.
+ *
+ * An inclusion is stored as one string that carries three facts at once —
+ * `[Event Setup & Furniture] Round Tables (6)` is a category, a name and a
+ * quantity. When each of those has its own place on screen, showing the whole
+ * string again in the name field repeats the category under a heading that
+ * already says it and the quantity beside a box that already holds it. This
+ * returns just the middle part, so the name field shows a name.
+ *
+ * A line with no category is returned whole: there is no prefix to strip, and
+ * its quantity may be written into the name itself ("6 Round Tables"), where
+ * removing it would leave the line saying less than it did.
+ */
+export function inclusionDisplayName(value) {
+  const parsed = parseInclusion(value);
+  return parsed ? parsed.name : "";
+}
+
+/**
+ * The same inclusion line with its name replaced, category and quantity intact.
+ *
+ * The inverse of `inclusionDisplayName`: what the admin types goes back into
+ * the middle of the stored string, so editing a name in a grouped list cannot
+ * silently drop the category the group is built from or the quantity the price
+ * is calculated against.
+ */
+export function withInclusionName(value, displayName) {
+  const parsed = parseInclusion(value);
+  const typed = String(displayName ?? "");
+  if (!parsed || !parsed.category) return typed;
+  const quantity = parsed.qty ? ` (${parsed.qty})` : "";
+  return `[${parsed.category}] ${typed.trim()}${quantity}`;
 }
 
 /**

@@ -2486,12 +2486,11 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   let menuItems = [];
   if (includeFood) {
     if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
-      // Quantity, unit and pricing mode all travel with the dish so the
-      // booking states the same order the customer agreed to. `note` is only
-      // still read for quotations issued before the Menu section replaced
-      // per-dish notes with one note for the whole order.
+      // Quantity, unit, pricing mode and the dish's own note all travel with
+      // it, so the booking states the same order the customer agreed to.
       menuItems = quotation.menu_items.map((dish) => ({
         name: dish.name,
+        category: dish.category,
         note: dish.note,
         quantity: dish.quantity,
         unit: dish.unit,
@@ -2506,9 +2505,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       // being served, at ₱0 because the combo's base price already covers it.
       menuItems = inquiry.offer_food_snapshot.map((item) => ({
         name: item.item_name,
-        note: item.menu_category
-          ? `${item.menu_category} · covered by the combo price`
-          : "Covered by the combo price",
+        category: item.menu_category || "",
+        note: "Covered by the combo price",
         price: 0,
       }));
     }
@@ -2596,7 +2594,6 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     zip_code: inquiry.zip_code || "",
     
     menu_items: menuItems,
-    menu_notes: (includeFood && quotation?.menu_notes) || "",
     service_items: serviceItems,
     additional_charges: additionalCharges,
     inventory_items: inventoryItems,

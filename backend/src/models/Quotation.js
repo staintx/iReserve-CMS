@@ -68,12 +68,21 @@ const QuotationSchema = new mongoose.Schema(
     // "pan"); nothing branches on its value, so any unit the kitchen uses
     // works without a schema change.
     //
-    // `note` is legacy. Dishes carried their own note until the Menu section
-    // was given a single `menu_notes` field below; quotations issued before
-    // that still render theirs, and the builder no longer writes new ones.
+    // `note` is what this dish is beyond its name and price: what a kilo of it
+    // serves, how it is packed, how it is prepared. It is visible to both admin
+    // and customer — there is deliberately no separate admin-only note on a
+    // dish — and never factors into pricing. Quantity, unit and price are the
+    // only inputs the total is computed from, so a note is never the place to
+    // put a number the line should have been priced on.
     menu_items: [
       {
         name: String,
+        // The course this dish belongs to ("Main Course", "Drinks"), copied
+        // from the menu catalog. It is what the dish *is*, not something quoted
+        // about it: read-only wherever it appears, never priced, and kept apart
+        // from `note` because a category written into a note is a label
+        // masquerading as a sentence the admin wrote.
+        category: String,
         note: String,
         quantity: { type: Number, default: 1 },
         unit: String,
@@ -85,12 +94,6 @@ const QuotationSchema = new mongoose.Schema(
         price: Number,
       },
     ],
-
-    // One note for the whole Menu section, visible to admin and customer.
-    // It describes the catering arrangement as a whole ("Served buffet style
-    // from 6pm; two bilao of pancit only.") rather than annotating one dish at
-    // a time. Nothing here factors into pricing.
-    menu_notes: String,
 
     // One quoted add-on: how many, at what unit price, and why.
     //
@@ -160,6 +163,10 @@ const QuotationSchema = new mongoose.Schema(
           delivery_method: String,
           event_theme: String,
           event_palette: [String],
+          // The footprint the customer booked, already resolved to one label
+          // ("20ft × 40ft"). Event space size and scaffold size are the same
+          // measurement, so this is deliberately one field and not two.
+          event_space_label: String,
           venue_type: String,
           province: String,
           municipality: String,

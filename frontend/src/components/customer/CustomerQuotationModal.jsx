@@ -33,7 +33,7 @@ import {
   menuQuantityOf,
 } from "../../utils/quotationPricing";
 import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationDiff";
-import { groupInclusions } from "../../lib/packageDisplay";
+import { eventSpaceLabel, groupInclusions } from "../../lib/packageDisplay";
 
 /** Quotation status → the portal's shared semantic tones. */
 const statusMeta = (status, isExpired) => {
@@ -226,6 +226,17 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   ].filter(Boolean).join(", ") || "Location details specified in booking inquiry";
 
   const guestCount = quotation.guest_count || inquiry?.guest_count || 1;
+
+  /**
+   * The footprint this quotation was built for, as one label.
+   *
+   * Taken from the version's own snapshot, where it was already resolved to a
+   * single string. The live booking is only fallen back to for quotations
+   * issued before the snapshot carried it, and combos have no footprint at all,
+   * so an empty result means the row is not shown rather than shown blank.
+   */
+  const eventSpace =
+    eventDetail("event_space_label") || eventSpaceLabel(inquiry, inquiry?.package_id) || "";
 
   const status = statusMeta(quotation.status, isExpired);
   const total = Number(quotation.total_cost || 0);
@@ -588,6 +599,9 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 items={[
                   { label: "Address", value: fullAddress, wide: true },
                   eventDetail("venue_type") && { label: "Venue type", value: eventDetail("venue_type") },
+                  // One row, not two: the event space and the scaffold are the
+                  // same measurement under two names.
+                  eventSpace && { label: "Event space / scaffold size", value: eventSpace },
                   eventDetail("landmark") && { label: "Landmark", value: eventDetail("landmark") },
                   eventDetail("delivery_method") && {
                     label: "Delivery",
@@ -771,6 +785,13 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                           <div className="min-w-0">
                             <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground">
                               <span>{item.name}</span>
+                              {/* What the dish is, as a label. It is not a
+                                  note about the order and never reads as one. */}
+                              {item.category && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  {item.category}
+                                </span>
+                              )}
                               {/* Same blue/violet split the builder uses, so
                                   "per unit" looks like "per unit" on both
                                   sides of the conversation. */}
@@ -804,11 +825,6 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                       );
                     })}
                   </ul>
-                  {quotation.menu_notes && (
-                    <p className="mt-3 whitespace-pre-line border-l-2 border-border pl-3 text-xs italic leading-relaxed text-muted-foreground">
-                      {quotation.menu_notes}
-                    </p>
-                  )}
                 </div>
               )}
 

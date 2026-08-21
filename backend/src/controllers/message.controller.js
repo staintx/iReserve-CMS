@@ -59,6 +59,10 @@ const ensureCustomerSupportConversation = async (customerId) => {
 };
 
 exports.listConversations = asyncHandler(async (req, res) => {
+  if (req.user.role !== "admin" && req.user.role !== "customer") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
   if (req.user.role === "admin") {
     // --- Perf: only ensure conversations for bookings/inquiries that don't have one yet ---
     const [existingConvBookingIds, existingConvInquiryIds] = await Promise.all([
@@ -91,23 +95,11 @@ exports.listConversations = asyncHandler(async (req, res) => {
     ]);
   }
 
-  if (req.user.role === "staff" || req.user.role === "manager") {
-    const bookings = await Booking.find({ event_manager_id: req.user._id });
-    await ensureBookingConversations(bookings);
-  }
-
   const query = {};
   if (req.user.role === "customer") query.customer_id = req.user._id;
-  if (req.user.role === "staff" || req.user.role === "manager") {
-    query.$or = [
-      { event_manager_id: req.user._id },
-      { type: "support" }
-    ];
-  }
 
   const conversations = await Conversation.find(query)
     .populate("customer_id", "full_name email phone")
-    .populate("event_manager_id", "full_name email")
     .populate("booking_id", "booking_number event_type event_date venue guests total_amount status")
     .populate("inquiry_id", "inquiry_number event_type event_date status")
     .sort({ last_message_at: -1, updatedAt: -1 })
@@ -192,11 +184,10 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     const managerId = conversation.event_manager_id ? String(conversation.event_manager_id) : null;
     const senderName = req.user.full_name || req.user.email || "Someone";
 
-    // Emit to conversation room, customer, manager, and admin/manager role rooms
+    // Emit to conversation room, customer, and admin role rooms
     const targetRooms = [`conversation:${conversation._id}`];
     if (customerId) targetRooms.push(`user:${customerId}`);
-    if (managerId) targetRooms.push(`user:${managerId}`);
-    targetRooms.push("role:admin", "role:manager");
+    targetRooms.push("role:admin");
 
     io.to(targetRooms).emit("message:new", responsePayload);
 
@@ -212,16 +203,6 @@ exports.sendMessage = asyncHandler(async (req, res) => {
     }
 
     if (req.user.role === "customer") {
-      if (managerId && senderId !== managerId) {
-        await createNotification({
-          userId: managerId,
-          title: "New customer message",
-          body: `${senderName}: "${snippet.slice(0, 60)}"`,
-          type: "info",
-          link: `/manager/messages/${conversation._id}`,
-          meta: { conversation_id: conversation._id }
-        }, io);
-      }
       await notifyAdmins({
         title: "New customer message",
         body: `${senderName}: "${snippet.slice(0, 60)}"`,
@@ -230,6 +211,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
         meta: { conversation_id: conversation._id }
       }, io);
     }
+
   }
 
   res.status(201).json(responsePayload);

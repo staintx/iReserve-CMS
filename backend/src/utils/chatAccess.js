@@ -6,15 +6,11 @@ const canAccessConversation = (user, conversation) => {
   const customerId = conversation.customer_id?._id 
     ? String(conversation.customer_id._id) 
     : String(conversation.customer_id || "");
-  const managerId = conversation.event_manager_id?._id 
-    ? String(conversation.event_manager_id._id) 
-    : String(conversation.event_manager_id || "");
 
-  if (customerId && customerId === userId) return true;
-  if (managerId && managerId === userId) return true;
-  if (user.role === "manager" || user.role === "staff") return true;
+  if (user.role === "customer" && customerId && customerId === userId) return true;
 
   return false;
 };
 
 module.exports = { canAccessConversation };
+

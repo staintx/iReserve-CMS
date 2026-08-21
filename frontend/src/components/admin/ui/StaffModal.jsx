@@ -4,6 +4,15 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+export const STAFF_POSITIONS = [
+  "Stylish",
+  "Head buffet",
+  "Server",
+  "Head Cook",
+  "Assistant",
+  "Dishwashers"
+];
+
 export default function StaffModal({ staff, defaultRole = "staff", onClose, onSave }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
@@ -14,7 +23,7 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
     username: "",
     password: "",
     role: defaultRole,
-    position: "",
+    position: defaultRole === "manager" ? "" : (STAFF_POSITIONS[0] || ""),
     is_active: true
   });
 
@@ -27,13 +36,14 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
         username: staff.username || "",
         password: "",
         role: staff.role || defaultRole,
-        position: staff.position || "",
+        position: staff.role === "manager" ? "" : (staff.position || ""),
         is_active: staff.is_active !== false
       });
     } else {
       setFormData((prev) => ({
         ...prev,
-        role: defaultRole
+        role: defaultRole,
+        position: defaultRole === "manager" ? "" : (prev.position || "")
       }));
     }
   }, [staff, defaultRole]);
@@ -48,6 +58,10 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
       notify("Please provide a password for the new account", "error");
       return;
     }
+    if (formData.role === "staff" && !formData.position) {
+      notify("Please select a position/role for the staff member", "error");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -57,7 +71,7 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
         phone: formData.phone,
         username: formData.username || undefined,
         role: formData.role || "staff",
-        position: formData.position,
+        position: formData.role === "manager" ? "" : formData.position,
         is_active: formData.is_active
       };
       if (formData.password) payload.password = formData.password;
@@ -109,7 +123,7 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, role: "manager" })}
+                onClick={() => setFormData({ ...formData, role: "manager", position: "" })}
                 className={`p-3 rounded-xl border text-left transition-all flex items-start gap-2.5 ${
                   isManagerRole 
                     ? "border-amber-500 bg-amber-50/70 text-amber-950 ring-2 ring-amber-500/20" 
@@ -152,16 +166,25 @@ export default function StaffModal({ staff, defaultRole = "staff", onClose, onSa
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Position / Job Title</label>
-            <input
-              type="text"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-              placeholder={isManagerRole ? "e.g. Senior Event Coordinator" : "e.g. Head Cook, Server, Setup Crew"}
-              value={formData.position}
-              onChange={e => setFormData({ ...formData, position: e.target.value })}
-            />
-          </div>
+          {!isManagerRole && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                Position / Job Title <span className="text-red-500">*</span>
+              </label>
+              <select
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white"
+                value={formData.position}
+                onChange={e => setFormData({ ...formData, position: e.target.value })}
+              >
+                <option value="">-- Select Staff Role / Position --</option>
+                {STAFF_POSITIONS.map((pos) => (
+                  <option key={pos} value={pos}>
+                    {pos}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

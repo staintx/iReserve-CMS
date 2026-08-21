@@ -135,7 +135,7 @@ export default function AdminStaff() {
         </div>
       ),
     },
-    { key: "position", header: "Position / Title", render: (s) => <span className="text-xs text-foreground font-medium">{s.position || (s.role === "manager" ? "Event Coordinator" : "—")}</span> },
+    { key: "position", header: "Position / Title", render: (s) => <span className="text-xs text-foreground font-medium">{s.role === "manager" ? "Event Manager" : (s.position || "—")}</span> },
     { key: "status", header: "Status", render: (s) => <Badge status={s.is_active ? "available" : "off"} /> },
     { key: "events", header: "Events Handled", className: "text-center", render: (s) => <span className="text-sm font-semibold text-foreground">{s.events_handled || 0}</span> },
     {
@@ -172,15 +172,11 @@ export default function AdminStaff() {
               <Calendar size={13} /> View Schedule
             </Btn>
             <Btn 
-              variant="secondary" 
+              variant="primary" 
               size="sm" 
-              className="bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 font-bold"
-              onClick={() => handleOpenModal(null, "manager")}
+              onClick={() => handleOpenModal(null, roleTab === "manager" ? "manager" : "staff")}
             >
-              <Plus size={13} className="text-amber-700" /> Add Manager
-            </Btn>
-            <Btn variant="primary" size="sm" onClick={() => handleOpenModal(null, "staff")}>
-              <Plus size={13} /> Add Staff
+              <Plus size={13} /> {roleTab === "manager" ? "Add Manager" : roleTab === "staff" ? "Add Staff" : "Add Account"}
             </Btn>
           </div>
         </div>
@@ -338,7 +334,7 @@ export default function AdminStaff() {
               </span>
             } />
             <DrawerField label="Status" value={<Badge status={drawerRow.is_active ? "available" : "off"} />} />
-            <DrawerField label="Position" value={drawerRow.position || "—"} />
+            <DrawerField label="Position / Role" value={drawerRow.role === "manager" ? "Event Manager" : (drawerRow.position || "—")} />
             <DrawerField label="Username" value={drawerRow.username || "—"} />
             <DrawerField label="Phone" value={drawerRow.phone || "—"} />
             <DrawerField label="Email" value={drawerRow.email || "—"} full />

@@ -16,6 +16,7 @@ import {
   SERVICE_TYPES,
   SERVICE_LABELS,
   cateringRequested,
+  resolveVenueType,
   serviceTypeForRequest,
 } from "../lib/bookingRules";
 
@@ -145,10 +146,14 @@ export default function StepReviewBooking({
   const eventType =
     form.event_type === "Other" ? form.event_type_other : form.event_type;
 
-  const setupSize =
-    form.scaffold_width && form.scaffold_length
-      ? `${form.scaffold_width}ft x ${form.scaffold_length}ft`
-      : "";
+  // The one Event Space / Scaffold Size fact, taken straight off the estimate
+  // the customer has been reading since the package step — the package's own
+  // size, not a choice the customer made — so the last screen before
+  // submission cannot show a different size than the one shown earlier, and
+  // the size is never something they have to infer from the package name.
+  const eventSpace = estimate?.eventSpace || "";
+
+  const venueType = resolveVenueType(form);
 
   const theme = String(form.event_theme || "").trim();
   const themeValue =
@@ -166,7 +171,7 @@ export default function StepReviewBooking({
   const hasExtras = addOns.length > 0 || Boolean(form.special_requests);
   const hasDietary =
     Boolean(form.allergies) || Boolean(form.dietary_restrictions);
-  const showPackageSection = Boolean(packageName || setupSize);
+  const showPackageSection = Boolean(packageName || eventSpace);
 
   return (
     <StepShell>
@@ -231,7 +236,9 @@ export default function StepReviewBooking({
                 {showPackageSection && (
                   <Row label="Setup Package" value={packageName} />
                 )}
-                {setupSize && <Row label="Setup size" value={setupSize} />}
+                {eventSpace && (
+                  <Row label="Event space / scaffold size" value={eventSpace} />
+                )}
               </>
             )}
           </Section>
@@ -259,8 +266,8 @@ export default function StepReviewBooking({
                   wide
                 />
                 {form.landmark && <Row label="Landmark" value={form.landmark} />}
-                {atVenue && form.venue_type && (
-                  <Row label="Venue type" value={form.venue_type} />
+                {atVenue && venueType && (
+                  <Row label="Venue type" value={venueType} />
                 )}
                 {!atVenue && form.delivery_instructions && (
                   <Row

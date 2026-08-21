@@ -486,9 +486,13 @@ export default function StepPackageSelection({
 
           {selectedPackage && scaffoldOptions.length > 0 && (
             <Card className="p-4">
-              <SectionTitle icon={Ruler}>Setup footprint size</SectionTitle>
+              {/* The same words the summary panel and the review page use for
+                  this one fact. It was "setup footprint size" here, "setup size"
+                  on review and unnamed on the estimate panel — three names for
+                  the size the customer picks once. */}
+              <SectionTitle icon={Ruler}>Event space / scaffold size</SectionTitle>
               <p className="mb-3 text-[13px] text-[#64748B]">
-                Pick the setup footprint your venue needs.
+                Pick the event space your venue needs. It sets your setup price.
               </p>
 
               {setupCapacity && (

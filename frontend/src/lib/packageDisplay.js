@@ -72,6 +72,51 @@ export function eventSpaceLabel(request, pkg) {
 }
 
 /**
+ * The scaffold/event-space size that belongs to a package, on its own.
+ *
+ * Unlike `eventSpaceLabel`, this never reads a request or a wizard form — a
+ * package's size is not something a customer chooses, it is a fact the admin
+ * set when building the package. Reading it before any selection exists (a
+ * package summary card, shown the instant a package is picked) needs a value
+ * that does not depend on a selection ever having been made.
+ *
+ * Most packages carry exactly one `scaffold_size_options` entry, so there is
+ * nothing to pick between. When a package carries more than one, the same
+ * rule the admin's package form uses to mark its own default applies here —
+ * `default_scaffold_option_id` matched against each option's `_id`, falling
+ * back to the first option when no default is set (PackageModal.jsx
+ * #isDefault) — so this reads the one size the admin actually intended as
+ * canonical rather than guessing from a shape parsed out of the name.
+ *
+ * Returns "" for a package with no scaffold data at all — Food Only and combo
+ * packs sell no event space — which is the signal to show nothing.
+ */
+export function packageScaffoldSize(pkg) {
+  const options = scaffoldOptions(pkg);
+  if (options.length === 0) return "";
+
+  const option =
+    options.find(
+      (entry) => String(entry?._id) === String(pkg?.default_scaffold_option_id),
+    ) || options[0];
+
+  const dimension = (value) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount > 0 ? amount : null;
+  };
+
+  const width = dimension(option?.width_ft);
+  const length = dimension(option?.length_ft);
+  if (width && length) return `${width} × ${length}`;
+
+  const label = String(option?.label || "").trim();
+  if (label) return label;
+
+  const area = dimension(option?.area_ft2);
+  return area ? `${area} sq ft` : "";
+}
+
+/**
  * Guest capacity as [min, max]; either end may be null.
  *
  * `size` and `max_guests` are deliberately never read: neither is in the

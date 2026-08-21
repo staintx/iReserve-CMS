@@ -17,18 +17,11 @@ import {
   guestCountHelp,
   offerGuestCount,
 } from "../../../../lib/specialOffers";
-
-const VENUE_TYPES = [
-  "Covered Court",
-  "Private Resort",
-  "Function Hall",
-  "Garden",
-  "Beach",
-  "Hotel Ballroom",
-  "Restaurant",
-  "Event Hall",
-  "Other",
-];
+import {
+  VENUE_TYPES,
+  OTHER_VENUE_TYPE,
+  isCustomVenueType,
+} from "../lib/bookingRules";
 
 export default function StepEventDetails({
   form,
@@ -49,8 +42,18 @@ export default function StepEventDetails({
     setForm((prev) => ({ ...prev, guest_count: String(nextValue) }));
   };
 
-  const isVenueTypeOther =
-    form.venue_type && !VENUE_TYPES.includes(form.venue_type);
+  // "Other" is stored as itself so the select can show it selected and the
+  // follow-up field can be required against it. Picking it used to blank
+  // `venue_type`, which made the condition that reveals the field false the
+  // instant it became true — the field could never appear at all.
+  const isVenueTypeOther = isCustomVenueType(form);
+  // A draft saved before the sentinel existed holds the customer's own wording
+  // in `venue_type` itself. It is read from there so nothing they typed is lost,
+  // and the first edit writes it back in the current shape.
+  const venueTypeOther =
+    form.venue_type === OTHER_VENUE_TYPE
+      ? form.venue_type_other || ""
+      : form.venue_type || "";
   const currentCount = parseInt(form.guest_count, 10) || guestMin;
 
   // A combo serves the number of guests it was built for, so the count is not
@@ -221,21 +224,42 @@ export default function StepEventDetails({
               hint="Optional."
             >
               <TSelect
-                value={isVenueTypeOther ? "Other" : form.venue_type}
+                value={isVenueTypeOther ? OTHER_VENUE_TYPE : form.venue_type}
                 onChange={(val) =>
-                  setForm({ ...form, venue_type: val === "Other" ? "" : val })
+                  setForm({
+                    ...form,
+                    venue_type: val,
+                    // Switching to a listed venue drops the free text with it,
+                    // so a venue the customer moved away from cannot be
+                    // submitted alongside the one they settled on.
+                    venue_type_other:
+                      val === OTHER_VENUE_TYPE ? venueTypeOther : "",
+                  })
                 }
                 options={VENUE_TYPES}
                 placeholder="Select venue type"
               />
             </Field>
 
+            {/* Only "Other" leaves the question unanswered, so only "Other"
+                asks a follow-up — and having asked, the answer is required. */}
             {isVenueTypeOther && (
-              <Field label="Which kind of venue?">
+              <Field
+                label="Please specify your venue type"
+                required
+                error={errors.venue_type_other}
+              >
                 <TInput
                   placeholder="e.g. Rooftop terrace"
-                  value={form.venue_type}
-                  onChange={(val) => setForm({ ...form, venue_type: val })}
+                  value={venueTypeOther}
+                  onChange={(val) =>
+                    setForm({
+                      ...form,
+                      venue_type: OTHER_VENUE_TYPE,
+                      venue_type_other: val,
+                    })
+                  }
+                  hasError={!!errors.venue_type_other}
                 />
               </Field>
             )}

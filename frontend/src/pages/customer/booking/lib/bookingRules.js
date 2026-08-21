@@ -1,3 +1,4 @@
+import { packageScaffoldSize } from "@/lib/packageDisplay";
 import {
   isSpecialOffer,
   offerBaseFoodPrice,
@@ -148,6 +149,52 @@ export const WHAT_HAPPENS_NEXT = [
 ];
 
 // -----------------------------------------------------------------------------
+// Venue type
+// -----------------------------------------------------------------------------
+// The list the customer picks from, and the one entry that is not an answer on
+// its own. "Other" is a prompt for a real venue type, so it is stored as the
+// sentinel it is (`venue_type`) with the customer's own words beside it
+// (`venue_type_other`) — the same shape the event type already uses. The two
+// are collapsed back into the single free-text `venue_type` the backend stores
+// at submit time, by resolveVenueType, so nothing downstream ever sees the
+// sentinel.
+
+export const OTHER_VENUE_TYPE = "Other";
+
+export const VENUE_TYPES = [
+  "Covered Court",
+  "Private Resort",
+  "Function Hall",
+  "Garden",
+  "Beach",
+  "Hotel Ballroom",
+  "Restaurant",
+  "Event Hall",
+  OTHER_VENUE_TYPE,
+];
+
+/**
+ * The venue type as a person would say it.
+ *
+ * "Other" on its own says nothing, so it resolves to what the customer typed.
+ * A value that is neither the sentinel nor a listed option is already their own
+ * wording — that is how this field was stored before it had a sentinel — and is
+ * returned untouched.
+ */
+export function resolveVenueType(record) {
+  const value = String(record?.venue_type || "").trim();
+  if (value !== OTHER_VENUE_TYPE) return value;
+  return String(record?.venue_type_other || "").trim();
+}
+
+/** Whether this record's venue type is the customer's own wording. */
+export function isCustomVenueType(record) {
+  const value = String(record?.venue_type || "").trim();
+  if (!value) return false;
+  return value === OTHER_VENUE_TYPE || !VENUE_TYPES.includes(value);
+}
+
+// -----------------------------------------------------------------------------
 // Contact details
 // -----------------------------------------------------------------------------
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -228,6 +275,12 @@ export const DEFAULT_DEPOSIT_PERCENTAGE = 20;
 
 const QUOTED_LATER =
   "We price this on your quotation once our team has reviewed your details.";
+
+// What a setup line costs, and what it does not depend on. Said the same way
+// on every path so the customer is never told setup is "fixed" on one screen
+// and priced by their selection on another.
+const SETUP_PRICING_NOTE =
+  "Setup is priced based on your selected event setup, not per guest.";
 
 const num = (value) => {
   const parsed = Number(String(value ?? "").replace(/[^0-9.]/g, ""));
@@ -373,20 +426,17 @@ export function buildEstimate({
     let setupLabel = isCustom
       ? (form?.event_theme ? `Custom Event Setup (${form.event_theme})` : "100% Custom Event Setup")
       : (packageName || "Event setup");
-    let setupDetail = "Fixed setup price";
+    // One sentence for every priced setup, because it is one rule: the figure
+    // follows the event setup the customer chose, and the guest count does not
+    // move it. "Fixed setup price" said neither of those things — it read as a
+    // flat rate unrelated to their selection — and the size it used to repeat
+    // here is now stated once, on the panel's own event-space line.
+    let setupDetail = SETUP_PRICING_NOTE;
 
     if (!isCustom && scaffoldPrice > 0) {
       setupAmount = scaffoldPrice;
-      const width = form?.scaffold_width || selectedOption?.width_ft;
-      const length = form?.scaffold_length || selectedOption?.length_ft;
-      const size =
-        width && length
-          ? `${width}ft x ${length}ft setup`
-          : "Selected setup size";
-      setupDetail = `${size}, not charged per guest`;
     } else if (!isCustom && packageId && packagePrice > 0) {
       setupAmount = packagePrice;
-      setupDetail = "Fixed setup price, not charged per guest";
     } else {
       const configured = num(businessInfo?.custom_event_setup_price);
       if (configured > 0) {
@@ -394,7 +444,7 @@ export function buildEstimate({
         setupLabel = packageName || "Custom event setup";
         setupDetail = packageName
           ? "Indicative price, confirmed on your quotation"
-          : "Fixed price, not charged per guest";
+          : SETUP_PRICING_NOTE;
       } else {
         setupAmount = 0;
         if (!isCustomBooking && standardPackagePrice > 0) {
@@ -476,5 +526,13 @@ export function buildEstimate({
     depositAmount: (total * depositPercentage) / 100,
     guests,
     guestsLabel: "Estimated guests",
+    // The footprint the selected package is built for — the package's own
+    // fact, never something the customer chooses and never parsed from the
+    // package name. Read from the package's structured scaffold data alone
+    // (see lib/packageDisplay.js#packageScaffoldSize), so the summary card and
+    // the review step, which both read this same field, can never disagree.
+    // "" whenever the package has no event space at all (Food Only, a combo),
+    // which is the signal to show nothing rather than a misleading value.
+    eventSpace: packageScaffoldSize(packageDetails),
   };
 }

@@ -330,7 +330,8 @@ export default function AdminQuoteDetails() {
   const isPendingReview = ["Pending Review", "Under Review", "Waiting for Customer"].includes(quote.status);
   const isRevisionRequested = quote.status === "Revision Requested";
   const isQuotationSent = quote.status === "Quotation Sent";
-  const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation"].includes(quote.status);
+  const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation", "Accepted"].includes(quote.status);
+  const isDepositPaid = quote.payment_status === "deposit_paid" || quote.payment_status === "fully_paid";
   const isConverted = quote.status === "Converted to Booking";
 
   return (
@@ -531,19 +532,29 @@ export default function AdminQuoteDetails() {
         })()}
 
         {isAccepted && (
-          <div className="p-3 sm:p-3.5 bg-purple-50/90 border border-purple-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className={`p-3 sm:p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs border ${
+            isDepositPaid ? "bg-emerald-50/90 border-emerald-200/90" : "bg-purple-50/90 border-purple-200/90"
+          }`}>
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-1.5 bg-purple-600 text-white rounded-md shrink-0">
+              <div className={`p-1.5 text-white rounded-md shrink-0 ${isDepositPaid ? "bg-emerald-600" : "bg-purple-600"}`}>
                 <CheckCircle2 size={15} />
               </div>
               <div className="min-w-0">
-                <h4 className="font-bold text-purple-950 text-xs sm:text-sm leading-tight">Customer Accepted & Awaiting Final Confirmation</h4>
-                <p className="text-[11px] text-purple-700 mt-0.5">The customer accepted this quotation. Convert it to a confirmed reservation.</p>
+                <h4 className={`font-bold text-xs sm:text-sm leading-tight ${isDepositPaid ? "text-emerald-950" : "text-purple-950"}`}>
+                  {isDepositPaid ? "Customer Accepted & Deposit Verified ✓" : "Customer Accepted & Awaiting Final Confirmation"}
+                </h4>
+                <p className={`text-[11px] mt-0.5 ${isDepositPaid ? "text-emerald-700" : "text-purple-700"}`}>
+                  {isDepositPaid
+                    ? "Deposit has been approved. Convert to confirmed booking and assign an Event Manager."
+                    : "The customer accepted this quotation. Verify the deposit before finalizing."}
+                </p>
               </div>
             </div>
             <button
               onClick={() => setShowConfirmConvert(true)}
-              className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+              className={`px-3.5 py-1.5 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                isDepositPaid ? "bg-emerald-700 hover:bg-emerald-800" : "bg-purple-700 hover:bg-purple-800"
+              }`}
             >
               <CheckCircle2 size={13} /> Confirm & Convert to Booking
             </button>
@@ -1061,9 +1072,12 @@ export default function AdminQuoteDetails() {
           quote={quote}
           submitting={submitting}
           onClose={() => setShowConfirmConvert(false)}
-          onConfirm={(managerId) => {
+          onConfirm={(managerId, bypassDeposit = false) => {
             setSubmitting(true);
-            AdminAPI.createBookingFromInquiry(quote._id, { event_manager_id: managerId })
+            AdminAPI.createBookingFromInquiry(quote._id, {
+              event_manager_id: managerId,
+              bypass_deposit: bypassDeposit,
+            })
               .then(() => {
                 notify("Quotation converted to booking successfully with assigned manager!", "success");
                 setShowConfirmConvert(false);

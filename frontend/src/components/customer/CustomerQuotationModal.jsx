@@ -84,24 +84,48 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
    */
   const handleAccept = async () => {
     const depositAmount = Number(quotation.deposit_amount || 0);
+    const totalAmount = Number(quotation.total_cost || 0);
+    const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id || inquiry?._id;
+    const payable = depositAmount > 0 ? depositAmount : totalAmount;
+
     await confirm({
       tone: "confirm",
-      title: "Accept this quotation?",
-      description: `This tells our team you are happy with these figures. They will then give the final confirmation${
-        depositAmount > 0 ? ` and arrange the ${formatCurrency(depositAmount)} deposit that secures your date` : ""
-      }. You will not be charged by accepting.`,
-      confirmLabel: "Accept quotation",
+      title: "Accept Quotation & Pay Deposit?",
+      description: `Accepting this quotation will proceed directly to the ${formatCurrency(
+        payable,
+      )} deposit payment via PayMongo (GCash, Maya, or Card). Once paid, our team will give final confirmation and lock your event date.`,
+      confirmLabel: "Accept & Pay Deposit",
       cancelLabel: "Not yet",
       onConfirm: async () => {
         setIsSubmitting(true);
         try {
+          // 1. Accept quotation
           await CustomerAPI.acceptQuotation(quotation._id);
+
+          // 2. Open PayMongo checkout
+          if (payable > 0 && inquiryId) {
+            notify("Quotation accepted! Generating deposit payment checkout...", "info");
+            const checkoutRes = await CustomerAPI.createPaymentCheckout({
+              inquiry_id: inquiryId,
+              amount: payable,
+              payment_type: "deposit",
+            });
+
+            if (checkoutRes.data?.checkout_url) {
+              notify("Redirecting to PayMongo payment checkout...", "success");
+              window.location.assign(checkoutRes.data.checkout_url);
+              return;
+            }
+          }
+
           notify("Quotation accepted", "success", {
             description:
-              "Your request is now awaiting final confirmation from our team. Your date is not secured until they confirm.",
+              "Your request is now awaiting final deposit confirmation from our team.",
           });
           if (onUpdated) onUpdated();
           onClose();
+        } catch (err) {
+          notify(err.response?.data?.message || "Failed to proceed to payment.", "error");
         } finally {
           setIsSubmitting(false);
         }
@@ -215,8 +239,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     label: deposit > 0 ? "Deposit required to confirm booking" : "Amount due to confirm booking",
     value: formatCurrency(dueOnAcceptance),
     hint: deposit > 0
-      ? `This deposit will be payable from your dashboard after the admin confirms your booking.`
-      : "The full amount will be payable from your dashboard after the admin confirms your booking.",
+      ? "Pay this deposit to reserve your event date. Once paid, our team will provide final booking confirmation."
+      : "Pay this amount to confirm your booking and secure your event date.",
     tone: "warning",
   };
 

@@ -41,8 +41,9 @@ async function convertInquiryToBooking(inquiryId, payment) {
 		}
 	}
 
-	// Update status to Awaiting Final Confirmation for admin manual confirmation
+	// Update status to Awaiting Final Confirmation with deposit paid
 	inquiry.status = "Awaiting Final Confirmation";
+	inquiry.payment_status = "deposit_paid";
 	await inquiry.save();
 
 	const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
@@ -228,17 +229,29 @@ exports.remove = asyncHandler(async (req, res) => {
 	res.json({ message: "Deleted" }); 
 });
 
-async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type }) {
+async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type = "deposit" }) {
 	if (inquiry_id) {
-		const existingApproved = await Payment.findOne({ inquiry_id, status: "approved" });
+		const existingApproved = await Payment.findOne({
+			inquiry_id,
+			payment_type,
+			status: "approved"
+		});
 		if (existingApproved) {
-			return "This inquiry/quotation has already been paid.";
+			return `The ${payment_type} payment for this inquiry has already been completed.`;
 		}
 		const inquiry = await Inquiry.findById(inquiry_id);
-		if (inquiry && inquiry.converted_booking_id) {
-			const booking = await Booking.findById(inquiry.converted_booking_id);
-			if (booking && ["deposit_paid", "fully_paid"].includes(booking.payment_status)) {
-				return "This inquiry/quotation has already been converted and paid.";
+		if (inquiry) {
+			if (inquiry.payment_status === "deposit_paid" && payment_type === "deposit") {
+				return "The deposit for this quotation/inquiry has already been paid.";
+			}
+			if (inquiry.payment_status === "fully_paid") {
+				return "This inquiry is already fully paid.";
+			}
+			if (inquiry.converted_booking_id) {
+				const booking = await Booking.findById(inquiry.converted_booking_id);
+				if (booking && ["deposit_paid", "fully_paid"].includes(booking.payment_status) && payment_type === "deposit") {
+					return "This inquiry has already been converted to a booking with an approved deposit.";
+				}
 			}
 		}
 	} else if (booking_id) {
@@ -298,10 +311,23 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 	}
 
-	const fallbackAmount = Number(targetDoc.total_price || 0);
-	const payableAmount = Number(amount || fallbackAmount);
+	let payableAmount = Number(amount);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
-		return res.status(400).json({ message: "Invalid amount" });
+		if (inquiry_id) {
+			const quotation = await Quotation.findOne({ inquiry_id: targetDoc._id }).sort({ version_number: -1 });
+			payableAmount = Number(quotation?.deposit_amount || targetDoc.total_price || 0);
+		} else {
+			payableAmount = Number(targetDoc.total_price || 0);
+		}
+	}
+
+	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
+		return res.status(400).json({ message: "Invalid payment amount" });
+	}
+
+	if (targetDoc.payment_status === "unpaid") {
+		targetDoc.payment_status = "pending";
+		await targetDoc.save();
 	}
 
 	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";

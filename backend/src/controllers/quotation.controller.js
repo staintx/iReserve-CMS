@@ -2,6 +2,7 @@ const Quotation = require("../models/Quotation");
 const Inquiry = require("../models/Inquiry");
 const Payment = require("../models/Payment");
 const asyncHandler = require("../utils/asyncHandler");
+const { notifyAdmins } = require("../utils/notify");
 const { eventSpaceLabel } = require("../utils/eventSpace");
 const {
   computeQuotationTotals,
@@ -529,6 +530,18 @@ exports.requestRevision = asyncHandler(async (req, res) => {
   }
 
   const io = req.app.get("io");
+
+  const customerName = inquiry
+    ? `${inquiry.contact_first_name} ${inquiry.contact_last_name}`.trim()
+    : "A customer";
+  await notifyAdmins({
+    title: "Customer Requested a Quotation Change",
+    body: `${customerName} requested changes to quotation ${quotation.quotation_number}.`,
+    type: "revision_requested",
+    link: `/admin/quotes/${inquiryId}/details`,
+    meta: { inquiry_id: inquiryId, quotation_id: quotation._id }
+  }, io);
+
   if (io) io.emit("system:refresh", { type: "quotation", action: "revise" });
 
   res.json({ message: "Revision requested", quotation });

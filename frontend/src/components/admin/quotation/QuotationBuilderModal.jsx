@@ -1982,6 +1982,31 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           )}
 
+          {quotation?.status === "Revision Requested" && (
+            <div className="flex flex-col gap-2 rounded-lg border border-orange-300 bg-orange-50 p-3 text-xs leading-relaxed text-orange-900">
+              <span className="flex items-start gap-2.5">
+                <RefreshCw size={15} className="mt-0.5 shrink-0 text-orange-600" />
+                <span>
+                  <strong className="font-semibold text-orange-950">Customer Revision Request</strong>
+                  {quotation.revision_requested_at && (
+                    <span className="ml-1 tabular-nums text-orange-700">
+                      &middot; {formatSavedAt(quotation.revision_requested_at)}
+                    </span>
+                  )}
+                </span>
+              </span>
+              {quotation.customer_response ? (
+                <blockquote className="rounded-lg border border-orange-200/80 bg-white/80 px-3 py-2 text-slate-800">
+                  “{quotation.customer_response}”
+                </blockquote>
+              ) : (
+                <p className="italic text-orange-700">
+                  The customer did not include a written message with this request.
+                </p>
+              )}
+            </div>
+          )}
+
           {quotation && (
             <div className="flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/5 p-3 text-xs leading-relaxed text-slate-700">
               <RefreshCw size={15} className="mt-0.5 shrink-0 text-primary" />

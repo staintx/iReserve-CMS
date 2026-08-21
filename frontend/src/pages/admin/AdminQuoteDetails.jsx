@@ -9,7 +9,7 @@ import ZelleQuoteDraft from "../../components/admin/ui/ZelleQuoteDraft";
 import { 
   User, Mail, Phone, Calendar, Clock, MapPin, 
   DollarSign, Info, ArrowLeft, CheckCircle2,
-  FileText, Activity, Utensils, Send, RefreshCw,
+  FileText, Activity, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
   Truck, Check, ShieldAlert, HeartPulse, ChevronRight
 } from "lucide-react";
@@ -18,6 +18,7 @@ import { pendingChangeRequestOf } from "../../utils/quotationDiff";
 import { priceLabel, capacityLabel } from "../../lib/packageDisplay";
 import { formatCurrency, formatShortDate } from "../../utils/format";
 import { menuAmountLabel, menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
+import { eventSpaceLabel } from "../../lib/packageDisplay";
 
 /* --- Compact Reusable Card Component --- */
 const CompactCard = ({ title, icon: Icon, children, headerRight, className = "" }) => (
@@ -213,7 +214,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
         )}
 
         {/* The quoted dishes, showing exactly what the customer's copy shows:
-            quantity and unit, the rate and the line total. */}
+            quantity and unit, the rate, the line total and the dish's note. */}
         {dishes.length > 0 && (
           <div>
             <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -231,6 +232,11 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
                     <div className="min-w-0">
                       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                         <span className="text-xs font-semibold text-slate-800">{dish.name}</span>
+                        {dish.category && (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                            {dish.category}
+                          </span>
+                        )}
                         <span
                           className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                             byQuantity
@@ -259,11 +265,6 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
                 );
               })}
             </ul>
-            {quotation.menu_notes && (
-              <p className="mt-2 whitespace-pre-line border-l-2 border-slate-200 pl-2 text-[11px] italic leading-relaxed text-slate-500">
-                {quotation.menu_notes}
-              </p>
-            )}
           </div>
         )}
 
@@ -759,6 +760,14 @@ export default function AdminQuoteDetails() {
                   icon={MapPin} 
                   label="Venue Type" 
                   value={quote.venue_type} 
+                />
+
+                {/* One field, not two: "event space size" and "scaffold size"
+                    are the same measurement under two names. */}
+                <CompactField
+                  icon={Ruler}
+                  label="Event Space / Scaffold Size"
+                  value={eventSpaceLabel(quote, quote.package_id) || null}
                 />
 
                 <CompactField 

@@ -22,9 +22,6 @@ const money = (v) => formatCurrency(Number(v) || 0);
 const HEADLINE_FIELDS = [
   { key: "package_name", label: "Package" },
   { key: "guest_count", label: "Guest count", format: (v) => `${v} pax` },
-  // What was agreed about the catering as a whole. It carries no money, but a
-  // customer who negotiated "buffet, not plated" needs to see it held.
-  { key: "menu_notes", label: "Menu notes", format: (v) => String(v || "") || "no notes" },
 ];
 
 /**

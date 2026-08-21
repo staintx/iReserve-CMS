@@ -37,7 +37,14 @@ import {
   menuLineTotal,
   money,
 } from "../../../utils/quotationPricing";
-import { parseInclusionQuantity, withInclusionQuantity } from "../../../lib/packageDisplay";
+import {
+  eventSpaceLabel,
+  inclusionDisplayName,
+  parseInclusion,
+  parseInclusionQuantity,
+  withInclusionName,
+  withInclusionQuantity,
+} from "../../../lib/packageDisplay";
 import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import {
   SERVICE_TYPES,
@@ -300,8 +307,25 @@ const inclusionText = (inclusion) =>
  * common cases are one keystroke away and an unusual one is still just
  * typed. Nothing branches on the value — a unit is a label on a number —
  * so adding to this list is a convenience, never a requirement.
+ *
+ * "pax" is deliberately not among them. A dish sold by the head is a quantity
+ * of guests like any other quantity, and offering it as a suggestion is how a
+ * per-person default creeps back into a form whose whole point is that food is
+ * priced by the kilo, the tray or the bilao as often as by the person.
  */
-const UNIT_SUGGESTIONS = ["bilao", "tray", "pan", "kilo", "platter", "gallon", "piece", "set"];
+const UNIT_SUGGESTIONS = [
+  "unit",
+  "serving",
+  "kilo",
+  "tray",
+  "bilao",
+  "pan",
+  "platter",
+  "bottle",
+  "gallon",
+  "piece",
+  "set",
+];
 
 /**
  * A dish row as the builder holds it, whatever it was seeded from.
@@ -312,6 +336,12 @@ const UNIT_SUGGESTIONS = ["bilao", "tray", "pan", "kilo", "platter", "gallon", "
  */
 const menuRow = (partial = {}) => ({
   name: "",
+  // What the dish is — its course in the menu catalog. Read-only here and
+  // deliberately its own field: it used to be seeded into `note`, which turned
+  // every dish's note into the word "Main Course" and left nowhere to write an
+  // actual note.
+  category: "",
+  note: "",
   quantity: 1,
   unit: "",
   pricing_type: MENU_PRICING.QUANTITY,
@@ -341,6 +371,9 @@ const inclusionRow = (name, partial = {}) => {
     ...partial,
   };
 };
+
+/** Where an inclusion with no category of its own is listed. */
+const OTHER_INCLUSION_CATEGORY = "Other";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -411,11 +444,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Sections 4 and 5: line items
   const [menuItems, setMenuItems] = useState([]);
   const [addOns, setAddOns] = useState([]);
-  // One note for the whole Menu section rather than one per dish. A menu of
-  // eight dishes with a note field on every row was a page of scrolling, and
-  // what the notes actually described — how the catering is being served —
-  // was a fact about the arrangement, not about any one dish.
-  const [menuNotes, setMenuNotes] = useState("");
 
   // Section 6: adjustments
   const [transportationFee, setTransportationFee] = useState("");
@@ -479,11 +507,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       basePrice:
         Number(inquiry?.offer_base_price) || offerBaseFoodPrice(packageRecord),
       // The dishes alone. These become the quotation's food lines, at ₱0.
+      // `food` is the display list; `foodItems` keeps the name and the course
+      // apart, because a menu row needs them in separate fields and a string
+      // reading "Kare-Kare (Main Course)" is a dish nobody can name.
       food: food.map((item) =>
         item.menu_category
           ? `${item.item_name} (${item.menu_category})`
           : item.item_name,
       ),
+      foodItems: food.map((item) => ({
+        name: item.item_name,
+        category: item.menu_category || "",
+      })),
       // Everything the price per pax buys, in the combo's own words — the
       // dishes and what comes with them. Displayed, not priced: the inclusions
       // are seeded into the quotation's own inclusion list, not charged again
@@ -684,18 +719,43 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 })
             ),
           ]);
-          // A dish stored per guest is reopened as what it always meant: the
-          // guest count, at that per-head rate, as its own quantity and unit.
-          // The line total is identical either way, so a quotation issued
-          // before per-unit pricing reopens showing the same money it was sent
-          // with — it is only stated in the one form the builder now uses.
+          // Legacy only: a dish stored per guest is reopened as what it always
+          // meant — the guest count, at that per-head rate, as its own quantity
+          // and unit. The line total is identical either way, so a quotation
+          // issued before per-unit pricing reopens showing the money it was
+          // sent with. Nothing new is ever created in this shape: see
+          // handleAddCatalogDish, where a fresh dish starts at a quantity of
+          // one and an empty unit for the admin to state.
           const restoredGuests = Number(latest.guest_count) || Number(inquiry?.guest_count) || 1;
+          // Legacy only: quotations built before a dish had a category field
+          // were seeded with the course written into the note, so a reopened
+          // one would show "Main Course" as the admin's own note about the
+          // dish. A note is moved back to the category only when it matches a
+          // course the catalog actually has — anything an admin really typed
+          // will not, and stays exactly where they put it.
+          const catalogCategories = new Set(
+            (menuRes.data || [])
+              .map((item) => String(item?.category || "").trim().toLowerCase())
+              .filter(Boolean)
+          );
+          const splitLegacyNote = (dish) => {
+            const category = String(dish?.category || "").trim();
+            const note = String(dish?.note || "").trim();
+            if (category) return { category, note };
+            if (note && catalogCategories.has(note.toLowerCase())) {
+              return { category: note, note: "" };
+            }
+            return { category: "", note };
+          };
           setMenuItems(
             Array.isArray(latest.menu_items)
               ? latest.menu_items.map((m) => {
                   const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
+                  const { category, note } = splitLegacyNote(m);
                   return menuRow({
                     name: m?.name || "",
+                    category,
+                    note,
                     quantity: perGuest
                       ? restoredGuests
                       : Number(m?.quantity) > 0
@@ -706,15 +766,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   });
                 })
               : []
-          );
-          // Legacy per-dish notes are folded into the section note rather than
-          // dropped: they were written to be read, and the quotation no longer
-          // has a per-dish place to show them.
-          const legacyDishNotes = (Array.isArray(latest.menu_items) ? latest.menu_items : [])
-            .filter((m) => String(m?.note || "").trim())
-            .map((m) => `${m.name}: ${String(m.note).trim()}`);
-          setMenuNotes(
-            latest.menu_notes || (legacyDishNotes.length ? legacyDishNotes.join("\n") : "")
           );
           // An add-on stored as "fixed" was charged once, which is a quantity
           // of one. Reopened that way it prices identically.
@@ -790,12 +841,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         // admin sees exactly what is being served without the combo's food
         // being charged twice.
         if (offerContext) {
-          setMenuItems(offerContext.food.map((name) => menuRow({ name, price: "" })));
-          setMenuNotes("Covered by the combo price.");
+          setMenuItems(
+            offerContext.foodItems.map(({ name, category }) =>
+              menuRow({ name, category, note: "Covered by the combo price", price: "" })
+            )
+          );
         } else {
-          // The catalog quotes a dish per head, so a chosen dish is seeded as
-          // the guest count in "pax" at that rate — the same money, stated in
-          // the one pricing form the builder uses.
+          // Seeded with the dish the customer chose and the catalog's figure,
+          // at a quantity of one and no unit yet. What a dish is actually sold
+          // by — a kilo, a tray, a bilao, a head — is the admin's call on this
+          // quotation, and guessing "the guest count in pax" is how every dish
+          // ended up priced per person whether or not it is sold that way.
           setMenuItems(
             !customerSelection.wantedFood
               ? []
@@ -803,12 +859,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   if (item && typeof item === "object") {
                     return menuRow({
                       name: item.name || "",
-                      quantity: guests,
-                      unit: "pax",
+                      category: item.category || "",
+                      note: item.note || "",
                       price: !item.price ? "" : String(item.price),
                     });
                   }
-                  return menuRow({ name: String(item || ""), quantity: guests, unit: "pax" });
+                  return menuRow({ name: String(item || "") });
                 })
           );
         }
@@ -859,6 +915,37 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         .filter(Boolean),
     [inclusions]
   );
+
+  /**
+   * The inclusion list grouped by the category each line already carries.
+   *
+   * A presentation of `inclusions`, never a copy of it: every row keeps the
+   * index it has in that array, because the index is what every handler,
+   * every error key and every input id is addressed by. Grouping that
+   * renumbered the rows would silently point the quantity box on one line at
+   * the pricing of another.
+   *
+   * Categories appear in the order they first occur and rows keep their order
+   * within a category, so a package the admin has seen before reads the same
+   * way. A line with no category falls under "Other" rather than vanishing.
+   */
+  const inclusionGroups = useMemo(() => {
+    const groups = [];
+    const byCategory = new Map();
+
+    inclusions.forEach((entry, index) => {
+      const category = parseInclusion(entry.name)?.category || OTHER_INCLUSION_CATEGORY;
+      let group = byCategory.get(category);
+      if (!group) {
+        group = { category, rows: [] };
+        byCategory.set(category, group);
+        groups.push(group);
+      }
+      group.rows.push({ entry, index });
+    });
+
+    return groups;
+  }, [inclusions]);
 
   /**
    * The inclusions whose quantity this quotation changes.
@@ -945,6 +1032,20 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
    * said out loud ("Navy, Ivory, Gold"), and split here so the stored shape
    * stays the array every other reader expects.
    */
+  /**
+   * The event space this booking is for, as one label.
+   *
+   * Read from the request the customer submitted, which is where the size was
+   * decided and priced. It is shown rather than edited: the footprint is what
+   * the starting price above was derived from, so changing it here would leave
+   * a size and a price that disagree — the same reason the package itself is
+   * locked. A booking with no event space (a combo pack is food) gets nothing.
+   */
+  const eventSpace = useMemo(
+    () => eventSpaceLabel(inquiry, packageRecord),
+    [inquiry, packageRecord]
+  );
+
   const resolvedPalette = useMemo(
     () =>
       String(details.event_palette || "")
@@ -972,12 +1073,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       guest_count: totals.guestCount,
       menu_items: chargeableMenuItems.map((item) => ({
         name: String(item.name || "").trim(),
+        category: String(item.category || "").trim(),
+        note: String(item.note || "").trim(),
         pricing_type: MENU_PRICING.QUANTITY,
         quantity: Math.max(1, Number(item.quantity) || 1),
         unit: String(item.unit || "").trim(),
         price: money(item.price),
       })),
-      menu_notes: cateringIncluded ? String(menuNotes || "").trim() : "",
       add_ons: chargeableAddOns.map((item) => ({
         name: String(item.name || "").trim(),
         price: money(item.price),
@@ -1007,9 +1109,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       keptInclusions,
       removedInclusions,
       inclusionAdjustments,
-      cateringIncluded,
       chargeableMenuItems,
-      menuNotes,
       chargeableAddOns,
       transportationFee,
       additionalFees,
@@ -1159,7 +1259,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       found.package_name = "This quotation has no package name.";
 
     inclusions.forEach((entry, index) => {
-      if (!String(entry.name || "").trim())
+      // Checked against the visible name, not the stored line: `[Crew] (2)`
+      // is a non-empty string with an empty name, and the admin looking at a
+      // blank field needs to be told so.
+      if (!inclusionDisplayName(entry.name).trim())
         found[`inclusions.${index}.name`] = "Name this inclusion or delete the line.";
       if (entry.removed && isBlankAmount(entry.deduction))
         found[`inclusions.${index}.deduction`] =
@@ -1303,17 +1406,25 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   };
 
   /**
-   * Renaming a line re-reads the quantity out of its new wording.
+   * Renaming a line rewrites only its name, then re-reads its quantity.
    *
-   * The quantity is written into the text, so retyping "Round Tables (6)" as
-   * "Round Tables (8)" has to mean the same thing as typing 8 into the
-   * quantity box. The baseline is left alone: what the package promised does
-   * not change because the admin reworded the line.
+   * The field shows the name alone, so what comes back here is the name alone
+   * and is spliced into the stored line between the category the group heading
+   * was built from and the quantity the price is calculated against — losing
+   * either to a rename is how a row ends up in the wrong group or priced
+   * against a baseline that no longer appears anywhere on screen.
+   *
+   * The quantity is still re-read afterwards, because a line with no category
+   * keeps its quantity inside its own wording ("6 Round Tables") and retyping
+   * that has to mean the same thing as typing 6 into the quantity box. The
+   * baseline is left alone: what the package promised does not change because
+   * the admin reworded the line.
    */
-  const handleInclusionName = (index, name) => {
+  const handleInclusionName = (index, displayName) => {
     setInclusions((prev) =>
       prev.map((entry, i) => {
         if (i !== index) return entry;
+        const name = withInclusionName(entry.name, displayName);
         const parsed = parseInclusionQuantity(name);
         return {
           ...entry,
@@ -1418,15 +1529,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const handleAddCatalogDish = () => {
     const found = catalogMenuItems.find((item) => item._id === selectedCatalogDish);
     if (!found) return;
-    // The catalog rate is per head, so the row is seeded as the guest count in
-    // "pax" — the same money the catalog quotes, in the builder's one form.
+    // One of it, at the catalog's figure, with the unit left for the admin.
+    // The catalog quotes a per-head rate, but what this quotation sells the
+    // dish by is a decision for this event — a kilo, a tray, a bilao — so the
+    // row states a quantity of one rather than assuming the guest list.
     setMenuItems((prev) => [
       ...prev,
       menuRow({
         name: found.name,
+        category: found.category || "",
         price: found.price ? String(found.price) : "",
-        quantity: Number(details.guest_count) || 1,
-        unit: "pax",
       }),
     ]);
     setSelectedCatalogDish("");
@@ -1823,15 +1935,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   setStartingPrice(String(rec.starting_price || rec.estimated_package_cost));
                 }
                 if (Array.isArray(rec.inclusions) && rec.inclusions.length > 0) {
-                  setInclusions(rec.inclusions.map((name) => ({ name, removed: false, deduction: "", fromPackage: true })));
+                  setInclusions(rec.inclusions.map((name) => inclusionRow(name)));
                 }
                 if (Array.isArray(rec.recommended_addons) && rec.recommended_addons.length > 0) {
                   setAddOns(
                     rec.recommended_addons.map((a) => ({
                       name: typeof a === "object" ? a.name : a,
                       price: typeof a === "object" && a.price ? String(a.price) : "2500",
-                      quantity: "1",
-                      pricing_type: a.pricing_type || "fixed",
+                      quantity: 1,
+                      note: "",
+                      pricing_type: "quantity",
                     }))
                   );
                 }
@@ -2074,6 +2187,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     className={inputClass(false)}
                   />
                 </Field>
+
+                {/* The footprint the customer picked, stated once. "Event
+                    space" and "scaffold size" are the same measurement, so
+                    there is deliberately one field rather than two that could
+                    drift apart. Locked for the same reason the package is: the
+                    starting price was derived from this size. */}
+                {eventSpace && (
+                  <Field
+                    label="Event space / scaffold size"
+                    hint="Set when the customer booked. Rebooking is what changes it."
+                  >
+                    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <Lock size={13} className="shrink-0 text-slate-500" />
+                      <span
+                        className="truncate text-sm font-semibold tabular-nums text-slate-800"
+                        title={eventSpace}
+                      >
+                        {eventSpace}
+                      </span>
+                    </div>
+                  </Field>
+                )}
               </div>
 
               {/* The look of the event, editable here rather than quoted back
@@ -2485,201 +2620,220 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 This package has no inclusions on record. Add the ones this quotation covers.
               </p>
             ) : (
-              <ul className="space-y-2">
-                {inclusions.map((entry, index) => {
-                  // A line only offers quantity pricing if its own wording
-                  // stated an amount to begin with. "Professional crew" has
-                  // nothing to count, so it gets no quantity controls rather
-                  // than an empty box the admin has to ignore.
-                  const hasQuantity =
-                    entry.baseQuantity !== null && entry.baseQuantity !== undefined;
-                  const quantityMoved =
-                    hasQuantity && Number(entry.quantity) !== Number(entry.baseQuantity);
-                  const adjustment = quantityMoved
-                    ? inclusionAdjustmentAmount({
-                        base_quantity: entry.baseQuantity,
-                        quantity: entry.quantity,
-                        unit_price: entry.unitPrice,
-                      })
-                    : 0;
-                  return (
-                  <li
-                    key={index}
-                    className={`rounded-lg border p-2.5 transition-colors ${entry.removed
-                        ? "border-emerald-200 bg-emerald-50/50"
-                        : quantityMoved
-                          ? "border-amber-200 bg-amber-50/40"
-                          : "border-slate-200 bg-white"
-                      }`}
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${entry.removed ? "bg-emerald-500" : "bg-primary"
-                            }`}
-                        />
-                        <input
-                          id={`qb-inclusions.${index}.name`}
-                          type="text"
-                          value={entry.name}
-                          onChange={(e) => handleInclusionName(index, e.target.value)}
-                          placeholder="Inclusion description"
-                          className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${entry.removed ? "line-through decoration-slate-400" : ""
-                            }`}
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-                        {/* How many, and what one is worth. The two sit
-                            together because neither means anything alone: a
-                            changed count with no rate cannot be priced, and a
-                            rate with an unchanged count changes nothing. */}
-                        {!entry.removed && hasQuantity && (
-                          <>
-                            <div
-                              className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${quantityMoved
-                                  ? "border-amber-300 bg-amber-50 text-amber-800"
-                                  : "border-slate-200 bg-slate-50 text-slate-600"
+              <div className="space-y-4">
+                {inclusionGroups.map((group) => (
+                  <div key={group.category}>
+                    {/* The category, said once at the top of its own list
+                        instead of repeated on every line inside it. A package
+                        with forty inclusions is read by finding the heading
+                        you want and stopping there. */}
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        {group.category}
+                      </span>
+                      <span className="h-px flex-1 bg-slate-200" />
+                      <span className="text-[10px] font-semibold tabular-nums text-slate-400">
+                        {group.rows.length}
+                      </span>
+                    </div>
+                    <ul className="space-y-2">
+                    {group.rows.map(({ entry, index }) => {
+                      // A line only offers quantity pricing if its own wording
+                      // stated an amount to begin with. "Professional crew" has
+                      // nothing to count, so it gets no quantity controls rather
+                      // than an empty box the admin has to ignore.
+                      const hasQuantity =
+                        entry.baseQuantity !== null && entry.baseQuantity !== undefined;
+                      const quantityMoved =
+                        hasQuantity && Number(entry.quantity) !== Number(entry.baseQuantity);
+                      const adjustment = quantityMoved
+                        ? inclusionAdjustmentAmount({
+                            base_quantity: entry.baseQuantity,
+                            quantity: entry.quantity,
+                            unit_price: entry.unitPrice,
+                          })
+                        : 0;
+                      return (
+                      <li
+                        key={index}
+                        className={`rounded-lg border p-2.5 transition-colors ${entry.removed
+                            ? "border-emerald-200 bg-emerald-50/50"
+                            : quantityMoved
+                              ? "border-amber-200 bg-amber-50/40"
+                              : "border-slate-200 bg-white"
+                          }`}
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${entry.removed ? "bg-emerald-500" : "bg-primary"
                                 }`}
-                            >
-                              <label
-                                htmlFor={`qb-inclusions.${index}.quantity`}
-                                className="pl-1 text-[10px] font-semibold uppercase tracking-wider"
-                              >
-                                Qty
-                              </label>
-                              <input
-                                id={`qb-inclusions.${index}.quantity`}
-                                type="number"
-                                min="0"
-                                value={entry.quantity ?? ""}
-                                onChange={(e) => handleInclusionQuantity(index, e.target.value)}
-                                className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
-                                    ? "border-red-400"
-                                    : "border-slate-200"
-                                  }`}
-                              />
-                              <span className="pr-1 text-[10px] font-medium tabular-nums opacity-70">
-                                of {entry.baseQuantity}
-                              </span>
-                            </div>
+                            />
+                            <input
+                              id={`qb-inclusions.${index}.name`}
+                              type="text"
+                              value={inclusionDisplayName(entry.name)}
+                              onChange={(e) => handleInclusionName(index, e.target.value)}
+                              placeholder="Inclusion description"
+                              className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${entry.removed ? "line-through decoration-slate-400" : ""
+                                }`}
+                            />
+                          </div>
 
-                            {quantityMoved && (
-                              <div className="w-32">
+                          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                            {/* How many, and what one is worth. The two sit
+                                together because neither means anything alone: a
+                                changed count with no rate cannot be priced, and a
+                                rate with an unchanged count changes nothing. */}
+                            {!entry.removed && hasQuantity && (
+                              <>
+                                <div
+                                  className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${quantityMoved
+                                      ? "border-amber-300 bg-amber-50 text-amber-800"
+                                      : "border-slate-200 bg-slate-50 text-slate-600"
+                                    }`}
+                                >
+                                  <label
+                                    htmlFor={`qb-inclusions.${index}.quantity`}
+                                    className="pl-1 text-[10px] font-semibold uppercase tracking-wider"
+                                  >
+                                    Qty
+                                  </label>
+                                  <input
+                                    id={`qb-inclusions.${index}.quantity`}
+                                    type="number"
+                                    min="0"
+                                    value={entry.quantity ?? ""}
+                                    onChange={(e) => handleInclusionQuantity(index, e.target.value)}
+                                    className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
+                                        ? "border-red-400"
+                                        : "border-slate-200"
+                                      }`}
+                                  />
+                                  <span className="pr-1 text-[10px] font-medium tabular-nums opacity-70">
+                                    of {entry.baseQuantity}
+                                  </span>
+                                </div>
+
+                                {quantityMoved && (
+                                  <div className="w-32">
+                                    <MoneyInput
+                                      id={`qb-inclusions.${index}.unitPrice`}
+                                      value={entry.unitPrice}
+                                      error={errors[`inclusions.${index}.unitPrice`]}
+                                      placeholder="Per unit"
+                                      onChange={(value) => handleInclusionUnitPrice(index, value)}
+                                      className="py-1.5 text-xs"
+                                    />
+                                  </div>
+                                )}
+
+                                {quantityMoved && (
+                                  <RowAction
+                                    onClick={() => handleResetInclusionQuantity(index)}
+                                    icon={Undo2}
+                                    label="Reset"
+                                    tone="neutral"
+                                    title={`Put this back to the ${entry.baseQuantity} the package includes`}
+                                  />
+                                )}
+                              </>
+                            )}
+
+                            {entry.removed && (
+                              <div className="w-36">
                                 <MoneyInput
-                                  id={`qb-inclusions.${index}.unitPrice`}
-                                  value={entry.unitPrice}
-                                  error={errors[`inclusions.${index}.unitPrice`]}
-                                  placeholder="Per unit"
-                                  onChange={(value) => handleInclusionUnitPrice(index, value)}
+                                  id={`qb-inclusions.${index}.deduction`}
+                                  value={entry.deduction}
+                                  error={errors[`inclusions.${index}.deduction`]}
+                                  placeholder="Deduction"
+                                  onChange={(value) => handleInclusionDeduction(index, value)}
                                   className="py-1.5 text-xs"
                                 />
                               </div>
                             )}
 
-                            {quantityMoved && (
+                            {/* One control per row. A line that came with the
+                                package is removed by deducting it from the starting
+                                price; a line the admin typed in here was never in
+                                the package, so there is nothing to deduct and
+                                Remove simply takes it back off the list. */}
+                            {entry.removed ? (
                               <RowAction
-                                onClick={() => handleResetInclusionQuantity(index)}
+                                onClick={() => toggleInclusionRemoved(index)}
                                 icon={Undo2}
-                                label="Reset"
+                                label="Restore"
                                 tone="neutral"
-                                title={`Put this back to the ${entry.baseQuantity} the package includes`}
+                                title="Put this inclusion back into the package"
+                              />
+                            ) : (
+                              <RowAction
+                                onClick={() =>
+                                  entry.fromPackage
+                                    ? toggleInclusionRemoved(index)
+                                    : handleDeleteInclusion(index)
+                                }
+                                icon={Trash2}
+                                label="Remove"
+                                title={
+                                  entry.fromPackage
+                                    ? "Remove this inclusion and deduct it from the starting price"
+                                    : "Remove this inclusion from the list"
+                                }
                               />
                             )}
-                          </>
-                        )}
-
-                        {entry.removed && (
-                          <div className="w-36">
-                            <MoneyInput
-                              id={`qb-inclusions.${index}.deduction`}
-                              value={entry.deduction}
-                              error={errors[`inclusions.${index}.deduction`]}
-                              placeholder="Deduction"
-                              onChange={(value) => handleInclusionDeduction(index, value)}
-                              className="py-1.5 text-xs"
-                            />
                           </div>
-                        )}
+                        </div>
 
-                        {/* One control per row. A line that came with the
-                            package is removed by deducting it from the starting
-                            price; a line the admin typed in here was never in
-                            the package, so there is nothing to deduct and
-                            Remove simply takes it back off the list. */}
-                        {entry.removed ? (
-                          <RowAction
-                            onClick={() => toggleInclusionRemoved(index)}
-                            icon={Undo2}
-                            label="Restore"
-                            tone="neutral"
-                            title="Put this inclusion back into the package"
-                          />
-                        ) : (
-                          <RowAction
-                            onClick={() =>
-                              entry.fromPackage
-                                ? toggleInclusionRemoved(index)
-                                : handleDeleteInclusion(index)
-                            }
-                            icon={Trash2}
-                            label="Remove"
-                            title={
-                              entry.fromPackage
-                                ? "Remove this inclusion and deduct it from the starting price"
-                                : "Remove this inclusion from the list"
-                            }
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    {(errors[`inclusions.${index}.name`] ||
-                      errors[`inclusions.${index}.deduction`] ||
-                      errors[`inclusions.${index}.quantity`] ||
-                      errors[`inclusions.${index}.unitPrice`]) && (
-                      <p className="mt-1.5 flex items-start gap-1 pl-3.5 text-[11.5px] font-medium leading-snug text-red-700">
-                        <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                        {errors[`inclusions.${index}.name`] ||
+                        {(errors[`inclusions.${index}.name`] ||
+                          errors[`inclusions.${index}.deduction`] ||
                           errors[`inclusions.${index}.quantity`] ||
-                          errors[`inclusions.${index}.unitPrice`] ||
-                          errors[`inclusions.${index}.deduction`]}
-                      </p>
-                    )}
+                          errors[`inclusions.${index}.unitPrice`]) && (
+                          <p className="mt-1.5 flex items-start gap-1 pl-3.5 text-[11.5px] font-medium leading-snug text-red-700">
+                            <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                            {errors[`inclusions.${index}.name`] ||
+                              errors[`inclusions.${index}.quantity`] ||
+                              errors[`inclusions.${index}.unitPrice`] ||
+                              errors[`inclusions.${index}.deduction`]}
+                          </p>
+                        )}
 
-                    {entry.removed && !errors[`inclusions.${index}.deduction`] && (
-                      <p className="mt-1.5 pl-3.5 text-[11.5px] text-emerald-700">
-                        Removed from the package. {formatCurrency(numberOf(entry.deduction))} comes off the
-                        starting price.
-                      </p>
-                    )}
+                        {entry.removed && !errors[`inclusions.${index}.deduction`] && (
+                          <p className="mt-1.5 pl-3.5 text-[11.5px] text-emerald-700">
+                            Removed from the package. {formatCurrency(numberOf(entry.deduction))} comes off the
+                            starting price.
+                          </p>
+                        )}
 
-                    {/* Where the money came from, in the admin's own numbers.
-                        The arithmetic is stated rather than just its result,
-                        because the figure has to be explainable to the
-                        customer who asks why their quote moved. */}
-                    {quantityMoved && !errors[`inclusions.${index}.unitPrice`] && (
-                      <p
-                        className={`mt-1.5 pl-3.5 text-[11.5px] ${adjustment < 0 ? "text-emerald-700" : "text-amber-800"
-                          }`}
-                      >
-                        {Number(entry.quantity) < Number(entry.baseQuantity)
-                          ? `Down ${Number(entry.baseQuantity) - Number(entry.quantity)} from the ${entry.baseQuantity} the package includes`
-                          : `Up ${Number(entry.quantity) - Number(entry.baseQuantity)} from the ${entry.baseQuantity} the package includes`}
-                        {" · "}
-                        {Math.abs(Number(entry.quantity) - Number(entry.baseQuantity))} ×{" "}
-                        {formatCurrency(numberOf(entry.unitPrice))} ={" "}
-                        <strong className="tabular-nums">
-                          {adjustment < 0
-                            ? `${formatCurrency(Math.abs(adjustment))} off`
-                            : `${formatCurrency(adjustment)} added`}
-                        </strong>
-                      </p>
-                    )}
-                  </li>
-                  );
-                })}
-              </ul>
+                        {/* Where the money came from, in the admin's own numbers.
+                            The arithmetic is stated rather than just its result,
+                            because the figure has to be explainable to the
+                            customer who asks why their quote moved. */}
+                        {quantityMoved && !errors[`inclusions.${index}.unitPrice`] && (
+                          <p
+                            className={`mt-1.5 pl-3.5 text-[11.5px] ${adjustment < 0 ? "text-emerald-700" : "text-amber-800"
+                              }`}
+                          >
+                            {Number(entry.quantity) < Number(entry.baseQuantity)
+                              ? `Down ${Number(entry.baseQuantity) - Number(entry.quantity)} from the ${entry.baseQuantity} the package includes`
+                              : `Up ${Number(entry.quantity) - Number(entry.baseQuantity)} from the ${entry.baseQuantity} the package includes`}
+                            {" · "}
+                            {Math.abs(Number(entry.quantity) - Number(entry.baseQuantity))} ×{" "}
+                            {formatCurrency(numberOf(entry.unitPrice))} ={" "}
+                            <strong className="tabular-nums">
+                              {adjustment < 0
+                                ? `${formatCurrency(Math.abs(adjustment))} off`
+                                : `${formatCurrency(adjustment)} added`}
+                            </strong>
+                          </p>
+                        )}
+                      </li>
+                      );
+                    })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             )}
 
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -2716,7 +2870,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               title="Menu"
               description={
                 cateringIncluded
-                  ? "Every dish is priced per unit: how many, at what each one costs. For per-head catering the unit is a guest."
+                  ? "Every dish is quantity times unit price. State what the quantity is in — a kilo, a tray, a bilao, a head — and what one of them costs."
                   : "The customer's answer to catering on this booking."
               }
               aside={
@@ -2900,23 +3054,36 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                             never be squeezed under, whatever the numbers
                             beside it grow to. */}
                         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                          <input
-                            id={`qb-menu_items.${index}.name`}
-                            type="text"
-                            value={item.name}
-                            disabled={item.removed}
-                            onChange={(e) => handleMenuChange(index, "name", e.target.value)}
-                            placeholder="Dish name"
-                            className={`${inputClass(errors[`menu_items.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${
-                              item.removed ? "line-through decoration-slate-400" : ""
-                            }`}
-                          />
+                          {/* The dish, and what it is. The course comes from
+                              the menu catalog and is not the admin's to quote,
+                              so it sits beside the name as a label rather than
+                              in a field — and, in particular, not in the note,
+                              which is theirs to write. */}
+                          <div className="flex min-w-0 flex-1 flex-col gap-1 lg:min-w-[150px]">
+                            <input
+                              id={`qb-menu_items.${index}.name`}
+                              type="text"
+                              value={item.name}
+                              disabled={item.removed}
+                              onChange={(e) => handleMenuChange(index, "name", e.target.value)}
+                              placeholder="Dish name"
+                              className={`${inputClass(errors[`menu_items.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold ${
+                                item.removed ? "line-through decoration-slate-400" : ""
+                              }`}
+                            />
+                            {item.category && (
+                              <span className="w-fit rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                                {item.category}
+                              </span>
+                            )}
+                          </div>
 
                           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                            {/* How many, of what. Per-head catering is stated
-                                the same way as anything else — the guest count
-                                in "pax" — so there is one number that
-                                multiplies the price, and it is always here. */}
+                            {/* How many, and of what. The unit is the admin's
+                                to state — a kilo, a tray, a bilao, a head —
+                                because food is sold by all of them and forcing
+                                one of them on every dish is what the per-person
+                                default got wrong. */}
                             <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
                               <input
                                 id={`qb-menu_items.${index}.quantity`}
@@ -2990,6 +3157,32 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                           </div>
                         </div>
 
+                        {/* What this dish is, beyond its name and price: what a
+                            kilo of it serves, how it is packed, how it is
+                            prepared. It is the place for the detail that
+                            explains the quantity — never for the quantity
+                            itself, which has its own field above. Shown to the
+                            customer, and never part of the total. */}
+                        {!item.removed && (
+                          <div className="mt-2">
+                            <label
+                              htmlFor={`qb-menu_items.${index}.note`}
+                              className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                              Notes
+                            </label>
+                            <input
+                              id={`qb-menu_items.${index}.note`}
+                              type="text"
+                              value={item.note || ""}
+                              onChange={(e) => handleMenuChange(index, "note", e.target.value)}
+                              placeholder={`e.g. 1 ${unitLabel || "kilo"}, good for approximately 10 servings`}
+                              title="Serving size, weight, packaging or preparation details for this dish."
+                              className={`${inputClass(false)} py-1.5 text-xs`}
+                            />
+                          </div>
+                        )}
+
                         {rowError && (
                           <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
                             <AlertCircle size={12} className="mt-[2px] shrink-0" />
@@ -3002,30 +3195,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 </ul>
               )}
 
-              {/* One note for the catering as a whole, visible to the customer
-                  on their copy of the quotation. It describes the arrangement
-                  — how it is served, what was agreed, what is not included —
-                  rather than annotating dishes one at a time, and never
-                  factors into any total. */}
-              <div className="mt-3">
-                <label
-                  htmlFor="qb-menu_notes"
-                  className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                >
-                  Notes
-                </label>
-                <textarea
-                  id="qb-menu_notes"
-                  rows={3}
-                  value={menuNotes}
-                  onChange={(e) => setMenuNotes(e.target.value)}
-                  placeholder="e.g. Served buffet style from 6pm. Two bilao of pancit only, as agreed with the customer."
-                  className={`${inputClass(false)} resize-y text-xs leading-relaxed`}
-                />
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Shown to the customer with the menu. It does not change any price.
-                </p>
-              </div>
               </>
               )}
             </SectionCard>

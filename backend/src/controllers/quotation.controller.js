@@ -2,6 +2,7 @@ const Quotation = require("../models/Quotation");
 const Inquiry = require("../models/Inquiry");
 const Payment = require("../models/Payment");
 const asyncHandler = require("../utils/asyncHandler");
+const { eventSpaceLabel } = require("../utils/eventSpace");
 const {
   computeQuotationTotals,
   inclusionAdjustmentAmount,
@@ -275,6 +276,9 @@ function buildEventSnapshot(inquiry) {
     delivery_method: inquiry.delivery_method,
     event_theme: inquiry.event_theme,
     event_palette: Array.isArray(inquiry.event_palette) ? inquiry.event_palette : [],
+    // Resolved here rather than stored raw, so every reader of a quotation
+    // shows the same one label without re-deriving it from three fields.
+    event_space_label: eventSpaceLabel(inquiry, inquiry.package_id),
     venue_type: inquiry.venue_type,
     province: inquiry.province,
     municipality: inquiry.municipality,
@@ -345,7 +349,9 @@ exports.deleteQuotationDraft = asyncHandler(async (req, res) => {
 // Admin generates a new quotation or new version
 exports.createQuotation = asyncHandler(async (req, res) => {
   const { inquiry_id } = req.body;
-  const inquiry = await Inquiry.findById(inquiry_id);
+  // The package comes with it: buildEventSnapshot resolves the event space
+  // from the option the request points at, which only the package carries.
+  const inquiry = await Inquiry.findById(inquiry_id).populate("package_id");
   if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
 
   const totals = computeQuotationTotals(req.body);

@@ -143,7 +143,7 @@ async function chatWithZelle({
 
   const ai = getGenAI();
   const model = ai.getGenerativeModel({
-    model: "gemini-3.1-flash-lite",
+    model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
     systemInstruction: {
       role: "system",
       parts: [{ text: systemInstruction }],
@@ -306,7 +306,7 @@ Output a STRICT JSON object (no markdown formatting, no code fences, only valid 
 
   try {
     const ai = getGenAI();
-    const model = ai.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+    const model = ai.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-3.6-flash" });
     const result = await model.generateContent(prompt);
     const text = result.response
       .text()

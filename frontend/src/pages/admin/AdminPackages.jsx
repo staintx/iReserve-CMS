@@ -18,6 +18,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import PackageModal from "../../components/admin/ui/PackageModal";
+import AIPackageParserModal from "../../components/admin/ui/AIPackageParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 // One list for the whole product: the booking wizard offers these, and the
 // Quotation Builder corrects into the same set.
@@ -73,6 +74,7 @@ export default function AdminPackages() {
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   const [activePkg, setActivePkg] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
@@ -222,9 +224,19 @@ export default function AdminPackages() {
           </div>
           {/* Creating from a tab opens the form already set to that type, so an
               admin never has to restate what they were just looking at. */}
-          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
-            <Plus size={13} /> {activeTab.cta}
-          </Btn>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAIModal(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+            >
+              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              <span>Import with Zelle AI</span>
+            </button>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
+              <Plus size={13} /> {activeTab.cta}
+            </Btn>
+          </div>
         </div>
 
         {/* ============ TABS ============ */}
@@ -598,6 +610,18 @@ export default function AdminPackages() {
       </div>
 
       {/* ============ MODALS ============ */}
+      {showAIModal && (
+        <AIPackageParserModal
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+          offerType={activeTab.id}
+          standalone={true}
+          onBulkSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
+
       {showModal && (
         <PackageModal
           pkg={activePkg}

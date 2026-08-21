@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Filter, Edit3, Trash2 } from "lucide-react";
+import { Search, Plus, Filter, Edit3, Trash2, Sparkles } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -8,6 +8,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import MenuModal from "../../components/admin/ui/MenuModal";
+import AIMenuParserModal from "../../components/admin/ui/AIMenuParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 export default function AdminMenu() {
@@ -19,6 +20,7 @@ export default function AdminMenu() {
   const [loading, setLoading] = useState(true);
   
   const [showModal, setShowModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
@@ -71,7 +73,17 @@ export default function AdminMenu() {
       <div className="p-6 space-y-5 bg-background min-h-screen">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Food Menu Management</h2>
-          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Menu Item</Btn>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAIModal(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+            >
+              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              <span>Import with Zelle AI</span>
+            </button>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Menu Item</Btn>
+          </div>
         </div>
 
         <AdminCard className="!p-4">
@@ -147,6 +159,17 @@ export default function AdminMenu() {
           </div>
         )}
       </div>
+
+      {/* ============ MODALS ============ */}
+      {showAIModal && (
+        <AIMenuParserModal
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+          onBulkSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
 
       {showModal && (
         <MenuModal 

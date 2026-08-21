@@ -50,6 +50,7 @@ export const AdminAPI = {
   // Packages
   getPackages: () => api.get("/packages"),
   createPackage: (data) => api.post("/packages", data),
+  createBulkPackages: (packages) => api.post("/packages/bulk", { packages }),
   updatePackage: (id, data) => api.put(`/packages/${id}`, data),
   deletePackage: (id) => api.delete(`/packages/${id}`),
   parsePackageWithAI: (formData) => api.post("/packages/ai-parse", formData, { headers: { "Content-Type": "multipart/form-data" } }),
@@ -57,6 +58,8 @@ export const AdminAPI = {
   // Menu
   getMenu: () => api.get("/menu"),
   createMenu: (data) => api.post("/menu", data),
+  createBulkMenu: (items) => api.post("/menu/bulk", { items }),
+  parseMenuWithAI: (formData) => api.post("/menu/parse-ai", formData, { headers: { "Content-Type": "multipart/form-data" } }),
   updateMenu: (id, data) => api.put(`/menu/${id}`, data),
   deleteMenu: (id) => api.delete(`/menu/${id}`),
 
@@ -71,6 +74,8 @@ export const AdminAPI = {
   // Addons
   getAddons: () => api.get("/addons"),
   createAddon: (data) => api.post("/addons", data),
+  createBulkAddons: (addons) => api.post("/addons/bulk", { addons }),
+  parseAddonWithAI: (formData) => api.post("/addons/parse-ai", formData, { headers: { "Content-Type": "multipart/form-data" } }),
   updateAddon: (id, data) => api.put(`/addons/${id}`, data),
   deleteAddon: (id) => api.delete(`/addons/${id}`),
 

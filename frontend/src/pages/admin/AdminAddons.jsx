@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit3, Trash2, Check, XCircle, Tag } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, XCircle, Tag, Sparkles } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -8,7 +8,8 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
-import Modal from "../../components/common/Modal";
+import AddonModal from "../../components/admin/ui/AddonModal";
+import AIAddonParserModal from "../../components/admin/ui/AIAddonParserModal";
 
 export default function AdminAddons() {
   const { notify } = useToast();
@@ -16,14 +17,8 @@ export default function AdminAddons() {
   const [loading, setLoading] = useState(true);
   
   const [showModal, setShowModal] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   const [activeAddon, setActiveAddon] = useState(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    pricing_type: "fixed",
-    available: true
-  });
-  
   const [cancelTarget, setCancelTarget] = useState(null);
 
   const loadData = () => {
@@ -41,51 +36,13 @@ export default function AdminAddons() {
   useRealTimeRefresh(loadData);
 
   const handleOpenModal = (addon = null) => {
-    if (addon) {
-      setActiveAddon(addon);
-      setFormData({
-        name: addon.name,
-        description: addon.description || "",
-        pricing_type: addon.pricing_type || "fixed",
-        available: addon.available
-      });
-    } else {
-      setActiveAddon(null);
-      setFormData({
-        name: "",
-        description: "",
-        pricing_type: "fixed",
-        available: true
-      });
-    }
+    setActiveAddon(addon);
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     setActiveAddon(null);
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) {
-      notify("Please provide a name", "error");
-      return;
-    }
-
-    const req = activeAddon
-      ? AdminAPI.updateAddon(activeAddon._id, formData)
-      : AdminAPI.createAddon(formData);
-
-    req
-      .then(() => {
-        notify(`Addon ${activeAddon ? "updated" : "created"} successfully`, "success");
-        handleCloseModal();
-        loadData();
-      })
-      .catch((err) => {
-        notify(err.response?.data?.message || "Failed to save addon", "error");
-      });
   };
 
   const handleDelete = (id) => {
@@ -104,11 +61,21 @@ export default function AdminAddons() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground" style={{ fontFamily: "Playfair Display, serif" }}>Global Addons</h2>
-            <p className="text-sm text-muted-foreground mt-1">Manage fixed and quantity-based addons available for custom bookings</p>
+            <p className="text-sm text-muted-foreground mt-1">Manage add-ons, rentals, and service upgrades available for custom bookings</p>
           </div>
-          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
-            <Plus size={13} /> New Addon
-          </Btn>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAIModal(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+            >
+              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              <span>Import with Zelle AI</span>
+            </button>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
+              <Plus size={13} /> Add Addon
+            </Btn>
+          </div>
         </div>
 
         <AdminCard className="overflow-hidden">
@@ -122,7 +89,6 @@ export default function AdminAddons() {
                 <thead className="bg-background border-b border-gray-100 text-muted-foreground">
                   <tr>
                     <th className="px-6 py-4 font-medium">Addon Name</th>
-                    <th className="px-6 py-4 font-medium">Pricing Type</th>
                     <th className="px-6 py-4 font-medium">Description</th>
                     <th className="px-6 py-4 font-medium">Status</th>
                     <th className="px-6 py-4 font-medium text-right">Actions</th>
@@ -134,18 +100,7 @@ export default function AdminAddons() {
                       <td className="px-6 py-4">
                         <div className="font-medium text-foreground">{addon.name}</div>
                       </td>
-                      <td className="px-6 py-4">
-                        {addon.pricing_type === "quantity" ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                            <Tag size={12} /> Quantity-Based
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                            <Tag size={12} /> Fixed / One-Time
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate">
+                      <td className="px-6 py-4 text-gray-500 max-w-[300px] truncate">
                         {addon.description || "—"}
                       </td>
                       <td className="px-6 py-4">
@@ -182,60 +137,26 @@ export default function AdminAddons() {
         </AdminCard>
       </div>
 
+      {/* ============ MODALS ============ */}
+      {showAIModal && (
+        <AIAddonParserModal
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+          onBulkSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
+
       {showModal && (
-        <Modal title={activeAddon ? "Edit Addon" : "New Addon"} onClose={handleCloseModal}>
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Addon Name *</label>
-              <input
-                required
-                type="text"
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Entourage Setup, Extra Chairs"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Pricing / Quantity Type *</label>
-              <select
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-white"
-                value={formData.pricing_type || "fixed"}
-                onChange={(e) => setFormData({ ...formData, pricing_type: e.target.value })}
-              >
-                <option value="fixed">Fixed / One-Time (Single fee, e.g. Entourage Setup, Lights & Sound)</option>
-                <option value="quantity">Quantity-Based (Price × Quantity, e.g. Extra Chairs, Extra Tables)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-              <textarea
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                rows="3"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Short description of this addon"
-              ></textarea>
-            </div>
-
-            <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 cursor-pointer">
-              <input
-                type="checkbox"
-                className="rounded border-gray-300 text-primary focus:ring-primary"
-                checked={formData.available}
-                onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
-              />
-              <span className="text-sm font-medium text-gray-700">Available to customers</span>
-            </label>
-
-            <div className="flex gap-3 pt-4 border-t border-gray-100 mt-6">
-              <Btn type="button" variant="ghost" className="flex-1" onClick={handleCloseModal}>Cancel</Btn>
-              <Btn type="submit" variant="primary" className="flex-1">{activeAddon ? "Save Changes" : "Create Addon"}</Btn>
-            </div>
-          </form>
-        </Modal>
+        <AddonModal
+          addon={activeAddon}
+          onClose={handleCloseModal}
+          onSave={() => {
+            handleCloseModal();
+            loadData();
+          }}
+        />
       )}
 
       {cancelTarget && (

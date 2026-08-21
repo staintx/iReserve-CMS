@@ -59,8 +59,9 @@ exports.updateMe = asyncHandler(async (req, res) => {
   const updates = {
     ...nameUpdates,
     ...(req.body.email && { email: req.body.email.trim().toLowerCase() }),
-    phone: req.body.phone ? req.body.phone.trim() : "",
-    address: req.body.address ? req.body.address.trim() : "",
+    ...(req.body.phone !== undefined && { phone: req.body.phone ? req.body.phone.trim() : "" }),
+    ...(req.body.address !== undefined && { address: req.body.address ? req.body.address.trim() : "" }),
+    ...(req.body.position !== undefined && { position: req.body.position ? req.body.position.trim() : "" }),
     ...(req.body.username !== undefined && { username: req.body.username ? req.body.username.trim() : undefined })
   };
   const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true }).select("-password");

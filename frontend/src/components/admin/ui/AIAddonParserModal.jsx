@@ -1,47 +1,35 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   X,
-  Sparkles,
   UploadCloud,
-  FileText,
-  File as FileIcon,
+  Sparkles,
+  Check,
   CheckCircle2,
-  AlertCircle,
-  Loader2,
+  FileText,
   Trash2,
   CheckSquare,
   Square,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-  ArrowRight,
-  Info,
-  Package,
-  Calendar,
-  Users,
-  Tag,
-  Check,
   RotateCcw,
+  Tag,
+  Info,
+  File as FileIcon,
+  Loader2,
 } from "lucide-react";
 import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-/**
- * `AIPackageParserModal`
- * Supports:
- * 1. Single Package Ingestion (auto-filling the open PackageModal editor)
- * 2. Multi-Package / Multi-Page Brochure Batch Ingestion (reviewing & importing multiple packages at once)
- */
-export default function AIPackageParserModal({
+export default function AIAddonParserModal({
   isOpen,
   onClose,
-  onParsed,
   onBulkSuccess,
-  offerType = "regular",
-  standalone = false,
 }) {
-  const [activeTab, setActiveTab] = useState("file"); // 'file' or 'text'
+  const { notify } = useToast();
+  const fileInputRef = useRef(null);
+
+  // Steps: 'upload' | 'review'
+  const [step, setStep] = useState("upload");
+  const [activeTab, setActiveTab] = useState("file"); // 'file' | 'text'
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [textInput, setTextInput] = useState("");
@@ -49,92 +37,45 @@ export default function AIPackageParserModal({
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
 
-  // Multi-package review state
-  const [extractedPackages, setExtractedPackages] = useState([]);
+  // Review stage state
+  const [extractedAddons, setExtractedAddons] = useState([]);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
-  const [expandedIndices, setExpandedIndices] = useState(new Set());
   const [isBulkImporting, setIsBulkImporting] = useState(false);
-  const [step, setStep] = useState("upload"); // 'upload' | 'review'
-
-  const fileInputRef = useRef(null);
-  const { notify } = useToast();
 
   const parsingSteps = [
     "Uploading document...",
-    "Zelle AI is reading the pages and prices...",
-    "Organizing package options and inclusions...",
+    "Zelle AI is reading your add-on items...",
+    "Organizing add-on descriptions...",
     "Almost ready for your review...",
   ];
 
-  // Rotate loading step messages
-  useEffect(() => {
-    let interval;
-    if (loading) {
-      setLoadingStep(0);
-      interval = setInterval(() => {
-        setLoadingStep((prev) => (prev + 1) % parsingSteps.length);
-      }, 1600);
-    }
-    return () => clearInterval(interval);
-  }, [loading]);
-
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isOpen && !loading && !isBulkImporting) {
-        handleClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, loading, isBulkImporting]);
-
   if (!isOpen) return null;
-
-  const resetState = () => {
-    setFile(null);
-    if (filePreview) URL.revokeObjectURL(filePreview);
-    setFilePreview(null);
-    setTextInput("");
-    setExtractedPackages([]);
-    setSelectedIndices(new Set());
-    setExpandedIndices(new Set());
-    setStep("upload");
-    setLoading(false);
-    setIsBulkImporting(false);
-  };
-
-  const handleClose = () => {
-    resetState();
-    onClose();
-  };
 
   const handleFileSelect = (selectedFile) => {
     if (!selectedFile) return;
 
-    const allowedTypes = [
+    const validTypes = [
       "image/jpeg",
       "image/png",
       "image/gif",
       "image/webp",
       "application/pdf",
     ];
-
-    if (!allowedTypes.includes(selectedFile.type)) {
-      notify("Invalid file type. Please upload a PNG, JPG, WEBP, or PDF.", "error");
+    if (!validTypes.includes(selectedFile.type)) {
+      notify("Please upload a valid image (JPG, PNG, WEBP) or PDF file", "error");
       return;
     }
 
     if (selectedFile.size > 10 * 1024 * 1024) {
-      notify("File exceeds 10MB limit. Please upload a smaller file.", "error");
+      notify("File size must be less than 10MB", "error");
       return;
     }
 
     setFile(selectedFile);
-
     if (selectedFile.type.startsWith("image/")) {
-      const url = URL.createObjectURL(selectedFile);
-      setFilePreview(url);
+      const reader = new FileReader();
+      reader.onload = (e) => setFilePreview(e.target?.result);
+      reader.readAsDataURL(selectedFile);
     } else {
       setFilePreview(null);
     }
@@ -142,22 +83,18 @@ export default function AIPackageParserModal({
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragging(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragging(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragging(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files?.[0]) {
       handleFileSelect(e.dataTransfer.files[0]);
     }
   };
@@ -165,95 +102,83 @@ export default function AIPackageParserModal({
   const handleRemoveFile = (e) => {
     e.stopPropagation();
     setFile(null);
-    if (filePreview) {
-      URL.revokeObjectURL(filePreview);
-      setFilePreview(null);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setFilePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleClose = () => {
+    if (loading || isBulkImporting) return;
+    setFile(null);
+    setFilePreview(null);
+    setTextInput("");
+    setExtractedAddons([]);
+    setSelectedIndices(new Set());
+    setStep("upload");
+    onClose();
   };
 
   const handleLoadSampleText = () => {
-    const sample = `PAGE 1: BIRTHDAY EVENT SETUP
-Size: 20x20
-Price: ₱15,000 - ₱17,000
-Inclusions:
-- [Event Setup & Furniture] Stage Setup, Buffet Setup, Balloon and Name Backdrop, Couch, Round Tables (6), Monoblock Chairs (60), Industrial Fan, Water Station
-- [Dining & Service Inventory] Food Warmer (7), Serving Spoons, Plates (150), Glasses (6 trays), Ice Cooler, Staff / Crew (4)
-ADDS ON: Standee, Candy Corner, Host, Clown, Cake, Videoke, Basic Lights & Sounds
-
-PAGE 2: BIRTHDAY EVENT SETUP
-Size: 20x40
-Price: ₱20,000
-Inclusions:
-- [Event Setup & Furniture] Stage Setup, Buffet Setup, Couch, Round Tables (8), Monoblock Chairs (80), Industrial Fan, Water Station
-- [Dining & Service Inventory] Food Warmer (7), Plates (150), Staff / Crew (5)
-ADDS ON: Standee, Host, Cake, Videoke
-
-PAGE 4: WEDDING EVENT SETUP
-Size: 20x40
-Price: ₱30,000
-Inclusions:
-- [Event Setup & Furniture] Stage & Backdrop Setup, Separate Dining Setup for VIP, Entourage Setup, Couch, Round Tables (10), Monoblock Chairs (100), Tiffany Chairs (20), Dove, Red Carpet
-- [Dining & Service Inventory] Food Warmer (7), Cutlery Sets (200), Plates (200), Staff / Crew (6)
-ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
-    setTextInput(sample);
+    setTextInput(`ADD-ONS & UPGRADE SERVICES RATE SHEET
+1. Entourage Setup & Floral Backdrop - Flat Rate (₱3,500)
+   Includes full backdrop styling, spotlighting, and entourage table centerpieces.
+2. Extra Monoblock Chairs with White Covers - ₱35 per piece
+   Clean sturdy monoblock chairs with tailored white seat covers.
+3. Videoke Machine with Dual Wireless Mics - Flat Rate (₱1,500)
+   High-definition karaoke with updated songbook and dual mics.
+4. Cocktail Tables with Spandex Cloth - ₱250 per table
+   High-top standing cocktail tables for welcome drinks and mingling.
+5. Low Fog Machine (Dry Ice Effect) - Flat Rate (₱2,000)
+   Creates cloud-like floor fog for grand entrances and first dance.
+6. Candy & Dessert Corner Styling - Flat Rate (₱3,000)
+   Includes tiered glass jars, risers, custom labels, and themed dessert table backdrop.`);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
     if (activeTab === "file" && !file) {
-      notify("Please select a file or brochure to parse.", "error");
+      notify("Please select a file to parse", "error");
       return;
     }
     if (activeTab === "text" && !textInput.trim()) {
-      notify("Please paste package details or text to parse.", "error");
+      notify("Please enter or paste text to parse", "error");
       return;
     }
 
     setLoading(true);
+    setLoadingStep(0);
+
+    const stepInterval = setInterval(() => {
+      setLoadingStep((prev) => (prev < parsingSteps.length - 1 ? prev + 1 : prev));
+    }, 1800);
+
     try {
       const formData = new FormData();
-      if (activeTab === "file") {
+      if (activeTab === "file" && file) {
         formData.append("file", file);
       } else {
         formData.append("text", textInput);
       }
-      formData.append("offer_type", offerType);
 
-      const res = await AdminAPI.parsePackageWithAI(formData);
-      const pkgs = Array.isArray(res.data.packages)
-        ? res.data.packages
-        : res.data
-        ? [res.data]
-        : [];
+      const res = await AdminAPI.parseAddonWithAI(formData);
+      clearInterval(stepInterval);
 
-      if (pkgs.length === 0) {
-        notify("No package details could be extracted. Please try another document.", "warning");
-        setLoading(false);
-        return;
+      const items = res.data?.addons || [];
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error("No add-on items could be recognized in the document.");
       }
 
-      // If exactly 1 package and NOT standalone (opened directly in PackageModal to auto-fill)
-      if (pkgs.length === 1 && !standalone && onParsed) {
-        notify("Package details extracted successfully!", "success");
-        onParsed(pkgs[0]);
-        handleClose();
-        return;
-      }
-
-      // Multi-package result or standalone mode -> Show Review & Batch Import Screen
-      setExtractedPackages(pkgs);
-      setSelectedIndices(new Set(pkgs.map((_, i) => i)));
-      setExpandedIndices(new Set([0])); // Expand first card by default
+      setExtractedAddons(items);
+      setSelectedIndices(new Set(items.map((_, i) => i)));
       setStep("review");
-      notify(`Extracted ${pkgs.length} package${pkgs.length > 1 ? "s" : ""} from document!`, "success");
-    } catch (error) {
-      console.error(error);
+      notify(`AI successfully identified ${items.length} add-on items!`, "success");
+    } catch (err) {
+      clearInterval(stepInterval);
+      console.error("AI parse error:", err);
       notify(
-        error.response?.data?.error ||
-          error.response?.data?.message ||
-          "Failed to extract package details with AI.",
+        err.response?.data?.details ||
+          err.response?.data?.error ||
+          err.message ||
+          "Failed to parse add-ons with AI",
         "error"
       );
     } finally {
@@ -261,69 +186,69 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
     }
   };
 
+  const handleToggleSelect = (index) => {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   const handleToggleSelectAll = () => {
-    if (selectedIndices.size === extractedPackages.length) {
+    if (selectedIndices.size === extractedAddons.length) {
       setSelectedIndices(new Set());
     } else {
-      setSelectedIndices(new Set(extractedPackages.map((_, i) => i)));
+      setSelectedIndices(new Set(extractedAddons.map((_, i) => i)));
     }
   };
 
-  const handleToggleIndex = (idx) => {
-    const next = new Set(selectedIndices);
-    if (next.has(idx)) {
-      next.delete(idx);
-    } else {
-      next.add(idx);
-    }
-    setSelectedIndices(next);
+  const handleRemoveAddon = (index) => {
+    const next = extractedAddons.filter((_, i) => i !== index);
+    setExtractedAddons(next);
+    setSelectedIndices((prev) => {
+      const updated = new Set();
+      next.forEach((_, newIdx) => {
+        if (newIdx < index && prev.has(newIdx)) updated.add(newIdx);
+        if (newIdx >= index && prev.has(newIdx + 1)) updated.add(newIdx);
+      });
+      return updated;
+    });
   };
 
-  const handleToggleExpand = (idx) => {
-    const next = new Set(expandedIndices);
-    if (next.has(idx)) {
-      next.delete(idx);
-    } else {
-      next.add(idx);
-    }
-    setExpandedIndices(next);
-  };
-
-  const handleSelectSingleForEditor = (pkg) => {
-    if (onParsed) {
-      onParsed(pkg);
-      notify(`Loaded "${pkg.name}" into package editor`, "success");
-      handleClose();
-    }
-  };
-
-  const handlePackageNameChange = (idx, newName) => {
-    const next = [...extractedPackages];
-    next[idx] = { ...next[idx], name: newName };
-    setExtractedPackages(next);
+  const handleUpdateAddon = (index, field, value) => {
+    setExtractedAddons((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
   };
 
   const handleBulkImport = async () => {
-    const selected = extractedPackages.filter((_, i) => selectedIndices.has(i));
-    if (selected.length === 0) {
-      notify("Please select at least one package to import.", "warning");
+    const toImport = extractedAddons.filter((_, i) => selectedIndices.has(i));
+    if (toImport.length === 0) {
+      notify("Please select at least 1 add-on to import", "error");
       return;
     }
 
     setIsBulkImporting(true);
     try {
-      await AdminAPI.createBulkPackages(selected);
-      notify(`Successfully imported ${selected.length} packages into your catalog!`, "success");
-      if (onBulkSuccess) {
-        onBulkSuccess();
-      }
-      handleClose();
-    } catch (error) {
-      console.error(error);
+      const res = await AdminAPI.createBulkAddons(toImport);
       notify(
-        error.response?.data?.message ||
-          error.response?.data?.error ||
-          "Failed to import packages.",
+        res.data?.message || `Successfully created ${toImport.length} add-ons!`,
+        "success"
+      );
+      if (onBulkSuccess) onBulkSuccess();
+      handleClose();
+    } catch (err) {
+      console.error("Bulk add-on import error:", err);
+      notify(
+        err.response?.data?.details ||
+          err.response?.data?.error ||
+          "Failed to import add-ons",
         "error"
       );
     } finally {
@@ -339,7 +264,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Decorative Ambient Glow */}
+        {/* Top Gradient Glow */}
         <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600" />
 
         {/* Modal Header */}
@@ -351,13 +276,13 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
             </div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               {step === "review"
-                ? `Review Packages Found by Zelle (${extractedPackages.length})`
-                : "Import Packages with Zelle AI"}
+                ? `Review Add-ons Found by Zelle (${extractedAddons.length})`
+                : "Import Add-ons with Zelle AI"}
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-lg">
               {step === "review"
-                ? "Check the package details below before saving them to your list."
-                : "Upload a PDF brochure, flyer, or paste text. Zelle AI will read it and create your packages automatically."}
+                ? "Check the add-ons below before saving them to your catalog."
+                : "Upload a price list, flyer, or paste text. Zelle AI will read and add your add-ons automatically."}
             </p>
           </div>
           <button
@@ -373,7 +298,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
         {/* Upload Step */}
         {step === "upload" && (
           <>
-            {/* Segmented Tab Switcher */}
+            {/* Tab Switcher */}
             <div className="px-6 pt-4 pb-2">
               <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60">
                 <button
@@ -387,7 +312,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                   }`}
                 >
                   <UploadCloud size={16} />
-                  <span>Upload Document / PDF</span>
+                  <span>Upload Rate Sheet / PDF</span>
                 </button>
                 <button
                   type="button"
@@ -405,10 +330,9 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
               </div>
             </div>
 
-            {/* Main Upload Content Area */}
+            {/* Main Upload Body */}
             <div className="p-6 pt-2">
               {loading ? (
-                /* Enhanced AI Scanner Animation */
                 <div className="flex flex-col items-center justify-center py-12 px-6 rounded-2xl bg-gradient-to-b from-indigo-50/40 via-violet-50/20 to-white border border-indigo-100/80 text-center">
                   <div className="relative mb-5">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 text-white animate-pulse">
@@ -429,11 +353,10 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                   </div>
 
                   <span className="text-[11px] text-slate-400 mt-3">
-                    Finding all packages and event setups...
+                    Finding all add-ons and extra services...
                   </span>
                 </div>
               ) : activeTab === "file" ? (
-                /* Upload File Dropzone */
                 <div className="flex flex-col gap-3">
                   <input
                     type="file"
@@ -463,11 +386,11 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                         Click to upload or drag and drop
                       </p>
                       <p className="text-xs text-slate-500 text-center mt-1">
-                        Multi-page PDF brochures, flyers, or quotation catalogs
+                        PDF rate sheets, service flyers, or price catalogs
                       </p>
 
                       <div className="flex items-center gap-1.5 mt-4">
-                        {["Multi-Page PDF", "PNG", "JPG", "WEBP"].map((badge) => (
+                        {["PDF", "PNG", "JPG", "WEBP"].map((badge) => (
                           <span
                             key={badge}
                             className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-600 border border-slate-200/70"
@@ -479,7 +402,6 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                       </div>
                     </div>
                   ) : (
-                    /* Selected File Card */
                     <div className="flex items-center justify-between p-4 rounded-2xl border border-indigo-200/90 bg-gradient-to-r from-indigo-50/50 to-blue-50/30">
                       <div className="flex items-center gap-3 min-w-0">
                         {filePreview ? (
@@ -491,7 +413,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                             />
                           </div>
                         ) : (
-                          <div className="w-12 h-12 rounded-xl bg-white shadow-xs border border-indigo-200 flex items-center justify-center text-red-500 shrink-0">
+                          <div className="w-12 h-12 rounded-xl bg-white shadow-xs border border-indigo-200 flex items-center justify-center text-indigo-500 shrink-0">
                             <FileIcon size={24} />
                           </div>
                         )}
@@ -507,7 +429,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5">
                             {(file.size / (1024 * 1024)).toFixed(2)} MB •{" "}
-                            {file.type === "application/pdf" ? "PDF Document (Multi-page supported)" : "Image File"}
+                            {file.type === "application/pdf" ? "PDF Document" : "Image File"}
                           </p>
                         </div>
                       </div>
@@ -533,11 +455,10 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                   )}
                 </div>
               ) : (
-                /* Paste Raw Text Tab */
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Raw Package Notes / Text
+                      Raw Add-on Notes / Text
                     </label>
                     <div className="flex items-center gap-3">
                       <button
@@ -545,7 +466,7 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                         onClick={handleLoadSampleText}
                         className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
                       >
-                        Load Multi-Package Sample
+                        Load Sample Rate Sheet
                       </button>
                       {textInput && (
                         <button
@@ -561,24 +482,24 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
 
                   <textarea
                     className="w-full h-44 rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 focus:outline-none transition-all resize-none"
-                    placeholder={`Example:\nPage 1: Birthday Setup 20x20 - ₱15,000\nPage 2: Birthday Setup 20x40 - ₱20,000\nPage 4: Wedding Setup 40x40 - ₱50,000`}
+                    placeholder={`Example:\n1. Entourage Setup - ₱3,500\n2. Extra Chairs - ₱35 / piece\n3. Videoke Machine - ₱1,500`}
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
                   />
 
                   <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-                    <span>Supports multi-page OCR, price lists, or catalog transcripts</span>
+                    <span>Supports price lists, rate cards, or rental transcripts</span>
                     <span>{textInput.length} chars</span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Footer Actions */}
+            {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <Info size={13} className="text-slate-400" />
-                <span>All extracted packages can be reviewed before saving</span>
+                <span>All extracted items can be reviewed before saving</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -613,20 +534,20 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
         {/* Review & Batch Import Step */}
         {step === "review" && (
           <>
-            {/* Toolbar for Selection */}
+            {/* Toolbar */}
             <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
               <button
                 type="button"
                 onClick={handleToggleSelectAll}
                 className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
               >
-                {selectedIndices.size === extractedPackages.length ? (
+                {selectedIndices.size === extractedAddons.length ? (
                   <CheckSquare size={16} className="text-indigo-600" />
                 ) : (
                   <Square size={16} className="text-slate-400" />
                 )}
                 <span>
-                  Select All ({selectedIndices.size}/{extractedPackages.length} selected)
+                  Select All ({selectedIndices.size}/{extractedAddons.length} selected)
                 </span>
               </button>
 
@@ -640,27 +561,25 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
               </button>
             </div>
 
-            {/* Scrollable Package Cards List */}
-            <div className="p-6 overflow-y-auto max-h-[58vh] space-y-4">
-              {extractedPackages.map((pkg, idx) => {
+            {/* List of Addons */}
+            <div className="p-6 overflow-y-auto max-h-[58vh] space-y-3">
+              {extractedAddons.map((addon, idx) => {
                 const isSelected = selectedIndices.has(idx);
-                const isExpanded = expandedIndices.has(idx);
 
                 return (
                   <div
                     key={idx}
-                    className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                    className={`rounded-2xl border transition-all duration-200 p-4 ${
                       isSelected
                         ? "border-indigo-300 bg-white shadow-sm ring-1 ring-indigo-200"
-                        : "border-slate-200 bg-slate-50/50 opacity-75"
+                        : "border-slate-200 bg-slate-50/60 opacity-70"
                     }`}
                   >
-                    {/* Card Top Header */}
-                    <div className="p-4 flex items-start justify-between gap-3 bg-white">
-                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
                         <button
                           type="button"
-                          onClick={() => handleToggleIndex(idx)}
+                          onClick={() => handleToggleSelect(idx)}
                           className="mt-1 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
                         >
                           {isSelected ? (
@@ -670,147 +589,51 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                           )}
                         </button>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
                             <input
                               type="text"
-                              value={pkg.name || ""}
-                              onChange={(e) => handlePackageNameChange(idx, e.target.value)}
-                              className="text-sm font-bold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 -mx-1 py-0.5 rounded transition-all max-w-sm"
-                              placeholder="Package Name"
+                              value={addon.name}
+                              onChange={(e) =>
+                                handleUpdateAddon(idx, "name", e.target.value)
+                              }
+                              className="font-bold text-slate-900 text-sm bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:bg-slate-50 px-1 py-0.5 rounded outline-none transition-all flex-1 min-w-[180px]"
+                              placeholder="Add-on Name"
                             />
-                            {pkg.event_type && (
-                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-violet-50 text-violet-700 border border-violet-200">
-                                {pkg.event_type}
-                              </span>
-                            )}
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                              {pkg.package_type || "Event Setup"}
-                            </span>
                           </div>
 
-                          {pkg.description && (
-                            <p className="text-xs text-slate-500 mt-1 line-clamp-1">
-                              {pkg.description}
-                            </p>
-                          )}
+                          <input
+                            type="text"
+                            value={addon.description}
+                            onChange={(e) =>
+                              handleUpdateAddon(idx, "description", e.target.value)
+                            }
+                            placeholder="Add-on description / features..."
+                            className="w-full text-xs text-slate-600 bg-slate-50/50 hover:bg-slate-50 border border-slate-200/60 rounded-lg px-2.5 py-1.5 focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                          />
                         </div>
                       </div>
 
-                      {/* Right Meta Badges */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          <span className="text-sm font-black text-indigo-600">
-                            ₱{Number(pkg.setup_price || 0).toLocaleString()}
-                          </span>
-                          {pkg.price_label && pkg.price_label !== `₱${Number(pkg.setup_price || 0).toLocaleString()}` && (
-                            <p className="text-[10px] font-medium text-slate-400">
-                              {pkg.price_label}
-                            </p>
-                          )}
-                        </div>
-
-                        {onParsed && (
-                          <button
-                            type="button"
-                            onClick={() => handleSelectSingleForEditor(pkg)}
-                            className="px-2.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-200/80 cursor-pointer"
-                            title="Auto-fill open editor with this package"
-                          >
-                            Fill Form
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleExpand(idx)}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAddon(idx)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0 mt-0.5"
+                        title="Remove from batch"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
-
-                    {/* Quick Specs Grid */}
-                    <div className="px-4 py-2 bg-slate-50/70 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <Users size={13} className="text-slate-400" />
-                        <span>
-                          {pkg.guest_min || 0} - {pkg.guest_max || 0} pax
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <Layers size={13} className="text-slate-400" />
-                        <span>
-                          {pkg.scaffold_size_options?.[0]?.label || "Standard Size"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <Package size={13} className="text-slate-400" />
-                        <span>{pkg.inclusions?.length || 0} Inclusions</span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <Tag size={13} className="text-slate-400" />
-                        <span>{pkg.add_ons?.length || 0} Add-ons</span>
-                      </div>
-                    </div>
-
-                    {/* Expandable Details Section */}
-                    {isExpanded && (
-                      <div className="p-4 border-t border-slate-100 bg-white space-y-3 animate-in fade-in duration-150">
-                        {/* Inclusions */}
-                        {pkg.inclusions?.length > 0 && (
-                          <div>
-                            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Inclusions ({pkg.inclusions.length})
-                            </p>
-                            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
-                              {pkg.inclusions.map((inc, i) => (
-                                <span
-                                  key={i}
-                                  className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/60"
-                                >
-                                  {inc}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Add-ons */}
-                        {pkg.add_ons?.length > 0 && (
-                          <div>
-                            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                              Add-ons ({pkg.add_ons.length})
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {pkg.add_ons.map((addon, i) => (
-                                <span
-                                  key={i}
-                                  className="text-[11px] px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/60 font-medium"
-                                >
-                                  +{typeof addon === "string" ? addon : addon.name}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
 
-            {/* Review Footer Actions */}
+            {/* Review Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
               <div className="text-xs text-slate-600">
                 <span className="font-bold text-slate-900">{selectedIndices.size}</span> of{" "}
-                <span className="font-bold text-slate-900">{extractedPackages.length}</span>{" "}
-                packages ready to import
+                <span className="font-bold text-slate-900">{extractedAddons.length}</span>{" "}
+                add-ons ready to import
               </div>
 
               <div className="flex items-center gap-2">
@@ -837,8 +660,10 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                   )}
                   <span>
                     {isBulkImporting
-                      ? "Saving Packages..."
-                      : `Import ${selectedIndices.size} Package${selectedIndices.size > 1 ? "s" : ""}`}
+                      ? "Saving Add-ons..."
+                      : `Import ${selectedIndices.size} Add-on${
+                          selectedIndices.size > 1 ? "s" : ""
+                        }`}
                   </span>
                 </button>
               </div>

@@ -525,31 +525,35 @@ exports.parseWithAI = async (req, res) => {
     if (!apiKey) return res.status(500).json({ error: "Gemini API Key missing" });
     
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
     
-    /**
-     * The two documents an admin pastes here describe different things, so the
-     * extractor is asked for the shape that matches what they are creating: a
-     * combo pack is a fixed meal for a fixed guest count, a package is a setup
-     * with a size table. Asking for one schema and getting the other is what
-     * fills a combo's guest count with a scaffold capacity.
-     */
     const isOffer = req.body.offer_type === OFFER_TYPES.SPECIAL;
 
     const comboPrompt = `You are a data extraction assistant for an event catering CMS.
-Extract the COMBO PACK details from the provided text or image into a strict JSON object.
+Extract ALL COMBO PACKS from the provided document/text into a JSON object with a "packages" array.
+If there is only 1 combo pack, return an array of 1 item in "packages".
 A combo pack is a fixed combo meal: a set list of dishes, for a fixed number of guests, at a fixed price per pax.
 Use the following schema:
 {
-  "name": "string (Combo Name)",
-  "guest_count": "number (how many guests the combo serves)",
-  "price_per_guest": "number (price per pax/person, digits only)",
-  "description": "string (one or two sentences for the combo card)",
-  "fullDescription": "string (longer description)",
-  "offer_food_items": [
-    { "menu_category": "e.g. Main Course, Noodles, Rice, Dessert, Beverage", "item_name": "e.g. Chicken BBQ" }
-  ],
-  "inclusions": ["string, e.g. Buffet setup", "Serving utensils", "..."]
+  "packages": [
+    {
+      "name": "string (Combo Name)",
+      "offer_type": "special",
+      "guest_count": "number (how many guests the combo serves)",
+      "price_per_guest": "number (price per pax/person, digits only)",
+      "description": "string (one or two sentences for the combo card)",
+      "fullDescription": "string (longer description)",
+      "offer_food_items": [
+        { "menu_category": "e.g. Main Course, Noodles, Rice, Dessert, Beverage", "item_name": "e.g. Chicken BBQ" }
+      ],
+      "inclusions": ["string, e.g. Buffet setup", "Serving utensils", "..."]
+    }
+  ]
 }
 
 Guidelines:
@@ -558,35 +562,55 @@ Guidelines:
 - Every dish is its own entry in offer_food_items, with the course it belongs to as menu_category.
 - inclusions are non-food items that come with the combo. Plain text, no bracketed category prefix.
 - Omit any field the document does not state. Never invent a price or a guest count.
-Return ONLY valid JSON, without markdown formatting or code blocks.`;
+Return ONLY valid JSON.`;
 
-    const packagePrompt = `You are a data extraction assistant for an event catering CMS.
-Extract the package details from the provided text or image into a strict JSON object.
+    const packagePrompt = `You are an expert data extraction assistant for an event catering CMS.
+Analyze the provided document (which may contain multiple pages, flyers, or size tiers) and extract ALL distinct event packages into a JSON object with a "packages" array.
+Each page or distinct setup tier (e.g. "Birthday Setup 20x20", "Birthday Setup 20x40", "Wedding Setup 40x40", etc.) should be extracted as its own distinct package in the "packages" array so they can be individually booked and managed.
+
 Use the following schema:
 {
-  "name": "string (Package Name)",
-  "package_type": "Event Setup Only",
-  "guest_min": "number (minimum guests, omit if none)",
-  "guest_max": "number (maximum guests, omit if none)",
-  "setup_price": "number (if applicable)",
-  "description": "string",
-  "fullDescription": "string",
-  "inclusions": ["string (e.g. '[Category] Item (Qty)')", "..."],
-  "add_ons": [{"name": "string", "qty": "string"}],
-  "scaffold_size_options": [
+  "packages": [
     {
-      "label": "e.g. 20x40 Setup",
-      "width_ft": 20,
-      "length_ft": 40,
-      "guest_min": 100,
-      "guest_max": 150
+      "name": "string (Descriptive Package Name, e.g. 'Birthday Package - 20x20' or 'Wedding Package - 40x60')",
+      "event_type": "string (e.g. 'Birthday', 'Wedding', 'Debut', 'Corporate', 'General')",
+      "package_type": "Event Setup Only",
+      "guest_min": "number (minimum guest capacity, derived from table/chair count if not explicit)",
+      "guest_max": "number (maximum guest capacity, e.g. 60 from 60 Monoblock Chairs)",
+      "setup_price": "number (base/starting price digits only, e.g. 15000 from '₱15,000 - ₱17,000')",
+      "price_label": "string (original formatted price string if a range, e.g. '₱15,000 - ₱17,000')",
+      "description": "string (short 1-2 sentence overview mentioning theme and setup size)",
+      "fullDescription": "string (comprehensive overview of setup and key inclusions)",
+      "inclusions": [
+        "string (e.g. '[Event Setup & Furniture] Stage Setup', '[Dining & Service Inventory] Food Warmer (7)', '[Dining & Service Inventory] Plates (150)')"
+      ],
+      "add_ons": [
+        { "name": "string (e.g. Standee)", "qty": "string (optional qty or empty)" }
+      ],
+      "scaffold_size_options": [
+        {
+          "label": "string (e.g. 20x20 Setup)",
+          "width_ft": 20,
+          "length_ft": 20,
+          "guest_min": 50,
+          "guest_max": 60
+        }
+      ]
     }
   ]
 }
 
-Guidelines for inclusions: Prefix each inclusion with a category in brackets, e.g., "[Dining & Service Inventory] Plates", "[Event Setup & Furniture] Couch". If quantity is specified, put it at the end in parentheses, e.g., "[Dining & Service Inventory] Glasses (100)".
-If the document is a table with multiple sizes and guest capacities, extract them into scaffold_size_options.
-Return ONLY valid JSON, without markdown formatting or code blocks.`;
+Guidelines:
+1. Multi-Page & Multi-Tier Extraction: If the PDF or document contains multiple pages or tiers (e.g. Page 1 Birthday 20x20, Page 2 Birthday 20x40, Page 4 Wedding 20x40, etc.), create a distinct package entry for EACH setup tier.
+2. Inclusions Formatting: Prefix every inclusion with its category in brackets:
+   - [Event Setup & Furniture] for backdrops, stages, couches, carpets, tables, chairs, fans, lighting, draping, dove, chandelier, etc.
+   - [Dining & Service Inventory] for food warmers, chafing dishes, spoons, plates, cutlery, glassware, coolers, ice, water jugs, mineral water gallons, dishwashing items, staff/crew, etc.
+   - [Food & Beverage] for edible dishes, meals, or desserts.
+   Always include item quantities in parentheses if mentioned (e.g. '[Dining & Service Inventory] Plates (150)').
+3. Add-ons: Extract all optional/adds-on items into the add_ons array as objects with "name" and optional "qty".
+4. Guest Capacities: Derive realistic guest_min and guest_max from chairs/tables/plates (e.g. 60 chairs -> guest_max 60, 100 chairs -> guest_max 100).
+5. Scaffolding: Derive width_ft and length_ft from the size (e.g. "Size: 20x40" -> width_ft: 20, length_ft: 40).
+Return ONLY valid JSON.`;
 
     const prompt = isOffer ? comboPrompt : packagePrompt;
 
@@ -609,14 +633,119 @@ Return ONLY valid JSON, without markdown formatting or code blocks.`;
     const result = await model.generateContent(parts);
     const response = await result.response;
     let text = response.text().trim();
-    if (text.startsWith("\`\`\`json")) text = text.substring(7);
-    if (text.startsWith("\`\`\`")) text = text.substring(3);
-    if (text.endsWith("\`\`\`")) text = text.substring(0, text.length - 3).trim();
+    if (text.startsWith("```json")) text = text.substring(7);
+    if (text.startsWith("```")) text = text.substring(3);
+    if (text.endsWith("```")) text = text.substring(0, text.length - 3).trim();
     
     const parsedData = JSON.parse(text);
-    res.json(parsedData);
+
+    // Normalize packages array output
+    let packages = [];
+    if (Array.isArray(parsedData.packages)) {
+      packages = parsedData.packages;
+    } else if (Array.isArray(parsedData)) {
+      packages = parsedData;
+    } else if (parsedData && typeof parsedData === "object") {
+      packages = [parsedData];
+    }
+
+    // Set offer_type on all parsed items
+    packages = packages.map((pkg) => ({
+      ...pkg,
+      offer_type: isOffer ? OFFER_TYPES.SPECIAL : OFFER_TYPES.REGULAR,
+    }));
+
+    // If only 1 package was extracted, also spread it for seamless backward compatibility
+    const singlePayload = packages.length === 1 ? packages[0] : (packages[0] || {});
+
+    res.json({
+      ...singlePayload,
+      packages,
+      count: packages.length,
+    });
   } catch (error) {
     console.error("AI Parse Error:", error);
     res.status(500).json({ error: "Failed to parse with AI", details: error.message });
+  }
+};
+
+exports.createBulk = async (req, res) => {
+  try {
+    const rawPackages = Array.isArray(req.body.packages)
+      ? req.body.packages
+      : Array.isArray(req.body)
+      ? req.body
+      : [];
+
+    if (rawPackages.length === 0) {
+      return res.status(400).json({ error: "No packages provided for bulk creation" });
+    }
+
+    const createdList = [];
+    for (const rawPkg of rawPackages) {
+      const offer_type = normalizeOfferType(rawPkg.offer_type);
+      const isOffer = offer_type === OFFER_TYPES.SPECIAL;
+
+      const scaffold_size_options = Array.isArray(rawPkg.scaffold_size_options)
+        ? normalizeScaffoldOptions(rawPkg.scaffold_size_options)
+        : [];
+
+      const basePayload = {
+        name: rawPkg.name || "Untitled Package",
+        description: rawPkg.description || "",
+        fullDescription: rawPkg.fullDescription || "",
+        guest_min: rawPkg.guest_min !== undefined ? Number(rawPkg.guest_min) : undefined,
+        guest_max: rawPkg.guest_max !== undefined ? Number(rawPkg.guest_max) : undefined,
+        setup_price: rawPkg.setup_price !== undefined ? Number(rawPkg.setup_price) : 0,
+        price_label: rawPkg.price_label || "",
+        package_type: rawPkg.package_type || "Event Setup Only",
+        event_type: rawPkg.event_type || "",
+        offer_type,
+        guest_count: isOffer ? Math.floor(Number(rawPkg.guest_count) || 1) : undefined,
+        price_per_guest: isOffer ? Number(rawPkg.price_per_guest) || 0 : undefined,
+        offer_food_items: isOffer ? normalizeOfferFoodItems(rawPkg.offer_food_items) : [],
+        inclusions: isOffer
+          ? normalizeOfferInclusions(rawPkg.inclusions)
+          : normalizeList(rawPkg.inclusions),
+        add_ons: Array.isArray(rawPkg.add_ons)
+          ? rawPkg.add_ons.map((a) => (typeof a === "string" ? { name: a, qty: "" } : { name: a.name || "", qty: a.qty || "" }))
+          : [],
+        features: Array.isArray(rawPkg.features) ? rawPkg.features : [],
+        scaffold_size_options: isOffer ? [] : scaffold_size_options,
+        available: true,
+      };
+
+      const payload = isOffer ? comboPayload(basePayload) : basePayload;
+
+      if (!isOffer && payload.scaffold_size_options?.length > 0) {
+        payload.default_scaffold_option_id =
+          payload.scaffold_size_options[0]._id || payload.scaffold_size_options[0].id || "0";
+      }
+
+      const created = await Package.create(payload);
+      createdList.push(created);
+
+      logAction({
+        user_id: req.user._id,
+        action: "package_created",
+        entity_type: "package",
+        entity_id: created._id,
+        details: `Bulk AI created package "${created.name}"`,
+        ip_address: req.ip,
+      }).catch((err) => console.error("logAction error:", err));
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("system:refresh", { type: "package", action: "bulk_create", count: createdList.length });
+    }
+
+    res.status(201).json({
+      message: `Successfully created ${createdList.length} packages`,
+      packages: createdList,
+    });
+  } catch (error) {
+    console.error("Bulk create packages error:", error);
+    res.status(500).json({ error: "Failed to create bulk packages", details: error.message });
   }
 };

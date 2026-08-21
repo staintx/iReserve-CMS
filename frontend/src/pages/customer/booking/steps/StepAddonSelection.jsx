@@ -108,11 +108,6 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
                         <h4 className="truncate text-sm font-semibold leading-snug text-[#1E293B]">
                           {item.name}
                         </h4>
-                        {isFixed && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">
-                            Fixed
-                          </span>
-                        )}
                       </div>
                       {item.description && (
                         <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-[#64748B]">
@@ -120,7 +115,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
                         </p>
                       )}
                       <p className="mt-1 text-[13px] font-semibold text-[#4C81E0]">
-                        {isFixed ? "One-time, priced on your quotation" : "Priced per unit on your quotation"}
+                        Priced on your quotation
                       </p>
                     </div>
 

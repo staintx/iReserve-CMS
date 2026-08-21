@@ -6,6 +6,8 @@ const { authorize } = require("../middleware/role.middleware");
 const validate = require("../middleware/validate.middleware");
 const { menuSchema, menuUpdateSchema } = require("../validations/menu.validation");
 
+router.post("/parse-ai", protect, authorize("admin"), upload.single("file"), ctrl.parseWithAI);
+router.post("/bulk", protect, authorize("admin"), ctrl.createBulk);
 router.post("/", protect, authorize("admin"), upload.single("image"), validate(menuSchema), ctrl.create);
 router.get("/", ctrl.getAll);
 router.get("/:id", ctrl.getById);

@@ -51,6 +51,16 @@ export default function InquirySubmitted() {
           <h1 className="text-2xl sm:text-3xl font-bold font-serif text-slate-900 tracking-tight">
             {kind === "custom" ? "Quote Request Submitted" : "Booking Request Submitted"}
           </h1>
+          {/* What happens to the customer next, before anything about what the
+              system did. The first thing they want to know after sending a form
+              is who contacts them and how — not that a record was created. The
+              price is deliberately not spoken for here: it is settled on the
+              quotation, which is what this paragraph says. */}
+          <p className="text-xs sm:text-sm text-slate-700 max-w-lg mx-auto">
+            Our caterer will contact you using the information you provided
+            during the booking process to discuss your request and prepare your
+            quotation.
+          </p>
           <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto">
             {kind === "custom"
               ? "We've received your custom event request. Our catering team will prepare a tailored quotation for you."

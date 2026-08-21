@@ -33,6 +33,8 @@ import {
   cateringRequested,
   contactFieldError,
   serviceTypeForRequest,
+  OTHER_VENUE_TYPE,
+  resolveVenueType,
 } from "./lib/bookingRules";
 import { OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import {
@@ -157,6 +159,7 @@ export default function BookingWizard() {
       include_food: matchedServiceType !== SERVICE_TYPES.SETUP_ONLY,
       package_id: initialPackageId || "",
       venue_type: "",
+      venue_type_other: "",
       indoor_outdoor: "Indoor",
       province: BATANGAS_PROVINCE,
       municipality: "",
@@ -654,7 +657,12 @@ export default function BookingWizard() {
       event_date: form.event_date,
       start_time: form.start_time,
       duration_hours: form.duration_hours,
-      venue_type: form.venue_type,
+      // The venue the customer named, never the "Other" sentinel — the server
+      // matches this against real venues when it checks the slot.
+      venue_type: resolveVenueType({
+        venue_type: form.venue_type,
+        venue_type_other: form.venue_type_other,
+      }),
       province: form.province,
       municipality: form.municipality,
       barangay: form.barangay,
@@ -701,6 +709,7 @@ export default function BookingWizard() {
     form.start_time,
     form.duration_hours,
     form.venue_type,
+    form.venue_type_other,
     form.province,
     form.municipality,
     form.barangay,
@@ -818,6 +827,14 @@ export default function BookingWizard() {
           if (!form.municipality)
             errors.municipality = "Select the municipality of your venue.";
           if (!form.barangay) errors.barangay = "Select the barangay.";
+          // Venue type is optional, but "Other" is a question rather than an
+          // answer: having chosen it, the customer has to say what the venue is.
+          if (
+            form.venue_type === OTHER_VENUE_TYPE &&
+            !String(form.venue_type_other || "").trim()
+          ) {
+            errors.venue_type_other = "Tell us what kind of venue this is.";
+          }
 
           const guests = parseNumber(form.guest_count) || 0;
           if (isOffer) {
@@ -1099,6 +1116,9 @@ export default function BookingWizard() {
       event_palette: Array.isArray(form.event_palette) ? form.event_palette : [],
       customer_id: user._id,
       event_type: eventType,
+      // One free-text venue type, the way the backend stores it: "Other" plus
+      // the customer's own words collapse back into the words themselves.
+      venue_type: resolveVenueType(form),
       guest_count: parseNumber(form.guest_count),
       duration_hours: parseNumber(form.duration_hours) || 4,
       // What the customer was shown. The quotation the admin issues stays the
@@ -1135,6 +1155,7 @@ export default function BookingWizard() {
     else delete payload.package_id;
 
     delete payload.event_type_other;
+    delete payload.venue_type_other;
     delete payload.additional_services;
     delete payload.selected_package_addons;
     if (!payload.contact_alt_phone) delete payload.contact_alt_phone;
@@ -1159,8 +1180,11 @@ export default function BookingWizard() {
             { label: "Event type", value: eventType },
             { label: "Event date", value: formatEventDate(form.event_date) },
             { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
+            // The same one size the summary panel and the review page showed,
+            // so the confirmation confirms what was actually submitted.
+            { label: "Event space / scaffold size", value: estimate.eventSpace },
             { label: "Service", value: payload.service_type },
-            { label: "Venue", value: form.venue_type },
+            { label: "Venue", value: payload.venue_type },
           ],
         },
       });

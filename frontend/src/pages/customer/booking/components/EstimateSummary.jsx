@@ -37,6 +37,11 @@ export default function EstimateSummary({
     // "Estimated guests" everywhere except a combo pack, whose count is fixed
     // by the combo itself.
     guestsLabel = "Estimated guests",
+    // The event space the selected package is built for, as one label — the
+    // package's own fact, not something the customer has chosen (see
+    // lib/packageDisplay.js#packageScaffoldSize). Empty on a booking that has
+    // no footprint — food only, or a combo — where the row is simply omitted.
+    eventSpace = "",
     // Combo packs only. What the combo price buys, and what it does not —
     // present so the total is never mistaken for the final bill.
     offerName,
@@ -91,6 +96,21 @@ export default function EstimateSummary({
           className="mt-2 block h-px w-8 bg-[#C5A059]"
           aria-hidden="true"
         />
+
+        {/* The size the setup line below is priced for, stated rather than left
+            to be inferred from the package name. It sits in the header with the
+            guest count because it is the same kind of fact — what this booking
+            is for — not another priced line. */}
+        {eventSpace && (
+          <div className="mt-2.5 flex items-baseline justify-between gap-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
+              Event space / scaffold size
+            </span>
+            <span className="text-[13px] font-semibold text-white/90">
+              {eventSpace}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-3">

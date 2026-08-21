@@ -197,10 +197,17 @@ const BookingSchema = new mongoose.Schema(
         "customer_accepted", // Legacy
         "pending deposit", // Legacy
         "Deposit Pending",
+        "deposit pending",
+        "deposit_paid",
         "Confirmed",
+        "confirmed",
         "Ocular Scheduled",
+        "ocular scheduled",
         "Final Payment Pending",
+        "final payment pending",
         "Ready for Event",
+        "ready for event",
+        "converted to booking",
         "preparing", // Legacy
         "ongoing", // Legacy
         "Completed",

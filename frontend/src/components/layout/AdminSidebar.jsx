@@ -356,35 +356,61 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
         )}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-3 border-t border-border">
         {!isCollapsed ? (
-          <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors w-full">
-            <div className="w-10 h-10 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center shrink-0">
+          <div
+            className={cn(
+              "flex items-center gap-3 p-2 rounded-xl transition-all duration-150 w-full group cursor-pointer",
+              location.pathname === "/admin/profile"
+                ? "bg-powder border border-primary/20 text-foreground shadow-xs"
+                : "hover:bg-muted/70 text-foreground"
+            )}
+            onClick={() => navigate("/admin/profile")}
+            title="View Profile Settings"
+          >
+            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20 transition-transform group-hover:scale-105">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-foreground truncate">{user?.full_name || "Admin"}</div>
-              <div className="text-xs text-muted-foreground capitalize">{role}</div>
+              <div className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                {user?.full_name || "Admin"}
+              </div>
+              <div className="text-xs text-muted-foreground capitalize flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                <span className="truncate">{role === "admin" ? "System Admin" : role}</span>
+              </div>
             </div>
             <button
-              onClick={() => setShowLogoutConfirm(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLogoutConfirm(true);
+              }}
               className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
               title="Sign Out"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3 w-full">
-            <div className="w-10 h-10 rounded-full bg-accent/20 text-accent font-bold flex items-center justify-center cursor-pointer hover:bg-muted" title={user?.full_name || "Admin"}>
+            <button
+              onClick={() => navigate("/admin/profile")}
+              className={cn(
+                "w-10 h-10 rounded-full font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-105",
+                location.pathname === "/admin/profile"
+                  ? "bg-primary text-white shadow-xs ring-2 ring-primary/30"
+                  : "bg-primary/10 text-primary hover:bg-primary/20"
+              )}
+              title={`${user?.full_name || "Admin"} (Profile)`}
+            >
               {initials}
-            </div>
+            </button>
             <button
               onClick={() => setShowLogoutConfirm(true)}
               className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
               title="Sign Out"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         )}

@@ -2,7 +2,11 @@ const Quotation = require("../models/Quotation");
 const Inquiry = require("../models/Inquiry");
 const Payment = require("../models/Payment");
 const asyncHandler = require("../utils/asyncHandler");
-const { computeQuotationTotals, money } = require("../utils/quotationPricing");
+const {
+  computeQuotationTotals,
+  inclusionAdjustmentAmount,
+  money,
+} = require("../utils/quotationPricing");
 
 // Helper to check customer ownership of inquiry/quotation
 const verifyCustomerOwnership = (inquiry, userId) => {
@@ -119,6 +123,22 @@ function validateQuotationPayload(body, totals) {
     }
   );
 
+  (Array.isArray(body.inclusion_adjustments) ? body.inclusion_adjustments : []).forEach(
+    (item, index) => {
+      if (!String(item?.name || "").trim()) {
+        errors[`inclusion_adjustments.${index}.name`] = "An adjusted inclusion needs a name.";
+      }
+      if (Number(item?.quantity) < 0 || Number(item?.base_quantity) < 0) {
+        errors[`inclusion_adjustments.${index}.quantity`] =
+          "An inclusion quantity cannot be negative.";
+      }
+      if (negative(item?.unit_price)) {
+        errors[`inclusion_adjustments.${index}.unit_price`] =
+          "A unit price cannot be a negative amount.";
+      }
+    }
+  );
+
   (Array.isArray(body.additional_fees) ? body.additional_fees : []).forEach((fee, index) => {
     if (!String(fee?.name || "").trim()) {
       errors[`additional_fees.${index}.name`] = "Name this fee so the customer knows what it covers.";
@@ -129,11 +149,15 @@ function validateQuotationPayload(body, totals) {
   });
 
   // Deductions larger than the package they come off cannot be honoured: the
-  // package line would have to go negative to balance.
-  if (totals.inclusionDeductions > totals.startingPrice) {
-    errors.removed_inclusions = `Removed inclusions deduct ${peso(
-      totals.inclusionDeductions
-    )} from a starting price of ${peso(
+  // package line would have to go negative to balance. Quantity adjustments
+  // count here too — they move the same package line, in either direction.
+  if (
+    totals.startingPrice - totals.inclusionDeductions + totals.inclusionAdjustments <
+    0
+  ) {
+    errors.removed_inclusions = `Removed inclusions and quantity reductions take ${peso(
+      totals.inclusionDeductions - totals.inclusionAdjustments
+    )} off a starting price of ${peso(
       totals.startingPrice
     )}. Lower the deductions or raise the starting price.`;
   }
@@ -181,6 +205,21 @@ function buildQuotationPayload(body, totals) {
     deposit_amount: totals.depositAmount,
     remaining_balance: totals.remainingBalance,
   };
+
+  // Same rule as every other total: the stored figure comes from the formula,
+  // not from the browser. Only the three inputs an admin actually typed are
+  // kept, and the amount is derived from them here.
+  payload.inclusion_adjustments = (
+    Array.isArray(body.inclusion_adjustments) ? body.inclusion_adjustments : []
+  )
+    .filter((entry) => entry && String(entry.name || "").trim())
+    .map((entry) => ({
+      name: String(entry.name).trim(),
+      base_quantity: Math.max(0, Math.floor(Number(entry.base_quantity)) || 0),
+      quantity: Math.max(0, Math.floor(Number(entry.quantity)) || 0),
+      unit_price: money(entry.unit_price),
+      amount: inclusionAdjustmentAmount(entry),
+    }));
 
   // The two legacy fee fields are never written by the builder any more, and a
   // stale value carried in from the client would quietly reappear on the
@@ -234,6 +273,8 @@ function buildEventSnapshot(inquiry) {
     service_type: inquiry.service_type,
     include_food: inquiry.include_food,
     delivery_method: inquiry.delivery_method,
+    event_theme: inquiry.event_theme,
+    event_palette: Array.isArray(inquiry.event_palette) ? inquiry.event_palette : [],
     venue_type: inquiry.venue_type,
     province: inquiry.province,
     municipality: inquiry.municipality,

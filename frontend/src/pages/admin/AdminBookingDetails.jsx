@@ -25,7 +25,9 @@ import {
   Boxes,
   PackageCheck,
   PackagePlus,
-  Eye
+  Eye,
+  ShieldCheck,
+  UserPlus
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -55,6 +57,7 @@ export default function AdminBookingDetails() {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCompleteOcularModal, setShowCompleteOcularModal] = useState(false);
+  const [showAssignManagerModal, setShowAssignManagerModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -71,7 +74,6 @@ export default function AdminBookingDetails() {
   const [ocularInspectionNotes, setOcularInspectionNotes] = useState("");
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
   const [managers, setManagers] = useState([]);
-  const [isEditingManager, setIsEditingManager] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [savingManager, setSavingManager] = useState(false);
 
@@ -81,7 +83,7 @@ export default function AdminBookingDetails() {
     try {
       await AdminAPI.updateBooking(booking._id, { event_manager_id: selectedManagerId || null });
       notify("Event coordinator updated successfully.", "success");
-      setIsEditingManager(false);
+      setShowAssignManagerModal(false);
       loadData();
     } catch (err) {
       notify(err.response?.data?.message || "Failed to update event manager.", "error");
@@ -633,64 +635,63 @@ export default function AdminBookingDetails() {
                 <span className="text-slate-500">Venue / Location</span>
                 <strong className="text-slate-900 text-right max-w-44 truncate">{booking.venue_type || booking.municipality || "TBA"}</strong>
               </div>
-              <div className="pt-1 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-slate-500 font-medium">Event Coordinator</span>
-                  {!isEditingManager && (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingManager(true)}
-                      className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 underline"
-                    >
-                      {booking.event_manager_id ? "Change" : "Assign"}
-                    </button>
-                  )}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Event Coordinator</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
+                      setShowAssignManagerModal(true);
+                    }}
+                    className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 hover:underline cursor-pointer transition-colors"
+                  >
+                    {booking.event_manager_id ? (
+                      <>
+                        <Edit size={11} /> Change
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={11} /> Assign
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                {!isEditingManager ? (
-                  <div className="flex items-center justify-between">
-                    <strong className="text-slate-900 font-bold">
-                      {booking.event_manager_id?.full_name || "Unassigned"}
-                    </strong>
-                    {booking.event_manager_id?.email && (
-                      <span className="text-[10px] text-slate-400">({booking.event_manager_id.email})</span>
-                    )}
+                {booking.event_manager_id ? (
+                  <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-amber-200 text-amber-950 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-300">
+                        {(booking.event_manager_id.full_name || "M").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
+                          <span>{booking.event_manager_id.full_name}</span>
+                          <span className="text-[10px] text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded font-semibold shrink-0">
+                            Manager
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                          {booking.event_manager_id.email || booking.event_manager_id.phone || "Assigned Coordinator"}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-2 mt-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-                    <select
-                      value={selectedManagerId}
-                      onChange={(e) => setSelectedManagerId(e.target.value)}
-                      className="w-full p-1.5 text-xs rounded border border-slate-300 bg-white font-medium text-slate-900"
-                    >
-                      <option value="">-- Unassigned --</option>
-                      {managers.map((m) => (
-                        <option key={m._id} value={m._id}>
-                          {m.full_name} ({m.email})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedManagerId(booking.event_manager_id?._id || booking.event_manager_id || "");
-                          setIsEditingManager(false);
-                        }}
-                        disabled={savingManager}
-                        className="px-2 py-1 text-[11px] text-slate-600 bg-white border border-slate-200 rounded hover:bg-slate-100"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleUpdateManager}
-                        disabled={savingManager}
-                        className="px-2.5 py-1 text-[11px] font-bold text-white bg-primary-600 hover:bg-primary-700 rounded shadow-2xs"
-                      >
-                        {savingManager ? "Saving..." : "Save Coordinator"}
-                      </button>
+                  <div 
+                    onClick={() => {
+                      setSelectedManagerId("");
+                      setShowAssignManagerModal(true);
+                    }}
+                    className="p-2.5 border border-dashed border-slate-200 hover:border-amber-400 bg-slate-50/60 hover:bg-amber-50/40 rounded-xl flex items-center justify-between cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 text-slate-400 group-hover:text-amber-800">
+                      <UserPlus size={14} />
+                      <span className="text-xs font-medium">No Coordinator Assigned</span>
                     </div>
+                    <span className="text-[11px] font-bold text-amber-700 group-hover:underline">
+                      + Assign Now
+                    </span>
                   </div>
                 )}
               </div>
@@ -1287,6 +1288,123 @@ export default function AdminBookingDetails() {
                 </Btn>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal: Assign Event Coordinator / Manager */}
+        <Dialog open={showAssignManagerModal} onOpenChange={setShowAssignManagerModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center shrink-0 border border-amber-300">
+                  <ShieldCheck size={20} className="text-amber-700" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900">Assign Event Coordinator</DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500">
+                    Designate an active Event Manager to oversee scheduling, oculars, and catering staff.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-2.5 py-3 max-h-[360px] overflow-y-auto pr-1">
+              {/* Option: Unassigned */}
+              <div
+                onClick={() => setSelectedManagerId("")}
+                className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
+                  selectedManagerId === ""
+                    ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/20 text-slate-900"
+                    : "border-slate-200 hover:border-slate-300 bg-white text-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                    selectedManagerId === "" ? "bg-amber-200 text-amber-900 border border-amber-300" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    —
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold">Unassigned (No Coordinator)</div>
+                    <div className="text-[11px] text-slate-400">Leave this booking unassigned for now</div>
+                  </div>
+                </div>
+                {selectedManagerId === "" && (
+                  <div className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center">
+                    <Check size={12} strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+
+              {/* List of Available Managers */}
+              {managers.map((mgr) => {
+                const isSelected = String(selectedManagerId) === String(mgr._id);
+                const initials = (mgr.full_name || "M").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+                return (
+                  <div
+                    key={mgr._id}
+                    onClick={() => setSelectedManagerId(mgr._id)}
+                    className={`p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer ${
+                      isSelected
+                        ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-500/20 text-slate-900 shadow-2xs"
+                        : "border-slate-200 hover:border-slate-300 bg-white text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                        isSelected ? "bg-amber-200 text-amber-900 border border-amber-300" : "bg-slate-100 text-slate-700"
+                      }`}>
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span className="truncate">{mgr.full_name}</span>
+                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded shrink-0">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate flex items-center gap-2 mt-0.5">
+                          {mgr.email && <span className="truncate">{mgr.email}</span>}
+                          {mgr.phone && <span>• {mgr.phone}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center shrink-0 ml-2">
+                        <Check size={12} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {managers.length === 0 && (
+                <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                  No active Event Managers found in staff directory.
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Btn 
+                type="button" 
+                variant="secondary" 
+                onClick={() => setShowAssignManagerModal(false)}
+                disabled={savingManager}
+              >
+                Cancel
+              </Btn>
+              <Btn 
+                type="button" 
+                variant="primary" 
+                onClick={handleUpdateManager}
+                disabled={savingManager}
+              >
+                {savingManager ? "Saving Coordinator..." : "Confirm & Save"}
+              </Btn>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

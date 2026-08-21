@@ -31,12 +31,13 @@ import { diffQuotationVersions } from "../../../utils/quotationDiff";
 import {
   computeQuotationTotals,
   derivePackageStartingPrice,
-  addOnQuantityOf,
   addOnLineTotal,
+  inclusionAdjustmentAmount,
   MENU_PRICING,
   menuLineTotal,
   money,
 } from "../../../utils/quotationPricing";
+import { parseInclusionQuantity, withInclusionQuantity } from "../../../lib/packageDisplay";
 import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../../lib/eventTypes";
 import {
   SERVICE_TYPES,
@@ -302,16 +303,44 @@ const inclusionText = (inclusion) =>
  */
 const UNIT_SUGGESTIONS = ["bilao", "tray", "pan", "kilo", "platter", "gallon", "piece", "set"];
 
-/** A dish row as the builder holds it, whatever it was seeded from. */
+/**
+ * A dish row as the builder holds it, whatever it was seeded from.
+ *
+ * Every row is priced per unit: a quantity of the dish's own units at a unit
+ * rate. Per-guest catering is expressed the same way — so many pax at so much
+ * a head — rather than through a second pricing mode with its own arithmetic.
+ */
 const menuRow = (partial = {}) => ({
   name: "",
-  note: "",
   quantity: 1,
   unit: "",
-  pricing_type: MENU_PRICING.PER_GUEST,
+  pricing_type: MENU_PRICING.QUANTITY,
   price: "",
   ...partial,
 });
+
+/**
+ * An inclusion row as the builder holds it.
+ *
+ * `baseQuantity` is the amount the package's own wording stated, read out of
+ * the line's text — the figure a change is measured against. It is null for a
+ * line that never named a quantity ("Professional crew"), which is how the
+ * row knows it has nothing to adjust.
+ */
+const inclusionRow = (name, partial = {}) => {
+  const text = inclusionText(name);
+  const parsed = parseInclusionQuantity(text);
+  return {
+    name: text,
+    removed: false,
+    deduction: "",
+    fromPackage: true,
+    baseQuantity: parsed ? parsed.quantity : null,
+    quantity: parsed ? parsed.quantity : null,
+    unitPrice: "",
+    ...partial,
+  };
+};
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -351,6 +380,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     start_time: "",
     guest_count: 1,
     service_type: SERVICE_TYPES.FULL_SERVICE,
+    // The design brief, editable here like every other event detail. The
+    // palette is held as the comma-separated text the admin types and split
+    // back into the array the Inquiry stores only on the way out.
+    event_theme: "",
+    event_palette: "",
     venue_type: "",
     province: BATANGAS_PROVINCE,
     municipality: "",
@@ -377,11 +411,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Sections 4 and 5: line items
   const [menuItems, setMenuItems] = useState([]);
   const [addOns, setAddOns] = useState([]);
-  // Dish rows whose note fields the admin has opened. A row that already
-  // carries a note is open regardless — the notes are disclosed rather than
-  // always rendered because two extra inputs on every dish turned a menu of
-  // eight into a page of scrolling, and most dishes never need one.
-  const [openNoteRows, setOpenNoteRows] = useState(() => new Set());
+  // One note for the whole Menu section rather than one per dish. A menu of
+  // eight dishes with a note field on every row was a page of scrolling, and
+  // what the notes actually described — how the catering is being served —
+  // was a fact about the arrangement, not about any one dish.
+  const [menuNotes, setMenuNotes] = useState("");
 
   // Section 6: adjustments
   const [transportationFee, setTransportationFee] = useState("");
@@ -554,6 +588,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 ? SERVICE_TYPES.FULL_SERVICE
                 : SERVICE_TYPES.SETUP_ONLY,
           include_food: customerSelection.wantedFood,
+          event_theme: inquiry?.event_theme || "",
+          event_palette: Array.isArray(inquiry?.event_palette)
+            ? inquiry.event_palette.join(", ")
+            : String(inquiry?.event_palette || ""),
           venue_type: inquiry?.venue_type || "",
           province: inquiry?.province || BATANGAS_PROVINCE,
           municipality: inquiry?.municipality || "",
@@ -603,6 +641,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               typeof pendingDraft.draft_details.include_food === "boolean"
               ? { include_food: pendingDraft.draft_details.include_food }
               : {}),
+            // Stored as an array, edited as text.
+            ...(Array.isArray(pendingDraft?.draft_details?.event_palette)
+              ? { event_palette: pendingDraft.draft_details.event_palette.join(", ") }
+              : {}),
           }));
           setPackageName(latest.package_name || packageRecord?.name || "Custom Package");
           // Quotations saved before the starting price existed only recorded the
@@ -610,41 +652,78 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setStartingPrice(
             String(latest.package_starting_price ?? latest.package_price ?? 0)
           );
+          // A saved quantity adjustment is looked up by the line's name, which
+          // already carries the adjusted number, so a reopened quotation shows
+          // the same three figures the admin left: what the package stated,
+          // what this quotation covers, and what one unit is worth.
+          const savedAdjustments = new Map(
+            (Array.isArray(latest.inclusion_adjustments) ? latest.inclusion_adjustments : [])
+              .filter((entry) => entry?.name)
+              .map((entry) => [String(entry.name), entry])
+          );
           setInclusions([
             ...(Array.isArray(latest.package_inclusions) ? latest.package_inclusions : []).map(
-              (entry) => ({ name: inclusionText(entry), removed: false, deduction: "", fromPackage: true })
+              (entry) => {
+                const text = inclusionText(entry);
+                const adjustment = savedAdjustments.get(text);
+                const row = inclusionRow(text);
+                if (!adjustment) return row;
+                return {
+                  ...row,
+                  baseQuantity: Number(adjustment.base_quantity) || row.baseQuantity,
+                  quantity: Number(adjustment.quantity) || row.quantity,
+                  unitPrice: adjustment.unit_price ? String(adjustment.unit_price) : "",
+                };
+              }
             ),
             ...(Array.isArray(latest.removed_inclusions) ? latest.removed_inclusions : []).map(
-              (entry) => ({
-                name: inclusionText(entry),
-                removed: true,
-                deduction: entry?.deduction ? String(entry.deduction) : "",
-                fromPackage: true,
-              })
+              (entry) =>
+                inclusionRow(inclusionText(entry), {
+                  removed: true,
+                  deduction: entry?.deduction ? String(entry.deduction) : "",
+                })
             ),
           ]);
+          // A dish stored per guest is reopened as what it always meant: the
+          // guest count, at that per-head rate, as its own quantity and unit.
+          // The line total is identical either way, so a quotation issued
+          // before per-unit pricing reopens showing the same money it was sent
+          // with — it is only stated in the one form the builder now uses.
+          const restoredGuests = Number(latest.guest_count) || Number(inquiry?.guest_count) || 1;
           setMenuItems(
             Array.isArray(latest.menu_items)
-              ? latest.menu_items.map((m) =>
-                  menuRow({
+              ? latest.menu_items.map((m) => {
+                  const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
+                  return menuRow({
                     name: m?.name || "",
-                    note: m?.note || "",
-                    quantity: Number(m?.quantity) > 0 ? Number(m.quantity) : 1,
-                    unit: m?.unit || "",
-                    pricing_type:
-                      m?.pricing_type === MENU_PRICING.QUANTITY
-                        ? MENU_PRICING.QUANTITY
-                        : MENU_PRICING.PER_GUEST,
+                    quantity: perGuest
+                      ? restoredGuests
+                      : Number(m?.quantity) > 0
+                        ? Number(m.quantity)
+                        : 1,
+                    unit: perGuest ? "pax" : m?.unit || "",
                     price: m?.price ? String(m.price) : "",
-                  })
-                )
+                  });
+                })
               : []
           );
+          // Legacy per-dish notes are folded into the section note rather than
+          // dropped: they were written to be read, and the quotation no longer
+          // has a per-dish place to show them.
+          const legacyDishNotes = (Array.isArray(latest.menu_items) ? latest.menu_items : [])
+            .filter((m) => String(m?.note || "").trim())
+            .map((m) => `${m.name}: ${String(m.note).trim()}`);
+          setMenuNotes(
+            latest.menu_notes || (legacyDishNotes.length ? legacyDishNotes.join("\n") : "")
+          );
+          // An add-on stored as "fixed" was charged once, which is a quantity
+          // of one. Reopened that way it prices identically.
           setAddOns(Array.isArray(latest.add_ons) ? latest.add_ons.map((a) => ({
             name: a?.name || "",
             price: a?.price ? String(a.price) : "",
-            quantity: a?.quantity || 1,
-            pricing_type: a?.pricing_type || "fixed",
+            quantity: a?.pricing_type === "quantity" ? Number(a?.quantity) || 1 : 1,
+            note: a?.note || "",
+            pricing_type: "quantity",
           })) : []);
           setTransportationFee(latest.transportation_fee ? String(latest.transportation_fee) : "");
           setAdditionalFees(
@@ -678,7 +757,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           );
           setInclusions(
             (Array.isArray(inquiry.custom_setup_scope) ? inquiry.custom_setup_scope : []).map(
-              (scope) => ({ name: inclusionText(scope), removed: false, deduction: "", fromPackage: true })
+              (scope) => inclusionRow(scope)
             )
           );
           // A bespoke setup has no catalog price to start from: the admin
@@ -688,7 +767,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setPackageName(packageRecord?.name || "Custom Package");
           setInclusions(
             (Array.isArray(packageRecord?.inclusions) ? packageRecord.inclusions : []).map(
-              (entry) => ({ name: inclusionText(entry), removed: false, deduction: "", fromPackage: true })
+              (entry) => inclusionRow(entry)
             )
           );
           const derived = derivePackageStartingPrice(inquiry, guests);
@@ -711,16 +790,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         // admin sees exactly what is being served without the combo's food
         // being charged twice.
         if (offerContext) {
-          setMenuItems(
-            offerContext.food.map((name) =>
-              menuRow({
-                name,
-                note: "Covered by the combo price",
-                price: "",
-              }),
-            ),
-          );
+          setMenuItems(offerContext.food.map((name) => menuRow({ name, price: "" })));
+          setMenuNotes("Covered by the combo price.");
         } else {
+          // The catalog quotes a dish per head, so a chosen dish is seeded as
+          // the guest count in "pax" at that rate — the same money, stated in
+          // the one pricing form the builder uses.
           setMenuItems(
             !customerSelection.wantedFood
               ? []
@@ -728,11 +803,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   if (item && typeof item === "object") {
                     return menuRow({
                       name: item.name || "",
-                      note: item.category || item.note || "",
+                      quantity: guests,
+                      unit: "pax",
                       price: !item.price ? "" : String(item.price),
                     });
                   }
-                  return menuRow({ name: String(item || "") });
+                  return menuRow({ name: String(item || ""), quantity: guests, unit: "pax" });
                 })
           );
         }
@@ -743,11 +819,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               return {
                 name: item.name || "",
                 price: item.price ? String(item.price) : "",
-                quantity: item.quantity || 1,
-                pricing_type: item.pricing_type || (Number(item.quantity) > 1 ? "quantity" : "fixed"),
+                quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+                note: "",
+                pricing_type: "quantity",
               };
             }
-            return { name: String(item || ""), price: "", quantity: 1, pricing_type: "fixed" };
+            return { name: String(item || ""), price: "", quantity: 1, note: "", pricing_type: "quantity" };
           })
         );
       })
@@ -783,6 +860,35 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     [inclusions]
   );
 
+  /**
+   * The inclusions whose quantity this quotation changes.
+   *
+   * Only lines that are still on the quotation, that stated a quantity to
+   * begin with, and whose quantity actually differs from it. A removed line is
+   * priced by its deduction instead, and a line quoted at the amount the
+   * package promised is not an adjustment at all — leaving those out is what
+   * keeps the package breakdown a list of real changes.
+   */
+  const inclusionAdjustments = useMemo(
+    () =>
+      inclusions
+        .filter(
+          (entry) =>
+            !entry.removed &&
+            entry.baseQuantity !== null &&
+            entry.baseQuantity !== undefined &&
+            Number(entry.quantity) !== Number(entry.baseQuantity)
+        )
+        .map((entry) => ({
+          name: String(entry.name || "").trim(),
+          base_quantity: Number(entry.baseQuantity) || 0,
+          quantity: Number(entry.quantity) || 0,
+          unit_price: numberOf(entry.unitPrice),
+        }))
+        .filter((entry) => entry.name),
+    [inclusions]
+  );
+
   // Food lines only count when this quotation actually carries catering, so
   // toggling catering off cannot leave a priced dish in the total. Parked
   // dishes are excluded for the same reason add-ons are: they are on screen
@@ -800,6 +906,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     () => ({
       package_starting_price: startingPrice,
       removed_inclusions: removedInclusions,
+      inclusion_adjustments: inclusionAdjustments,
       guest_count: details.guest_count,
       menu_items: chargeableMenuItems,
       add_ons: chargeableAddOns,
@@ -812,6 +919,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     [
       startingPrice,
       removedInclusions,
+      inclusionAdjustments,
       details.guest_count,
       chargeableMenuItems,
       chargeableAddOns,
@@ -830,6 +938,22 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       ? String(details.event_type_other || "").trim()
       : details.event_type;
 
+  /**
+   * The palette as the Inquiry stores it: colour names, one per entry.
+   *
+   * Typed as a single comma-separated line because that is how a palette is
+   * said out loud ("Navy, Ivory, Gold"), and split here so the stored shape
+   * stays the array every other reader expects.
+   */
+  const resolvedPalette = useMemo(
+    () =>
+      String(details.event_palette || "")
+        .split(",")
+        .map((colour) => colour.trim())
+        .filter(Boolean),
+    [details.event_palette]
+  );
+
   const quotationPayload = useMemo(
     () => ({
       inquiry_id: inquiry?._id,
@@ -839,28 +963,27 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       package_price: totals.packagePrice,
       package_inclusions: keptInclusions,
       removed_inclusions: removedInclusions.filter((entry) => entry.name),
+      inclusion_adjustments: inclusionAdjustments.map((entry) => ({
+        ...entry,
+        // Mirrors what the server recomputes, so the summary the admin
+        // approves and the figure that gets stored are the same number.
+        amount: inclusionAdjustmentAmount(entry),
+      })),
       guest_count: totals.guestCount,
       menu_items: chargeableMenuItems.map((item) => ({
         name: String(item.name || "").trim(),
-        note: String(item.note || "").trim(),
-        pricing_type:
-          item.pricing_type === MENU_PRICING.QUANTITY
-            ? MENU_PRICING.QUANTITY
-            : MENU_PRICING.PER_GUEST,
-        // A per-guest dish takes its count from the guest count, so storing
-        // anything else here would be a second, contradictory number.
-        quantity:
-          item.pricing_type === MENU_PRICING.QUANTITY
-            ? Math.max(1, Number(item.quantity) || 1)
-            : 1,
+        pricing_type: MENU_PRICING.QUANTITY,
+        quantity: Math.max(1, Number(item.quantity) || 1),
         unit: String(item.unit || "").trim(),
         price: money(item.price),
       })),
+      menu_notes: cateringIncluded ? String(menuNotes || "").trim() : "",
       add_ons: chargeableAddOns.map((item) => ({
         name: String(item.name || "").trim(),
         price: money(item.price),
-        quantity: addOnQuantityOf(item),
-        pricing_type: item.pricing_type || "fixed",
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        note: String(item.note || "").trim(),
+        pricing_type: "quantity",
       })),
       transportation_fee: money(transportationFee),
       additional_fees: additionalFees
@@ -883,7 +1006,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       totals,
       keptInclusions,
       removedInclusions,
+      inclusionAdjustments,
+      cateringIncluded,
       chargeableMenuItems,
+      menuNotes,
       chargeableAddOns,
       transportationFee,
       additionalFees,
@@ -1025,7 +1151,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         "This event date has already passed. Set the date the event will actually take place before sending.";
     if (!details.start_time) found.start_time = "Set the start time.";
     if (!Number(details.guest_count) || Number(details.guest_count) < 1)
-      found.guest_count = "Enter the number of guests. Menu pricing is calculated per guest.";
+      found.guest_count = "Enter the number of guests this quotation covers.";
     if (!details.municipality) found.municipality = "Choose the municipality of the venue.";
     if (!details.barangay) found.barangay = "Choose the barangay of the venue.";
 
@@ -1038,12 +1164,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       if (entry.removed && isBlankAmount(entry.deduction))
         found[`inclusions.${index}.deduction`] =
           "Enter how much removing this takes off the starting price. Enter 0 if it does not change the price.";
+      // A changed quantity with no rate behind it is a promise the quotation
+      // cannot price: the customer is getting a different amount and nothing
+      // on the total says so.
+      const quantityMoved =
+        !entry.removed &&
+        entry.baseQuantity !== null &&
+        entry.baseQuantity !== undefined &&
+        Number(entry.quantity) !== Number(entry.baseQuantity);
+      if (quantityMoved && isBlankAmount(entry.unitPrice))
+        found[`inclusions.${index}.unitPrice`] =
+          "This quantity has changed. Enter what one costs so the difference can be priced, or 0 if it does not change the price.";
+      if (quantityMoved && (entry.quantity === "" || Number(entry.quantity) < 0))
+        found[`inclusions.${index}.quantity`] = "Enter how many of this the quotation covers.";
     });
 
-    if (totals.inclusionDeductions > totals.startingPrice) {
-      found.removed_inclusions = `Deductions of ${formatCurrency(
-        totals.inclusionDeductions
-      )} are more than the starting price of ${formatCurrency(
+    if (
+      totals.startingPrice - totals.inclusionDeductions + totals.inclusionAdjustments <
+      0
+    ) {
+      found.removed_inclusions = `Removals and quantity reductions take ${formatCurrency(
+        totals.inclusionDeductions - totals.inclusionAdjustments
+      )} off a starting price of ${formatCurrency(
         totals.startingPrice
       )}. Lower the deductions or raise the starting price.`;
     }
@@ -1057,17 +1199,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (cateringIncluded) {
       menuItems.forEach((item, index) => {
         if (item.removed) return;
-        const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
         if (!String(item.name || "").trim())
           found[`menu_items.${index}.name`] = "Name this dish or remove the line.";
-        // A blank price here is multiplied by the guest count or the stated
-        // quantity, so it is the most expensive field in the form to leave
-        // unanswered.
+        // A blank price here is multiplied by the stated quantity, so it is
+        // the most expensive field in the form to leave unanswered.
         if (isBlankAmount(item.price))
-          found[`menu_items.${index}.price`] = byQuantity
-            ? `Set the price for one ${String(item.unit || "").trim() || "unit"} of this dish. Enter 0 to include it at no charge.`
-            : "Set the per guest price for this dish. Enter 0 to include it at no charge.";
-        if (byQuantity && (!Number(item.quantity) || Number(item.quantity) < 1))
+          found[`menu_items.${index}.price`] =
+            `Set the price for one ${String(item.unit || "").trim() || "unit"} of this dish. Enter 0 to include it at no charge.`;
+        if (!Number(item.quantity) || Number(item.quantity) < 1)
           found[`menu_items.${index}.quantity`] =
             "Enter how many of this dish the quotation covers.";
       });
@@ -1156,13 +1295,93 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const handleAddInclusion = () => {
     const name = String(newInclusion || "").trim();
     if (!name) return;
-    setInclusions((prev) => [...prev, { name, removed: false, deduction: "", fromPackage: false }]);
+    // A line the admin types here was never in the package, so it has no
+    // baseline to be adjusted against — whatever quantity its wording states
+    // is simply what this quotation covers.
+    setInclusions((prev) => [...prev, inclusionRow(name, { fromPackage: false })]);
     setNewInclusion("");
   };
 
+  /**
+   * Renaming a line re-reads the quantity out of its new wording.
+   *
+   * The quantity is written into the text, so retyping "Round Tables (6)" as
+   * "Round Tables (8)" has to mean the same thing as typing 8 into the
+   * quantity box. The baseline is left alone: what the package promised does
+   * not change because the admin reworded the line.
+   */
   const handleInclusionName = (index, name) => {
-    setInclusions((prev) => prev.map((entry, i) => (i === index ? { ...entry, name } : entry)));
+    setInclusions((prev) =>
+      prev.map((entry, i) => {
+        if (i !== index) return entry;
+        const parsed = parseInclusionQuantity(name);
+        return {
+          ...entry,
+          name,
+          quantity: parsed ? parsed.quantity : null,
+          // A line that never stated a quantity has no baseline to measure a
+          // change against until its wording gives it one.
+          baseQuantity:
+            entry.baseQuantity === null || entry.baseQuantity === undefined
+              ? parsed
+                ? parsed.quantity
+                : null
+              : entry.baseQuantity,
+        };
+      })
+    );
     clearError(`inclusions.${index}.name`);
+    clearError(`inclusions.${index}.quantity`);
+  };
+
+  /**
+   * Changing how many of an inclusion the customer gets.
+   *
+   * The new number is written back into the line's own text as well as held on
+   * the row, so what the quotation promises and what it charges for can never
+   * drift apart: the customer's copy reads "Round Tables (3)" the moment the
+   * builder starts pricing three.
+   */
+  const handleInclusionQuantity = (index, value) => {
+    setInclusions((prev) =>
+      prev.map((entry, i) => {
+        if (i !== index) return entry;
+        const cleaned = String(value).replace(/[^0-9]/g, "");
+        if (cleaned === "") return { ...entry, quantity: "" };
+        const quantity = Math.max(0, Number(cleaned) || 0);
+        return { ...entry, quantity, name: withInclusionQuantity(entry.name, quantity) };
+      })
+    );
+    clearError(`inclusions.${index}.quantity`);
+    clearError(`inclusions.${index}.unitPrice`);
+    clearError("removed_inclusions");
+  };
+
+  const handleInclusionUnitPrice = (index, value) => {
+    setInclusions((prev) =>
+      prev.map((entry, i) => (i === index ? { ...entry, unitPrice: nonNegative(value) } : entry))
+    );
+    clearError(`inclusions.${index}.unitPrice`);
+    clearError("removed_inclusions");
+  };
+
+  /** Puts a line's quantity back to the amount the package stated. */
+  const handleResetInclusionQuantity = (index) => {
+    setInclusions((prev) =>
+      prev.map((entry, i) =>
+        i === index
+          ? {
+              ...entry,
+              quantity: entry.baseQuantity,
+              name: withInclusionQuantity(entry.name, entry.baseQuantity),
+              unitPrice: "",
+            }
+          : entry
+      )
+    );
+    clearError(`inclusions.${index}.quantity`);
+    clearError(`inclusions.${index}.unitPrice`);
+    clearError("removed_inclusions");
   };
 
   const handleInclusionDeduction = (index, value) => {
@@ -1199,12 +1418,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const handleAddCatalogDish = () => {
     const found = catalogMenuItems.find((item) => item._id === selectedCatalogDish);
     if (!found) return;
+    // The catalog rate is per head, so the row is seeded as the guest count in
+    // "pax" — the same money the catalog quotes, in the builder's one form.
     setMenuItems((prev) => [
       ...prev,
       menuRow({
         name: found.name,
         price: found.price ? String(found.price) : "",
-        note: found.category || "",
+        quantity: Number(details.guest_count) || 1,
+        unit: "pax",
       }),
     ]);
     setSelectedCatalogDish("");
@@ -1217,16 +1439,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         if (field === "price") return { ...item, price: nonNegative(value) };
         if (field === "quantity")
           return { ...item, quantity: Math.max(1, Number(nonNegative(value)) || 1) };
-        // Switching back to per guest resets the quantity: the guest count is
-        // the count from that point on, and a stale 2 left in the field would
-        // read as a contradiction of the line right next to it.
-        if (field === "pricing_type")
-          return {
-            ...item,
-            pricing_type: value,
-            quantity: value === MENU_PRICING.QUANTITY ? item.quantity || 1 : 1,
-            unit: value === MENU_PRICING.QUANTITY ? item.unit : "",
-          };
         return { ...item, [field]: value };
       })
     );
@@ -1274,11 +1486,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const handleAddCatalogAddon = () => {
     const found = catalogAddons.find((addon) => addon._id === selectedCatalogAddon);
     if (!found) return;
-    // The catalog carries the name and how the add-on is charged. The price is
-    // quoted per event, so the admin sets it on this line.
+    // The catalog carries the name. How many, at what price and why are all
+    // quoted per event, so the admin sets them on this line.
     setAddOns((prev) => [
       ...prev,
-      { name: found.name, price: "", quantity: 1, pricing_type: found.pricing_type || "fixed" },
+      { name: found.name, price: "", quantity: 1, note: "", pricing_type: "quantity" },
     ]);
     setSelectedCatalogAddon("");
   };
@@ -1289,8 +1501,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         if (i !== index) return item;
         if (field === "price") return { ...item, price: nonNegative(value) };
         if (field === "quantity") return { ...item, quantity: Math.max(1, Number(nonNegative(value)) || 1) };
-        if (field === "pricing_type")
-          return { ...item, pricing_type: value, quantity: value === "fixed" ? 1 : item.quantity || 1 };
         return { ...item, [field]: value };
       })
     );
@@ -1380,6 +1590,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     guest_count: String(details.guest_count || ""),
     service_type: details.service_type,
     include_food: cateringIncluded,
+    event_theme: String(details.event_theme || "").trim(),
+    event_palette: resolvedPalette,
     venue_type: details.venue_type,
     province: details.province,
     municipality: details.municipality,
@@ -1505,6 +1717,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         // type. A "Food and Event Setup" booking where they chose to skip
         // catering must stay skipped.
         include_food: cateringIncluded,
+        event_theme: String(details.event_theme || "").trim(),
+        event_palette: resolvedPalette,
         venue_type: details.venue_type.trim(),
         province: details.province,
         municipality: details.municipality,
@@ -1837,7 +2051,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   label="Guest count"
                   required
                   error={errors.guest_count}
-                  hint="Menu pricing is charged per guest."
+                  hint="How many people the event is catered and set up for."
                   htmlFor="qb-guest_count"
                 >
                   <input
@@ -1859,6 +2073,55 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     onChange={(e) => setDetail("venue_type", e.target.value)}
                     className={inputClass(false)}
                   />
+                </Field>
+              </div>
+
+              {/* The look of the event, editable here rather than quoted back
+                  as a fixed brief. What a customer picked from a theme card at
+                  booking time is a starting point, and the colours in
+                  particular are usually settled in conversation afterwards —
+                  which is this form. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field
+                  label="Theme"
+                  hint="What the customer chose, or what you have since agreed with them."
+                  htmlFor="qb-event_theme"
+                >
+                  <input
+                    id="qb-event_theme"
+                    type="text"
+                    placeholder="e.g. Rustic Garden"
+                    value={details.event_theme}
+                    onChange={(e) => setDetail("event_theme", e.target.value)}
+                    className={inputClass(false)}
+                  />
+                </Field>
+
+                <Field
+                  label="Colour palette"
+                  hint="Colour names separated by commas."
+                  htmlFor="qb-event_palette"
+                >
+                  <input
+                    id="qb-event_palette"
+                    type="text"
+                    placeholder="e.g. Navy, Ivory, Gold"
+                    value={details.event_palette}
+                    onChange={(e) => setDetail("event_palette", e.target.value)}
+                    className={inputClass(false)}
+                  />
+                  {resolvedPalette.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {resolvedPalette.map((colour, index) => (
+                        <span
+                          key={`${colour}-${index}`}
+                          className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                        >
+                          {colour}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </Field>
               </div>
 
@@ -1958,7 +2221,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           {/* --- Bespoke setup brief (unchanged source of truth) ------------- */}
           {(inquiry.is_custom_setup ||
-            inquiry.event_theme ||
+            inquiry.budget_range ||
+            inquiry.custom_setup_notes ||
             (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) ||
             (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
               <SectionCard
@@ -1972,28 +2236,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 }
               >
                 <div className="space-y-3 text-xs text-slate-700">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    {inquiry.event_theme && (
-                      <div>
-                        <span className={LABEL_CLASS}>Theme</span>
-                        <span className="font-semibold text-slate-900">{inquiry.event_theme}</span>
-                      </div>
-                    )}
-                    {Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0 && (
-                      <div>
-                        <span className={LABEL_CLASS}>Palette</span>
-                        <span className="font-semibold text-slate-900">
-                          {inquiry.event_palette.join(", ")}
-                        </span>
-                      </div>
-                    )}
-                    {inquiry.budget_range && (
-                      <div>
-                        <span className={LABEL_CLASS}>Customer budget</span>
-                        <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Theme and palette are not repeated here: they are editable
+                      fields in the event details above, and a second read-only
+                      copy of a value the admin can change is the copy that
+                      goes stale. */}
+                  {inquiry.budget_range && (
+                    <div>
+                      <span className={LABEL_CLASS}>Customer budget</span>
+                      <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
+                    </div>
+                  )}
 
                   {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
                     <div>
@@ -2178,6 +2430,21 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       : formatCurrency(0)}
                   </strong>
                 </span>
+                {/* Only shown once a quantity has actually moved: an untouched
+                    package should not carry a line reading "zero". */}
+                {totals.inclusionAdjustments !== 0 && (
+                  <span className="text-slate-500">
+                    Quantity changes
+                    <strong
+                      className={`ml-2 tabular-nums ${totals.inclusionAdjustments < 0 ? "text-emerald-700" : "text-amber-700"
+                        }`}
+                    >
+                      {totals.inclusionAdjustments < 0
+                        ? `- ${formatCurrency(Math.abs(totals.inclusionAdjustments))}`
+                        : `+ ${formatCurrency(totals.inclusionAdjustments)}`}
+                    </strong>
+                  </span>
+                )}
                 <span className="font-semibold text-slate-900">
                   {offerContext ? "Adjusted base price" : "Adjusted package price"}
                   <strong className="ml-2 tabular-nums text-primary">
@@ -2194,10 +2461,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             accent="emerald"
             icon={Check}
             title="Package inclusions"
-            description="Remove what the customer is not getting and state what each removal takes off the starting price."
+            description="Remove what the customer is not getting, or change how many of something they get, and state what that is worth."
             aside={
               <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
                 {keptInclusions.length} kept, {removedInclusions.length} removed
+                {inclusionAdjustments.length > 0 &&
+                  `, ${inclusionAdjustments.length} adjusted`}
               </span>
             }
           >
@@ -2217,12 +2486,30 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </p>
             ) : (
               <ul className="space-y-2">
-                {inclusions.map((entry, index) => (
+                {inclusions.map((entry, index) => {
+                  // A line only offers quantity pricing if its own wording
+                  // stated an amount to begin with. "Professional crew" has
+                  // nothing to count, so it gets no quantity controls rather
+                  // than an empty box the admin has to ignore.
+                  const hasQuantity =
+                    entry.baseQuantity !== null && entry.baseQuantity !== undefined;
+                  const quantityMoved =
+                    hasQuantity && Number(entry.quantity) !== Number(entry.baseQuantity);
+                  const adjustment = quantityMoved
+                    ? inclusionAdjustmentAmount({
+                        base_quantity: entry.baseQuantity,
+                        quantity: entry.quantity,
+                        unit_price: entry.unitPrice,
+                      })
+                    : 0;
+                  return (
                   <li
                     key={index}
                     className={`rounded-lg border p-2.5 transition-colors ${entry.removed
                         ? "border-emerald-200 bg-emerald-50/50"
-                        : "border-slate-200 bg-white"
+                        : quantityMoved
+                          ? "border-amber-200 bg-amber-50/40"
+                          : "border-slate-200 bg-white"
                       }`}
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -2242,7 +2529,66 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         />
                       </div>
 
-                      <div className="flex items-center gap-2 sm:shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                        {/* How many, and what one is worth. The two sit
+                            together because neither means anything alone: a
+                            changed count with no rate cannot be priced, and a
+                            rate with an unchanged count changes nothing. */}
+                        {!entry.removed && hasQuantity && (
+                          <>
+                            <div
+                              className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${quantityMoved
+                                  ? "border-amber-300 bg-amber-50 text-amber-800"
+                                  : "border-slate-200 bg-slate-50 text-slate-600"
+                                }`}
+                            >
+                              <label
+                                htmlFor={`qb-inclusions.${index}.quantity`}
+                                className="pl-1 text-[10px] font-semibold uppercase tracking-wider"
+                              >
+                                Qty
+                              </label>
+                              <input
+                                id={`qb-inclusions.${index}.quantity`}
+                                type="number"
+                                min="0"
+                                value={entry.quantity ?? ""}
+                                onChange={(e) => handleInclusionQuantity(index, e.target.value)}
+                                className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
+                                    ? "border-red-400"
+                                    : "border-slate-200"
+                                  }`}
+                              />
+                              <span className="pr-1 text-[10px] font-medium tabular-nums opacity-70">
+                                of {entry.baseQuantity}
+                              </span>
+                            </div>
+
+                            {quantityMoved && (
+                              <div className="w-32">
+                                <MoneyInput
+                                  id={`qb-inclusions.${index}.unitPrice`}
+                                  value={entry.unitPrice}
+                                  error={errors[`inclusions.${index}.unitPrice`]}
+                                  placeholder="Per unit"
+                                  onChange={(value) => handleInclusionUnitPrice(index, value)}
+                                  className="py-1.5 text-xs"
+                                />
+                              </div>
+                            )}
+
+                            {quantityMoved && (
+                              <RowAction
+                                onClick={() => handleResetInclusionQuantity(index)}
+                                icon={Undo2}
+                                label="Reset"
+                                tone="neutral"
+                                title={`Put this back to the ${entry.baseQuantity} the package includes`}
+                              />
+                            )}
+                          </>
+                        )}
+
                         {entry.removed && (
                           <div className="w-36">
                             <MoneyInput
@@ -2288,10 +2634,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       </div>
                     </div>
 
-                    {(errors[`inclusions.${index}.name`] || errors[`inclusions.${index}.deduction`]) && (
+                    {(errors[`inclusions.${index}.name`] ||
+                      errors[`inclusions.${index}.deduction`] ||
+                      errors[`inclusions.${index}.quantity`] ||
+                      errors[`inclusions.${index}.unitPrice`]) && (
                       <p className="mt-1.5 flex items-start gap-1 pl-3.5 text-[11.5px] font-medium leading-snug text-red-700">
                         <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                        {errors[`inclusions.${index}.name`] || errors[`inclusions.${index}.deduction`]}
+                        {errors[`inclusions.${index}.name`] ||
+                          errors[`inclusions.${index}.quantity`] ||
+                          errors[`inclusions.${index}.unitPrice`] ||
+                          errors[`inclusions.${index}.deduction`]}
                       </p>
                     )}
 
@@ -2301,8 +2653,32 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         starting price.
                       </p>
                     )}
+
+                    {/* Where the money came from, in the admin's own numbers.
+                        The arithmetic is stated rather than just its result,
+                        because the figure has to be explainable to the
+                        customer who asks why their quote moved. */}
+                    {quantityMoved && !errors[`inclusions.${index}.unitPrice`] && (
+                      <p
+                        className={`mt-1.5 pl-3.5 text-[11.5px] ${adjustment < 0 ? "text-emerald-700" : "text-amber-800"
+                          }`}
+                      >
+                        {Number(entry.quantity) < Number(entry.baseQuantity)
+                          ? `Down ${Number(entry.baseQuantity) - Number(entry.quantity)} from the ${entry.baseQuantity} the package includes`
+                          : `Up ${Number(entry.quantity) - Number(entry.baseQuantity)} from the ${entry.baseQuantity} the package includes`}
+                        {" · "}
+                        {Math.abs(Number(entry.quantity) - Number(entry.baseQuantity))} ×{" "}
+                        {formatCurrency(numberOf(entry.unitPrice))} ={" "}
+                        <strong className="tabular-nums">
+                          {adjustment < 0
+                            ? `${formatCurrency(Math.abs(adjustment))} off`
+                            : `${formatCurrency(adjustment)} added`}
+                        </strong>
+                      </p>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
 
@@ -2340,7 +2716,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               title="Menu"
               description={
                 cateringIncluded
-                  ? "Price a dish per guest, or by a set amount when the customer asked for a specific quantity."
+                  ? "Every dish is priced per unit: how many, at what each one costs. For per-head catering the unit is a guest."
                   : "The customer's answer to catering on this booking."
               }
               aside={
@@ -2503,37 +2879,26 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               ) : (
                 <ul className="space-y-2.5">
                   {menuItems.map((item, index) => {
-                    const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
                     const unitLabel = String(item.unit || "").trim();
-                    const notesOpen = openNoteRows.has(index) || Boolean(item.note);
                     const rowError =
                       errors[`menu_items.${index}.name`] ||
                       errors[`menu_items.${index}.price`] ||
                       errors[`menu_items.${index}.quantity`];
-                    // The colour thread for this row: blue for "priced per
-                    // guest", violet for "priced by a set amount". Carried
-                    // from the mode toggle down through the quantity/unit
-                    // inputs so the whole row reads as one pricing decision
-                    // at a glance, not just the toggle button.
-                    const modeTint = byQuantity
-                      ? "border-violet-300 bg-violet-50 text-violet-800"
-                      : "border-primary/30 bg-primary/5 text-primary";
+                    // One pricing form, so one colour: violet is "a counted
+                    // number of units", the same language the add-ons below
+                    // use for the same idea.
+                    const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
                     return (
                       <li
                         key={index}
                         className={`rounded-lg border p-2.5 transition-colors ${
-                          item.removed
-                            ? "border-slate-300 bg-slate-50"
-                            : byQuantity
-                              ? "border-violet-200 bg-white"
-                              : "border-slate-200 bg-white"
+                          item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
                         }`}
                       >
                         {/* Explicit column widths, not an implicit grid: the
                             dish name gets a guaranteed minimum width it can
-                            never be squeezed under, so switching pricing
-                            mode can change what sits *beside* it but can
-                            never make it disappear. */}
+                            never be squeezed under, whatever the numbers
+                            beside it grow to. */}
                         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
                           <input
                             id={`qb-menu_items.${index}.name`}
@@ -2547,83 +2912,40 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                             }`}
                           />
 
-                          {/* Pricing mode: a two-way switch rather than a
-                              <select>, so the mode is a colour and a label
-                              you read, not a menu you open. */}
-                          <div
-                            role="group"
-                            aria-label="Pricing mode"
-                            className="inline-flex shrink-0 rounded-md border border-slate-300 bg-slate-50 p-0.5 text-[11px] font-semibold"
-                          >
-                            <button
-                              type="button"
-                              disabled={item.removed}
-                              onClick={() => handleMenuChange(index, "pricing_type", MENU_PRICING.PER_GUEST)}
-                              aria-pressed={!byQuantity}
-                              className={`rounded px-2.5 py-1 transition-colors ${
-                                !byQuantity
-                                  ? "bg-primary text-white shadow-2xs"
-                                  : "text-slate-500 hover:text-slate-800"
-                              }`}
-                            >
-                              Per guest
-                            </button>
-                            <button
-                              type="button"
-                              disabled={item.removed}
-                              onClick={() => handleMenuChange(index, "pricing_type", MENU_PRICING.QUANTITY)}
-                              aria-pressed={byQuantity}
-                              className={`rounded px-2.5 py-1 transition-colors ${
-                                byQuantity
-                                  ? "bg-violet-600 text-white shadow-2xs"
-                                  : "text-slate-500 hover:text-slate-800"
-                              }`}
-                            >
-                              Per unit
-                            </button>
-                          </div>
-
                           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                            {/* A per-guest dish shows the guest count where a
-                                by-amount dish shows its own quantity and unit,
-                                in the same slot: the number that multiplies
-                                the price is always in one place, tinted to
-                                match the mode switch beside it. */}
-                            {byQuantity ? (
-                              <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
-                                <input
-                                  id={`qb-menu_items.${index}.quantity`}
-                                  type="number"
-                                  min="1"
-                                  disabled={item.removed}
-                                  value={item.quantity}
-                                  onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
-                                  className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
-                                    errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
-                                  }`}
-                                />
-                                <input
-                                  type="text"
-                                  list="qb-menu-units"
-                                  disabled={item.removed}
-                                  value={item.unit}
-                                  onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
-                                  placeholder="unit"
-                                  className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                                />
-                              </div>
-                            ) : (
-                              <span className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold tabular-nums ${modeTint}`}>
-                                {totals.guestCount} pax
-                              </span>
-                            )}
+                            {/* How many, of what. Per-head catering is stated
+                                the same way as anything else — the guest count
+                                in "pax" — so there is one number that
+                                multiplies the price, and it is always here. */}
+                            <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
+                              <input
+                                id={`qb-menu_items.${index}.quantity`}
+                                type="number"
+                                min="1"
+                                disabled={item.removed}
+                                value={item.quantity}
+                                onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
+                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                  errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
+                                }`}
+                              />
+                              <input
+                                type="text"
+                                list="qb-menu-units"
+                                disabled={item.removed}
+                                value={item.unit}
+                                onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
+                                placeholder="unit"
+                                className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                              />
+                            </div>
 
                             <div className="w-28">
                               <MoneyInput
                                 id={`qb-menu_items.${index}.price`}
                                 value={item.price}
                                 disabled={item.removed}
-                                placeholder={byQuantity ? `Per ${unitLabel || "unit"}` : "Per pax"}
+                                placeholder={`Per ${unitLabel || "unit"}`}
                                 error={errors[`menu_items.${index}.price`]}
                                 onChange={(value) => handleMenuChange(index, "price", value)}
                                 className="py-1.5 text-xs"
@@ -2668,48 +2990,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                           </div>
                         </div>
 
-                        {/* One note, visible to both sides of the quotation.
-                            It explains the arrangement this line represents
-                            ("Customer requested 2 bilao only.") and never
-                            factors into the price above — pricing mode,
-                            quantity and unit price are the only inputs the
-                            total reads from. Secondary and optional, so it
-                            stays out of the way until it is needed. */}
-                        {!item.removed && !notesOpen && (
-                          <button
-                            type="button"
-                            onClick={() => setOpenNoteRows((prev) => new Set(prev).add(index))}
-                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 transition-colors hover:text-primary"
-                          >
-                            <Plus size={11} /> Add item note
-                          </button>
-                        )}
-
-                        {!item.removed && notesOpen && (
-                          <div className="mt-2">
-                            <label
-                              htmlFor={`qb-menu_items.${index}.note`}
-                              className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                            >
-                              Item note
-                            </label>
-                            <input
-                              id={`qb-menu_items.${index}.note`}
-                              type="text"
-                              value={item.note || ""}
-                              onChange={(e) => handleMenuChange(index, "note", e.target.value)}
-                              placeholder={
-                                byQuantity
-                                  ? `e.g. Customer requested ${item.quantity || 2} ${unitLabel || "unit"}${
-                                      Number(item.quantity) === 1 ? "" : "s"
-                                    } only.`
-                                  : "e.g. Main course, no substitutions"
-                              }
-                              className={`${inputClass(false)} py-1.5 text-xs`}
-                            />
-                          </div>
-                        )}
-
                         {rowError && (
                           <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
                             <AlertCircle size={12} className="mt-[2px] shrink-0" />
@@ -2721,6 +3001,31 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   })}
                 </ul>
               )}
+
+              {/* One note for the catering as a whole, visible to the customer
+                  on their copy of the quotation. It describes the arrangement
+                  — how it is served, what was agreed, what is not included —
+                  rather than annotating dishes one at a time, and never
+                  factors into any total. */}
+              <div className="mt-3">
+                <label
+                  htmlFor="qb-menu_notes"
+                  className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                >
+                  Notes
+                </label>
+                <textarea
+                  id="qb-menu_notes"
+                  rows={3}
+                  value={menuNotes}
+                  onChange={(e) => setMenuNotes(e.target.value)}
+                  placeholder="e.g. Served buffet style from 6pm. Two bilao of pancit only, as agreed with the customer."
+                  className={`${inputClass(false)} resize-y text-xs leading-relaxed`}
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Shown to the customer with the menu. It does not change any price.
+                </p>
+              </div>
               </>
               )}
             </SectionCard>
@@ -2733,7 +3038,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               accent="violet"
               icon={Sparkles}
               title="Add-ons and services"
-              description="The catalog holds the add-on names. The price is what you quote for this event."
+              description="The catalog holds the add-on names. How many, at what price, and why are what you quote for this event."
             >
               <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
                 <select
@@ -2744,7 +3049,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   <option value="">Pick an add-on from the global catalog</option>
                   {catalogAddons.map((addon) => (
                     <option key={addon._id} value={addon._id}>
-                      {addon.name} ({addon.pricing_type === "quantity" ? "Quantity based" : "Fixed"})
+                      {addon.name}
                     </option>
                   ))}
                 </select>
@@ -2759,7 +3064,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 <button
                   type="button"
                   onClick={() =>
-                    setAddOns((prev) => [...prev, { name: "", price: "", quantity: 1, pricing_type: "fixed" }])
+                    setAddOns((prev) => [
+                      ...prev,
+                      { name: "", price: "", quantity: 1, note: "", pricing_type: "quantity" },
+                    ])
                   }
                   className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                 >
@@ -2774,31 +3082,23 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               ) : (
                 <ul className="space-y-2">
                   {addOns.map((item, index) => {
-                    const isFixed = item.pricing_type === "fixed";
                     const rowError =
                       errors[`add_ons.${index}.name`] ||
                       errors[`add_ons.${index}.price`] ||
                       errors[`add_ons.${index}.quantity`];
-                    // Same two-colour language as the Menu rows above: blue is
-                    // the default charge, violet is "a counted number of units".
-                    // An admin who has learned it once in one section should
-                    // not have to learn it again in the next.
-                    const modeTint = isFixed
-                      ? "border-primary/30 bg-primary/5 text-primary"
-                      : "border-violet-300 bg-violet-50 text-violet-800";
+                    // The same violet the Menu rows above use for "a counted
+                    // number of units". An admin who has learned the language
+                    // once in one section should not relearn it in the next.
+                    const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
                     return (
                       <li
                         key={index}
                         className={`rounded-lg border p-2.5 transition-colors ${
-                          item.removed
-                            ? "border-slate-300 bg-slate-50"
-                            : isFixed
-                              ? "border-slate-200 bg-white"
-                              : "border-violet-200 bg-white"
+                          item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
                         }`}
                       >
                         {/* Explicit widths, matching the Menu rows: the name
-                            keeps a guaranteed minimum so changing pricing mode
+                            keeps a guaranteed minimum so the numbers beside it
                             can never squeeze it out of the row. */}
                         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
                           <input
@@ -2813,66 +3113,31 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                             }`}
                           />
 
-                          <div
-                            role="group"
-                            aria-label="Pricing mode"
-                            className="inline-flex shrink-0 rounded-md border border-slate-300 bg-slate-50 p-0.5 text-[11px] font-semibold"
-                          >
-                            <button
-                              type="button"
-                              disabled={item.removed}
-                              onClick={() => handleAddOnChange(index, "pricing_type", "fixed")}
-                              aria-pressed={isFixed}
-                              className={`rounded px-2.5 py-1 transition-colors ${
-                                isFixed
-                                  ? "bg-primary text-white shadow-2xs"
-                                  : "text-slate-500 hover:text-slate-800"
-                              }`}
-                            >
-                              Once
-                            </button>
-                            <button
-                              type="button"
-                              disabled={item.removed}
-                              onClick={() => handleAddOnChange(index, "pricing_type", "quantity")}
-                              aria-pressed={!isFixed}
-                              className={`rounded px-2.5 py-1 transition-colors ${
-                                !isFixed
-                                  ? "bg-violet-600 text-white shadow-2xs"
-                                  : "text-slate-500 hover:text-slate-800"
-                              }`}
-                            >
-                              Per unit
-                            </button>
-                          </div>
-
                           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                            {isFixed ? (
-                              <span className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold tabular-nums ${modeTint}`}>
-                                1×
-                              </span>
-                            ) : (
-                              <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
-                                <input
-                                  id={`qb-add_ons.${index}.quantity`}
-                                  type="number"
-                                  min="1"
-                                  disabled={item.removed}
-                                  value={item.quantity}
-                                  onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
-                                  className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
-                                    errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
-                                  }`}
-                                />
-                              </div>
-                            )}
+                            {/* Quantity and price, the only two figures an
+                                add-on is charged from. A service supplied once
+                                is a quantity of one, so there is no second
+                                pricing mode to choose between. */}
+                            <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
+                              <input
+                                id={`qb-add_ons.${index}.quantity`}
+                                type="number"
+                                min="1"
+                                disabled={item.removed}
+                                value={item.quantity}
+                                onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
+                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                  errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
+                                }`}
+                              />
+                            </div>
 
                             <div className="w-28">
                               <MoneyInput
                                 id={`qb-add_ons.${index}.price`}
                                 value={item.price}
                                 disabled={item.removed}
-                                placeholder={isFixed ? "Quoted price" : "Unit price"}
+                                placeholder="Unit price"
                                 error={errors[`add_ons.${index}.price`]}
                                 onChange={(value) => handleAddOnChange(index, "price", value)}
                                 className="py-1.5 text-xs"
@@ -2915,6 +3180,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                             )}
                           </div>
                         </div>
+                        {/* Why this add-on is on the quotation, in the
+                            admin's words. Shown to the customer beside the
+                            line, and never part of what it costs. */}
+                        {!item.removed && (
+                          <div className="mt-2">
+                            <label
+                              htmlFor={`qb-add_ons.${index}.note`}
+                              className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                              Notes
+                            </label>
+                            <input
+                              id={`qb-add_ons.${index}.note`}
+                              type="text"
+                              value={item.note || ""}
+                              onChange={(e) => handleAddOnChange(index, "note", e.target.value)}
+                              placeholder="e.g. Set up an hour before the programme starts."
+                              className={`${inputClass(false)} py-1.5 text-xs`}
+                            />
+                          </div>
+                        )}
+
                         {rowError && (
                           <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
                             <AlertCircle size={12} className="mt-[2px] shrink-0" />

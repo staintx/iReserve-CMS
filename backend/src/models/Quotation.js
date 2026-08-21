@@ -33,6 +33,29 @@ const QuotationSchema = new mongoose.Schema(
       },
     ],
 
+    // Inclusions the customer is getting a different amount of.
+    //
+    // A package that includes six round tables can be quoted for three, or for
+    // nine, without the line being removed and retyped. `base_quantity` is what
+    // the package stated, `quantity` is what this quotation covers, and
+    // `unit_price` is what one of them is worth; `amount` is the signed
+    // difference the package price is adjusted by — negative when the count
+    // came down, positive when it went up. The server recomputes `amount` from
+    // the other three at save time, so it is a record, never an input.
+    //
+    // The matching entry in package_inclusions carries the new quantity in its
+    // own text, so the customer's copy reads "Round Tables (3)" rather than
+    // promising six and charging for three.
+    inclusion_adjustments: [
+      {
+        name: String,
+        base_quantity: { type: Number, default: 0 },
+        quantity: { type: Number, default: 0 },
+        unit_price: { type: Number, default: 0 },
+        amount: { type: Number, default: 0 },
+      },
+    ],
+
     guest_count: Number,
 
     // One quoted dish.
@@ -45,11 +68,9 @@ const QuotationSchema = new mongoose.Schema(
     // "pan"); nothing branches on its value, so any unit the kitchen uses
     // works without a schema change.
     //
-    // `note` explains the arrangement this line represents ("Customer
-    // requested 2 bilao only.") and is visible to both admin and customer —
-    // there is deliberately no separate admin-only note on a dish. It never
-    // factors into pricing; pricing_type, quantity and price are the only
-    // inputs the total is computed from.
+    // `note` is legacy. Dishes carried their own note until the Menu section
+    // was given a single `menu_notes` field below; quotations issued before
+    // that still render theirs, and the builder no longer writes new ones.
     menu_items: [
       {
         name: String,
@@ -65,11 +86,24 @@ const QuotationSchema = new mongoose.Schema(
       },
     ],
 
+    // One note for the whole Menu section, visible to admin and customer.
+    // It describes the catering arrangement as a whole ("Served buffet style
+    // from 6pm; two bilao of pancit only.") rather than annotating one dish at
+    // a time. Nothing here factors into pricing.
+    menu_notes: String,
+
+    // One quoted add-on: how many, at what unit price, and why.
+    //
+    // `pricing_type` is legacy. Add-ons were once either "fixed" (charged
+    // once) or "quantity" (charged per unit), which is the same thing as a
+    // quantity of one, so the builder now quotes every add-on by quantity.
+    // Rows stored as "fixed" still price identically — see addOnsSubtotalOf.
     add_ons: [
       {
         name: String,
         quantity: Number,
         price: Number,
+        note: String,
         pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
       },
     ],
@@ -124,6 +158,8 @@ const QuotationSchema = new mongoose.Schema(
           service_type: String,
           include_food: Boolean,
           delivery_method: String,
+          event_theme: String,
+          event_palette: [String],
           venue_type: String,
           province: String,
           municipality: String,
@@ -159,6 +195,8 @@ const QuotationSchema = new mongoose.Schema(
           guest_count: String,
           service_type: String,
           include_food: Boolean,
+          event_theme: String,
+          event_palette: [String],
           venue_type: String,
           province: String,
           municipality: String,

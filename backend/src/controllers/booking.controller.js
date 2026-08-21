@@ -2486,8 +2486,10 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   let menuItems = [];
   if (includeFood) {
     if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
-      // Quantity, unit, pricing mode and the item note all travel with the
-      // dish so the booking states the same order the customer agreed to.
+      // Quantity, unit and pricing mode all travel with the dish so the
+      // booking states the same order the customer agreed to. `note` is only
+      // still read for quotations issued before the Menu section replaced
+      // per-dish notes with one note for the whole order.
       menuItems = quotation.menu_items.map((dish) => ({
         name: dish.name,
         note: dish.note,
@@ -2594,6 +2596,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     zip_code: inquiry.zip_code || "",
     
     menu_items: menuItems,
+    menu_notes: (includeFood && quotation?.menu_notes) || "",
     service_items: serviceItems,
     additional_charges: additionalCharges,
     inventory_items: inventoryItems,

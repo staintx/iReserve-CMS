@@ -22,6 +22,9 @@ const money = (v) => formatCurrency(Number(v) || 0);
 const HEADLINE_FIELDS = [
   { key: "package_name", label: "Package" },
   { key: "guest_count", label: "Guest count", format: (v) => `${v} pax` },
+  // What was agreed about the catering as a whole. It carries no money, but a
+  // customer who negotiated "buffet, not plated" needs to see it held.
+  { key: "menu_notes", label: "Menu notes", format: (v) => String(v || "") || "no notes" },
 ];
 
 /**
@@ -62,11 +65,10 @@ const nameOf = (item) =>
  * gaining a fee and gaining a deduction mean opposite things to a customer.
  *
  * `withNote` opts a list into reporting changes to how a line was *described*
- * rather than priced — the pricing mode, the unit, and the item note. Only
- * menu lines carry those, and they matter here because renegotiating "2 bilao
- * instead of per head" can leave the total untouched while changing what was
- * actually agreed. A revision that only reworded the arrangement would
- * otherwise show up as no change at all.
+ * rather than priced — its unit and its note. They matter here because
+ * renegotiating "2 bilao instead of 60 pax" can leave the total untouched
+ * while changing what was actually agreed. A revision that only reworded the
+ * arrangement would otherwise show up as no change at all.
  */
 function diffLineItems(
   previous = [],
@@ -130,20 +132,6 @@ function diffLineItems(
     }
 
     if (withNote) {
-      // How the line is charged. Stated in the words the builder uses for the
-      // two modes rather than the stored enum.
-      const modeLabel = (entry) =>
-        entry?.pricing_type === "quantity" ? "per unit" : "per guest";
-      if (modeLabel(before) !== modeLabel(item)) {
-        changes.push({
-          kind: "updated",
-          label,
-          name: itemName,
-          from: modeLabel(before),
-          to: modeLabel(item),
-        });
-      }
-
       const unitOf = (entry) => String(entry?.unit || "").trim();
       if (unitOf(before) !== unitOf(item)) {
         changes.push({
@@ -218,6 +206,23 @@ export function diffQuotationVersions(previous, current) {
         amount > 0 ? `Removed from package · -${money(amount)}` : "Removed from package",
       removedDetail: () => "Restored to package",
     }),
+    // A quantity change keeps the inclusion in the package but changes how
+    // much of it the customer gets, and moves the package price with it. It is
+    // neither an addition nor a removal, so it is diffed on its own terms.
+    ...diffLineItems(
+      previous?.inclusion_adjustments || [],
+      current?.inclusion_adjustments || [],
+      {
+        label: "Inclusion quantity",
+        withQuantity: true,
+        amountKey: "amount",
+        addedDetail: (amount) =>
+          amount < 0
+            ? `Quantity reduced · ${money(Math.abs(amount))} off`
+            : `Quantity increased · +${money(amount)}`,
+        removedDetail: () => "Back to the package quantity",
+      }
+    ),
     // Quantity counts here now that a dish can be quoted by the bilao rather
     // than per head: "2 → 3 bilao of Shanghai" is a change the customer is
     // entitled to see spelled out, not folded into a total. `withNote` adds
@@ -230,6 +235,7 @@ export function diffQuotationVersions(previous, current) {
     ...diffLineItems(previous?.add_ons || [], current?.add_ons || [], {
       label: "Add-on",
       withQuantity: true,
+      withNote: true,
     }),
     ...diffLineItems(previous?.additional_fees || [], current?.additional_fees || [], {
       label: "Fee",

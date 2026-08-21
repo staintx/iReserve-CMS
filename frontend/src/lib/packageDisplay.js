@@ -102,6 +102,62 @@ export function parseInclusion(value) {
   };
 }
 
+/**
+ * Where the number lives inside an inclusion line, if it has one.
+ *
+ * Inclusions are free text, and the quantity is written into that text rather
+ * than stored beside it — "[Event Setup] Round Tables (6)" from the package
+ * form, but also "6 Round Tables" or "Round Tables x6" when someone typed the
+ * line by hand. The builder has to be able to both read that number and put a
+ * different one back without disturbing the rest of the line, so what is
+ * located here is the number's position, not just its value.
+ *
+ * Each pattern captures (prefix)(number)(suffix), which makes the number's
+ * offset the prefix's length — no searching the matched text for digits that
+ * may also appear in a category name.
+ */
+const QUANTITY_PATTERNS = [
+  // "Round Tables (6)", "[Event Setup] Round Tables (6 pcs)" — the last parens
+  /^(.*\()(\d+(?:\.\d+)?)([^()]*\)\s*)$/,
+  // "Round Tables x6", "Round Tables × 6"
+  /^(.*[x×]\s*)(\d+(?:\.\d+)?)(\s*)$/i,
+  // "6 Round Tables", "[Event Setup] 6 Round Tables"
+  /^((?:\[[^\]]*\]\s*)?)(\d+(?:\.\d+)?)(\s+\S.*)$/,
+];
+
+/**
+ * The quantity an inclusion line states, and where it sits in the string.
+ *
+ * Returns null for a line with no quantity at all ("Professional crew",
+ * "Buffet setup"), which is the signal that the line has nothing to adjust —
+ * quantity pricing is offered only where a quantity was actually quoted.
+ */
+export function parseInclusionQuantity(value) {
+  const raw = String(value || "");
+  for (const pattern of QUANTITY_PATTERNS) {
+    const match = raw.match(pattern);
+    if (!match) continue;
+    const quantity = Number(match[2]);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    return { quantity, start: match[1].length, end: match[1].length + match[2].length };
+  }
+  return null;
+}
+
+/**
+ * The same inclusion line with its quantity replaced.
+ *
+ * Splices the new number into the position the parse found, so the category,
+ * the wording and the unit ("6 pcs" -> "3 pcs") all survive untouched. A line
+ * with no quantity is returned as it was.
+ */
+export function withInclusionQuantity(value, quantity) {
+  const raw = String(value || "");
+  const found = parseInclusionQuantity(raw);
+  if (!found) return raw;
+  return `${raw.slice(0, found.start)}${quantity}${raw.slice(found.end)}`;
+}
+
 /** Inclusions grouped by category, in the order the categories first appear. */
 export function groupInclusions(inclusions) {
   const list = Array.isArray(inclusions) ? inclusions : [];

@@ -77,7 +77,7 @@ const MoneyLine = ({ label, detail, value, strong, deduct }) => (
  * quoted since. The inquiry is still below, unchanged and labelled as the
  * original — this card is what is true today.
  */
-function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
+function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
   const expiry = quotation.expiration_date ? new Date(quotation.expiration_date) : null;
   const expired =
     expiry &&
@@ -95,6 +95,11 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
   const dishes = Array.isArray(quotation.menu_items) ? quotation.menu_items : [];
   const addOns = Array.isArray(quotation.add_ons) ? quotation.add_ons : [];
   const fees = Array.isArray(quotation.additional_fees) ? quotation.additional_fees : [];
+  // Inclusions quoted at a different quantity than the package states. Only
+  // the ones that actually moved money are worth naming.
+  const adjustments = (
+    Array.isArray(quotation.inclusion_adjustments) ? quotation.inclusion_adjustments : []
+  ).filter((entry) => entry?.name && Number(entry?.amount));
   const menuSubtotal = dishes.reduce((sum, item) => sum + menuLineTotal(item, guests), 0);
   const addOnsSubtotal = addOns.reduce((sum, item) => sum + addOnLineTotal(item), 0);
 
@@ -135,6 +140,11 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
         <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
           <MoneyLine
             label={quotation.package_name || "Package"}
+            detail={
+              adjustments.length > 0
+                ? `(${adjustments.length} quantity ${adjustments.length === 1 ? "change" : "changes"})`
+                : undefined
+            }
             value={formatCurrency(quotation.package_price)}
           />
           {dishes.length > 0 && (
@@ -170,9 +180,40 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
           </div>
         </div>
 
+        {adjustments.length > 0 && (
+          <div>
+            <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Inclusion quantity changes ({adjustments.length})
+            </span>
+            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+              {adjustments.map((entry, i) => {
+                const amount = Number(entry.amount) || 0;
+                return (
+                  <li key={i} className="flex items-baseline justify-between gap-3 px-2.5 py-2">
+                    <div className="min-w-0">
+                      <span className="block text-xs font-semibold text-slate-800">{entry.name}</span>
+                      <span className="mt-0.5 block text-[11px] tabular-nums text-slate-500">
+                        {entry.quantity} instead of {entry.base_quantity} · at{" "}
+                        {formatCurrency(entry.unit_price)} each
+                      </span>
+                    </div>
+                    <span
+                      className={`shrink-0 text-xs font-semibold tabular-nums ${
+                        amount < 0 ? "text-emerald-700" : "text-amber-700"
+                      }`}
+                    >
+                      {amount < 0 ? "− " : "+ "}
+                      {formatCurrency(Math.abs(amount))}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         {/* The quoted dishes, showing exactly what the customer's copy shows:
-            pricing mode, quantity and unit, the rate, the line total and the
-            item note — same values, same blue/violet mode colours. */}
+            quantity and unit, the rate and the line total. */}
         {dishes.length > 0 && (
           <div>
             <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -218,6 +259,11 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
                 );
               })}
             </ul>
+            {quotation.menu_notes && (
+              <p className="mt-2 whitespace-pre-line border-l-2 border-slate-200 pl-2 text-[11px] italic leading-relaxed text-slate-500">
+                {quotation.menu_notes}
+              </p>
+            )}
           </div>
         )}
 
@@ -231,13 +277,6 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, onEdit }) {
             </p>
           </div>
         )}
-
-        <button
-          onClick={onEdit}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
-        >
-          <RefreshCw size={13} /> {hasDraft ? "Resume draft" : "Revise this quotation"}
-        </button>
       </div>
     </CompactCard>
   );
@@ -427,12 +466,6 @@ export default function AdminQuoteDetails() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowConvertModal(true)}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0"
-            >
-              Resume Draft
-            </button>
           </div>
         )}
 
@@ -447,12 +480,6 @@ export default function AdminQuoteDetails() {
                 <p className="text-[11px] text-blue-700 mt-0.5">Quotation issued to {quote.contact_first_name} {quote.contact_last_name}. Awaiting customer response.</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowConvertModal(true)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0"
-            >
-              Edit / Revise Quotation
-            </button>
           </div>
         )}
 
@@ -467,12 +494,6 @@ export default function AdminQuoteDetails() {
                 <p className="text-[11px] text-amber-700 mt-0.5">This customer inquiry is awaiting pricing calculations and a formal quotation.</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowConvertModal(true)}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0"
-            >
-              Create Quotation
-            </button>
           </div>
         )}
 
@@ -484,13 +505,14 @@ export default function AdminQuoteDetails() {
 
           return (
             <div className="p-3 sm:p-3.5 bg-orange-50/90 border border-orange-200/90 rounded-xl shadow-2xs">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                   <div className="p-1.5 bg-orange-500 text-white rounded-md shrink-0">
                     <RefreshCw size={15} />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="font-bold text-orange-950 text-xs sm:text-sm leading-tight">Pending Change Request</h4>
+                    <h4 className="font-bold text-orange-950 text-xs sm:text-sm leading-tight">
+                      Pending Change Request &middot; next is v{nextVersion}
+                    </h4>
                     <p className="text-[11px] text-orange-700 mt-0.5">
                       {request?.version_number
                         ? `Requested against quotation v${request.version_number}`
@@ -509,13 +531,6 @@ export default function AdminQuoteDetails() {
                       })()}
                     </p>
                   </div>
-                </div>
-                <button
-                  onClick={() => setShowConvertModal(true)}
-                  className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors whitespace-nowrap shrink-0"
-                >
-                  Review &amp; Create v{nextVersion}
-                </button>
               </div>
 
               {request?.customer_response ? (
@@ -572,7 +587,6 @@ export default function AdminQuoteDetails() {
                 quotation={currentQuotation}
                 versionCount={issuedVersions.length}
                 hasDraft={hasDraft}
-                onEdit={() => setShowConvertModal(true)}
               />
             )}
 

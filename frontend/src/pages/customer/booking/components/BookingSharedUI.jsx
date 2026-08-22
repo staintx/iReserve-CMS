@@ -284,6 +284,29 @@ export function SectionTitle({ icon: Icon, children, className = "", right }) {
   );
 }
 
+/**
+ * A field's at-a-glance state, for a sub-section header — "Optional" when
+ * nothing is chosen yet, or the chosen value itself once it is, so a customer
+ * scanning a long step never has to open a field to know whether they already
+ * answered it.
+ */
+export function FieldStatusPill({ value, optionalLabel = "Optional" }) {
+  const filled = Boolean(value);
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-[220px] items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold",
+        filled
+          ? "bg-[#4C81E0]/10 text-[#4C81E0]"
+          : "bg-[#F1F5F9] text-[#94A3B8]",
+      )}
+      title={filled ? value : undefined}
+    >
+      {filled ? value : optionalLabel}
+    </span>
+  );
+}
+
 /** Informational callout used across steps. */
 export function InfoNote({ icon: Icon, title, children, tone = "info", className = "" }) {
   const tones = {

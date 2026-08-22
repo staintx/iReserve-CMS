@@ -813,8 +813,8 @@ export default function BookingWizard() {
             message = "Choose a setup package or switch to Design from Scratch.";
           }
           if (form.is_custom_setup && !String(form.event_theme || "").trim()) {
-            errors.event_theme = "Please choose or describe your event theme.";
-            message = "Please choose or describe your event theme.";
+            errors.event_theme = "Please enter your event theme.";
+            message = "Please enter your event theme.";
           }
           break;
         }
@@ -1171,7 +1171,6 @@ export default function BookingWizard() {
       "cf-turnstile-response": turnstileToken,
       include_food: includeFood,
       service_type: isOffer ? form.service_type : serviceTypeForRequest(form),
-      // " " is the picker's "Something else" sentinel, not a real theme.
       event_theme: String(form.event_theme || "").trim(),
       event_palette: Array.isArray(form.event_palette) ? form.event_palette : [],
       customer_id: user._id,
@@ -1291,11 +1290,10 @@ export default function BookingWizard() {
             setForm={setForm}
             minDate={minDate}
             availability={availability}
-            isPending={isAvailabilityPending}
             suggestedDates={suggestedDates}
-            onSelectDate={(date) => setForm({ ...form, event_date: date })}
-            onRecheck={() => setAvailabilityNonce((n) => n + 1)}
-            requireCheck={requireAvailabilityCheck}
+            requireAvailabilityCheck={requireAvailabilityCheck}
+            onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
+            leadTimeDays={MIN_DATE_OFFSET_DAYS}
           />
         );
 
@@ -1305,8 +1303,32 @@ export default function BookingWizard() {
             form={form}
             setForm={setForm}
             packages={packages}
+            packageDetails={packageDetails}
             selectedPackageId={selectedPackageId}
-            onSelectPackage={(pkg) => {
+            estimate={estimate}
+            errors={fieldErrors}
+            setupCapacity={setupCapacity}
+            onSelectPackage={(packageId) => {
+              if (selectedPackageId === packageId) {
+                setForm((prev) => ({
+                  ...prev,
+                  package_id: "none",
+                  selected_scaffold_option_id: "",
+                  scaffold_width: undefined,
+                  scaffold_length: undefined,
+                  scaffold_base_area: undefined,
+                  scaffold_price: undefined,
+                  scaffold_guest_min: undefined,
+                  scaffold_guest_max: undefined,
+                  selected_package_addons: [],
+                }));
+                return;
+              }
+
+              const pkg =
+                packages.find((entry) => entry._id === packageId) || packageDetails;
+              if (!pkg) return;
+
               const prevScaffold =
                 packageDetails?.scaffold_size_options?.find(
                   (o) => o._id === form.selected_scaffold_option_id,

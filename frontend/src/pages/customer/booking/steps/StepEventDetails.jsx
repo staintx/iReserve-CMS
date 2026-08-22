@@ -9,11 +9,12 @@ import {
   SectionTitle,
   SelectableCard,
   InfoNote,
+  FieldStatusPill,
   StepShell,
 } from "../components/BookingSharedUI";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
-import ThemePicker from "../components/ThemePicker";
+import ThemePicker, { ColorPalettePicker } from "../components/ThemePicker";
 import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
 import {
   guestCountLabel,
@@ -437,18 +438,41 @@ export default function StepEventDetails({
             </Card>
           </div>
 
-          <Card className="mt-3 p-4">
-            <SectionTitle icon={Palette}>Theme and colours</SectionTitle>
-            <p className="mb-2.5 text-[13px] text-[#64748B]">
-              Optional. Pick a look and our stylists will coordinate the setup, backdrop and table decorations to match.
-            </p>
-            <ThemePicker
-              value={form.event_theme}
-              onChange={({ theme, palette }) =>
-                setForm({ ...form, event_theme: theme, event_palette: palette })
-              }
-            />
-          </Card>
+          {/* Design from Scratch, chosen on the Package step, already asked for
+              a theme and palette alongside the rest of that custom concept —
+              asking again here would be the same question twice. */}
+          {!form.is_custom_setup && (
+            <Card className="mt-3 p-4">
+              <SectionTitle icon={Palette}>Theme and colour palette</SectionTitle>
+              <p className="mb-3 text-[13px] text-[#64748B]">
+                Two independent, optional choices. Enter a theme, pick a color palette, or both — our stylists coordinate the setup, backdrop and table decorations to match whatever you choose.
+              </p>
+
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <h4 className="text-[12px] font-semibold text-[#1E293B]">Theme</h4>
+                <FieldStatusPill value={form.event_theme} />
+              </div>
+              <ThemePicker
+                value={form.event_theme}
+                onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+              />
+
+              <div className="mt-4 mb-1.5 flex items-center justify-between gap-3 border-t border-[#E2E8F0] pt-4">
+                <h4 className="text-[12px] font-semibold text-[#1E293B]">Color palette</h4>
+                <FieldStatusPill
+                  value={
+                    Array.isArray(form.event_palette) && form.event_palette.length > 0
+                      ? form.event_palette.join(", ")
+                      : ""
+                  }
+                />
+              </div>
+              <ColorPalettePicker
+                value={form.event_palette}
+                onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
+              />
+            </Card>
+          )}
         </>
       )}
     </StepShell>

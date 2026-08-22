@@ -155,11 +155,14 @@ export default function StepReviewBooking({
 
   const venueType = resolveVenueType(form);
 
+  // Independent fields, shown as independent facts — a customer who picked a
+  // palette without a theme, or vice versa, should still see their own answer
+  // confirmed rather than the two run together.
   const theme = String(form.event_theme || "").trim();
-  const themeValue =
-    theme && form.event_palette?.length
-      ? `${theme} (${form.event_palette.join(", ")})`
-      : theme;
+  const paletteValue =
+    Array.isArray(form.event_palette) && form.event_palette.length > 0
+      ? form.event_palette.join(", ")
+      : "";
 
   const edit = (target) => (target ? () => onEditStep(target) : undefined);
 
@@ -345,8 +348,14 @@ export default function StepReviewBooking({
                 </>
               )}
               {atVenue && <Row label="Event type" value={eventType} />}
-              {atVenue && themeValue && (
-                <Row label="Theme" value={themeValue} />
+              {/* A 100% custom setup already showed its theme and palette in
+                  the section above, alongside its scope/budget/notes — a
+                  second copy here would repeat the same two facts. */}
+              {atVenue && !form.is_custom_setup && theme && (
+                <Row label="Theme" value={theme} />
+              )}
+              {atVenue && !form.is_custom_setup && paletteValue && (
+                <Row label="Color palette" value={paletteValue} />
               )}
             </Section>
           )}

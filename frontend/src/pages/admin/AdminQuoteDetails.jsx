@@ -367,7 +367,7 @@ export default function AdminQuoteDetails() {
     .filter((q) => q.status !== "Draft")
     .sort((a, b) => (Number(b.version_number) || 1) - (Number(a.version_number) || 1));
   const currentQuotation = issuedVersions[0] || null;
-  const isPendingReview = ["Pending Review", "Under Review", "Waiting for Customer"].includes(quote.status);
+  const isPendingReview = ["Pending Review", "Under Review"].includes(quote.status);
   const isRevisionRequested = quote.status === "Revision Requested";
   const isQuotationSent = quote.status === "Quotation Sent";
   const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation", "Accepted"].includes(quote.status);

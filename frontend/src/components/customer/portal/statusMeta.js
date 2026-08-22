@@ -165,7 +165,7 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
 
 export const INQUIRY_STATUS_GROUPS = {
   quote_ready: ["Quotation Sent"],
-  under_review: ["Pending Review", "Under Review", "Waiting for Customer", "Revision Requested"],
+  under_review: ["Pending Review", "Under Review", "Revision Requested"],
   accepted: ["Quote Accepted", "Awaiting Final Confirmation", "Converted to Booking"],
   closed: ["Cancelled", "Quote Rejected", "Expired"],
 };
@@ -199,14 +199,6 @@ export const inquiryStatusMeta = (inquiry) => {
         label: "Under Review",
         icon: Clock,
         notice: { tone: "info", title: "Under Review by Admin", text: "Our team is currently reviewing your event requirements, checking availability, and preparing your quotation." },
-      };
-
-    case "Waiting for Customer":
-      return {
-        tone: "warning",
-        label: "Waiting for You",
-        icon: Clock,
-        notice: { tone: "warning", title: "We need a reply from you.", text: "Message our team so we can move your request forward." },
       };
 
     case "Revision Requested":

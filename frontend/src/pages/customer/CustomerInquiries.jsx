@@ -6,6 +6,7 @@ import { createConversation } from "../../api/messages";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import CustomerQuotationModal from "../../components/customer/CustomerQuotationModal";
+import CustomerInquiryEditModal from "../../components/customer/CustomerInquiryEditModal";
 import { Button } from "../../components/ui/button";
 import {
   Dialog,
@@ -44,6 +45,7 @@ import {
   CreditCard,
   FileCheck2,
   XCircle,
+  Pencil,
 } from "lucide-react";
 
 const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
@@ -74,6 +76,9 @@ export default function CustomerInquiries() {
   // Cancel Dialog State
   const [cancellingInquiry, setCancellingInquiry] = useState(null);
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  // Edit Details Modal State
+  const [editingInquiry, setEditingInquiry] = useState(null);
 
   const fetchInquiries = async () => {
     try {
@@ -253,6 +258,13 @@ export default function CustomerInquiries() {
     const canPayDeposit = isAccepted && !isConverted && !isDepositPaid;
     const isPending = ["Pending Review", "Under Review"].includes(inq.status);
     const isClosed = group === "closed";
+    // Editable while still a working draft — no quotation has committed a
+    // price against it yet. A deliberately narrower check than the
+    // "under_review" display group: "Revision Requested" still shows under
+    // that tab, but a quotation already exists for it by then, so it must
+    // stay locked to direct edits — see CUSTOMER_EDITABLE_STATUSES on the
+    // backend, which this mirrors.
+    const isEditable = ["Pending Review", "Under Review"].includes(inq.status);
     const location = inq.municipality || inq.province || inq.venue_type || "Location to be confirmed";
 
     // The money column only earns its place once there is a real number in it;
@@ -277,8 +289,9 @@ export default function CustomerInquiries() {
       </Button>
     ) : null;
 
-    // Paying the deposit matters enough to stay visible, but must not compete
-    // with the primary step, and must be hidden once deposit is paid or converted to booking.
+    // Paying the deposit and editing details are each the one lower-weight
+    // action worth surfacing without expanding the card — they never overlap,
+    // since a request that can still be edited hasn't reached "accepted" yet.
     const secondaryAction = canPayDeposit ? (
       <Button
         variant="outline"
@@ -286,6 +299,10 @@ export default function CustomerInquiries() {
         className={cn("w-full sm:w-auto", ACTION_PAY_SECONDARY)}
       >
         <CreditCard className="h-4 w-4" /> Pay deposit
+      </Button>
+    ) : isEditable ? (
+      <Button variant="outline" onClick={() => setEditingInquiry(inq)} className="w-full sm:w-auto">
+        <Pencil className="h-4 w-4" /> Edit details
       </Button>
     ) : null;
 
@@ -321,7 +338,20 @@ export default function CustomerInquiries() {
     const details = (
       <div className="space-y-5">
         <DetailGrid
+          title="Event details"
+          items={[
+            { label: "Event date & time", value: formatEventDateTime(inq.event_date, inq.start_time) },
+            { label: "Duration", value: inq.duration_hours ? `${inq.duration_hours} hours` : null },
+            { label: "Guest count", value: inq.guest_count ? `${inq.guest_count} guests` : null },
+            { label: "Service type", value: serviceType },
+            { label: "Theme", value: [inq.event_theme, ...(inq.event_palette || [])].filter(Boolean).join(" · ") || null },
+            { label: "Delivery method", value: inq.delivery_method ? inq.delivery_method.charAt(0).toUpperCase() + inq.delivery_method.slice(1) : null },
+          ]}
+        />
+
+        <DetailGrid
           title="Request details"
+          className="border-t border-border pt-4"
           items={[
             { label: "Reference number", value: refCode, mono: true },
             { label: "Submitted", value: formatShortDate(inq.createdAt) },
@@ -338,6 +368,8 @@ export default function CustomerInquiries() {
           items={[
             { label: "Venue address", value: address || location, wide: true },
             { label: "Special requests", value: inq.special_requests || "None", wide: true },
+            inq.allergies && { label: "Allergies", value: inq.allergies, wide: true },
+            inq.dietary_restrictions && { label: "Dietary restrictions", value: inq.dietary_restrictions, wide: true },
             inq.dietary_requirements && { label: "Dietary needs", value: inq.dietary_requirements, wide: true },
           ]}
         />
@@ -494,6 +526,14 @@ export default function CustomerInquiries() {
           onUpdated={fetchInquiries}
         />
       )}
+
+      {/* Edit Inquiry Details Modal */}
+      <CustomerInquiryEditModal
+        open={!!editingInquiry}
+        inquiry={editingInquiry}
+        onClose={() => setEditingInquiry(null)}
+        onSaved={fetchInquiries}
+      />
 
       {/* Cancel Inquiry Confirmation */}
       <Dialog open={!!cancellingInquiry} onOpenChange={(open) => !open && setCancellingInquiry(null)}>

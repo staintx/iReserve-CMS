@@ -221,6 +221,147 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   res.json(inquiryObj);
 });
 
+// Requests still in this group have no quotation committed against them yet,
+// so a customer correcting a detail is editing a working draft, not
+// renegotiating a price. Once a quotation exists — "Revision Requested"
+// included, which quotation.controller.js#requestRevision sets on the
+// inquiry as a mirror of the quotation's own status — the admin is actively
+// working from these details, so they stay locked and the customer goes
+// through the quotation's own "Request Changes" flow instead.
+const CUSTOMER_EDITABLE_STATUSES = ["Pending Review", "Under Review"];
+
+// Event details only. Package, menu, pricing, scaffold/setup size, status, and
+// every other admin-controlled field is deliberately left off this list, and
+// nothing outside it is read from the request body no matter what is sent.
+const CUSTOMER_EDITABLE_FIELDS = [
+  "event_type",
+  "event_date",
+  "start_time",
+  "duration_hours",
+  "guest_count",
+  "service_type",
+  "venue_type",
+  "province",
+  "municipality",
+  "barangay",
+  "street",
+  "landmark",
+  "zip_code",
+  "event_theme",
+  "event_palette",
+  "special_requests",
+  "allergies",
+  "dietary_restrictions",
+  "delivery_method",
+  "delivery_instructions",
+  "contact_first_name",
+  "contact_last_name",
+  "contact_email",
+  "contact_phone",
+  "contact_alt_phone",
+  "contact_method",
+];
+
+// A Special Offer's guest count, food, and service type belong to the combo,
+// not the customer — the same invariant createInquiry enforces at submission
+// time (see utils/specialOffers.js). Editing an inquiry must not let those
+// drift out of sync with the combo it was booked against.
+const OFFER_LOCKED_FIELDS = ["guest_count", "service_type"];
+
+// Customer edits their own inquiry's event details, while it is still a
+// working draft (pre-quotation). A generic passthrough like admin's
+// updateInquiry would skip every guardrail createInquiry applies, so this
+// re-derives/re-checks the same things: the catering-derived service type, the
+// Special Offer boundary, and the blocked-date calendar.
+exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
+  const inquiry = await Inquiry.findById(req.params.id);
+  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+
+  const inquiryCustomerId = inquiry.customer_id?._id || inquiry.customer_id;
+  if (String(inquiryCustomerId) !== String(req.user._id)) {
+    return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
+  }
+
+  if (!CUSTOMER_EDITABLE_STATUSES.includes(inquiry.status)) {
+    return res.status(409).json({
+      message: "This request can no longer be edited directly. Message us instead to request changes.",
+    });
+  }
+
+  const updates = {};
+  for (const field of CUSTOMER_EDITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+      updates[field] = req.body[field];
+    }
+  }
+
+  if (inquiry.booking_type === "special") {
+    const violated = OFFER_LOCKED_FIELDS.some(
+      (field) =>
+        Object.prototype.hasOwnProperty.call(updates, field) &&
+        String(updates[field]) !== String(inquiry[field]),
+    );
+    if (violated) {
+      return res.status(400).json({
+        message: "The guest count and service type for a Special Offer are fixed by the combo and cannot be changed here. Cancel this request and submit a new one if you need something different.",
+      });
+    }
+  }
+
+  // Service type is derived from the catering answer, never trusted raw —
+  // the same helper createInquiry uses.
+  if (Object.prototype.hasOwnProperty.call(updates, "service_type")) {
+    const merged = { ...inquiry.toObject(), ...updates };
+    updates.include_food = cateringRequested(merged);
+    updates.service_type = serviceTypeForRequest(merged);
+  }
+
+  const dateChanged =
+    Object.prototype.hasOwnProperty.call(updates, "event_date") &&
+    new Date(updates.event_date).getTime() !== new Date(inquiry.event_date).getTime();
+
+  if (dateChanged) {
+    const parsedDate = new Date(updates.event_date);
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ message: "Invalid event date." });
+    }
+    const startOfDay = new Date(parsedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(parsedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const blocked = await BlockedDate.findOne({
+      date: { $gte: startOfDay, $lte: endOfDay },
+    });
+
+    if (blocked) {
+      return res.status(400).json({
+        message: `The selected date (${updates.event_date}) is blocked for inquiries and bookings (${blocked.reason || "Blocked by administration"}). Please select a different date.`,
+      });
+    }
+  }
+
+  updates.revision_count = (inquiry.revision_count || 0) + 1;
+
+  Object.assign(inquiry, updates);
+  await inquiry.save();
+
+  const io = req.app.get("io");
+
+  const { notifyAdmins } = require("../utils/notify");
+  await notifyAdmins({
+    title: "Inquiry Updated by Customer",
+    body: `${inquiry.contact_first_name} ${inquiry.contact_last_name} updated the details on inquiry ${inquiry.reference}.`,
+    type: "inquiry_updated",
+    link: "/admin/bookings/inquiries",
+    meta: { inquiry_id: inquiry._id },
+  }, io);
+
+  if (io) io.emit("system:refresh", { type: "inquiry", action: "update" });
+
+  res.json(inquiry);
+});
+
 // Admin updates inquiry (status, details)
 exports.updateInquiry = asyncHandler(async (req, res) => {
   // runValidators: the enum was previously unenforced on this path, which is

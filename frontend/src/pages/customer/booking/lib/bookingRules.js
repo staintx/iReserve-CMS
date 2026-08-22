@@ -317,19 +317,11 @@ export function buildEstimate({
   // ---------------------------------------------------------------------------
   // The one path where the customer is shown a real number rather than "quoted
   // later": a combo's rate per pax and its guest count are both fixed, so
-  // `pax × rate` is what it actually costs, and it is settled before the
-  // customer types anything.
-  //
-  // There is one line and no others. A combo is food: it has no set-up to price
-  // and no package add-ons to add, so nothing here reads a scaffold size or an
-  // add-on list. The quotation is still where the final total is settled.
   if (isSpecialOffer(packageDetails)) {
     const perPax = offerPricePerPax(packageDetails);
-    const pax = offerGuestCount(packageDetails);
+    const pax = num(form.guest_count) || offerGuestCount(packageDetails) || 1;
 
-    if (pax <= 0 || perPax <= 0) {
-      // Unfinished configuration, not a price of zero. Saying so beats showing
-      // a ₱0 that reads like a quote.
+    if (perPax <= 0) {
       blockers.push(
         `${packageDetails.name || "This combo"} is not priced yet. We'll confirm it on your quotation.`,
       );
@@ -338,30 +330,35 @@ export function buildEstimate({
         id: "offer-food",
         label: "Combo food price",
         detail: `${pax} guests × ${peso(perPax)} per pax`,
-        amount: offerBaseFoodPrice(packageDetails),
+        amount: offerBaseFoodPrice(packageDetails, pax),
       });
     }
 
-    // What the combo price actually buys, in the combo's own words: the dishes
-    // it serves and what comes with them. Stated plainly because the opposite —
-    // a customer assuming set-up and equipment are in the figure — is the
-    // misreading a fixed price invites.
+    const selectedDishes = Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0
+      ? form.offer_food_snapshot.map((item) =>
+          item.menu_category
+            ? `${item.item_name} (${item.menu_category})`
+            : item.item_name,
+        )
+      : null;
+
     const included = [
-      ...offerFoodItems(packageDetails).map((item) =>
-        item.menu_category
-          ? `${item.item_name} (${item.menu_category})`
-          : item.item_name,
-      ),
+      ...(selectedDishes ||
+        offerFoodItems(packageDetails).map((item) =>
+          item.menu_category
+            ? `${item.item_name} (${item.menu_category})`
+            : item.item_name,
+        )),
       ...offerInclusions(packageDetails),
     ];
 
-    // What the combo is not. Named rather than priced: a combo sells food, and
-    // what an event set-up would cost is a different product's question — one
-    // this panel has no figure for and must not invent.
-    const quotedSeparately = [
-      "Event set-up and styling — book a package if you need it",
-      "Any additional requests",
-    ];
+    const isWithSetup = form.service_type === SERVICE_TYPES.FULL_SERVICE;
+    const quotedSeparately = isWithSetup
+      ? ["Any custom setup requests quoted separately"]
+      : [
+          "Event set-up & styling (if upgraded later)",
+          "Any additional requests",
+        ];
 
     const offerTotal = lines.reduce((sum, line) => sum + line.amount, 0);
     return {
@@ -371,14 +368,8 @@ export function buildEstimate({
       hasTotal: blockers.length === 0 && offerTotal > 0,
       depositPercentage,
       depositAmount: (offerTotal * depositPercentage) / 100,
-      // The combo's own count, not the form's — they are the same number by the
-      // time anything is submitted, and the combo is the one that decided it.
-      guests: pax || guests,
-      // A combo's count is fixed by the combo, so the panel does not call it an
-      // estimate.
+      guests: pax,
       guestsLabel: "Guests",
-      // The two lists the combo summary renders. Only a combo has them, so
-      // every other path leaves them undefined and the panel omits the block.
       offerName: packageDetails.name,
       included,
       quotedSeparately,

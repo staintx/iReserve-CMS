@@ -132,10 +132,9 @@ export default function PackageDetails() {
         packagePrice: offer
           ? perPax
           : data.setup_price || perGuestPrice(data) || 0,
-        // A combo serves the number of guests it was built for, so the wizard
-        // is handed that one number rather than a range to pick within.
-        guestMin: offer ? offerPax || null : data.guest_min || null,
-        guestMax: offer ? offerPax || null : data.guest_max || null,
+        // A combo allows flexible guest count input starting from 1 or min pax
+        guestMin: offer ? data.guest_min || 1 : data.guest_min || null,
+        guestMax: offer ? data.guest_max || 1000 : data.guest_max || null,
       }
     : null;
 
@@ -284,18 +283,14 @@ export default function PackageDetails() {
                       <dt>Price</dt>
                       <dd>
                         {offer && perPax > 0
-                          ? `${peso(perPax)} per pax${
-                              offerPax
-                                ? ` · ${peso(offerBaseFoodPrice(data))} for ${offerPax} guests`
-                                : ""
-                            }`
+                          ? `${peso(perPax)} per plate / pax`
                           : priceLabel(data)}
                       </dd>
                     </div>
-                    {offer && offerPax ? (
+                    {offer ? (
                       <div>
                         <dt>Guest count</dt>
-                        <dd>{offerPax} guests</dd>
+                        <dd>{offerPax ? `From ${offerPax} guests (flexible)` : "Flexible guest count"}</dd>
                       </div>
                     ) : (
                       capacity && (

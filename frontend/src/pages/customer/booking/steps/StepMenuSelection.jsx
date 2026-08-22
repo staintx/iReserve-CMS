@@ -279,80 +279,221 @@ export default function StepMenuSelection({
   // ---------------------------------------------------------------------------
   // Special Offer — a combo pack
   // ---------------------------------------------------------------------------
-  // The one path with nothing to choose. A combo is a decided meal: these are
-  // the dishes, this is what comes with them, and the price per pax buys all of
-  // it. Every line below comes from the combo's own configuration — no dish, no
-  // course and no inclusion is written into this file.
-  //
-  // There is also no "skip catering" toggle: the food *is* the combo.
   if (offer) {
     const courses = offerFoodByCategory(offer);
     const inclusions = offerInclusions(offer);
-    const pax = offerGuestCount(offer);
+    const pax = Number(form.guest_count) || offerGuestCount(offer) || 1;
     const perPax = offerPricePerPax(offer);
+
+    // Current chosen snapshot: [{ menu_category, item_name }]
+    const currentSnapshot = Array.isArray(form.offer_food_snapshot)
+      ? form.offer_food_snapshot
+      : [];
+
+    const getRequiredCount = (categoryName, itemsCount) => {
+      const match = String(categoryName || "").match(/choose\s*(\d+)/i);
+      if (match && match[1]) {
+        return Math.max(1, parseInt(match[1], 10));
+      }
+      return 1;
+    };
+
+    const isDishSelected = (category, itemName) =>
+      currentSnapshot.some(
+        (entry) =>
+          entry.menu_category === category && entry.item_name === itemName,
+      );
+
+    const getSelectedForCategory = (category) =>
+      currentSnapshot.filter((entry) => entry.menu_category === category);
+
+    const toggleComboDish = (category, itemName, requiredCount) => {
+      const existingInCat = getSelectedForCategory(category);
+      const isAlready = existingInCat.some((e) => e.item_name === itemName);
+
+      if (requiredCount === 1) {
+        // Single select for this category: replace or keep
+        const otherCategories = currentSnapshot.filter(
+          (entry) => entry.menu_category !== category,
+        );
+        const next = [...otherCategories, { menu_category: category, item_name: itemName }];
+        setForm((prev) => ({
+          ...prev,
+          offer_food_snapshot: next,
+        }));
+      } else {
+        // Multi select up to requiredCount
+        if (isAlready) {
+          const next = currentSnapshot.filter(
+            (entry) =>
+              !(entry.menu_category === category && entry.item_name === itemName),
+          );
+          setForm((prev) => ({ ...prev, offer_food_snapshot: next }));
+        } else {
+          if (existingInCat.length < requiredCount) {
+            const next = [
+              ...currentSnapshot,
+              { menu_category: category, item_name: itemName },
+            ];
+            setForm((prev) => ({ ...prev, offer_food_snapshot: next }));
+          } else {
+            // Replace first one in category
+            const otherInCat = existingInCat.slice(1);
+            const otherCategories = currentSnapshot.filter(
+              (entry) => entry.menu_category !== category,
+            );
+            const next = [
+              ...otherCategories,
+              ...otherInCat,
+              { menu_category: category, item_name: itemName },
+            ];
+            setForm((prev) => ({ ...prev, offer_food_snapshot: next }));
+          }
+        }
+      }
+    };
+
+    // Auto-select single-item categories if not selected yet
+    const completedCoursesCount = courses.filter((course) => {
+      const selected = getSelectedForCategory(course.category);
+      const req = getRequiredCount(course.category, course.items.length);
+      return selected.length >= req || (course.items.length === 1 && selected.length > 0);
+    }).length;
+
+    const allCompleted = courses.length > 0 && completedCoursesCount === courses.length;
 
     return (
       <StepShell aside={<EstimateSummary estimate={estimate} />}>
         <SH
           title={`Your ${offer.name}`}
-          sub="This combo comes as it is — here is everything you're getting. Tell us below about any allergies or requests."
+          sub="Choose your preferred dish for each course included in this special offer."
         />
 
+        {/* Guest and pricing overview bar */}
         <div className="space-y-4">
           <Card className="p-4">
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <p className="text-base font-semibold text-[#1E293B]">
-                {pax > 0 ? `${pax} guests` : "Guest count to be confirmed"}
-              </p>
-              {perPax > 0 && (
-                <p className="text-[13px] text-[#64748B]">
-                  ₱{perPax.toLocaleString("en-PH")} per pax
-                  {pax > 0
-                    ? ` · ₱${offerBaseFoodPrice(offer).toLocaleString("en-PH")} for the food`
-                    : ""}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <p className="text-base font-semibold text-[#1E293B]">
+                  {pax} {pax === 1 ? "guest" : "guests"}
                 </p>
-              )}
+                {perPax > 0 && (
+                  <p className="text-[13px] text-[#64748B]">
+                    ₱{perPax.toLocaleString("en-PH")} per pax · ₱{(pax * perPax).toLocaleString("en-PH")} for the food
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                    allCompleted
+                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                      : "bg-blue-50 text-blue-700 ring-1 ring-blue-200",
+                  )}
+                >
+                  {allCompleted ? <Check size={13} /> : null}
+                  {completedCoursesCount} of {courses.length} courses selected
+                </span>
+              </div>
             </div>
           </Card>
 
-          {courses.length > 0 && (
-            <Card className="p-4">
-              <h3 className="mb-3 text-base font-semibold text-[#1E293B]">
-                Food
-              </h3>
-              <div className="space-y-3">
-                {courses.map((course) => (
-                  <div key={course.category}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+          {/* Render each course category with selectable items */}
+          {courses.map((course) => {
+            const req = getRequiredCount(course.category, course.items.length);
+            const selectedInThis = getSelectedForCategory(course.category);
+            const isCategoryComplete =
+              selectedInThis.length >= req ||
+              (course.items.length === 1 && isDishSelected(course.category, course.items[0]));
+
+            return (
+              <Card key={course.category} className="p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-[15px] font-bold text-[#1E293B]">
                       {course.category}
+                    </h3>
+                    <p className="text-xs text-[#64748B]">
+                      {course.items.length === 1
+                        ? "Automatically included with this combo"
+                        : req === 1
+                          ? "Select 1 dish from the options below"
+                          : `Select ${req} dishes from the options below`}
                     </p>
-                    <ul className="mt-1 space-y-1 text-[14px] text-[#1E293B]">
-                      {course.items.map((name, index) => (
-                        <li key={`${name}-${index}`} className="flex items-start gap-2">
-                          <Check
-                            size={14}
-                            className="mt-1 shrink-0 text-[#4C81E0]"
-                          />
-                          <span>{name}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
-                ))}
-              </div>
-            </Card>
-          )}
+
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors",
+                      isCategoryComplete
+                        ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                        : "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+                    )}
+                  >
+                    {isCategoryComplete ? (
+                      <>
+                        <Check size={12} strokeWidth={3} />
+                        {selectedInThis.length > 0 ? `${selectedInThis.length} selected` : "Included"}
+                      </>
+                    ) : (
+                      `Choose ${req} (${selectedInThis.length}/${req})`
+                    )}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {course.items.map((dishName) => {
+                    const isSelected = isDishSelected(course.category, dishName);
+                    return (
+                      <button
+                        key={dishName}
+                        type="button"
+                        onClick={() => toggleComboDish(course.category, dishName, req)}
+                        className={cn(
+                          "group flex items-center justify-between rounded-xl border p-3.5 text-left transition-all",
+                          isSelected
+                            ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm ring-1 ring-[#4C81E0]"
+                            : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50 hover:bg-slate-50/60",
+                          focusRing,
+                        )}
+                      >
+                        <span className="font-medium text-[#1E293B] text-[13.5px] leading-snug">
+                          {dishName}
+                        </span>
+
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-colors ml-3",
+                            isSelected
+                              ? "bg-[#4C81E0] text-white shadow-sm"
+                              : "border border-[#CBD5E1] bg-white text-transparent group-hover:border-[#94A3B8]",
+                          )}
+                        >
+                          <Check size={12} strokeWidth={3} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            );
+          })}
 
           {inclusions.length > 0 && (
             <Card className="p-4">
               <h3 className="mb-2 text-base font-semibold text-[#1E293B]">
-                Inclusions
+                Inclusions &amp; Setup Services
               </h3>
-              <ul className="space-y-1.5 text-[13px] text-[#64748B]">
+              <p className="mb-3 text-xs text-[#64748B]">
+                Included as part of this combo package:
+              </p>
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-[13.5px] text-[#334155]">
                 {inclusions.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <Check size={14} className="mt-0.5 shrink-0 text-[#4C81E0]" />
-                    <span>{item}</span>
+                  <li key={index} className="flex items-center gap-2 rounded-lg bg-[#F8FAFC] p-2.5 border border-[#E2E8F0]/80">
+                    <Check size={15} className="shrink-0 text-[#4C81E0]" />
+                    <span className="font-medium">{item}</span>
                   </li>
                 ))}
               </ul>
@@ -361,7 +502,7 @@ export default function StepMenuSelection({
 
           <Card className="p-4">
             {requestsField(
-              "e.g. One guest is allergic to shellfish — please keep their serving separate",
+              "e.g. Please keep spicy items separated, or note any special preparation requests",
             )}
           </Card>
         </div>

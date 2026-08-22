@@ -5,7 +5,15 @@ const bcrypt = require("bcryptjs");
 const asyncHandler = require("../utils/asyncHandler");
 
 const parseMonth = (month) => {
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null;
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthIndex = now.getMonth() + 1;
+    return {
+      start: new Date(year, monthIndex - 1, 1),
+      end: new Date(year, monthIndex, 0, 23, 59, 59, 999)
+    };
+  }
   const [year, monthIndex] = month.split("-").map((value) => Number(value));
   return {
     start: new Date(year, monthIndex - 1, 1),
@@ -76,10 +84,20 @@ exports.removeStaff = asyncHandler(async (req, res) => {
 });
 
 exports.getMyBookings = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({
-    "staff_assignments.user_id": req.user._id,
+  const isPrivileged = ["admin", "manager"].includes(req.user.role);
+  
+  let query = {
     status: { $nin: ["Cancelled", "cancelled", "refunded"] }
-  })
+  };
+
+  if (!isPrivileged) {
+    query.$or = [
+      { "staff_assignments.user_id": req.user._id },
+      ...(req.user.full_name ? [{ "staff_assignments.name": req.user.full_name }] : [])
+    ];
+  }
+
+  const bookings = await Booking.find(query)
     .populate("customer_id", "full_name first_name last_name email phone")
     .populate("event_manager_id", "full_name email phone")
     .populate("staff_assignments.user_id", "full_name email phone position role")
@@ -91,9 +109,7 @@ exports.getMyBookings = asyncHandler(async (req, res) => {
 
   if (status === "active") {
     return res.json(
-      bookings.filter((b) =>
-        ["pending deposit", "Deposit Pending", "confirmed", "Confirmed", "preparing", "ongoing", "Ready for Event"].includes(b.status)
-      )
+      bookings.filter((b) => !["Completed", "completed", "Cancelled", "cancelled", "refunded"].includes(b.status))
     );
   }
 
@@ -105,10 +121,21 @@ exports.getMyBookings = asyncHandler(async (req, res) => {
 });
 
 exports.getMyBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({
+  const isPrivileged = ["admin", "manager"].includes(req.user.role);
+
+  let query = {
     _id: req.params.id,
-    "staff_assignments.user_id": req.user._id
-  })
+    status: { $nin: ["Cancelled", "cancelled", "refunded"] }
+  };
+
+  if (!isPrivileged) {
+    query.$or = [
+      { "staff_assignments.user_id": req.user._id },
+      ...(req.user.full_name ? [{ "staff_assignments.name": req.user.full_name }] : [])
+    ];
+  }
+
+  const booking = await Booking.findOne(query)
     .populate("customer_id", "full_name first_name last_name email phone address")
     .populate("event_manager_id", "full_name email phone")
     .populate("staff_assignments.user_id", "full_name email phone position role")
@@ -315,24 +342,23 @@ exports.getMyAvailability = asyncHandler(async (req, res) => {
   const month = String(req.query.month || "").trim();
   const range = parseMonth(month);
 
-  if (!range) {
-    return res.status(400).json({ message: "Month must be YYYY-MM" });
-  }
-
   const [availability, assignments] = await Promise.all([
     StaffAvailability.find({
       user_id: req.user._id,
       date: { $gte: range.start, $lte: range.end }
     }).select("date"),
     Booking.find({
-      "staff_assignments.user_id": req.user._id,
+      $or: [
+        { "staff_assignments.user_id": req.user._id },
+        ...(req.user.full_name ? [{ "staff_assignments.name": req.user.full_name }] : [])
+      ],
       event_date: { $gte: range.start, $lte: range.end },
       status: { $nin: ["Cancelled", "cancelled", "refunded"] }
     }).select("event_date status")
   ]);
 
   res.json({
-    month,
+    month: month || `${range.start.getFullYear()}-${String(range.start.getMonth() + 1).padStart(2, "0")}`,
     unavailable: availability.map((item) => toDateKey(item.date)),
     assignments: assignments.map((booking) => ({
       date: booking.event_date,

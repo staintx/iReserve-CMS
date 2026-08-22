@@ -11,13 +11,14 @@ import useToast from "../../hooks/useToast";
 import { 
   Calendar as CalendarIcon, 
   Clock, 
-  CheckCircle2, 
   AlertCircle, 
   Users, 
   ArrowRight, 
   CalendarDays,
-  ShieldCheck,
-  Plus
+  CheckCircle2,
+  Plus,
+  UserCheck,
+  Eye
 } from "lucide-react";
 
 export default function ManagerDashboard() {
@@ -28,124 +29,103 @@ export default function ManagerDashboard() {
     quickActions: { pending: [], upcoming: [] },
     calendarEvents: []
   });
-
-  const loadSummary = () => {
-    ManagerAPI.getSummary()
-      .then((res) => setSummary(res.data))
-      .catch(() => notify("Failed to load dashboard summary.", "error"));
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadSummary();
+    setLoading(true);
+    ManagerAPI.getSummary()
+      .then((res) => {
+        setSummary({
+          counts: res.data?.counts || { pending: 0, upcoming: 0, completed: 0 },
+          quickActions: res.data?.quickActions || { pending: [], upcoming: [] },
+          calendarEvents: res.data?.calendarEvents || []
+        });
+      })
+      .catch(() => notify("Failed to load manager operations summary.", "error"))
+      .finally(() => setLoading(false));
   }, []);
-
-  const KPIS = [
-    { 
-      title: "Pending Staffing", 
-      value: summary.counts.pending || "0", 
-      sub: "Awaiting team dispatch", 
-      trend: "", 
-      up: false, 
-      color: "#F59E0B" 
-    },
-    { 
-      title: "Upcoming Scheduled", 
-      value: summary.counts.upcoming || "0", 
-      sub: "Staff assigned & ready", 
-      trend: "", 
-      up: true, 
-      color: "#4C81E0" 
-    },
-    { 
-      title: "Completed Events", 
-      value: summary.counts.completed || "0", 
-      sub: "This month", 
-      trend: "", 
-      up: true, 
-      color: "#22C55E" 
-    },
-    { 
-      title: "Assigned Roster", 
-      value: summary.calendarEvents?.length || "0", 
-      sub: "Total events under lead", 
-      trend: "", 
-      up: true, 
-      color: "#8B5CF6" 
-    },
-  ];
 
   return (
     <ManagerLayout>
       <div className="space-y-6">
-        {/* Page Header */}
+        {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4 pb-2 border-b border-border">
           <div>
             <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
-              Event Logistics &amp; Staffing
+              Manager Operations
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Assigned catering events from Admin — assign staff, coordinate logistics, and oversee schedules
+              Coordinate catering logistics, dispatch staff teams, and monitor event readiness
             </p>
           </div>
-          
-          <div className="flex items-center gap-2.5">
-            <Btn 
-              variant="secondary" 
-              size="sm" 
-              onClick={() => navigate("/manager/staff")}
-              className="border-border shadow-2xs flex items-center gap-1.5"
-            >
-              <Users size={14} className="text-primary" />
-              Staff Roster
+
+          <div className="flex items-center gap-2">
+            <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/staff")}>
+              <Users className="w-4 h-4" /> View Staff Availability
             </Btn>
-            <Btn 
-              variant="primary" 
-              size="sm" 
-              onClick={() => navigate("/manager/bookings")}
-              className="flex items-center gap-1.5"
-            >
-              <CalendarIcon size={14} />
-              Manage Bookings
+            <Btn variant="primary" size="sm" onClick={() => navigate("/manager/bookings")}>
+              <CalendarIcon className="w-4 h-4" /> All Assigned Events
             </Btn>
           </div>
         </div>
 
-        {/* Top KPI Metrics Cards using KPICard (Same as Admin) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {KPIS.map((k) => (
-            <KPICard key={k.title} {...k} />
-          ))}
+        {/* Operational Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KPICard
+            label="Pending Staffing"
+            value={loading ? "..." : summary.counts.pending}
+            sub="Events awaiting team assignment"
+            icon={AlertCircle}
+            tone={summary.counts.pending > 0 ? "warning" : "neutral"}
+            onClick={() => navigate("/manager/bookings?status=pending")}
+          />
+          <KPICard
+            label="Upcoming Events Ready"
+            value={loading ? "..." : summary.counts.upcoming}
+            sub="Staff dispatched & ready"
+            icon={CalendarDays}
+            tone="info"
+            onClick={() => navigate("/manager/bookings?status=upcoming")}
+          />
+          <KPICard
+            label="Events Completed"
+            value={loading ? "..." : summary.counts.completed}
+            sub="This month"
+            icon={CheckCircle2}
+            tone="success"
+            onClick={() => navigate("/manager/bookings?status=completed")}
+          />
         </div>
 
-        {/* Manager Availability & Event Calendar (Same style & layout as AdminEventCalendar) */}
-        <div>
-          <ManagerEventCalendar onSelectBooking={(b) => navigate(`/manager/bookings`)} />
+        {/* Manager Availability & Event Calendar */}
+        <div className="space-y-2">
+          <ManagerEventCalendar onSelectBooking={(b) => navigate(`/manager/bookings?booking_id=${b.id || b._id}&action=view`)} />
         </div>
 
-        {/* Quick Action Panels */}
+        {/* Action Lists: Needs Staffing vs Upcoming Ready */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pending Events (Action Needed) */}
+          {/* Pending Staff Assignment */}
           <AdminCard className="!p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <AlertCircle className="text-amber-600" size={17} />
-                <h3 className="text-sm font-bold text-foreground">Action Needed: Pending Staffing</h3>
+                <h3 className="text-sm font-bold text-foreground">Pending Staff Assignment</h3>
               </div>
               <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                {(summary.quickActions.pending || []).length} Pending
+                {(summary.quickActions.pending || []).length} Action Required
               </span>
             </div>
 
             {(summary.quickActions.pending || []).length === 0 ? (
               <p className="text-xs text-muted-foreground italic py-4 text-center">
-                All assigned events have their staff teams dispatched! ✓
+                All assigned events currently have teams dispatched.
               </p>
             ) : (
               <div className="space-y-3">
                 {summary.quickActions.pending.map((booking) => (
                   <div 
                     key={booking._id} 
-                    className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-3.5 rounded-xl border border-amber-200/80 bg-amber-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div>
                       <div className="text-xs font-bold text-foreground">
@@ -159,7 +139,7 @@ export default function ManagerDashboard() {
                     </div>
 
                     <button
-                      onClick={() => navigate("/manager/bookings")}
+                      onClick={() => navigate(`/manager/bookings?booking_id=${booking._id}&action=assign`)}
                       className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
                     >
                       <span>Assign Team</span>
@@ -205,12 +185,24 @@ export default function ManagerDashboard() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => navigate("/manager/bookings")}
-                      className="px-3 py-1.5 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors shrink-0 cursor-pointer"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => navigate(`/manager/bookings?booking_id=${booking._id}&action=view`)}
+                        className="px-2.5 py-1.5 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                        title="View full event specifications"
+                      >
+                        <Eye size={12} className="text-muted-foreground" />
+                        <span>View</span>
+                      </button>
+                      <button
+                        onClick={() => navigate(`/manager/bookings?booking_id=${booking._id}&action=assign`)}
+                        className="px-2.5 py-1.5 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Edit dispatched staff assignments"
+                      >
+                        <UserCheck size={12} className="text-primary" />
+                        <span>Edit Staff</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -3160,6 +3160,13 @@
     .ls-gal-grid { columns: 4; column-gap: 18px; }
   }
 
+  /* A sparse gallery (or a filtered category with few photos) shouldn't
+     spread across empty columns on wide screens — cap the column count to
+     the photo count and center the result instead of leaving it left-heavy. */
+  .ls-gal-grid[data-count="1"] { columns: 1; max-width: 480px; margin: 0 auto; }
+  .ls-gal-grid[data-count="2"] { columns: 2; max-width: 720px; margin: 0 auto; }
+  .ls-gal-grid[data-count="3"] { columns: 3; max-width: 960px; margin: 0 auto; }
+
   .ls-gal-card {
     position: relative;
     display: block;

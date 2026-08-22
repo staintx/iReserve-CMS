@@ -249,7 +249,10 @@ export default function Gallery() {
                   </div>
                 </div>
               ) : (
-                <div className="ls-gal-grid ls-reveal ls-stagger">
+                <div
+                  className="ls-gal-grid ls-reveal ls-stagger"
+                  data-count={filtered.length <= 3 ? filtered.length : undefined}
+                >
                   {filtered.map((item, index) => (
                     <button
                       type="button"

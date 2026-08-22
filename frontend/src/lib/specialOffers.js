@@ -106,9 +106,10 @@ export const offerPricePerPax = (pkg) =>
  *
  * Both numbers come from the combo, so this takes no guest count.
  */
-export function offerBaseFoodPrice(pkg) {
+export function offerBaseFoodPrice(pkg, guestCount) {
   if (!isSpecialOffer(pkg)) return 0;
-  return money(offerPricePerPax(pkg) * Math.floor(offerGuestCount(pkg)));
+  const count = positive(guestCount) || offerGuestCount(pkg) || 1;
+  return money(offerPricePerPax(pkg) * Math.floor(count));
 }
 
 /** The combo's food, in the order the admin arranged it. */
@@ -162,15 +163,13 @@ export const offerInclusions = (pkg) =>
 /**
  * Whether the combo can be booked at all, and why not when it cannot.
  *
- * A combo with no guest count or no price is unfinished configuration, not an
- * offer — the booking button is disabled rather than showing a customer ₱0 or
- * "0 guests".
+ * A combo with no price is unfinished configuration, not an
+ * offer — the booking button is disabled rather than showing a customer ₱0.
  */
 export function offerIsBookable(pkg) {
   if (!isSpecialOffer(pkg)) return false;
   return (
     pkg.available !== false &&
-    offerGuestCount(pkg) > 0 &&
     offerPricePerPax(pkg) > 0
   );
 }
@@ -178,11 +177,6 @@ export function offerIsBookable(pkg) {
 /**
  * Why this combo cannot be booked as asked, phrased for the customer. Empty
  * when it can.
- *
- * Mirrors the server's answer, so the wizard can never let through a request
- * the API will refuse. A combo feeds the number of guests it was built for: a
- * request for a different count is a different order, and the answer is another
- * combo or a custom booking rather than a scaled-up price nobody quoted.
  */
 export function offerBookingProblem(pkg, guestCount) {
   if (!isSpecialOffer(pkg)) return "";
@@ -191,17 +185,17 @@ export function offerBookingProblem(pkg, guestCount) {
     return `${pkg.name} is not available right now. Please choose another combo.`;
   }
 
-  const pax = offerGuestCount(pkg);
-  if (pax < 1) {
-    return `${pkg.name} has no guest count set yet, so it cannot be booked. Please choose another combo.`;
-  }
   if (offerPricePerPax(pkg) <= 0) {
     return `${pkg.name} has no price set yet, so it cannot be booked. Please choose another combo.`;
   }
 
   const requested = Math.floor(Number(guestCount) || 0);
-  if (requested && requested !== pax) {
-    return `${pkg.name} is a ${pax}-guest combo. Your booking is for ${requested} guests — book it for ${pax}, or ask us for a custom booking.`;
+  if (requested < 1) {
+    return "Please enter a valid number of guests.";
+  }
+
+  if (pkg.guest_min && requested < pkg.guest_min) {
+    return `${pkg.name} requires a minimum of ${pkg.guest_min} guests.`;
   }
 
   return "";
@@ -209,15 +203,11 @@ export function offerBookingProblem(pkg, guestCount) {
 
 /**
  * What to call the guest count field.
- *
- * A combo's count is fixed by the combo, so it is stated rather than estimated.
- * Everywhere else it is an opening figure that can still move at quotation,
- * ocular or revision, so it is the Estimated Guest Count.
  */
 export const guestCountLabel = (pkg) =>
-  isSpecialOffer(pkg) ? "Guest count" : "Estimated guest count";
+  isSpecialOffer(pkg) ? "Guest count (pax)" : "Estimated guest count";
 
 export const guestCountHelp = (pkg) =>
   isSpecialOffer(pkg)
-    ? "This combo serves a set number of guests, so the count is fixed."
+    ? "Enter the number of guests. Food price is calculated per person/plate."
     : "An estimate is fine — we confirm the final count on your quotation.";

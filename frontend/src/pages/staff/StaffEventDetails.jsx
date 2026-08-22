@@ -27,7 +27,9 @@ import {
   Check,
   AlertCircle,
   ClipboardList,
-  Lock
+  Lock,
+  Utensils,
+  Layers
 } from "lucide-react";
 import { getEventTimingStatus } from "../../utils/format";
 
@@ -372,18 +374,23 @@ export default function StaffEventDetails() {
           <div className="space-y-6">
             {/* Top Important Instructions / Briefing Alert */}
             <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+              <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-bold text-sm">
                 <AlertTriangle size={17} className="text-amber-600 shrink-0" />
                 <span>Shift Briefing &amp; Key Requirements</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-amber-950">
-                <div className="bg-white/80 p-3 rounded-xl border border-amber-200/60">
-                  <span className="font-bold block text-amber-900 mb-1">Dress Code &amp; Arrival:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-amber-950 dark:text-amber-200">
+                <div className="bg-card p-3 rounded-xl border border-amber-200/60 dark:border-amber-800">
+                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-1">Dress Code &amp; Arrival:</span>
                   <span>Standard black catering uniform with apron. Arrive at least <strong>1 hour before</strong> start time.</span>
                 </div>
-                <div className="bg-white/80 p-3 rounded-xl border border-amber-200/60">
-                  <span className="font-bold block text-amber-900 mb-1">Client Special Instructions:</span>
-                  <span>{booking.notes || "No special dietary restrictions logged. Follow standard catering protocol."}</span>
+                <div className="bg-card p-3 rounded-xl border border-amber-200/60 dark:border-amber-800">
+                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-1">Dietary &amp; Special Requests:</span>
+                  <span>
+                    {booking.dietary_restrictions ? `Dietary: ${booking.dietary_restrictions}. ` : ""}
+                    {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
+                    {booking.special_requests ? `Special: ${booking.special_requests}. ` : ""}
+                    {booking.notes || (!booking.dietary_restrictions && !booking.allergies && !booking.special_requests ? "Follow standard catering protocol." : "")}
+                  </span>
                 </div>
               </div>
             </div>
@@ -408,7 +415,7 @@ export default function StaffEventDetails() {
                   <div className="p-3 bg-muted/40 rounded-xl border border-border space-y-1">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground">Guest Count</span>
                     <div className="text-sm font-bold text-foreground">{booking.guest_count || 0} Guests</div>
-                    <div className="text-xs text-muted-foreground">Package: {booking.package_id?.name || "Custom Catering Package"}</div>
+                    <div className="text-xs text-muted-foreground">Package: {booking.package_id?.name || booking.package_name_snapshot || "Custom Catering Package"}</div>
                   </div>
 
                   <div className="p-3 bg-muted/40 rounded-xl border border-border sm:col-span-2 space-y-1">
@@ -428,27 +435,27 @@ export default function StaffEventDetails() {
                 </h3>
 
                 {manager ? (
-                  <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3 text-xs">
+                  <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-3 text-xs">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-200 text-amber-950 font-bold flex items-center justify-center text-sm shrink-0 shadow-2xs">
+                      <div className="w-10 h-10 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-200 font-bold flex items-center justify-center text-sm shrink-0 shadow-2xs">
                         {manager.full_name?.slice(0, 2).toUpperCase() || "MG"}
                       </div>
                       <div>
                         <div className="font-bold text-foreground text-sm">{manager.full_name}</div>
-                        <div className="text-[11px] text-amber-800 font-semibold">Lead Coordinator</div>
+                        <div className="text-[11px] text-amber-800 dark:text-amber-300 font-semibold">Lead Coordinator</div>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-amber-200/80 text-xs">
+                    <div className="space-y-1.5 pt-2 border-t border-amber-200/80 dark:border-amber-800 text-xs">
                       {manager.phone && (
                         <div className="flex items-center gap-2 text-foreground font-semibold">
-                          <Phone size={13} className="text-amber-700" />
+                          <Phone size={13} className="text-amber-700 dark:text-amber-400" />
                           <span>{manager.phone}</span>
                         </div>
                       )}
                       {manager.email && (
                         <div className="flex items-center gap-2 text-muted-foreground">
-                          <Mail size={13} className="text-amber-700" />
+                          <Mail size={13} className="text-amber-700 dark:text-amber-400" />
                           <span className="truncate">{manager.email}</span>
                         </div>
                       )}
@@ -461,6 +468,76 @@ export default function StaffEventDetails() {
                 )}
               </AdminCard>
             </div>
+
+            {/* Catering Menu & Selected Dishes */}
+            <AdminCard className="!p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <Utensils size={16} className="text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">
+                    Catering Menu &amp; Kitchen Specifications ({(booking.menu_items || []).length} Dishes)
+                  </h3>
+                </div>
+                <span className="text-xs text-muted-foreground">Food preparation &amp; buffet layout guide</span>
+              </div>
+
+              {(!booking.menu_items || booking.menu_items.length === 0) ? (
+                <p className="text-xs text-muted-foreground italic py-2">
+                  Standard package catering selections apply for this event. Consult the Lead Coordinator for recipe specifics.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {booking.menu_items.map((item, idx) => (
+                    <div key={idx} className="p-3 bg-muted/40 rounded-xl border border-border flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-foreground truncate">{item.name}</div>
+                        {item.note && <div className="text-[11px] text-muted-foreground mt-0.5">{item.note}</div>}
+                      </div>
+                      {item.category && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card border border-border text-muted-foreground shrink-0">
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </AdminCard>
+
+            {/* Add-on Services & Event Setup */}
+            {((booking.service_items && booking.service_items.length > 0) || (booking.additional_charges && booking.additional_charges.length > 0)) && (
+              <AdminCard className="!p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Add-on Services &amp; Event Styling</h3>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Special service setup &amp; operational items</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(booking.service_items || []).map((srv, idx) => (
+                    <div key={`srv-${idx}`} className="p-3 bg-muted/40 rounded-xl border border-border flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-bold text-foreground">{srv.name}</div>
+                        {srv.note && <div className="text-[11px] text-muted-foreground">{srv.note}</div>}
+                      </div>
+                      {srv.quantity > 1 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          Qty: {srv.quantity}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {(booking.additional_charges || []).map((chg, idx) => (
+                    <div key={`chg-${idx}`} className="p-3 bg-muted/40 rounded-xl border border-border text-xs">
+                      <div className="font-bold text-foreground">{chg.label}</div>
+                      {chg.reason && <div className="text-[11px] text-muted-foreground">{chg.reason}</div>}
+                    </div>
+                  ))}
+                </div>
+              </AdminCard>
+            )}
 
             {/* Coworker Crew List */}
             <AdminCard className="!p-5 space-y-4">

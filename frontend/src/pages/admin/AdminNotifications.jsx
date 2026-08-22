@@ -7,6 +7,7 @@ import { NotificationAPI } from "../../api/notifications";
 import { getSocket } from "../../api/socket";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import useAuth from "../../hooks/useAuth";
 import { getNotificationMeta, groupNotificationsByDay } from "../../components/common/notificationMeta";
 
 const PAGE_SIZE = 20;
@@ -17,6 +18,7 @@ const FILTERS = [
 
 export default function AdminNotifications() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -82,7 +84,21 @@ export default function AdminNotifications() {
         // silent
       }
     }
-    if (item.link) navigate(item.link, { state: item.meta });
+    let targetLink = item.link;
+    const state = { ...item.meta };
+    if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
+    if (state.booking_id) state.openBookingId = state.booking_id;
+
+    if (user?.role === "manager") {
+      const bId = state.booking_id || (targetLink && targetLink.match(/\/bookings\/([a-f0-9]+)/i)?.[1]);
+      if (bId) {
+        targetLink = `/manager/bookings?booking_id=${bId}&action=assign`;
+        state.booking_id = bId;
+        state.action = "assign";
+      }
+    }
+
+    if (targetLink) navigate(targetLink, { state });
   };
 
   const markAllRead = async () => {

@@ -82,13 +82,24 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
     if (!notification.is_read) {
       await markRead(notification._id);
     }
-    if (notification.link) {
-      const state = { ...notification.meta };
-      if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
-      if (state.booking_id) state.openBookingId = state.booking_id;
+    let targetLink = notification.link;
+    const state = { ...notification.meta };
+    if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
+    if (state.booking_id) state.openBookingId = state.booking_id;
 
-      navigate(notification.link, { state });
+    if (user?.role === "manager") {
+      const bId = state.booking_id || (targetLink && targetLink.match(/\/bookings\/([a-f0-9]+)/i)?.[1]);
+      if (bId) {
+        targetLink = `/manager/bookings?booking_id=${bId}&action=assign`;
+        state.booking_id = bId;
+        state.action = "assign";
+      }
+    }
+
+    if (targetLink) {
+      navigate(targetLink, { state });
       setOpen(false);
+      if (onCloseSidebar) onCloseSidebar();
     }
   };
 

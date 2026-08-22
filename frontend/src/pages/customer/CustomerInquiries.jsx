@@ -46,6 +46,7 @@ import {
   FileCheck2,
   XCircle,
   Pencil,
+  Clock,
 } from "lucide-react";
 
 const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
@@ -254,8 +255,11 @@ export default function CustomerInquiries() {
     const isQuotationReady = inq.status === "Quotation Sent";
     const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
     const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
-    const isAccepted = inq.status === "Quote Accepted" || isConverted;
-    const canPayDeposit = isAccepted && !isConverted && !isDepositPaid;
+    const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) || isConverted;
+    const canPayDeposit = !isConverted && !isDepositPaid && (
+      ["Quotation Sent", "Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) ||
+      (Number(inq.total_price) > 0 && !["Cancelled", "Quote Rejected", "Expired"].includes(inq.status))
+    );
     const isPending = ["Pending Review", "Under Review"].includes(inq.status);
     const isClosed = group === "closed";
     // Editable while still a working draft — no quotation has committed a
@@ -275,8 +279,18 @@ export default function CustomerInquiries() {
         ? { label: "Your budget", value: inq.budget_range, tone: "neutral" }
         : null;
 
-    // Exactly one primary action per state.
-    const primaryAction = isQuotationReady ? (
+    // Exactly one primary action per state. isConverted is checked first
+    // (rather than derived only from status) because converted_booking_id can
+    // be set slightly ahead of the status write finishing, and this is the
+    // more authoritative signal.
+    const primaryAction = isConverted ? (
+      <Button
+        onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`)}
+        className="w-full sm:w-auto"
+      >
+        <ArrowRight className="h-4 w-4" /> Go to booking
+      </Button>
+    ) : isQuotationReady ? (
       <Button onClick={() => openQuotationView(inq)} disabled={isLoadingQuotation} className="w-full sm:w-auto">
         <Eye className="h-4 w-4" /> Review &amp; accept quote
       </Button>
@@ -412,6 +426,28 @@ export default function CustomerInquiries() {
         </Button>
       }
     >
+      {new URLSearchParams(location.search).get("payment") === "cancelled" && (
+        <StateNotice
+          tone="warning"
+          icon={Clock}
+          title="Payment not completed."
+          className="mb-6"
+        >
+          Your deposit checkout was cancelled. You can click <strong>&quot;Pay deposit&quot;</strong> on your inquiry card whenever you are ready to complete your payment and confirm your booking.
+        </StateNotice>
+      )}
+
+      {new URLSearchParams(location.search).get("payment") === "success" && (
+        <StateNotice
+          tone="success"
+          icon={FileCheck2}
+          title="Deposit payment verified &amp; booking confirmed!"
+          className="mb-6"
+        >
+          Thank you! Your deposit payment was approved and your inquiry has been converted into a confirmed booking. You can track all event details under <strong>My Bookings</strong>.
+        </StateNotice>
+      )}
+
       {submittedReference !== undefined && (
         <StateNotice
           tone="success"

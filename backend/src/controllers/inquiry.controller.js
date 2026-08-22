@@ -66,33 +66,42 @@ exports.createInquiry = asyncHandler(async (req, res) => {
    * rather than stored against a request that never had a setup to size.
    */
   if (isSpecialOffer(pkg)) {
-    const problem = offerBookingProblem(pkg, payload.guest_count);
+    const requestedGuests = Math.max(1, Number(payload.guest_count) || offerGuestCount(pkg) || 1);
+    const problem = offerBookingProblem(pkg, requestedGuests);
     if (problem) {
       return res.status(400).json({ message: problem });
     }
 
-    // The combo's own count, not the browser's. A request that arrived with a
-    // different one was already rejected above; this is what makes the stored
-    // count and the stored price impossible to disagree.
-    payload.guest_count = offerGuestCount(pkg);
-
-    // Food comes with the combo, so the catering question does not apply, and
-    // there are no chosen dishes: the combo decides them.
-    //
-    // The service type says what is being sold, and a combo sells food — not an
-    // event set-up it does not include. Whether our team stands in the venue is
-    // a separate question, answered by `delivery_method` and read by
-    // utils/venue.js, so calling this Food Only costs the booking nothing on
-    // the conflict calendar.
+    payload.guest_count = requestedGuests;
     payload.include_food = true;
-    payload.service_type = SERVICE_TYPES.FOOD_ONLY;
+
+    // Service type and delivery method
+    if (payload.service_type === SERVICE_TYPES.FULL_SERVICE || payload.delivery_method === "setup") {
+      payload.service_type = SERVICE_TYPES.FULL_SERVICE;
+      payload.delivery_method = "setup";
+    } else if (payload.delivery_method === "pickup") {
+      payload.service_type = SERVICE_TYPES.FOOD_ONLY;
+      payload.delivery_method = "pickup";
+    } else {
+      payload.service_type = SERVICE_TYPES.FOOD_ONLY;
+      payload.delivery_method = "delivery";
+    }
+
+    // Selected dishes snapshot: if sent by customer, keep customer's chosen dishes; else fallback to combo's defaults
+    if (Array.isArray(payload.offer_food_snapshot) && payload.offer_food_snapshot.length > 0) {
+      payload.offer_food_snapshot = payload.offer_food_snapshot
+        .map((item) => ({
+          menu_category: String(item.menu_category || "").trim(),
+          item_name: String(item.item_name || "").trim(),
+        }))
+        .filter((item) => item.item_name);
+    } else {
+      payload.offer_food_snapshot = offerFoodSnapshot(pkg);
+    }
+
     payload.selected_menu = [];
-    payload.offer_food_snapshot = offerFoodSnapshot(pkg);
+    payload.offer_base_price = offerBaseFoodPrice(pkg, requestedGuests);
 
-    payload.offer_base_price = offerBaseFoodPrice(pkg);
-
-    // Everything an event-space build would have answered, dropped in one
-    // place — the boundary between the two kinds of request, defined once.
     applyComboRequestBoundary(payload);
   } else {
     // Only a Special Offer carries these. A regular or custom request that

@@ -105,12 +105,14 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
       onConfirm: async () => {
         setIsSubmitting(true);
         try {
-          // 1. Accept quotation
-          await CustomerAPI.acceptQuotation(quotation._id);
+          // 1. Accept quotation if not already accepted
+          if (quotation.status !== "Awaiting Final Confirmation" && quotation.status !== "Accepted") {
+            await CustomerAPI.acceptQuotation(quotation._id);
+          }
 
           // 2. Open PayMongo checkout
           if (payable > 0 && inquiryId) {
-            notify("Quotation accepted! Generating deposit payment checkout...", "info");
+            notify("Generating deposit payment checkout...", "info");
             const checkoutRes = await CustomerAPI.createPaymentCheckout({
               inquiry_id: inquiryId,
               amount: payable,
@@ -195,9 +197,11 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   };
 
   const isExpired = quotation.expiration_date && new Date(quotation.expiration_date) < new Date();
+  const isDepositPaid = inquiry?.payment_status === "deposit_paid" || inquiry?.payment_status === "fully_paid" || Boolean(inquiry?.converted_booking_id);
   // A Draft is unfinished work the server no longer serves to customers, so it
   // is not something to accept, decline, or ask for changes to.
   const canRespond = quotation.status === "Sent" && !isExpired;
+  const canRetryPayment = (quotation.status === "Awaiting Final Confirmation" || quotation.status === "Accepted") && !isDepositPaid && !isExpired;
 
   /**
    * Every event detail on this page comes from the quotation that was sent.
@@ -994,6 +998,24 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 {isSubmitting ? "Processing…" : "Accept & Continue to Payment"}
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Retry Payment bar if already accepted/awaiting confirmation but deposit is unpaid */}
+        {!canRespond && canRetryPayment && !showRevisionForm && (
+          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-7">
+            <Button
+              variant="outline"
+              onClick={() => setShowRevisionForm(true)}
+              disabled={isSubmitting}
+              className="w-full sm:w-auto"
+            >
+              <RefreshCw className="h-4 w-4" /> Request a change
+            </Button>
+            <Button onClick={handleAccept} disabled={isSubmitting} className="w-full sm:w-auto">
+              <CheckCircle2 className="h-4 w-4" />
+              {isSubmitting ? "Processing…" : "Pay Deposit via PayMongo"}
+            </Button>
           </div>
         )}
       </DialogContent>

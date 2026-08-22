@@ -496,9 +496,8 @@ export default function Packages() {
                 Combo packs, ready to book
               </h2>
               <p className="ls-lede">
-                Fixed combo meals, each built for a set number of guests at a
-                set price per pax. Food only — if you also need your venue set
-                up and styled, that is one of the packages above.
+                Curated combo meals at a set price per plate. Choose Food Only
+                (Pick Up or Delivery) or add full event styling and setup.
               </p>
             </div>
 

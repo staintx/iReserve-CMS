@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowLeft, ArrowRight, Loader2, RotateCcw } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Loader2,
+  Pencil,
+  RotateCcw,
+} from "lucide-react";
+
+
 
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import Modal from "../../../components/common/Modal";
@@ -23,9 +33,9 @@ import StepMenuSelection from "./steps/StepMenuSelection";
 import StepDietaryNeeds from "./steps/StepDietaryNeeds";
 import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
-import StepAddonSelection from "./steps/StepAddonSelection";
 import StepPackageSelection from "./steps/StepPackageSelection";
 import StepPackageAddOns from "./steps/StepPackageAddOns";
+
 
 import {
   SERVICE_TYPES,
@@ -41,6 +51,7 @@ import {
   isSpecialOffer,
   offerGuestCount,
   offerBookingProblem,
+  offerFoodByCategory,
 } from "../../../lib/specialOffers";
 import { formatEventDate } from "../../../utils/format";
 
@@ -250,17 +261,12 @@ export default function BookingWizard() {
       return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     };
 
-    // A combo is sold at one size. Both bounds are that size, so nothing
-    // downstream has a range to interpret.
-    if (isOffer && offerPax > 0) {
-      return { guestMin: offerPax, guestMax: offerPax };
+    if (isOffer) {
+      const pkgMin = positive(packageDetails?.guest_min) || 1;
+      const pkgMax = positive(packageDetails?.guest_max) || 1000;
+      return { guestMin: pkgMin, guestMax: pkgMax };
     }
 
-    // Deliberately not clamped to the chosen setup size. Guest count is how
-    // many people the customer is actually expecting; setup capacity is a
-    // separate constraint on the structure. Forcing them to be the same number
-    // made a 45-guest event impossible to describe once a larger setup was
-    // selected. The mismatch is surfaced as guidance instead (setupCapacity).
     const packageMin =
       positive(packageDetails?.guest_min) || positive(initialGuestMin);
     const packageMax =
@@ -272,7 +278,6 @@ export default function BookingWizard() {
     return { guestMin: 1, guestMax: 1000 };
   }, [
     isOffer,
-    offerPax,
     packageDetails,
     initialGuestMin,
     initialGuestMax,
@@ -291,7 +296,8 @@ export default function BookingWizard() {
   );
 
   const isFoodOnly =
-    isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY;
+    (isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY) ||
+    (isOffer && form.service_type === SERVICE_TYPES.FOOD_ONLY);
   const isEventSetupOnly =
     isCustomBooking && form.service_type === SERVICE_TYPES.SETUP_ONLY;
   const isFoodAndEventSetup =
@@ -302,22 +308,19 @@ export default function BookingWizard() {
       : form.package_id || initialPackageId || "";
 
   /**
-   * How this order reaches the customer — which is a different question from
-   * what is being sold, and the one that decides whether our team is standing
-   * in the venue (see backend/src/utils/venue.js).
-   *
-   * Only the Food Only path lets the customer choose; every other path, a combo
-   * pack included, is served at the venue by us. Derived once because the
-   * availability check and the submitted request must send the same answer: the
-   * check used to send the untouched `delivery` default while the request
-   * stored `setup`, so the server was asked about one kind of booking and given
-   * another.
+   * How this order reaches the customer.
+   * Food only pick-up and delivery do not occupy the venue or require event stylists.
+   * With Event Setup requires venue scheduling.
    */
-  const deliveryMethod = isFoodOnly ? form.delivery_method : "setup";
+  const deliveryMethod = isOffer
+    ? form.delivery_method || "setup"
+    : isFoodOnly
+      ? form.delivery_method
+      : "setup";
 
-  // Food Only never occupies the venue, so it is not subject to the
-  // venue-conflict check that gates the other paths.
-  const requireAvailabilityCheck = !isFoodOnly;
+  const requireAvailabilityCheck = isOffer
+    ? form.delivery_method === "setup"
+    : !isFoodOnly;
 
   // ---------------------------------------------------------------------------
   // Steps
@@ -344,8 +347,9 @@ export default function BookingWizard() {
       if (form.include_food !== false) {
         steps.push({ id: "DietaryNeeds", label: "Dietary needs", key: "dietary" });
       }
-      steps.push({ id: "AddonSelection", label: "Extras", key: "addons" });
+      steps.push({ id: "PackageAddOns", label: "Extras", key: "addons" });
     } else {
+
       // Started from Package page
       steps.push({ id: "EventDetails", label: "Event details", key: "event" });
       // A combo's food is shown, not chosen, so the step is named for what it
@@ -816,6 +820,47 @@ export default function BookingWizard() {
         }
 
         case "EventDetails": {
+          const guests = parseNumber(form.guest_count) || 0;
+
+          if (isOffer) {
+            if (guests <= 0) {
+              errors.guest_count = "Enter how many guests you're catering for.";
+            } else {
+              const problem = offerBookingProblem(packageDetails, guests);
+              if (problem) errors.guest_count = problem;
+            }
+
+            if (form.delivery_method === "pickup") {
+              // Food only pickup: no address or venue required
+            } else if (form.delivery_method === "delivery") {
+              if (!form.municipality)
+                errors.municipality = "Select the delivery municipality.";
+              if (!form.barangay) errors.barangay = "Select the delivery barangay.";
+              if (!String(form.street || "").trim())
+                errors.street = "Enter the delivery street address.";
+            } else {
+              // With Event Setup
+              const eventType =
+                form.event_type === OTHER_EVENT_TYPE
+                  ? String(form.event_type_other || "").trim()
+                  : form.event_type;
+              if (!eventType) {
+                errors[form.event_type === OTHER_EVENT_TYPE ? "event_type_other" : "event_type"] =
+                  "Tell us what kind of event this is.";
+              }
+              if (!form.municipality)
+                errors.municipality = "Select the municipality of your venue.";
+              if (!form.barangay) errors.barangay = "Select the barangay.";
+              if (
+                form.venue_type === OTHER_VENUE_TYPE &&
+                !String(form.venue_type_other || "").trim()
+              ) {
+                errors.venue_type_other = "Tell us what kind of venue this is.";
+              }
+            }
+            break;
+          }
+
           const eventType =
             form.event_type === OTHER_EVENT_TYPE
               ? String(form.event_type_other || "").trim()
@@ -836,16 +881,6 @@ export default function BookingWizard() {
             errors.venue_type_other = "Tell us what kind of venue this is.";
           }
 
-          const guests = parseNumber(form.guest_count) || 0;
-          if (isOffer) {
-            // A combo is booked for the count it was built for, so the only
-            // thing to check is that the two still agree — and the answer is
-            // the server's own, so the wizard cannot let through a request the
-            // API will refuse.
-            const problem = offerBookingProblem(packageDetails, guests);
-            if (problem) errors.guest_count = problem;
-            break;
-          }
           if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're expecting.";
           } else if (guests < guestMin || guests > guestMax) {
@@ -863,16 +898,39 @@ export default function BookingWizard() {
           if (form.delivery_method !== "pickup") {
             if (!form.municipality)
               errors.municipality = "Select the delivery municipality.";
-            if (!form.barangay) errors.barangay = "Select the barangay.";
+            if (!form.barangay) errors.barangay = "Select the delivery barangay.";
             if (!String(form.street || "").trim())
               errors.street = "Enter the street and building so we can find you.";
           }
           break;
         }
 
-        // MenuSelection has nothing to validate: dishes are a free choice
-        // with no required categories and no cap, and a combo's food is fixed
-        // by the combo, so there is nothing the customer could get wrong.
+        case "MenuSelection": {
+          if (isOffer) {
+            const courses = offerFoodByCategory(packageDetails);
+            const snapshot = Array.isArray(form.offer_food_snapshot)
+              ? form.offer_food_snapshot
+              : [];
+            const missing = [];
+
+            courses.forEach((course) => {
+              const reqMatch = String(course.category || "").match(/choose\s*(\d+)/i);
+              const req = reqMatch ? Math.max(1, parseInt(reqMatch[1], 10)) : 1;
+              const count = snapshot.filter(
+                (entry) => entry.menu_category === course.category,
+              ).length;
+              if (course.items.length > 1 && count < req) {
+                missing.push(course.category);
+              }
+            });
+
+            if (missing.length > 0) {
+              message = `Please select your dish for: ${missing.join(", ")}`;
+              errors.menu = message;
+            }
+          }
+          break;
+        }
 
         case "ContactInfo": {
           [
@@ -1091,26 +1149,28 @@ export default function BookingWizard() {
     }
 
     setError("");
-    setIsSubmitting(true);
-
-    const eventType =
+      const eventType =
       (form.event_type === OTHER_EVENT_TYPE
         ? String(form.event_type_other || "").trim()
         : String(form.event_type || "").trim()) ||
-      (isFoodOnly ? "Food Delivery" : "");
+      (isFoodOnly || (isOffer && form.delivery_method !== "setup")
+        ? "Special Offer Catering"
+        : isOffer
+          ? "Special Offer Event"
+          : "Food Delivery");
 
     // The catering answer, and the service type that follows from it. A setup
     // package starts as "Event Setup Only" because that is all it is until the
     // customer answers the menu step — submitting that label unchanged is what
     // used to reach the quotation builder as "the customer skipped catering",
     // dishes and all.
-    const includeFood = cateringRequested(form);
+    const includeFood = isOffer ? true : cateringRequested(form);
 
     const payload = {
       ...form,
       "cf-turnstile-response": turnstileToken,
       include_food: includeFood,
-      service_type: serviceTypeForRequest(form),
+      service_type: isOffer ? form.service_type : serviceTypeForRequest(form),
       // " " is the picker's "Something else" sentinel, not a real theme.
       event_theme: String(form.event_theme || "").trim(),
       event_palette: Array.isArray(form.event_palette) ? form.event_palette : [],
@@ -1119,7 +1179,7 @@ export default function BookingWizard() {
       // One free-text venue type, the way the backend stores it: "Other" plus
       // the customer's own words collapse back into the words themselves.
       venue_type: resolveVenueType(form),
-      guest_count: parseNumber(form.guest_count),
+      guest_count: parseNumber(form.guest_count) || 1,
       duration_hours: parseNumber(form.duration_hours) || 4,
       // What the customer was shown. The quotation the admin issues stays the
       // authoritative figure — this only records what was on screen.
@@ -1128,7 +1188,7 @@ export default function BookingWizard() {
         ...(form.selected_package_addons || []),
         ...(form.additional_services || []),
       ],
-      delivery_method: deliveryMethod,
+      delivery_method: isOffer ? form.delivery_method : deliveryMethod,
       // A combo is food: it has no scaffold size to record and no equipment to
       // reserve. Cleared here as well as on the server, so what the customer
       // was shown and what is stored cannot disagree.
@@ -1140,6 +1200,7 @@ export default function BookingWizard() {
             scaffold_base_area: undefined,
             scaffold_price: undefined,
             inventory_items: [],
+            offer_food_snapshot: form.offer_food_snapshot || [],
           }
         : {}),
       // Dishes only travel with a request that asked for food, and never with
@@ -1189,24 +1250,39 @@ export default function BookingWizard() {
         },
       });
     } catch (err) {
-      const status = err.response?.status;
       setError(
-        status === 429
-          ? "You just sent a request a moment ago. Wait a minute before sending another. Nothing you entered has been lost."
-          : err.response?.data?.message ||
-              "We couldn't send your request. Everything you entered is still here. Check your connection and try again.",
+        err?.response?.data?.message ||
+          "Could not send your request right now. Try again in a moment.",
       );
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   // ---------------------------------------------------------------------------
-  // Render
+  // Step renderer
   // ---------------------------------------------------------------------------
   const renderStep = () => {
     switch (currentStepId) {
       case "ServiceType":
-        return <StepServiceType form={form} setForm={setForm} />;
+        return (
+          <StepServiceType
+            form={form}
+            setForm={setForm}
+            onChangeServiceType={(nextServiceType) => {
+              setForm((prev) => {
+                const next = { ...prev, service_type: nextServiceType };
+                if (nextServiceType === SERVICE_TYPES.SETUP_ONLY) {
+                  next.include_food = false;
+                  next.selected_menu = [];
+                } else if (nextServiceType === SERVICE_TYPES.FOOD_ONLY) {
+                  next.include_food = true;
+                }
+                return next;
+              });
+            }}
+          />
+        );
 
       case "DateTime":
         return (
@@ -1215,69 +1291,52 @@ export default function BookingWizard() {
             setForm={setForm}
             minDate={minDate}
             availability={availability}
+            isPending={isAvailabilityPending}
             suggestedDates={suggestedDates}
-            requireAvailabilityCheck={requireAvailabilityCheck}
-            onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
-            leadTimeDays={MIN_DATE_OFFSET_DAYS}
+            onSelectDate={(date) => setForm({ ...form, event_date: date })}
+            onRecheck={() => setAvailabilityNonce((n) => n + 1)}
+            requireCheck={requireAvailabilityCheck}
           />
         );
 
       case "PackageSelection":
         return (
           <StepPackageSelection
-            packages={packages}
             form={form}
             setForm={setForm}
-            packageDetails={packageDetails}
+            packages={packages}
             selectedPackageId={selectedPackageId}
-            estimate={estimate}
-            errors={fieldErrors}
-            setupCapacity={setupCapacity}
-            onSelectPackage={(packageId) => {
-              if (selectedPackageId === packageId) {
-                // Unselect current package
-                setForm((prev) => ({
-                  ...prev,
-                  package_id: "none",
-                  selected_scaffold_option_id: "",
-                  scaffold_width: undefined,
-                  scaffold_length: undefined,
-                  scaffold_base_area: undefined,
-                  scaffold_price: undefined,
-                  scaffold_guest_min: undefined,
-                  scaffold_guest_max: undefined,
-                  selected_package_addons: [],
-                }));
-                return;
-              }
+            onSelectPackage={(pkg) => {
+              const prevScaffold =
+                packageDetails?.scaffold_size_options?.find(
+                  (o) => o._id === form.selected_scaffold_option_id,
+                ) ||
+                packageDetails?.scaffold_size_options?.[0] ||
+                null;
 
-              const pkg =
-                packages.find((entry) => entry._id === packageId) || packageDetails;
-              const options = Array.isArray(pkg?.scaffold_size_options)
-                ? pkg.scaffold_size_options
-                : [];
-              const option =
-                options.find(
-                  (entry) =>
-                    String(entry._id) === String(pkg?.default_scaffold_option_id),
-                ) || options[0];
+              const matchedOption =
+                pkg.scaffold_size_options?.find(
+                  (o) =>
+                    prevScaffold &&
+                    Number(o.width_ft) === Number(prevScaffold.width_ft) &&
+                    Number(o.length_ft) === Number(prevScaffold.length_ft),
+                ) ||
+                pkg.scaffold_size_options?.find(
+                  (o) => o._id === pkg.default_scaffold_option_id,
+                ) ||
+                pkg.scaffold_size_options?.[0] ||
+                null;
 
               setForm((prev) => ({
                 ...prev,
-                package_id: packageId,
-                selected_scaffold_option_id: option
-                  ? String(option._id)
-                  : prev.selected_scaffold_option_id,
-                scaffold_width: option?.width_ft ?? prev.scaffold_width,
-                scaffold_length: option?.length_ft ?? prev.scaffold_length,
-                scaffold_base_area:
-                  option?.area_ft2 ??
-                  (option?.width_ft && option?.length_ft
-                    ? option.width_ft * option.length_ft
-                    : prev.scaffold_base_area),
-                scaffold_price: option?.price ?? prev.scaffold_price,
-                scaffold_guest_min: option?.guest_min ?? prev.scaffold_guest_min,
-                scaffold_guest_max: option?.guest_max ?? prev.scaffold_guest_max,
+                package_id: pkg._id,
+                selected_scaffold_option_id: matchedOption?._id || null,
+                scaffold_width: matchedOption?.width_ft || null,
+                scaffold_length: matchedOption?.length_ft || null,
+                scaffold_base_area: matchedOption?.area_ft2 || null,
+                scaffold_price: matchedOption?.price || null,
+                scaffold_guest_min: matchedOption?.guest_min || null,
+                scaffold_guest_max: matchedOption?.guest_max || null,
               }));
             }}
           />
@@ -1299,6 +1358,7 @@ export default function BookingWizard() {
             errors={fieldErrors}
             setupCapacity={setupCapacity}
             offer={isOffer ? packageDetails : null}
+            pickupAddress={businessInfo?.pickup_address || businessInfo?.address || businessInfo?.kitchen_address}
           />
         );
 
@@ -1333,24 +1393,17 @@ export default function BookingWizard() {
         return <StepDietaryNeeds form={form} setForm={setForm} />;
 
       case "AddonSelection":
-        return (
-          <StepAddonSelection
-            form={form}
-            setForm={setForm}
-            addons={addons}
-            estimate={estimate}
-          />
-        );
-
       case "PackageAddOns":
         return (
           <StepPackageAddOns
             form={form}
             setForm={setForm}
             packageDetails={packageDetails}
+            addons={addons}
             estimate={estimate}
           />
         );
+
 
       case "ContactInfo":
         return (
@@ -1392,10 +1445,58 @@ export default function BookingWizard() {
     >
       {/* Progress header — sticks under the site header so users never lose place */}
       <div className="sticky top-[var(--ls-header-h,73px)] z-20 -mx-4 mb-4 border-b border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <BookingStepper currentStepIndex={step + 1} steps={wizardSteps} />
+        <BookingStepper
+          currentStepIndex={step + 1}
+          steps={wizardSteps}
+          onStepClick={(targetIndex) => {
+            if (isEditing) {
+              const { valid, errors, message } = validateStep(currentStepId);
+              if (!valid && targetIndex > step) {
+                setFieldErrors(errors);
+                setError(message);
+                return;
+              }
+            }
+            goToStep(targetIndex);
+          }}
+          isEditing={isEditing}
+          maxStepReached={reviewIndex >= 0 ? reviewIndex : wizardSteps.length - 1}
+        />
       </div>
 
-      {draftNoticeVisible && (
+      {/* Prominent Editing Mode Banner */}
+      {isEditing && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200/80 bg-blue-50/70 p-3 sm:px-4 text-[13px] shadow-xs">
+          <div className="flex items-center gap-2.5 text-blue-900 font-medium min-w-0">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#4C81E0]">
+              <Pencil size={12} />
+            </span>
+            <span className="truncate">
+              Editing: <strong className="font-semibold text-[#1E293B]">{wizardSteps[step]?.label}</strong>
+              <span className="hidden sm:inline text-slate-500 font-normal"> — Update your details and return to review.</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleNext}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#4C81E0] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-[#3b6ec6] active:scale-95 transition-all cursor-pointer"
+            >
+              <Check size={13} />
+              Save & Return to Review
+            </button>
+            <button
+              type="button"
+              onClick={returnToReview}
+              className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {draftNoticeVisible && !isEditing && (
         <InfoNote tone="info" title="We picked up where you left off" className="mb-4">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             Your earlier answers are still here.
@@ -1437,14 +1538,18 @@ export default function BookingWizard() {
           )}
 
           <div className="flex items-center justify-between gap-3">
-            <PrimaryBtn variant="ghost" onClick={handleBack} className="px-3 sm:px-4">
+            <PrimaryBtn
+              variant="ghost"
+              onClick={isEditing ? returnToReview : handleBack}
+              className="px-3 sm:px-4"
+            >
               <ArrowLeft size={16} />
-              {isEditing ? "Cancel" : "Back"}
+              {isEditing ? "Cancel & Review" : "Back"}
             </PrimaryBtn>
 
-            <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#94A3B8] sm:block">
+            <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
               {isEditing
-                ? "Editing one answer. We will take you straight back to your review."
+                ? `Editing ${wizardSteps[step]?.label} · Saving takes you directly back to your review.`
                 : isReview
                   ? "Sending this asks for a quotation. No payment is taken."
                   : nextStepLabel
@@ -1483,13 +1588,31 @@ export default function BookingWizard() {
                   setShowScheduleConfirm(true);
                 }}
               >
-                {isEditing ? "Save and review" : "Continue"}
-                <ArrowRight size={16} />
+                {isEditing ? (
+                  <>
+                    <Check size={16} />
+                    Save & Return to Review
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </PrimaryBtn>
             ) : (
               <PrimaryBtn variant="primary" onClick={handleNext}>
-                {isEditing ? "Save and review" : "Continue"}
-                <ArrowRight size={16} />
+                {isEditing ? (
+                  <>
+                    <Check size={16} />
+                    Save & Return to Review
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </PrimaryBtn>
             )}
           </div>
@@ -1551,11 +1674,16 @@ export default function BookingWizard() {
               disabled={!isAvailabilityConfirmed}
               className="w-full sm:w-auto"
             >
-              {isAvailabilityPending ? "Checking" : "Confirm and continue"}
+              {isAvailabilityPending
+                ? "Checking"
+                : isEditing
+                  ? "Confirm & Return to Review"
+                  : "Confirm and continue"}
             </PrimaryBtn>
           </div>
         </Modal>
       )}
+
 
       {/* The shared Modal clips its body (`overflow-hidden`) and DialogContent
           sets no max height, so a full policy document has to bring its own

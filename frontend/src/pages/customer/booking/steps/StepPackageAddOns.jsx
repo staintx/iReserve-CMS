@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Sparkles, Info, MessageSquare } from "lucide-react";
+import { Sparkles, Info, MessageSquare, PackageOpen } from "lucide-react";
 import {
   Card,
   SH,
@@ -16,23 +16,48 @@ export default function StepPackageAddOns({
   form,
   setForm,
   packageDetails,
+  addons = [],
   estimate,
 }) {
-  // Package add-ons are matched by name — they have no id of their own — so the
-  // name is both the key and the identity, exactly as before.
-  const items = useMemo(() => {
-    const addOns = Array.isArray(packageDetails?.add_ons)
+  // 1. Package-specific add-ons
+  const packageItems = useMemo(() => {
+    const pkgAddOns = Array.isArray(packageDetails?.add_ons)
       ? packageDetails.add_ons
       : [];
-    return addOns.map((addOn, index) => ({
-      key: `${addOn.name}-${index}`,
+    return pkgAddOns.map((addOn, index) => ({
+      key: `pkg-${addOn.name}-${index}`,
       name: addOn.name,
       description: addOn.description,
       price: addOn.price || 0,
       isQuantity: addOn.pricing_type === "quantity",
       source: addOn,
+      isPackageAddon: true,
     }));
   }, [packageDetails]);
+
+  // 2. Common / global add-ons (excluding duplicates if already defined in package add-ons)
+  const commonItems = useMemo(() => {
+    const pkgNames = new Set(
+      packageItems.map((p) => (p.name || "").trim().toLowerCase()),
+    );
+    const rawCommon = Array.isArray(addons) ? addons : [];
+    return rawCommon
+      .filter(
+        (addon) =>
+          addon &&
+          addon.available !== false &&
+          !pkgNames.has((addon.name || "").trim().toLowerCase()),
+      )
+      .map((addon, index) => ({
+        key: `common-${addon._id || addon.name}-${index}`,
+        name: addon.name,
+        description: addon.description,
+        price: addon.price || 0,
+        isQuantity: addon.pricing_type === "quantity",
+        source: addon,
+        isCommonAddon: true,
+      }));
+  }, [addons, packageItems]);
 
   const quantityOf = (item) =>
     form.selected_package_addons?.find((entry) => entry.name === item.name)
@@ -52,7 +77,8 @@ export default function StepPackageAddOns({
           name: item.name,
           price: item.price,
           quantity: delta,
-          pricing_type: item.source?.pricing_type || "quantity",
+          pricing_type: item.source?.pricing_type || (item.isQuantity ? "quantity" : "fixed"),
+          item_id: item.source?._id,
         });
       }
 
@@ -67,8 +93,9 @@ export default function StepPackageAddOns({
       const existing = [...(prev.selected_package_addons || [])];
       const index = existing.findIndex((entry) => entry.name === item.name);
 
-      if (index >= 0) existing.splice(index, 1);
-      else
+      if (index >= 0) {
+        existing.splice(index, 1);
+      } else {
         existing.push({
           name: item.name,
           price: item.price,
@@ -76,13 +103,17 @@ export default function StepPackageAddOns({
           pricing_type: item.isQuantity
             ? item.source?.pricing_type || "quantity"
             : "fixed",
+          item_id: item.source?._id,
         });
+      }
 
       return { ...prev, selected_package_addons: existing };
     });
   };
 
   const selectedCount = form.selected_package_addons?.length || 0;
+  const hasPackageItems = packageItems.length > 0;
+  const hasCommonItems = commonItems.length > 0;
 
   return (
     <StepShell aside={<EstimateSummary estimate={estimate} />}>
@@ -100,19 +131,66 @@ export default function StepPackageAddOns({
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-        <Card className="p-5">
-          <SectionTitle icon={Sparkles}>
-            Add-ons for {packageDetails?.name || "your package"}
-          </SectionTitle>
+        <Card className="p-5 space-y-6">
+          {/* Case 1: Package has specific add-ons */}
+          {hasPackageItems && (
+            <div>
+              <SectionTitle icon={Sparkles}>
+                Add-ons for {packageDetails?.name || "your package"}
+              </SectionTitle>
+              <AddOnPicker
+                items={packageItems}
+                quantityOf={quantityOf}
+                onToggle={toggleAddOn}
+                onQuantityChange={handleQuantityChange}
+                emptyTitle="No extra add-ons for this package"
+                emptyHint="You can describe any custom styling or equipment requests in the notes box."
+              />
+            </div>
+          )}
 
-          <AddOnPicker
-            items={items}
-            quantityOf={quantityOf}
-            onToggle={toggleAddOn}
-            onQuantityChange={handleQuantityChange}
-            emptyTitle="No extra add-ons for this package"
-            emptyHint="You can describe any custom styling or equipment requests in the notes box."
-          />
+          {/* Section Divider if both package-specific and common add-ons exist */}
+          {hasPackageItems && hasCommonItems && (
+            <div className="border-t border-slate-100 pt-2" />
+          )}
+
+          {/* Case 2: Common / Global Add-ons */}
+          {hasCommonItems && (
+            <div>
+              <SectionTitle icon={hasPackageItems ? PackageOpen : Sparkles}>
+                {hasPackageItems
+                  ? "Common Event Add-ons & Equipment"
+                  : "Common Event Add-ons & Equipment"}
+              </SectionTitle>
+              {hasPackageItems && (
+                <p className="mt-1 text-xs text-[#64748B]">
+                  Popular sound & lighting, decor, and equipment options available across all events.
+                </p>
+              )}
+              <AddOnPicker
+                items={commonItems}
+                quantityOf={quantityOf}
+                onToggle={toggleAddOn}
+                onQuantityChange={handleQuantityChange}
+                emptyTitle="No add-ons available"
+                emptyHint="You can describe what you need in the notes box."
+              />
+            </div>
+          )}
+
+          {/* Fallback if no add-ons at all */}
+          {!hasPackageItems && !hasCommonItems && (
+            <div>
+              <SectionTitle icon={Sparkles}>Event Add-ons</SectionTitle>
+              <div className="mt-2 rounded-2xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC]/60 p-8 text-center">
+                <Info className="mx-auto mb-2.5 h-6 w-6 text-[#94A3B8]" />
+                <p className="text-sm font-semibold text-[#1E293B]">No add-ons currently available</p>
+                <p className="mt-1 text-xs text-[#64748B]">
+                  You can describe any custom styling or equipment requests in the notes box.
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card className="p-5">
@@ -137,3 +215,4 @@ export default function StepPackageAddOns({
     </StepShell>
   );
 }
+

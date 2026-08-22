@@ -500,12 +500,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
     return {
       name: packageRecord.name,
-      // A combo is sold for its own guest count, so that is the number the
-      // base price was built from — not whatever this builder currently shows.
-      guests: offerGuestCount(packageRecord) || Number(inquiry?.guest_count) || 0,
+      guests: Number(inquiry?.guest_count) || offerGuestCount(packageRecord) || 0,
       perPax,
       basePrice:
-        Number(inquiry?.offer_base_price) || offerBaseFoodPrice(packageRecord),
+        Number(inquiry?.offer_base_price) ||
+        offerBaseFoodPrice(packageRecord, Number(inquiry?.guest_count) || offerGuestCount(packageRecord)),
       // The dishes alone. These become the quotation's food lines, at ₱0.
       // `food` is the display list; `foodItems` keeps the name and the course
       // apart, because a menu row needs them in separate fields and a string

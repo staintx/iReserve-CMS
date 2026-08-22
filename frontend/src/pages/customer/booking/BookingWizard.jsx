@@ -1291,11 +1291,10 @@ export default function BookingWizard() {
             setForm={setForm}
             minDate={minDate}
             availability={availability}
-            isPending={isAvailabilityPending}
             suggestedDates={suggestedDates}
-            onSelectDate={(date) => setForm({ ...form, event_date: date })}
-            onRecheck={() => setAvailabilityNonce((n) => n + 1)}
-            requireCheck={requireAvailabilityCheck}
+            requireAvailabilityCheck={requireAvailabilityCheck}
+            onRetryAvailability={() => setAvailabilityNonce((n) => n + 1)}
+            leadTimeDays={MIN_DATE_OFFSET_DAYS}
           />
         );
 
@@ -1305,8 +1304,32 @@ export default function BookingWizard() {
             form={form}
             setForm={setForm}
             packages={packages}
+            packageDetails={packageDetails}
             selectedPackageId={selectedPackageId}
-            onSelectPackage={(pkg) => {
+            estimate={estimate}
+            errors={fieldErrors}
+            setupCapacity={setupCapacity}
+            onSelectPackage={(packageId) => {
+              if (selectedPackageId === packageId) {
+                setForm((prev) => ({
+                  ...prev,
+                  package_id: "none",
+                  selected_scaffold_option_id: "",
+                  scaffold_width: undefined,
+                  scaffold_length: undefined,
+                  scaffold_base_area: undefined,
+                  scaffold_price: undefined,
+                  scaffold_guest_min: undefined,
+                  scaffold_guest_max: undefined,
+                  selected_package_addons: [],
+                }));
+                return;
+              }
+
+              const pkg =
+                packages.find((entry) => entry._id === packageId) || packageDetails;
+              if (!pkg) return;
+
               const prevScaffold =
                 packageDetails?.scaffold_size_options?.find(
                   (o) => o._id === form.selected_scaffold_option_id,

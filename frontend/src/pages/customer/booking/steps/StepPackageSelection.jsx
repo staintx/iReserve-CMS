@@ -168,8 +168,8 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
             Includes
           </p>
           <ul className="space-y-1 text-[13px] text-[#64748B]">
-            {preview.map((line) => (
-              <li key={line} className="flex gap-2">
+            {preview.map((line, idx) => (
+              <li key={`${line}-${idx}`} className="flex gap-2">
                 <Check size={13} className="mt-0.5 shrink-0 text-[#4C81E0]" />
                 {line}
               </li>

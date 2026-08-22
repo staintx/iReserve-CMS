@@ -83,7 +83,7 @@ export default function AdminDashboard() {
     AdminAPI.getInventoryAvailability()
       .then((res) => {
         const items = Array.isArray(res.data) ? res.data : [];
-        setInventoryAlerts(items.filter((item) => (item.available_quantity ?? 0) <= (item.minStock || 0)));
+        setInventoryAlerts(items.filter((item) => (item.available_quantity ?? 0) <= 0 || item.available === false));
       })
       .catch(() => setInventoryAlerts([]));
   };
@@ -153,14 +153,17 @@ export default function AdminDashboard() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {inventoryAlerts.map((item) => {
-                const status = (item.available_quantity || 0) <= 0 ? "critical" : "low";
+                const isUnavailable = item.available === false;
+                const status = isUnavailable ? "unavailable" : "critical";
                 return (
-                  <div key={item._id} className={`p-3 rounded-xl border ${status === "critical" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                  <div key={item._id} className={`p-3 rounded-xl border ${isUnavailable ? "border-slate-200 bg-slate-50" : "border-rose-200 bg-rose-50"}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <Badge status={status} />
                       <span className="text-xs font-bold text-foreground">{item.item_name}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Available: <strong>{item.available_quantity || 0}</strong> / Min: {item.minStock || 0}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Stock on Hand: <strong className={isUnavailable ? "text-slate-500" : "text-rose-600"}>{item.available_quantity || 0}</strong> (Total: {item.quantity || 0})
+                    </p>
                   </div>
                 );
               })}

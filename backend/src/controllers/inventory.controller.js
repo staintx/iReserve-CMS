@@ -33,6 +33,16 @@ exports.update = async (req, res) => {
     });
   }
 
+  if (before && item && typeof updates.available === "boolean" && updates.available !== before.available) {
+    writeInventoryLog({
+      inventory_id: item._id,
+      event_type: "manual_adjustment",
+      delta: 0,
+      actor_id: req.user?._id,
+      reason: reason || (updates.available ? "Item marked as Available" : "Item marked as Unavailable"),
+    });
+  }
+
   res.json(item);
 };
 
@@ -64,16 +74,7 @@ exports.getAvailability = async (req, res) => {
     const { date, excludeBookingId } = req.query;
     const allInventory = await Inventory.find().sort({ category: 1, item_name: 1 });
 
-    if (!date) {
-      const result = allInventory.map(item => ({
-        ...item.toObject(),
-        reserved_quantity: 0,
-        available_quantity: item.available !== false ? (item.quantity || 0) : 0
-      }));
-      return res.json(result);
-    }
-
-    const targetDate = new Date(date);
+    const targetDate = date ? new Date(date) : new Date();
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ message: "Invalid date format" });
     }
@@ -85,7 +86,7 @@ exports.getAvailability = async (req, res) => {
 
     const bookingQuery = {
       status: {
-        $nin: ["cancelled", "Cancelled", "refunded", "inquiry", "quote_sent"]
+        $nin: ["cancelled", "Cancelled", "refunded", "inquiry", "quote_sent", "rejected"]
       },
       event_date: { $gte: startOfDay, $lte: endOfDay }
     };
@@ -113,10 +114,12 @@ exports.getAvailability = async (req, res) => {
       const reserved = reservedQuantities[idStr] || 0;
       const total = item.quantity || 0;
       const isAvailable = item.available !== false;
+      const stockOnHand = isAvailable ? Math.max(0, total - reserved) : 0;
       return {
         ...item.toObject(),
         reserved_quantity: reserved,
-        available_quantity: isAvailable ? Math.max(0, total - reserved) : 0
+        available_quantity: stockOnHand,
+        stock_on_hand: stockOnHand
       };
     });
 

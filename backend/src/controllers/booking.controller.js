@@ -2426,34 +2426,53 @@ exports.acceptQuote = asyncHandler(async (req, res) => {
   } catch (e) {}
 });
 
-exports.convertInquiry = asyncHandler(async (req, res) => {
-  const inquiryId = req.params.id;
+exports.executeInquiryConversion = async ({
+  inquiryId,
+  eventManagerId = null,
+  bypassDeposit = false,
+  paymentDoc = null,
+  io = null,
+}) => {
   const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
-  if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
+  if (!inquiry) throw new Error("Inquiry not found");
 
   // If already converted, return existing booking
   if (inquiry.converted_booking_id) {
     const existingBooking = await Booking.findById(inquiry.converted_booking_id);
     if (existingBooking) {
-      return res.status(200).json({
-        message: "Inquiry already converted to booking",
-        booking: existingBooking,
-      });
+      if (paymentDoc) {
+        paymentDoc.booking_id = existingBooking._id;
+        await paymentDoc.save();
+        const { syncBookingStatus } = require("./payment.controller");
+        if (syncBookingStatus) await syncBookingStatus(existingBooking._id);
+      }
+      return existingBooking;
     }
   }
 
-  // Admin Guard: Require an approved deposit payment before converting to booking (unless explicit manual bypass)
+  // Check for approved deposit payment
   const Payment = require("../models/Payment");
-  const approvedPayment = await Payment.findOne({
-    inquiry_id: inquiryId,
-    payment_type: { $in: ["deposit", "full"] },
-    status: "approved",
-  });
-
-  if (!approvedPayment && req.body.bypass_deposit !== true) {
-    return res.status(400).json({
-      message: "Cannot convert inquiry to booking: The down payment deposit has not been approved yet.",
+  let approvedPayment = (paymentDoc && paymentDoc.status === "approved") ? paymentDoc : null;
+  if (!approvedPayment) {
+    approvedPayment = await Payment.findOne({
+      inquiry_id: inquiryId,
+      payment_type: { $in: ["deposit", "full"] },
+      status: "approved",
     });
+  }
+
+  if (!approvedPayment && bypassDeposit !== true) {
+    throw new Error("Cannot convert inquiry to booking: The down payment deposit has not been approved yet.");
+  }
+
+  // Manager ID fallback: if not provided, try to find an active manager
+  let finalManagerId = eventManagerId;
+  if (!finalManagerId) {
+    try {
+      const User = require("../models/User");
+      const activeManager = await User.findOne({ role: "manager", is_active: { $ne: false } });
+      if (activeManager) finalManagerId = activeManager._id;
+    } catch (e) {}
   }
 
   // Find latest quotation if available (prefer Accepted, fallback to latest)
@@ -2462,14 +2481,8 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     quotation = await Quotation.findOne({ inquiry_id: inquiryId }).sort({ version_number: -1, createdAt: -1 });
   }
 
-  // Whether this booking carries food, and the service type that follows from
-  // it. Both come from the inquiry: the booking used to be created with
-  // include_food hardcoded to true, so every setup-only event was recorded as
-  // catered once it reached the calendar.
+  // Whether this booking carries food, and the service type that follows from it
   const includeFood = cateringRequested(inquiry);
-  // Food Only stays Food Only; it is the one service type with no setup to add.
-  // Inquiries old enough to carry no service type at all keep the delivery and
-  // event-type heuristic that has always identified them.
   const isFoodDelivery =
     inquiry.service_type === "Food Only" ||
     (!inquiry.service_type &&
@@ -2481,13 +2494,10 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
       ? "Food and Event Setup"
       : "Event Setup Only";
 
-  // Build menu items array. A booking without catering carries no menu, so no
-  // food can be charged on an event that did not ask for it.
+  // Build menu items array
   let menuItems = [];
   if (includeFood) {
     if (quotation && quotation.menu_items && quotation.menu_items.length > 0) {
-      // Quantity, unit, pricing mode and the dish's own note all travel with
-      // it, so the booking states the same order the customer agreed to.
       menuItems = quotation.menu_items.map((dish) => ({
         name: dish.name,
         category: dish.category,
@@ -2500,9 +2510,6 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     } else if (inquiry.selected_menu && inquiry.selected_menu.length > 0) {
       menuItems = inquiry.selected_menu.map(m => (typeof m === 'object' ? { name: m.name || String(m), price: m.price || 0 } : { name: String(m), price: 0 }));
     } else if (Array.isArray(inquiry.offer_food_snapshot) && inquiry.offer_food_snapshot.length > 0) {
-      // A combo chose no dishes — it *is* its dishes. Carried across from the
-      // snapshot so a booking converted without a quotation still says what is
-      // being served, at ₱0 because the combo's base price already covers it.
       menuItems = inquiry.offer_food_snapshot.map((item) => ({
         name: item.item_name,
         category: item.menu_category || "",
@@ -2520,9 +2527,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     serviceItems = inquiry.service_items;
   }
 
-  // Additional charges from quotation fees. The two named fee fields below are
-  // no longer written by the Quotation Builder, but quotations issued before
-  // custom fees existed still carry them and must not lose the charge here.
+  // Additional charges from quotation fees
   const additionalCharges = [];
   if (quotation?.transportation_fee > 0) additionalCharges.push({ name: "Transportation Fee", amount: quotation.transportation_fee });
   if (quotation?.equipment_fee > 0) additionalCharges.push({ name: "Equipment Rental Fee", amount: quotation.equipment_fee });
@@ -2532,7 +2537,7 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     if (amount > 0) additionalCharges.push({ name: fee?.name || "Additional Fee", amount });
   });
 
-  // Build inventory items for reservation from Package setup_equipment and inventory add-ons
+  // Build inventory items for reservation
   let inventoryItems = [];
   const pkgId = quotation?.package_id || inquiry.package_id?._id || inquiry.package_id;
   if (pkgId) {
@@ -2571,9 +2576,6 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
   const payload = {
     customer_id: inquiry.customer_id?._id || inquiry.customer_id,
     package_id: pkgId,
-    // Carried across so a reservation still says what it was booked from.
-    // Falls back to the package relation for inquiries submitted before the
-    // field existed — never to the package name.
     booking_type:
       inquiry.booking_type || bookingTypeForPackage(inquiry.package_id || null),
     package_name_snapshot:
@@ -2611,15 +2613,14 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     total_price: totalPrice,
     payment_status: approvedPayment ? "deposit_paid" : "pending",
     status: approvedPayment ? "confirmed" : "pending deposit",
-    ...(req.body.event_manager_id || req.body.manager_id
-      ? { event_manager_id: req.body.event_manager_id || req.body.manager_id }
-      : {}),
+    ...(finalManagerId ? { event_manager_id: finalManagerId } : {}),
   };
 
   const newBooking = await Booking.create(payload);
 
   inquiry.status = "Converted to Booking";
   inquiry.converted_booking_id = newBooking._id;
+  inquiry.payment_status = approvedPayment ? "deposit_paid" : inquiry.payment_status;
   await inquiry.save();
 
   if (quotation) {
@@ -2674,17 +2675,36 @@ exports.convertInquiry = asyncHandler(async (req, res) => {
     }
   }
 
-  // Notify realtime clients about the conversion
-  try {
-    const io = req.app.get("io");
-    if (io) {
+  // Realtime notification
+  if (io) {
+    try {
       io.emit("system:refresh", { type: "booking", action: "converted", booking_id: newBooking._id });
       io.emit("system:refresh", { type: "inquiry", action: "converted", inquiry_id: inquiryId });
       if (quotation) io.emit("system:refresh", { type: "quotation", action: "converted", quotation_id: quotation._id });
-    }
-  } catch (e) {}
+      io.emit("system:refresh", { type: "payment", action: "update" });
+    } catch (e) {}
+  }
 
-  res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });
+  return newBooking;
+};
+
+exports.convertInquiry = asyncHandler(async (req, res) => {
+  const inquiryId = req.params.id;
+  const eventManagerId = req.body.event_manager_id || req.body.manager_id;
+  const bypassDeposit = req.body.bypass_deposit === true;
+
+  try {
+    const io = req.app.get("io");
+    const newBooking = await exports.executeInquiryConversion({
+      inquiryId,
+      eventManagerId,
+      bypassDeposit,
+      io,
+    });
+    res.status(201).json({ message: "Inquiry converted to booking successfully", booking: newBooking });
+  } catch (err) {
+    return res.status(400).json({ message: err.message || "Failed to convert inquiry to booking" });
+  }
 });
 
 exports.assignInventory = asyncHandler(async (req, res) => {

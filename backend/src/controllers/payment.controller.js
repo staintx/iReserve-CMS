@@ -24,7 +24,7 @@ const { sendPaymentReceiptEmail, sendBookingConfirmationEmail } = require("../ut
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
 
-async function convertInquiryToBooking(inquiryId, payment) {
+async function convertInquiryToBooking(inquiryId, payment, io = null) {
 	const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
 	if (!inquiry) return null;
 
@@ -41,7 +41,23 @@ async function convertInquiryToBooking(inquiryId, payment) {
 		}
 	}
 
-	// Update status to Awaiting Final Confirmation with deposit paid
+	// Auto-convert inquiry to confirmed booking now that deposit is approved
+	try {
+		const { executeInquiryConversion } = require("./booking.controller");
+		if (executeInquiryConversion) {
+			const newBooking = await executeInquiryConversion({
+				inquiryId,
+				bypassDeposit: true,
+				paymentDoc: payment,
+				io,
+			});
+			return newBooking;
+		}
+	} catch (err) {
+		console.error("Auto conversion error in payment.controller:", err);
+	}
+
+	// Fallback status update
 	inquiry.status = "Awaiting Final Confirmation";
 	inquiry.payment_status = "deposit_paid";
 	await inquiry.save();
@@ -54,7 +70,7 @@ async function convertInquiryToBooking(inquiryId, payment) {
 	return null;
 }
 
-exports.syncPaymentFromGateway = async (payment) => {
+exports.syncPaymentFromGateway = async (payment, io = null) => {
 	if (!payment || payment.status === "approved") return payment;
 
 	if (payment.gateway_payment_intent_id) {
@@ -88,7 +104,7 @@ exports.syncPaymentFromGateway = async (payment) => {
 		await payment.save();
 		if (payment.booking_id) await exports.syncBookingStatus(payment.booking_id);
 		if (payment.inquiry_id) { 
-			await convertInquiryToBooking(payment.inquiry_id, payment);
+			await convertInquiryToBooking(payment.inquiry_id, payment, io);
 		}
 	} else if (payment.gateway_payment_intent_id) {
 		await payment.save();
@@ -331,7 +347,9 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	}
 
 	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-	const cancelUrl = cancel_url || `${appBaseUrl}/customer/payments?status=cancelled`;
+	const cancelUrl = cancel_url || (inquiry_id 
+		? `${appBaseUrl}/customer/inquiries?payment=cancelled` 
+		: `${appBaseUrl}/customer/bookings/${booking_id || ''}?payment=cancelled`);
 
 	let payment = await Payment.findOne({
 		booking_id: booking_id ? targetDoc._id : undefined,
@@ -371,8 +389,11 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		email: targetDoc.contact_email || targetDoc.customer_id?.email || req.user?.email || "customer@example.com",
 		phone: targetDoc.contact_phone || targetDoc.customer_id?.phone || req.user?.phone
 	};
+	const defaultSuccessUrl = inquiry_id 
+		? `${appBaseUrl}/customer/inquiries?payment=success&inquiry_id=${inquiry_id}`
+		: `${appBaseUrl}/customer/bookings/${booking_id || ''}?payment=success`;
 	const successUrlObj = new URL(
-		success_url || `${appBaseUrl}/customer/payments?status=success`,
+		success_url || defaultSuccessUrl,
 	);
 	successUrlObj.searchParams.set("payment_id", String(payment._id));
 
@@ -563,7 +584,8 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Not allowed to verify this payment" });
 	}
 
-	await exports.syncPaymentFromGateway(payment);
+	const io = req.app.get("io");
+	await exports.syncPaymentFromGateway(payment, io);
 	res.json({ payment });
 });
 
@@ -611,14 +633,14 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
 
 	await payment.save();
 
+	const io = req.app.get("io");
+
 	if (payment.status === "approved") {
 		if (payment.booking_id) await exports.syncBookingStatus(payment.booking_id);
 		if (payment.inquiry_id) { 
-			await convertInquiryToBooking(payment.inquiry_id, payment);
+			await convertInquiryToBooking(payment.inquiry_id, payment, io);
 		}
 	}
-
-	const io = req.app.get("io");
 
 	if (payment.customer_id) {
 		const statusLabel = payment.status === "approved" ? "Payment approved" : "Payment update";

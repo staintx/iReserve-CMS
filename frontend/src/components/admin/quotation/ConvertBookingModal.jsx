@@ -8,6 +8,36 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [loadingManagers, setLoadingManagers] = useState(true);
   const [bypassDeposit, setBypassDeposit] = useState(false);
+  const [syncingPayment, setSyncingPayment] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+
+  const handleSyncPayment = async () => {
+    try {
+      setSyncingPayment(true);
+      setSyncMessage("");
+      const res = await AdminAPI.getPayments();
+      const inqPayments = (res.data || []).filter(p => String(p.inquiry_id?._id || p.inquiry_id) === String(quote._id));
+      if (inqPayments.length > 0) {
+        const pendingPayment = inqPayments.find(p => p.status === "pending") || inqPayments[0];
+        const verifyRes = await AdminAPI.verifyPayment(pendingPayment._id);
+        if (verifyRes.data?.payment?.status === "approved") {
+          setSyncMessage("Deposit verified & approved! Reloading details...");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1200);
+          return;
+        } else {
+          setSyncMessage("Checked PayMongo: No completed payment found yet.");
+        }
+      } else {
+        setSyncMessage("No PayMongo checkout found for this inquiry.");
+      }
+    } catch (err) {
+      setSyncMessage("Could not verify PayMongo payment status.");
+    } finally {
+      setSyncingPayment(false);
+    }
+  };
 
   useEffect(() => {
     AdminAPI.getStaff()
@@ -129,19 +159,40 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
           </div>
         </div>
 
-        {/* Offline Deposit Bypass Checkbox if Unpaid */}
+        {/* PayMongo Verification & Offline Bypass if Unpaid */}
         {!isDepositPaid && (
-          <label className="w-full flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-left text-xs text-amber-950 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={bypassDeposit}
-              onChange={(e) => setBypassDeposit(e.target.checked)}
-              className="mt-0.5 rounded border-amber-300 text-primary focus:ring-primary h-4 w-4"
-            />
-            <span className="leading-snug">
-              <strong>Offline Deposit Verified:</strong> Customer has paid the deposit offline via Cash or Bank Transfer. Allow immediate conversion.
-            </span>
-          </label>
+          <div className="w-full space-y-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-left">
+              <div className="text-xs text-slate-600">
+                <span className="font-semibold text-slate-800">Online Checkout:</span> Check if customer completed PayMongo payment.
+              </div>
+              <button
+                type="button"
+                onClick={handleSyncPayment}
+                disabled={syncingPayment}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {syncingPayment ? "Checking..." : "Sync PayMongo"}
+              </button>
+            </div>
+            {syncMessage && (
+              <p className="text-[11px] font-medium text-slate-600 text-left px-1">
+                {syncMessage}
+              </p>
+            )}
+
+            <label className="w-full flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-left text-xs text-amber-950 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bypassDeposit}
+                onChange={(e) => setBypassDeposit(e.target.checked)}
+                className="mt-0.5 rounded border-amber-300 text-primary focus:ring-primary h-4 w-4"
+              />
+              <span className="leading-snug">
+                <strong>Offline Deposit Verified:</strong> Customer has paid the deposit offline via Cash or Bank Transfer. Allow immediate conversion.
+              </span>
+            </label>
+          </div>
         )}
 
         {/* Event Manager Assignment Box */}

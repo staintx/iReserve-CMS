@@ -14,7 +14,14 @@ const FALLBACK_STEPS = [
   { label: "Review", key: "review" },
 ];
 
-export default function BookingStepper({ currentStepIndex, steps = [] }) {
+
+export default function BookingStepper({
+  currentStepIndex,
+  steps = [],
+  onStepClick,
+  maxStepReached = currentStepIndex,
+  isEditing = false,
+}) {
   const items = steps.length === 0 ? FALLBACK_STEPS : steps;
   const total = items.length;
   const current = Math.min(Math.max(currentStepIndex, 1), total);
@@ -24,7 +31,7 @@ export default function BookingStepper({ currentStepIndex, steps = [] }) {
 
   return (
     <nav aria-label="Booking progress" className="w-full">
-      {/* Compact progress bar + context — the only progress UI on small screens */}
+      {/* Compact progress bar + context — small screens */}
       <div className="md:hidden">
         <div className="mb-1.5 flex items-baseline justify-between gap-3">
           <p className="truncate text-sm font-semibold text-[#1E293B]">
@@ -50,21 +57,37 @@ export default function BookingStepper({ currentStepIndex, steps = [] }) {
         {items.map((step, index) => {
           const isActive = index + 1 === current;
           const isCompleted = index + 1 < current;
+          const isClickable =
+            Boolean(onStepClick) &&
+            (isCompleted || isEditing || index + 1 <= maxStepReached);
 
           return (
             <li
               key={step.key ?? step.label}
-              className={cn("flex min-w-0 items-center", isActive ? "shrink-0" : "min-w-0")}
+              className={cn(
+                "flex min-w-0 items-center",
+                isActive ? "shrink-0" : "min-w-0",
+              )}
               aria-current={isActive ? "step" : undefined}
             >
-              <div
+              <button
+                type="button"
+                disabled={!isClickable || isActive}
+                onClick={() => onStepClick && onStepClick(index)}
+                title={
+                  isClickable && !isActive
+                    ? `Jump to ${step.label}`
+                    : undefined
+                }
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-200",
-                  isCompleted
-                    ? "bg-[#D6E4F7] text-[#1E293B]"
-                    : isActive
-                      ? "bg-[#4C81E0] text-white shadow-sm"
-                      : "bg-[#F1F5F9] text-[#94A3B8]",
+                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-200 text-left",
+                  isActive
+                    ? "bg-[#4C81E0] text-white shadow-sm ring-2 ring-[#4C81E0]/20 cursor-default"
+                    : isCompleted
+                      ? "bg-[#D6E4F7] text-[#1E293B] hover:bg-[#c2d7f3] cursor-pointer active:scale-95"
+                      : isClickable
+                        ? "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0] cursor-pointer active:scale-95"
+                        : "bg-[#F1F5F9] text-[#94A3B8] cursor-not-allowed opacity-80",
                 )}
               >
                 <span
@@ -85,7 +108,7 @@ export default function BookingStepper({ currentStepIndex, steps = [] }) {
                 </span>
                 <span className="truncate lg:max-w-none">{step.label}</span>
                 {isCompleted && <span className="sr-only">completed</span>}
-              </div>
+              </button>
               {index < items.length - 1 && (
                 <span
                   aria-hidden="true"
@@ -102,3 +125,4 @@ export default function BookingStepper({ currentStepIndex, steps = [] }) {
     </nav>
   );
 }
+

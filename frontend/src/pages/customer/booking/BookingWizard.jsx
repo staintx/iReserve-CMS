@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { AlertCircle, ArrowLeft, ArrowRight, Loader2, RotateCcw } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Loader2,
+  Pencil,
+  RotateCcw,
+} from "lucide-react";
+
+
 
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import Modal from "../../../components/common/Modal";
@@ -1386,10 +1396,58 @@ export default function BookingWizard() {
     >
       {/* Progress header — sticks under the site header so users never lose place */}
       <div className="sticky top-[var(--ls-header-h,73px)] z-20 -mx-4 mb-4 border-b border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <BookingStepper currentStepIndex={step + 1} steps={wizardSteps} />
+        <BookingStepper
+          currentStepIndex={step + 1}
+          steps={wizardSteps}
+          onStepClick={(targetIndex) => {
+            if (isEditing) {
+              const { valid, errors, message } = validateStep(currentStepId);
+              if (!valid && targetIndex > step) {
+                setFieldErrors(errors);
+                setError(message);
+                return;
+              }
+            }
+            goToStep(targetIndex);
+          }}
+          isEditing={isEditing}
+          maxStepReached={reviewIndex >= 0 ? reviewIndex : wizardSteps.length - 1}
+        />
       </div>
 
-      {draftNoticeVisible && (
+      {/* Prominent Editing Mode Banner */}
+      {isEditing && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200/80 bg-blue-50/70 p-3 sm:px-4 text-[13px] shadow-xs">
+          <div className="flex items-center gap-2.5 text-blue-900 font-medium min-w-0">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#4C81E0]">
+              <Pencil size={12} />
+            </span>
+            <span className="truncate">
+              Editing: <strong className="font-semibold text-[#1E293B]">{wizardSteps[step]?.label}</strong>
+              <span className="hidden sm:inline text-slate-500 font-normal"> — Update your details and return to review.</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleNext}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#4C81E0] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-[#3b6ec6] active:scale-95 transition-all cursor-pointer"
+            >
+              <Check size={13} />
+              Save & Return to Review
+            </button>
+            <button
+              type="button"
+              onClick={returnToReview}
+              className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {draftNoticeVisible && !isEditing && (
         <InfoNote tone="info" title="We picked up where you left off" className="mb-4">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             Your earlier answers are still here.
@@ -1431,14 +1489,18 @@ export default function BookingWizard() {
           )}
 
           <div className="flex items-center justify-between gap-3">
-            <PrimaryBtn variant="ghost" onClick={handleBack} className="px-3 sm:px-4">
+            <PrimaryBtn
+              variant="ghost"
+              onClick={isEditing ? returnToReview : handleBack}
+              className="px-3 sm:px-4"
+            >
               <ArrowLeft size={16} />
-              {isEditing ? "Cancel" : "Back"}
+              {isEditing ? "Cancel & Review" : "Back"}
             </PrimaryBtn>
 
-            <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#94A3B8] sm:block">
+            <p className="hidden min-w-0 flex-1 truncate text-center text-xs text-[#64748B] sm:block">
               {isEditing
-                ? "Editing one answer. We will take you straight back to your review."
+                ? `Editing ${wizardSteps[step]?.label} · Saving takes you directly back to your review.`
                 : isReview
                   ? "Sending this asks for a quotation. No payment is taken."
                   : nextStepLabel
@@ -1477,13 +1539,31 @@ export default function BookingWizard() {
                   setShowScheduleConfirm(true);
                 }}
               >
-                {isEditing ? "Save and review" : "Continue"}
-                <ArrowRight size={16} />
+                {isEditing ? (
+                  <>
+                    <Check size={16} />
+                    Save & Return to Review
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </PrimaryBtn>
             ) : (
               <PrimaryBtn variant="primary" onClick={handleNext}>
-                {isEditing ? "Save and review" : "Continue"}
-                <ArrowRight size={16} />
+                {isEditing ? (
+                  <>
+                    <Check size={16} />
+                    Save & Return to Review
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </PrimaryBtn>
             )}
           </div>
@@ -1545,11 +1625,16 @@ export default function BookingWizard() {
               disabled={!isAvailabilityConfirmed}
               className="w-full sm:w-auto"
             >
-              {isAvailabilityPending ? "Checking" : "Confirm and continue"}
+              {isAvailabilityPending
+                ? "Checking"
+                : isEditing
+                  ? "Confirm & Return to Review"
+                  : "Confirm and continue"}
             </PrimaryBtn>
           </div>
         </Modal>
       )}
+
 
       {/* The shared Modal clips its body (`overflow-hidden`) and DialogContent
           sets no max height, so a full policy document has to bring its own

@@ -173,116 +173,184 @@ export default function StepReviewBooking({
     Boolean(form.allergies) || Boolean(form.dietary_restrictions);
   const showPackageSection = Boolean(packageName || eventSpace);
 
+  const isFoodOnly =
+    serviceType === SERVICE_TYPES.FOOD_ONLY ||
+    form.service_type === SERVICE_TYPES.FOOD_ONLY;
+
   return (
     <StepShell>
       <SH title="Check Your Details" />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start">
         <Card className="divide-y divide-[#E2E8F0] p-0">
-          <Section
-            title={form.is_custom_setup ? "Custom Event Setup & Styling" : (showPackageSection ? "Service and package" : "Service")}
-            onEdit={edit(editTargets.packageSetup || editTargets.service)}
-          >
-            <Row
-              label="Service"
-              value={SERVICE_LABELS[serviceType] || serviceType}
-            />
-            {/* Named for what it is on this path: a combo's count is fixed by
-                the combo, everything else is an estimate that can still move at
-                quotation. */}
-            <Row
-              label={guestCountLabel(offer)}
-              value={guestCount ? `${guestCount} guests` : ""}
-            />
-            {form.is_custom_setup ? (
-              <>
-                <Row
-                  label="Setup Concept"
-                  value="100% Bespoke Custom Setup (Priced on quotation)"
-                  wide
-                />
-                {form.event_theme && (
-                  <Row label="Theme & Motif" value={form.event_theme} wide />
-                )}
-                {Array.isArray(form.event_palette) && form.event_palette.length > 0 && (
-                  <Row label="Color Palette" value={form.event_palette.join(", ")} wide />
-                )}
-                {Array.isArray(form.custom_setup_scope) && form.custom_setup_scope.length > 0 && (
-                  <Row label="Setup Scope" value={form.custom_setup_scope.join(", ")} wide />
-                )}
-                {form.budget_range && (
-                  <Row label="Target Budget" value={form.budget_range} />
-                )}
-                {Array.isArray(form.inspiration_images) && form.inspiration_images.length > 0 && (
-                  <div className="col-span-full pt-1">
-                    <dt className="text-xs font-semibold text-[#64748B] uppercase mb-1.5">
-                      Inspiration Pegs ({form.inspiration_images.length})
-                    </dt>
-                    <dd className="flex flex-wrap gap-2">
-                      {form.inspiration_images.map((imgUrl, i) => (
-                        <img
-                          key={i}
-                          src={imgUrl}
-                          alt={`Inspiration ${i + 1}`}
-                          className="h-14 w-14 rounded-lg object-cover border border-slate-200 shadow-xs"
-                        />
-                      ))}
-                    </dd>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {showPackageSection && (
-                  <Row label="Setup Package" value={packageName} />
-                )}
-                {eventSpace && (
-                  <Row label="Event space / scaffold size" value={eventSpace} />
-                )}
-              </>
-            )}
-          </Section>
+          {/* Section 1: Service & Package / Concept */}
+          {isFoodOnly ? (
+            <Section title="Service" onEdit={edit(editTargets.service)}>
+              <Row
+                label="Service"
+                value={SERVICE_LABELS[serviceType] || serviceType}
+              />
+            </Section>
+          ) : (
+            <Section
+              title={
+                form.is_custom_setup
+                  ? "Custom Event Setup & Styling"
+                  : showPackageSection
+                    ? "Service and package"
+                    : "Service"
+              }
+              onEdit={edit(editTargets.packageSetup || editTargets.service)}
+            >
+              <Row
+                label="Service"
+                value={SERVICE_LABELS[serviceType] || serviceType}
+              />
+              <Row
+                label={guestCountLabel(offer)}
+                value={guestCount ? `${guestCount} guests` : ""}
+              />
+              {form.is_custom_setup ? (
+                <>
+                  <Row
+                    label="Setup Concept"
+                    value="100% Bespoke Custom Setup (Priced on quotation)"
+                    wide
+                  />
+                  {form.event_theme && (
+                    <Row label="Theme & Motif" value={form.event_theme} wide />
+                  )}
+                  {Array.isArray(form.event_palette) &&
+                    form.event_palette.length > 0 && (
+                      <Row
+                        label="Color Palette"
+                        value={form.event_palette.join(", ")}
+                        wide
+                      />
+                    )}
+                  {Array.isArray(form.custom_setup_scope) &&
+                    form.custom_setup_scope.length > 0 && (
+                      <Row
+                        label="Setup Scope"
+                        value={form.custom_setup_scope.join(", ")}
+                        wide
+                      />
+                    )}
+                  {form.budget_range && (
+                    <Row label="Target Budget" value={form.budget_range} />
+                  )}
+                  {Array.isArray(form.inspiration_images) &&
+                    form.inspiration_images.length > 0 && (
+                      <div className="col-span-full pt-1">
+                        <dt className="mb-1.5 text-xs font-semibold uppercase text-[#64748B]">
+                          Inspiration Pegs ({form.inspiration_images.length})
+                        </dt>
+                        <dd className="flex flex-wrap gap-2">
+                          {form.inspiration_images.map((imgUrl, i) => (
+                            <img
+                              key={i}
+                              src={imgUrl}
+                              alt={`Inspiration ${i + 1}`}
+                              className="h-14 w-14 rounded-lg border border-slate-200 object-cover shadow-xs"
+                            />
+                          ))}
+                        </dd>
+                      </div>
+                    )}
+                </>
+              ) : (
+                <>
+                  {showPackageSection && (
+                    <Row label="Setup Package" value={packageName} />
+                  )}
+                  {eventSpace && (
+                    <Row label="Event space / scaffold size" value={eventSpace} />
+                  )}
+                </>
+              )}
+            </Section>
+          )}
 
+          {/* Section 2: Date & Time */}
           <Section title="Date and time" onEdit={edit(editTargets.schedule)}>
             <Row label="Date" value={formatDate(form.event_date)} />
             <Row label="Start time" value={formatTime(form.start_time)} />
           </Section>
 
-          <Section
-            title={atVenue ? "Venue" : "Delivery"}
-            onEdit={edit(editTargets.details)}
-          >
-            {isPickup ? (
+          {/* Section 3: Delivery or Venue Details */}
+          {isFoodOnly ? (
+            <Section
+              title="Guests & Delivery"
+              onEdit={edit(editTargets.details)}
+            >
               <Row
-                label="Collect from"
-                value={pickupAddress || "Our kitchen, address to follow"}
-                wide
+                label="Estimated guest count"
+                value={guestCount ? `${guestCount} guests` : ""}
               />
-            ) : (
-              <>
+              {isPickup ? (
                 <Row
-                  label={atVenue ? "Address" : "Deliver to"}
-                  value={address}
+                  label="Collection method"
+                  value={
+                    pickupAddress
+                      ? `Pick up from ${pickupAddress}`
+                      : "Pick up from our kitchen, address to follow"
+                  }
                   wide
                 />
-                {form.landmark && <Row label="Landmark" value={form.landmark} />}
-                {atVenue && venueType && (
-                  <Row label="Venue type" value={venueType} />
-                )}
-                {!atVenue && form.delivery_instructions && (
+              ) : (
+                <>
+                  <Row label="Deliver to" value={address} wide />
+                  {form.landmark && <Row label="Landmark" value={form.landmark} />}
+                  {form.delivery_instructions && (
+                    <Row
+                      label="Delivery notes"
+                      value={form.delivery_instructions}
+                      wide
+                    />
+                  )}
+                </>
+              )}
+            </Section>
+          ) : (
+            <Section
+              title={atVenue ? "Venue & Event Details" : "Delivery"}
+              onEdit={edit(editTargets.details)}
+            >
+              {isPickup ? (
+                <Row
+                  label="Collect from"
+                  value={pickupAddress || "Our kitchen, address to follow"}
+                  wide
+                />
+              ) : (
+                <>
                   <Row
-                    label="Delivery notes"
-                    value={form.delivery_instructions}
+                    label={atVenue ? "Address" : "Deliver to"}
+                    value={address}
                     wide
                   />
-                )}
-              </>
-            )}
-            {atVenue && <Row label="Event type" value={eventType} />}
-            {atVenue && themeValue && (
-              <Row label="Theme" value={themeValue} />
-            )}
-          </Section>
+                  {form.landmark && (
+                    <Row label="Landmark" value={form.landmark} />
+                  )}
+                  {atVenue && venueType && (
+                    <Row label="Venue type" value={venueType} />
+                  )}
+                  {!atVenue && form.delivery_instructions && (
+                    <Row
+                      label="Delivery notes"
+                      value={form.delivery_instructions}
+                      wide
+                    />
+                  )}
+                </>
+              )}
+              {atVenue && <Row label="Event type" value={eventType} />}
+              {atVenue && themeValue && (
+                <Row label="Theme" value={themeValue} />
+              )}
+            </Section>
+          )}
+
 
           {/* A combo's food is the combo's, so it is confirmed as what it is:
               a named meal at a settled price, not a list the customer chose and

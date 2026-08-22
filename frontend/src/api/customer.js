@@ -32,6 +32,7 @@ export const CustomerAPI = {
   getBookedDates: (month, year) => api.get(`/bookings/booked-dates?month=${month}&year=${year}`),
   getBlockedDates: () => api.get("/blocked-dates"),
   getInquiries: () => api.get("/inquiries"),
+  getInquiryById: (id) => api.get(`/inquiries/${id}`),
   cancelInquiry: (id) => api.delete(`/inquiries/${id}`),
   updateInquiry: (id, data) => api.patch(`/inquiries/${id}`, data),
   getQuotationsForInquiry: (inquiryId) => api.get(`/quotations/inquiry/${inquiryId}`),

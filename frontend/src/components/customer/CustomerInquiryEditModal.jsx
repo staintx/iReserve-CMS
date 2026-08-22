@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, MapPin, Palette, User, Utensils, Truck, Users, Loader2 } from "lucide-react";
+import {
+  CalendarDays,
+  MapPin,
+  Palette,
+  User,
+  Utensils,
+  Truck,
+  Users,
+  Loader2,
+  Lock,
+  Package as PackageIcon,
+  Boxes,
+  DollarSign,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Button } from "../ui/button";
 import {
@@ -21,8 +34,36 @@ import {
 } from "../../pages/customer/booking/lib/bookingRules";
 import { EVENT_TYPES, OTHER_EVENT_TYPE, matchEventType, isOtherEventType } from "../../lib/eventTypes";
 import { getBatangasMunicipalities, getBatangasBarangays, BATANGAS_PROVINCE } from "../../utils/batangas";
+import { eventSpaceLabel } from "../../lib/packageDisplay";
+import {
+  offerFoodByCategory,
+  offerInclusions,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+} from "../../lib/specialOffers";
+import { formatCurrency } from "../../utils/format";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+
+/** One read-only fact in the submitted-request snapshot. Renders nothing for an empty value, so an optional field that was never filled in just doesn't leave a gap. */
+function SnapshotRow({ label, value, wide = false }) {
+  if (value === null || value === undefined || value === "") return null;
+  return (
+    <div className={wide ? "sm:col-span-2 min-w-0" : "min-w-0"}>
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-sm text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+/** Marks a snapshot card as part of the original submission, not something this form can change. */
+function LockedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <Lock className="h-3 w-3" /> As submitted
+    </span>
+  );
+}
 
 const sanitizePhone = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
 
@@ -111,6 +152,30 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   const showDelivery = isCustomBooking && form.service_type === SERVICE_TYPES.FOOD_ONLY;
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(() => getBatangasBarangays(form.municipality), [form.municipality]);
+
+  // --- Read-only snapshot of what was actually submitted. Package, menu,
+  // add-ons, and scaffold size are never editable here (see
+  // CUSTOMER_EDITABLE_FIELDS on the backend), so these are derived straight
+  // from `inquiry` rather than `form` — nothing below ever feeds handleSubmit.
+  const submittedPackage =
+    inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+  const packageName = submittedPackage?.name || inquiry?.package_name_snapshot || "";
+  const eventSpace = inquiry ? eventSpaceLabel(inquiry, submittedPackage) : "";
+  const selectedMenu = Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : [];
+  const menuNames = selectedMenu
+    .map((item) => (item && typeof item === "object" ? item.name : null))
+    .filter(Boolean);
+  const serviceItems = Array.isArray(inquiry?.service_items) ? inquiry.service_items : [];
+  const inventoryItems = Array.isArray(inquiry?.inventory_items) ? inquiry.inventory_items : [];
+  const addOnLabel = (item) =>
+    Number(item.quantity) > 1 ? `${item.name} × ${item.quantity}` : item.name;
+  const includesFood = inquiry?.include_food !== false;
+  const hasCustomSetupDetails =
+    Boolean(inquiry?.is_custom_setup) &&
+    (Boolean(inquiry?.custom_setup_notes) ||
+      (inquiry?.custom_setup_scope || []).length > 0 ||
+      Boolean(inquiry?.budget_range) ||
+      (inquiry?.inspiration_images || []).length > 0);
 
   const isVenueTypeOther = form.venue_type === OTHER_VENUE_TYPE;
   const isPickup = showDelivery && form.delivery_method === "pickup";
@@ -210,11 +275,139 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
           <DialogTitle>Edit request details</DialogTitle>
           <DialogDescription>
             {inquiry.reference ? `${inquiry.reference} — ` : ""}
-            Update the event details below. Your package and menu selections stay as originally requested.
+            Here's everything you submitted. Sections marked "As submitted" can't be changed here — update the editable details below instead.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* --- Read-only snapshot: everything originally submitted that this
+              form cannot change. Shown first so a customer sees the whole
+              request before touching anything, distinguished from the
+              editable cards below by the dashed border and "As submitted"
+              badge. */}
+          <div className="space-y-3">
+            {(packageName || eventSpace || hasCustomSetupDetails) && (
+              <Card className="border-dashed p-4">
+                <SectionTitle icon={PackageIcon} right={<LockedBadge />}>
+                  Service &amp; package
+                </SectionTitle>
+                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {packageName && <SnapshotRow label={isOffer ? "Combo" : "Package"} value={packageName} />}
+                  {eventSpace && <SnapshotRow label="Event space / scaffold size" value={eventSpace} />}
+                  {inquiry.is_custom_setup && (
+                    <SnapshotRow label="Setup concept" value="100% Bespoke Custom Setup" wide />
+                  )}
+                  {(inquiry.custom_setup_scope || []).length > 0 && (
+                    <SnapshotRow label="Setup scope" value={inquiry.custom_setup_scope.join(", ")} wide />
+                  )}
+                  {inquiry.budget_range && <SnapshotRow label="Target budget" value={inquiry.budget_range} />}
+                </dl>
+                {inquiry.custom_setup_notes && (
+                  <div className="mt-3">
+                    <SnapshotRow label="Custom setup notes" value={inquiry.custom_setup_notes} wide />
+                  </div>
+                )}
+                {(inquiry.inspiration_images || []).length > 0 && (
+                  <div className="mt-3">
+                    <dt className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Inspiration photos
+                    </dt>
+                    <div className="flex flex-wrap gap-2">
+                      {inquiry.inspiration_images.map((url, idx) => (
+                        <img
+                          key={idx}
+                          src={url}
+                          alt={`Inspiration ${idx + 1}`}
+                          className="h-14 w-14 rounded-lg border border-border object-cover"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {isOffer ? (
+              <Card className="border-dashed p-4">
+                <SectionTitle icon={Utensils} right={<LockedBadge />}>
+                  Combo meal &amp; selections
+                </SectionTitle>
+                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <SnapshotRow
+                    label="Food pricing"
+                    value={
+                      offerPricePerPax(submittedPackage) > 0
+                        ? `${formatCurrency(offerPricePerPax(submittedPackage))} / pax · ${formatCurrency(
+                            offerBaseFoodPrice(submittedPackage, inquiry.guest_count),
+                          )} for ${inquiry.guest_count} ${inquiry.guest_count === 1 ? "guest" : "guests"}`
+                        : "To be confirmed on your quotation"
+                    }
+                    wide
+                  />
+                  {offerFoodByCategory(submittedPackage).map((course) => {
+                    const chosen = (inquiry.offer_food_snapshot || []).filter(
+                      (entry) => entry.menu_category === course.category,
+                    );
+                    const displayVal =
+                      chosen.length > 0
+                        ? chosen.map((c) => c.item_name).join(", ")
+                        : course.items.join(", ");
+                    return <SnapshotRow key={course.category} label={course.category} value={displayVal} wide />;
+                  })}
+                  {offerInclusions(submittedPackage).length > 0 && (
+                    <SnapshotRow label="Inclusions" value={offerInclusions(submittedPackage).join(", ")} wide />
+                  )}
+                </dl>
+              </Card>
+            ) : (
+              includesFood && (
+                <Card className="border-dashed p-4">
+                  <SectionTitle icon={Utensils} right={<LockedBadge />}>
+                    Food &amp; menu
+                  </SectionTitle>
+                  <SnapshotRow
+                    label="Dishes"
+                    value={
+                      menuNames.length > 0
+                        ? menuNames.join(", ")
+                        : "None selected. Our team will suggest options with your quotation."
+                    }
+                    wide
+                  />
+                </Card>
+              )
+            )}
+
+            {(serviceItems.length > 0 || inventoryItems.length > 0) && (
+              <Card className="border-dashed p-4">
+                <SectionTitle icon={Boxes} right={<LockedBadge />}>
+                  Add-ons &amp; equipment
+                </SectionTitle>
+                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {serviceItems.length > 0 && (
+                    <SnapshotRow label="Add-ons" value={serviceItems.map(addOnLabel).join(", ")} wide />
+                  )}
+                  {inventoryItems.length > 0 && (
+                    <SnapshotRow label="Reserved equipment" value={inventoryItems.map(addOnLabel).join(", ")} wide />
+                  )}
+                </dl>
+              </Card>
+            )}
+
+            {Number(inquiry.estimated_total) > 0 && (
+              <Card className="border-dashed p-4">
+                <SectionTitle icon={DollarSign} right={<LockedBadge />}>
+                  Estimate shown at submission
+                </SectionTitle>
+                <SnapshotRow label="Estimated total" value={formatCurrency(inquiry.estimated_total)} />
+              </Card>
+            )}
+          </div>
+
+          <p className="pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Editable details
+          </p>
+
           <Card className="p-4">
             <SectionTitle icon={CalendarDays}>Event</SectionTitle>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

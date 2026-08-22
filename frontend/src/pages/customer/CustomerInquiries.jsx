@@ -80,6 +80,23 @@ export default function CustomerInquiries() {
 
   // Edit Details Modal State
   const [editingInquiry, setEditingInquiry] = useState(null);
+  const [loadingEditInquiryId, setLoadingEditInquiryId] = useState(null);
+
+  // The list only carries a summary (package name/type, no menu items, no
+  // add-ons) — the edit modal needs the full document, populated the same way
+  // the admin's own detail view is, so the customer sees everything they
+  // originally submitted rather than a partial reflection of it.
+  const openEditModal = async (inq) => {
+    try {
+      setLoadingEditInquiryId(inq._id);
+      const res = await CustomerAPI.getInquiryById(inq._id);
+      setEditingInquiry(res.data);
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to load your request details.", "error");
+    } finally {
+      setLoadingEditInquiryId(null);
+    }
+  };
 
   const fetchInquiries = async () => {
     try {
@@ -315,8 +332,14 @@ export default function CustomerInquiries() {
         <CreditCard className="h-4 w-4" /> Pay deposit
       </Button>
     ) : isEditable ? (
-      <Button variant="outline" onClick={() => setEditingInquiry(inq)} className="w-full sm:w-auto">
-        <Pencil className="h-4 w-4" /> Edit details
+      <Button
+        variant="outline"
+        onClick={() => openEditModal(inq)}
+        disabled={loadingEditInquiryId === inq._id}
+        className="w-full sm:w-auto"
+      >
+        <Pencil className="h-4 w-4" />
+        {loadingEditInquiryId === inq._id ? "Loading…" : "Edit details"}
       </Button>
     ) : null;
 

@@ -352,31 +352,52 @@ export default function StepReviewBooking({
           )}
 
 
-          {/* A combo's food is the combo's, so it is confirmed as what it is:
-              a named meal at a settled price, not a list the customer chose and
-              not something the quotation still has to price. */}
+          {/* A combo's food is confirmed with the customer's chosen dishes and fulfillment mode */}
           {offer ? (
-            <Section title="Combo Meal" onEdit={edit(editTargets.packageSetup)}>
+            <Section title="Combo Meal & Selections" onEdit={edit(editTargets.packageSetup)}>
               <Row label="Combo" value={offer.name} />
               <Row
-                label="Price"
+                label="Service option"
+                value={
+                  form.service_type === SERVICE_TYPES.FULL_SERVICE
+                    ? "With Event Setup"
+                    : form.delivery_method === "pickup"
+                      ? "Food only (Pick Up)"
+                      : "Food only (Delivery)"
+                }
+              />
+              <Row
+                label="Food pricing"
                 value={
                   offerPricePerPax(offer) > 0
                     ? `₱${offerPricePerPax(offer).toLocaleString("en-PH")} / pax · ₱${offerBaseFoodPrice(
                         offer,
-                      ).toLocaleString("en-PH")} for the food`
+                        guestCount,
+                      ).toLocaleString("en-PH")} for ${guestCount} ${guestCount === 1 ? "guest" : "guests"}`
                     : "To be confirmed on your quotation"
                 }
                 wide
               />
-              {offerFoodByCategory(offer).map((course) => (
-                <Row
-                  key={course.category}
-                  label={course.category}
-                  value={course.items.join(", ")}
-                  wide
-                />
-              ))}
+              {offerFoodByCategory(offer).map((course) => {
+                const chosen = (form.offer_food_snapshot || []).filter(
+                  (entry) => entry.menu_category === course.category,
+                );
+                const displayVal =
+                  chosen.length > 0
+                    ? chosen.map((c) => c.item_name).join(", ")
+                    : course.items.length === 1
+                      ? course.items[0]
+                      : course.items.join(", ");
+
+                return (
+                  <Row
+                    key={course.category}
+                    label={course.category}
+                    value={displayVal}
+                    wide
+                  />
+                );
+              })}
               {offerInclusions(offer).length > 0 && (
                 <Row
                   label="Inclusions"

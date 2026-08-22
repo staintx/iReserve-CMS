@@ -1,4 +1,4 @@
-import { PartyPopper, MapPin, Package, Palette, Users } from "lucide-react";
+import { PartyPopper, MapPin, Package, Palette, Users, Truck, Store, Sparkles } from "lucide-react";
 import {
   Card,
   SH,
@@ -7,17 +7,21 @@ import {
   TSelect,
   GuestCounter,
   SectionTitle,
+  SelectableCard,
+  InfoNote,
   StepShell,
 } from "../components/BookingSharedUI";
+import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
 import ThemePicker from "../components/ThemePicker";
 import { EVENT_TYPES, OTHER_EVENT_TYPE } from "../../../../lib/eventTypes";
 import {
   guestCountLabel,
   guestCountHelp,
-  offerGuestCount,
+  offerPricePerPax,
 } from "../../../../lib/specialOffers";
 import {
+  SERVICE_TYPES,
   VENUE_TYPES,
   OTHER_VENUE_TYPE,
   isCustomVenueType,
@@ -37,45 +41,92 @@ export default function StepEventDetails({
   errors = {},
   setupCapacity = null,
   offer = null,
+  pickupAddress,
 }) {
   const handleGuestChange = (nextValue) => {
     setForm((prev) => ({ ...prev, guest_count: String(nextValue) }));
   };
 
-  // "Other" is stored as itself so the select can show it selected and the
-  // follow-up field can be required against it. Picking it used to blank
-  // `venue_type`, which made the condition that reveals the field false the
-  // instant it became true — the field could never appear at all.
   const isVenueTypeOther = isCustomVenueType(form);
-  // A draft saved before the sentinel existed holds the customer's own wording
-  // in `venue_type` itself. It is read from there so nothing they typed is lost,
-  // and the first edit writes it back in the current shape.
   const venueTypeOther =
     form.venue_type === OTHER_VENUE_TYPE
       ? form.venue_type_other || ""
       : form.venue_type || "";
-  const currentCount = parseInt(form.guest_count, 10) || guestMin;
+  const currentCount = parseInt(form.guest_count, 10) || guestMin || 1;
 
-  // A combo serves the number of guests it was built for, so the count is not
-  // a question — it is stated. The counter is replaced rather than disabled,
-  // because a disabled stepper reads as something the customer is failing to
-  // reach rather than as a fact about what they picked.
-  const comboPax = offer ? offerGuestCount(offer) : 0;
+  // For Special Offers
+  const isOffer = Boolean(offer);
+  const perPax = isOffer ? offerPricePerPax(offer) : 0;
+
+  // Selected fulfillment option for Special Offers
+  const isWithSetup = form.service_type === SERVICE_TYPES.FULL_SERVICE;
+  const isFoodOnly = form.service_type === SERVICE_TYPES.FOOD_ONLY;
+  const isPickup = isFoodOnly && form.delivery_method === "pickup";
+  const isDelivery = isFoodOnly && form.delivery_method !== "pickup";
+
+  const handleOptionChange = (optionKey) => {
+    if (optionKey === "pickup") {
+      setForm((prev) => ({
+        ...prev,
+        service_type: SERVICE_TYPES.FOOD_ONLY,
+        delivery_method: "pickup",
+        include_food: true,
+      }));
+    } else if (optionKey === "delivery") {
+      setForm((prev) => ({
+        ...prev,
+        service_type: SERVICE_TYPES.FOOD_ONLY,
+        delivery_method: "delivery",
+        include_food: true,
+      }));
+    } else if (optionKey === "setup") {
+      setForm((prev) => ({
+        ...prev,
+        service_type: SERVICE_TYPES.FULL_SERVICE,
+        delivery_method: "setup",
+        include_food: true,
+      }));
+    }
+  };
+
+  const fulfillmentOptions = [
+    {
+      key: "pickup",
+      title: "Food only — Pick Up",
+      description: "Collect freshly packed food directly from our kitchen.",
+      icon: Store,
+      active: isPickup,
+    },
+    {
+      key: "delivery",
+      title: "Food only — Delivery",
+      description: "We deliver the food order safely to your address.",
+      icon: Truck,
+      active: isDelivery,
+    },
+    {
+      key: "setup",
+      title: "With Event Setup",
+      description: "Full catering with buffet setup, styling, equipment & crew.",
+      icon: Sparkles,
+      active: isWithSetup,
+    },
+  ];
 
   return (
     <StepShell aside={<EstimateSummary estimate={estimate} />}>
       <SH
-        title="Event Details"
+        title={isOffer ? "Service Option & Details" : "Event Details"}
         sub={
-          offer
-            ? "Your venue. This combo already covers the guest count and the food."
+          isOffer
+            ? "Choose how you'd like to avail this combo, specify your guest count, and provide location details."
             : "Your venue and guest count. Both affect your price."
         }
         aside={
           !isCustomBooking && selectedPackageName ? (
             <span className="inline-flex items-center gap-2 rounded-full border border-[#4C81E0]/25 bg-[#4C81E0]/10 px-3 py-1.5 text-[13px]">
               <Package size={14} className="text-[#4C81E0]" />
-              <span className="text-[#64748B]">Package:</span>
+              <span className="text-[#64748B]">{isOffer ? "Combo:" : "Package:"}</span>
               <strong className="font-semibold text-[#1E293B]">
                 {selectedPackageName}
               </strong>
@@ -84,98 +135,105 @@ export default function StepEventDetails({
         }
       />
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Card className="p-4">
-          <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
+      {/* Special Offer Fulfillment Option Selection */}
+      {isOffer && (
+        <Card className="mb-4 p-4">
+          <SectionTitle icon={Sparkles}>Choose your service option</SectionTitle>
+          <p className="mb-3 text-[13px] text-[#64748B]">
+            Select how you would like your {offer.name} prepared and fulfilled:
+          </p>
 
-          <div className="space-y-3">
-            {/* Prefilled when the customer arrived from a package, but never
-                locked: the package sets the starting point, not the truth about
-                what the event is. An admin can correct it later in the
-                Quotation Builder, and both sides offer the same list. */}
-            <Field
-              label="Event type"
-              required
-              hint={
-                initialEventType
-                  ? "Prefilled from the package you picked. Change it if your event is something else."
-                  : undefined
-              }
-              error={errors.event_type}
-            >
-              <TSelect
-                value={form.event_type}
-                onChange={(val) =>
-                  setForm({
-                    ...form,
-                    event_type: val,
-                    event_type_other:
-                      val === OTHER_EVENT_TYPE ? form.event_type_other : "",
-                  })
-                }
-                options={EVENT_TYPES}
-                placeholder="Select event type"
-                hasError={!!errors.event_type}
-              />
-            </Field>
-
-            {form.event_type === OTHER_EVENT_TYPE && (
-              <Field
-                label="Which kind of event?"
-                required
-                error={errors.event_type_other}
-              >
-                <TInput
-                  placeholder="e.g. Reunion"
-                  value={form.event_type_other}
-                  onChange={(val) => setForm({ ...form, event_type_other: val })}
-                  hasError={!!errors.event_type_other}
-                />
-              </Field>
-            )}
-
-            {/* Regular and custom bookings collect an *estimated* guest count:
-                it is an opening figure that can still move at quotation, ocular
-                or revision. A combo's count belongs to the combo, so it is
-                shown rather than asked for. */}
-            <Field
-              label={guestCountLabel(offer)}
-              required={!comboPax}
-              hint={
-                offer
-                  ? guestCountHelp(offer)
-                  : setupCapacity?.status === "ok"
-                    ? setupCapacity.message
-                    : `${guestCountHelp(offer)} ${guestMin} to ${guestMax} guests.`
-              }
-              error={errors.guest_count || (setupCapacity?.status === "under" ? setupCapacity.message : "")}
-            >
-              {comboPax > 0 ? (
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
-                  <Users size={16} className="text-[#4C81E0]" />
-                  <strong className="text-[15px] font-semibold text-[#1E293B]">
-                    {comboPax} guests
-                  </strong>
-                  <span className="text-[13px] text-[#64748B]">
-                    · set by {offer.name}
-                  </span>
-                </div>
-              ) : (
-                <GuestCounter
-                  value={currentCount}
-                  onChange={handleGuestChange}
-                  min={guestMin}
-                  max={guestMax}
-                />
-              )}
-            </Field>
-
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            {fulfillmentOptions.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <SelectableCard
+                  key={opt.key}
+                  selected={opt.active}
+                  showCheck={false}
+                  onClick={() => handleOptionChange(opt.key)}
+                  className="flex flex-col items-start gap-2.5 p-3.5"
+                >
+                  <div className="flex w-full items-center justify-between">
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
+                        opt.active
+                          ? "bg-[#4C81E0] text-white"
+                          : "bg-[#F1F5F9] text-[#64748B]",
+                      )}
+                    >
+                      <Icon size={18} />
+                    </span>
+                    <span
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold transition-colors",
+                        opt.active
+                          ? "bg-[#4C81E0] text-white"
+                          : "border border-[#CBD5E1] bg-white text-transparent",
+                      )}
+                    >
+                      ✓
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-semibold text-[#1E293B]">
+                      {opt.title}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-[#64748B]">
+                      {opt.description}
+                    </span>
+                  </div>
+                </SelectableCard>
+              );
+            })}
           </div>
         </Card>
+      )}
 
+      {/* Guest Count Card */}
+      <Card className="mb-4 p-4">
+        <SectionTitle icon={Users}>Guest Count</SectionTitle>
+        <div className="space-y-3">
+          <Field
+            label={guestCountLabel(offer)}
+            required
+            hint={
+              isOffer
+                ? perPax > 0
+                  ? `₱${perPax.toLocaleString("en-PH")} per pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated food price`
+                  : guestCountHelp(offer)
+                : setupCapacity?.status === "ok"
+                  ? setupCapacity.message
+                  : `${guestCountHelp(offer)} ${guestMin} to ${guestMax} guests.`
+            }
+            error={
+              errors.guest_count ||
+              (setupCapacity?.status === "under" ? setupCapacity.message : "")
+            }
+          >
+            <GuestCounter
+              value={currentCount}
+              onChange={handleGuestChange}
+              min={guestMin || 1}
+              max={guestMax || 1000}
+            />
+          </Field>
+        </div>
+      </Card>
+
+      {/* Conditional Details based on Selected Option */}
+      {isOffer && isPickup ? (
         <Card className="p-4">
-          <SectionTitle icon={MapPin}>Venue location</SectionTitle>
-
+          <SectionTitle icon={Store}>Pickup Location</SectionTitle>
+          <InfoNote icon={Store} title="You're collecting this order">
+            Your {offer.name} order will be prepared fresh and packed ready for pickup at{" "}
+            <strong>{pickupAddress || "Caezelle's Catering Kitchen (Batangas)"}</strong> on your selected date and time.
+          </InfoNote>
+        </Card>
+      ) : isOffer && isDelivery ? (
+        <Card className="p-4">
+          <SectionTitle icon={Truck}>Delivery Address</SectionTitle>
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Municipality" required error={errors.municipality}>
@@ -210,61 +268,19 @@ export default function StepEventDetails({
 
             <Field
               label="Street and building"
-              hint="Optional, but it helps our team find the venue."
+              required
+              hint="Where our delivery driver will drop off the food."
+              error={errors.street}
             >
               <TInput
                 placeholder="e.g. Purok 4, Lopez Building"
                 value={form.street}
                 onChange={(val) => setForm({ ...form, street: val })}
+                hasError={!!errors.street}
               />
             </Field>
 
-            <Field
-              label="Venue type"
-              hint="Optional."
-            >
-              <TSelect
-                value={isVenueTypeOther ? OTHER_VENUE_TYPE : form.venue_type}
-                onChange={(val) =>
-                  setForm({
-                    ...form,
-                    venue_type: val,
-                    // Switching to a listed venue drops the free text with it,
-                    // so a venue the customer moved away from cannot be
-                    // submitted alongside the one they settled on.
-                    venue_type_other:
-                      val === OTHER_VENUE_TYPE ? venueTypeOther : "",
-                  })
-                }
-                options={VENUE_TYPES}
-                placeholder="Select venue type"
-              />
-            </Field>
-
-            {/* Only "Other" leaves the question unanswered, so only "Other"
-                asks a follow-up — and having asked, the answer is required. */}
-            {isVenueTypeOther && (
-              <Field
-                label="Please specify your venue type"
-                required
-                error={errors.venue_type_other}
-              >
-                <TInput
-                  placeholder="e.g. Rooftop terrace"
-                  value={venueTypeOther}
-                  onChange={(val) =>
-                    setForm({
-                      ...form,
-                      venue_type: OTHER_VENUE_TYPE,
-                      venue_type_other: val,
-                    })
-                  }
-                  hasError={!!errors.venue_type_other}
-                />
-              </Field>
-            )}
-
-            <Field label="Landmark" hint="Optional.">
+            <Field label="Landmark" hint="Optional, helps our driver find you.">
               <TInput
                 placeholder="e.g. Across the municipal hall"
                 value={form.landmark}
@@ -273,20 +289,168 @@ export default function StepEventDetails({
             </Field>
           </div>
         </Card>
-      </div>
+      ) : (
+        /* With Event Setup or Regular Package */
+        <>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <Card className="p-4">
+              <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
 
-      <Card className="mt-3 p-4">
-        <SectionTitle icon={Palette}>Theme and colours</SectionTitle>
-        <p className="mb-2.5 text-[13px] text-[#64748B]">
-          Optional. Pick a look and our stylists work to it.
-        </p>
-        <ThemePicker
-          value={form.event_theme}
-          onChange={({ theme, palette }) =>
-            setForm({ ...form, event_theme: theme, event_palette: palette })
-          }
-        />
-      </Card>
+              <div className="space-y-3">
+                <Field
+                  label="Event type"
+                  required
+                  hint={
+                    initialEventType
+                      ? "Prefilled from the package you picked. Change it if your event is something else."
+                      : undefined
+                  }
+                  error={errors.event_type}
+                >
+                  <TSelect
+                    value={form.event_type}
+                    onChange={(val) =>
+                      setForm({
+                        ...form,
+                        event_type: val,
+                        event_type_other:
+                          val === OTHER_EVENT_TYPE ? form.event_type_other : "",
+                      })
+                    }
+                    options={EVENT_TYPES}
+                    placeholder="Select event type"
+                    hasError={!!errors.event_type}
+                  />
+                </Field>
+
+                {form.event_type === OTHER_EVENT_TYPE && (
+                  <Field
+                    label="Which kind of event?"
+                    required
+                    error={errors.event_type_other}
+                  >
+                    <TInput
+                      placeholder="e.g. Reunion"
+                      value={form.event_type_other}
+                      onChange={(val) => setForm({ ...form, event_type_other: val })}
+                      hasError={!!errors.event_type_other}
+                    />
+                  </Field>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <SectionTitle icon={MapPin}>Venue location</SectionTitle>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Municipality" required error={errors.municipality}>
+                    <TSelect
+                      value={form.municipality}
+                      onChange={(val) =>
+                        setForm({ ...form, municipality: val, barangay: "" })
+                      }
+                      options={municipalities}
+                      placeholder="Select municipality"
+                      hasError={!!errors.municipality}
+                    />
+                  </Field>
+                  <Field
+                    label="Barangay"
+                    required
+                    hint={
+                      !form.municipality ? "Select a municipality first" : undefined
+                    }
+                    error={errors.barangay}
+                  >
+                    <TSelect
+                      value={form.barangay}
+                      onChange={(val) => setForm({ ...form, barangay: val })}
+                      options={barangays}
+                      placeholder="Select barangay"
+                      disabled={!form.municipality}
+                      hasError={!!errors.barangay}
+                    />
+                  </Field>
+                </div>
+
+                <Field
+                  label="Street and building"
+                  hint="Optional, but it helps our team find the venue."
+                >
+                  <TInput
+                    placeholder="e.g. Purok 4, Lopez Building"
+                    value={form.street}
+                    onChange={(val) => setForm({ ...form, street: val })}
+                  />
+                </Field>
+
+                <Field
+                  label="Venue type"
+                  hint="Optional."
+                >
+                  <TSelect
+                    value={isVenueTypeOther ? OTHER_VENUE_TYPE : form.venue_type}
+                    onChange={(val) =>
+                      setForm({
+                        ...form,
+                        venue_type: val,
+                        venue_type_other:
+                          val === OTHER_VENUE_TYPE ? venueTypeOther : "",
+                      })
+                    }
+                    options={VENUE_TYPES}
+                    placeholder="Select venue type"
+                  />
+                </Field>
+
+                {isVenueTypeOther && (
+                  <Field
+                    label="Please specify your venue type"
+                    required
+                    error={errors.venue_type_other}
+                  >
+                    <TInput
+                      placeholder="e.g. Rooftop terrace"
+                      value={venueTypeOther}
+                      onChange={(val) =>
+                        setForm({
+                          ...form,
+                          venue_type: OTHER_VENUE_TYPE,
+                          venue_type_other: val,
+                        })
+                      }
+                      hasError={!!errors.venue_type_other}
+                    />
+                  </Field>
+                )}
+
+                <Field label="Landmark" hint="Optional.">
+                  <TInput
+                    placeholder="e.g. Across the municipal hall"
+                    value={form.landmark}
+                    onChange={(val) => setForm({ ...form, landmark: val })}
+                  />
+                </Field>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="mt-3 p-4">
+            <SectionTitle icon={Palette}>Theme and colours</SectionTitle>
+            <p className="mb-2.5 text-[13px] text-[#64748B]">
+              Optional. Pick a look and our stylists will coordinate the setup, backdrop and table decorations to match.
+            </p>
+            <ThemePicker
+              value={form.event_theme}
+              onChange={({ theme, palette }) =>
+                setForm({ ...form, event_theme: theme, event_palette: palette })
+              }
+            />
+          </Card>
+        </>
+      )}
     </StepShell>
   );
 }

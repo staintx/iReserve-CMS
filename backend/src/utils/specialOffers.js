@@ -91,9 +91,10 @@ const offerPricePerPax = (pkg) =>
  * Both numbers come from the combo, so this takes no guest count: there is no
  * second answer a request could supply.
  */
-function offerBaseFoodPrice(pkg) {
+function offerBaseFoodPrice(pkg, guestCount) {
   if (!isSpecialOffer(pkg)) return 0;
-  return money(offerPricePerPax(pkg) * Math.floor(offerGuestCount(pkg)));
+  const count = positive(guestCount) || offerGuestCount(pkg) || 1;
+  return money(offerPricePerPax(pkg) * Math.floor(count));
 }
 
 /** The combo's food, in the order the admin arranged it. */
@@ -252,17 +253,17 @@ function offerBookingProblem(pkg, guestCount) {
     return `${pkg.name} is not available right now. Please choose another combo.`;
   }
 
-  const pax = offerGuestCount(pkg);
-  if (pax < 1) {
-    return `${pkg.name} has no guest count set yet, so it cannot be booked. Please choose another combo.`;
-  }
   if (offerPricePerPax(pkg) <= 0) {
     return `${pkg.name} has no price set yet, so it cannot be booked. Please choose another combo.`;
   }
 
   const requested = Math.floor(Number(guestCount) || 0);
-  if (requested && requested !== pax) {
-    return `${pkg.name} is a ${pax}-guest combo. Your booking is for ${requested} guests — book it for ${pax}, or ask us for a custom booking.`;
+  if (requested < 1) {
+    return "Please enter a valid number of guests.";
+  }
+
+  if (pkg.guest_min && requested < pkg.guest_min) {
+    return `${pkg.name} requires a minimum of ${pkg.guest_min} guests.`;
   }
 
   return "";

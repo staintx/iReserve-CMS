@@ -481,27 +481,18 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           event_type: params.event_type,
           event_date: parsedDate,
           start_time: params.start_time || "12:00 PM",
-          // A combo brings its own count, its own food and its own base price;
-          // everything else is whatever the customer told the assistant.
-          guest_count: isSpecialOffer(pkg)
-            ? offerGuestCount(pkg)
-            : Number(params.guest_count) || 50,
+          guest_count: Number(params.guest_count) || (isSpecialOffer(pkg) ? offerGuestCount(pkg) || 1 : 50),
           ...(isSpecialOffer(pkg)
             ? {
-                offer_base_price: offerBaseFoodPrice(pkg),
+                offer_base_price: offerBaseFoodPrice(pkg, Number(params.guest_count) || offerGuestCount(pkg) || 1),
                 offer_food_snapshot: offerFoodSnapshot(pkg),
               }
             : {}),
-          // A combo sells food. What it does not sell is an event set-up, so
-          // it is not filed as one — and it still holds the venue, because
-          // `delivery_method` is what says so (see utils/venue.js).
           service_type: isSpecialOffer(pkg)
-            ? "Food Only"
+            ? (params.service_type || "Food and Event Setup")
             : params.service_type || "Food and Event Setup",
-          ...(isSpecialOffer(pkg) ? { delivery_method: "setup" } : {}),
-          include_food: isSpecialOffer(pkg)
-            ? true
-            : params.service_type !== "Event Setup Only",
+          ...(isSpecialOffer(pkg) ? { delivery_method: params.delivery_method || "setup" } : {}),
+          include_food: true,
           budget_range: params.budget_range || "",
           province: params.province || "",
           municipality: params.municipality || "",

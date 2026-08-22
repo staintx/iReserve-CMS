@@ -106,7 +106,7 @@ const calculateBookingPrice = async (body) => {
        * package's setup fee is charged whether or not catering comes with it.
        */
       offerCoversFood = true;
-      sum += offerBaseFoodPrice(pkg);
+      sum += offerBaseFoodPrice(pkg, guestCount);
     } else if (pkg) {
       const packageType = pkg.package_type || "Event Setup Only";
       if (packageType === "Event Setup Only") {
@@ -472,13 +472,8 @@ exports.create = asyncHandler(async (req, res) => {
       if (problem) return res.status(400).json({ message: problem });
 
       if (isSpecialOffer(bookedPackage)) {
-        // The combo's own count and food, not the caller's — a combo decides
-        // both, and the price below is built from them.
-        req.body.guest_count = offerGuestCount(bookedPackage);
+        req.body.guest_count = Math.max(1, Number(req.body.guest_count) || offerGuestCount(bookedPackage) || 1);
         req.body.include_food = true;
-        // A combo is food: it has no scaffold to size and no equipment to
-        // reserve, so an event-space answer sent alongside one is dropped
-        // rather than stored and later priced.
         applyComboRequestBoundary(req.body);
       }
     }

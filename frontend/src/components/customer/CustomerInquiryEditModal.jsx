@@ -23,8 +23,9 @@ import {
   TTextarea,
   GuestCounter,
   SectionTitle,
+  FieldStatusPill,
 } from "../../pages/customer/booking/components/BookingSharedUI";
-import ThemePicker from "../../pages/customer/booking/components/ThemePicker";
+import ThemePicker, { ColorPalettePicker } from "../../pages/customer/booking/components/ThemePicker";
 import {
   VENUE_TYPES,
   OTHER_VENUE_TYPE,
@@ -575,10 +576,33 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
           </Card>
 
           <Card className="p-4">
-            <SectionTitle icon={Palette}>Theme and colours</SectionTitle>
+            <SectionTitle icon={Palette}>Theme and colour palette</SectionTitle>
+            <p className="mb-3 text-[13px] text-muted-foreground">
+              Two independent, optional choices — change either one without affecting the other.
+            </p>
+
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <h4 className="text-[12px] font-semibold text-foreground">Theme</h4>
+              <FieldStatusPill value={form.event_theme} />
+            </div>
             <ThemePicker
               value={form.event_theme}
-              onChange={({ theme, palette }) => setForm((prev) => ({ ...prev, event_theme: theme, event_palette: palette }))}
+              onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+            />
+
+            <div className="mt-4 mb-1.5 flex items-center justify-between gap-3 border-t border-border pt-4">
+              <h4 className="text-[12px] font-semibold text-foreground">Color palette</h4>
+              <FieldStatusPill
+                value={
+                  Array.isArray(form.event_palette) && form.event_palette.length > 0
+                    ? form.event_palette.join(", ")
+                    : ""
+                }
+              />
+            </div>
+            <ColorPalettePicker
+              value={form.event_palette}
+              onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
             />
           </Card>
 

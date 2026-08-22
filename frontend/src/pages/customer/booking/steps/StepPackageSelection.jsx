@@ -20,58 +20,16 @@ import {
   SH,
   SectionTitle,
   InfoNote,
+  FieldStatusPill,
   StepShell,
 } from "../components/BookingSharedUI";
 import { focusRing, formatPeso } from "../lib/bookingUI";
 import { isSpecialOffer } from "@/lib/specialOffers";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
+import ThemePicker, { ColorPalettePicker } from "../components/ThemePicker";
 import { CustomerAPI } from "@/api/customer";
 import useToast from "@/hooks/useToast";
-
-const THEME_PRESETS = [
-  "Rustic Boho",
-  "Modern Minimalist",
-  "Enchanted Forest",
-  "Classic Gold & Royal",
-  "Tropical / Luau",
-  "Romantic Floral",
-  "Elegant Black & White",
-  "Industrial Chic",
-  "Corporate / Gala",
-  "Other / Custom Theme",
-];
-
-const PALETTE_PRESETS = [
-  {
-    name: "Emerald Green & Gold",
-    colors: ["#0F5132", "#D4AF37", "#F8F9FA"],
-  },
-  {
-    name: "Blush Pink & Rose Gold",
-    colors: ["#FAD2E1", "#B76E79", "#FFFFFF"],
-  },
-  {
-    name: "Navy Blue & Silver",
-    colors: ["#001F3F", "#C0C0C0", "#FFFFFF"],
-  },
-  {
-    name: "Terracotta & Cream",
-    colors: ["#E07A5F", "#F4F1DE", "#3D405B"],
-  },
-  {
-    name: "Dusty Rose & Sage",
-    colors: ["#D8A47F", "#8A9A5B", "#F5F5DC"],
-  },
-  {
-    name: "Classic Black & Gold",
-    colors: ["#1E1E1E", "#D4AF37", "#FFFFFF"],
-  },
-  {
-    name: "Custom Palette",
-    colors: ["#64748B", "#94A3B8", "#CBD5E1"],
-  },
-];
 
 const SETUP_SCOPE_OPTIONS = [
   { id: "stage_backdrop", label: "Stage / Backdrop Styling", desc: "Main stage, lighted arch, or floral backdrop" },
@@ -611,125 +569,47 @@ export default function StepPackageSelection({
         <div className="space-y-5">
           {/* Card 1: Theme & Motif */}
           <Card className="p-4 sm:p-5">
-            <SectionTitle icon={Sparkles}>1. Theme &amp; Styling Motif</SectionTitle>
+            <SectionTitle
+              icon={Sparkles}
+              right={<FieldStatusPill value={form.event_theme} />}
+            >
+              1. Theme &amp; Styling Motif
+            </SectionTitle>
             <p className="mb-3 text-[13px] text-[#64748B]">
-              Pick a styling theme or describe the specific aesthetic you want us to craft.
+              Optional. Describe the theme or styling direction for your event — independent of the colors below.
             </p>
-
-            <div className="flex flex-wrap gap-2 mb-3">
-              {THEME_PRESETS.map((preset) => {
-                const isSelected = form.event_theme === preset;
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => updateForm({ event_theme: preset })}
-                    className={cn(
-                      "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                      isSelected
-                        ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#1E293B] font-semibold ring-1 ring-[#4C81E0]"
-                        : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#4C81E0]/50",
-                      focusRing,
-                    )}
-                  >
-                    {preset}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-2">
-              <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                Custom Theme Description or Nuances
-              </label>
-              <input
-                type="text"
-                value={form.event_theme || ""}
-                onChange={(e) => updateForm({ event_theme: e.target.value })}
-                placeholder="e.g. Modern Rustic Boho with Pampas Grass & Vintage Gold"
-                className={cn(
-                  "w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8]",
-                  focusRing,
-                )}
-              />
-              {errors.event_theme && (
-                <p className="text-xs text-red-600 mt-1">{errors.event_theme}</p>
-              )}
-            </div>
+            <ThemePicker
+              value={form.event_theme}
+              onChange={(theme) => updateForm({ event_theme: theme })}
+            />
+            {errors.event_theme && (
+              <p className="text-xs text-red-600 mt-2">{errors.event_theme}</p>
+            )}
           </Card>
 
           {/* Card 2: Color Palette */}
           <Card className="p-4 sm:p-5">
-            <SectionTitle icon={Palette}>2. Color Palette &amp; Accents</SectionTitle>
+            <SectionTitle
+              icon={Palette}
+              right={
+                <FieldStatusPill
+                  value={
+                    Array.isArray(form.event_palette) && form.event_palette.length > 0
+                      ? form.event_palette.join(", ")
+                      : ""
+                  }
+                />
+              }
+            >
+              2. Color Palette &amp; Accents
+            </SectionTitle>
             <p className="mb-3 text-[13px] text-[#64748B]">
-              Choose the primary and accent colors for your linens, florals, and backdrop draping.
+              Optional. Choose the primary and accent colors for your linens, florals, and backdrop draping — independent of the theme above.
             </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 mb-3">
-              {PALETTE_PRESETS.map((preset) => {
-                const isSelected =
-                  Array.isArray(form.event_palette) &&
-                  form.event_palette.join(", ") === preset.name;
-                return (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    onClick={() =>
-                      updateForm({
-                        event_palette: [preset.name],
-                      })
-                    }
-                    className={cn(
-                      "flex items-center justify-between gap-2 rounded-xl border p-3 text-left transition-all",
-                      isSelected
-                        ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]"
-                        : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50",
-                      focusRing,
-                    )}
-                  >
-                    <span className="text-xs font-medium text-[#1E293B]">
-                      {preset.name}
-                    </span>
-                    <span className="flex items-center -space-x-1 shrink-0">
-                      {preset.colors.map((c, i) => (
-                        <span
-                          key={i}
-                          className="h-4 w-4 rounded-full border border-white shadow-xs"
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                Custom Palette Color Names / Codes (Optional)
-              </label>
-              <input
-                type="text"
-                value={
-                  Array.isArray(form.event_palette)
-                    ? form.event_palette.join(", ")
-                    : form.event_palette || ""
-                }
-                onChange={(e) =>
-                  updateForm({
-                    event_palette: e.target.value
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-                placeholder="e.g. Sage Green, Cream, Dusty Gold, Champagne"
-                className={cn(
-                  "w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm text-[#1E293B] placeholder:text-[#94A3B8]",
-                  focusRing,
-                )}
-              />
-            </div>
+            <ColorPalettePicker
+              value={form.event_palette}
+              onChange={(palette) => updateForm({ event_palette: palette })}
+            />
           </Card>
 
           {/* Card 3: Setup Scope & Requirements */}

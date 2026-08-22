@@ -381,7 +381,8 @@ export default function CustomerInquiries() {
             { label: "Duration", value: inq.duration_hours ? `${inq.duration_hours} hours` : null },
             { label: "Guest count", value: inq.guest_count ? `${inq.guest_count} guests` : null },
             { label: "Service type", value: serviceType },
-            { label: "Theme", value: [inq.event_theme, ...(inq.event_palette || [])].filter(Boolean).join(" · ") || null },
+            { label: "Theme", value: inq.event_theme || null },
+            { label: "Color palette", value: (inq.event_palette || []).filter(Boolean).join(", ") || null },
             { label: "Delivery method", value: inq.delivery_method ? inq.delivery_method.charAt(0).toUpperCase() + inq.delivery_method.slice(1) : null },
           ]}
         />

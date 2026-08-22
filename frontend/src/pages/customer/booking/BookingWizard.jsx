@@ -813,8 +813,8 @@ export default function BookingWizard() {
             message = "Choose a setup package or switch to Design from Scratch.";
           }
           if (form.is_custom_setup && !String(form.event_theme || "").trim()) {
-            errors.event_theme = "Please choose or describe your event theme.";
-            message = "Please choose or describe your event theme.";
+            errors.event_theme = "Please enter your event theme.";
+            message = "Please enter your event theme.";
           }
           break;
         }
@@ -1171,7 +1171,6 @@ export default function BookingWizard() {
       "cf-turnstile-response": turnstileToken,
       include_food: includeFood,
       service_type: isOffer ? form.service_type : serviceTypeForRequest(form),
-      // " " is the picker's "Something else" sentinel, not a real theme.
       event_theme: String(form.event_theme || "").trim(),
       event_palette: Array.isArray(form.event_palette) ? form.event_palette : [],
       customer_id: user._id,

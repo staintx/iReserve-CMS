@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -26,13 +26,21 @@ import {
   Plus,
   Trash2,
   Phone,
-  Mail
+  Mail,
+  UserCheck,
+  Utensils,
+  Layers,
+  Sparkles,
+  PackageCheck,
+  DollarSign
 } from "lucide-react";
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
 export default function ManagerBookings() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { notify } = useToast();
 
   const [tab, setTab] = useState("pending");
@@ -75,6 +83,32 @@ export default function ManagerBookings() {
   useEffect(() => {
     loadStaff();
   }, []);
+
+  // Handle URL redirect query params / notification states
+  useEffect(() => {
+    const bookingId = searchParams.get("booking_id") || location.state?.booking_id || location.state?.openBookingId;
+    const action = searchParams.get("action") || location.state?.action;
+    const statusParam = searchParams.get("status");
+    if (statusParam && ["pending", "upcoming", "completed"].includes(statusParam.toLowerCase())) {
+      setTab(statusParam.toLowerCase());
+    }
+
+    if (bookingId) {
+      ManagerAPI.getBooking(bookingId)
+        .then((res) => {
+          const b = res.data;
+          if (b) {
+            const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
+            if (action === "assign" || (!hasStaff && action !== "view")) {
+              openAssign(b);
+            } else {
+              setDetail(b);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [location.search, location.state]);
 
   const staffMap = useMemo(() => {
     const map = {};
@@ -313,22 +347,37 @@ export default function ManagerBookings() {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
-      render: (b) => (
-        <div className="flex items-center gap-1.5">
-          <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details">
-            <Eye size={13} /> View
-          </Btn>
-          <Btn 
-            variant="primary" 
-            size="xs" 
-            onClick={() => openAssign(b)}
-            className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-            title="Assign / Reassign Staff Team"
-          >
-            <UserPlus size={13} /> Assign
-          </Btn>
-        </div>
-      )
+      render: (b) => {
+        const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
+        return (
+          <div className="flex items-center gap-1.5">
+            <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details">
+              <Eye size={13} /> View
+            </Btn>
+            {hasStaff ? (
+              <Btn 
+                variant="secondary" 
+                size="xs" 
+                onClick={() => openAssign(b)}
+                className="text-foreground hover:bg-muted font-semibold border-border flex items-center gap-1 cursor-pointer"
+                title="Edit dispatched staff team"
+              >
+                <UserCheck size={13} className="text-primary" /> Edit Staff
+              </Btn>
+            ) : (
+              <Btn 
+                variant="primary" 
+                size="xs" 
+                onClick={() => openAssign(b)}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+                title="Assign Staff Team"
+              >
+                <UserPlus size={13} /> Assign
+              </Btn>
+            )}
+          </div>
+        );
+      }
     }
   ];
 
@@ -619,52 +668,206 @@ export default function ManagerBookings() {
 
         {/* Event Detail Modal */}
         {detail && (
-          <Modal title={`Event Specifications — ${detail.event_type || "Event"}`} onClose={() => setDetail(null)} className="max-w-2xl">
+          <Modal 
+            title={`Event Specifications — ${detail.event_type || "Event"}`} 
+            onClose={() => setDetail(null)} 
+            className="max-w-3xl"
+          >
             <div className="space-y-5 text-xs sm:text-sm max-h-[75vh] overflow-y-auto pr-1">
-              {/* Contact Information */}
+              {/* Header Status & Reference Bar */}
+              <div className="p-3 bg-muted/60 border border-border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-foreground">
+                    REF: <span className="font-mono text-primary font-bold">{detail.reference || detail._id?.slice(-6).toUpperCase()}</span>
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <Badge status={detail.status || "confirmed"} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground font-semibold">
+                    Payment: <strong className="text-foreground uppercase">{detail.payment_status?.replace(/_/g, " ") || "Deposit Paid"}</strong>
+                  </span>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatMoney(detail.total_price || detail.total_cost)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Client & Contact Information */}
               <div className="p-4 bg-muted/40 border border-border rounded-xl space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Client Information</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <span className="text-muted-foreground">Client Name:</span>
+                    <span className="text-muted-foreground block text-[11px]">Client Name:</span>
                     <div className="font-bold text-foreground">{detail.contact_first_name} {detail.contact_last_name}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Contact Phone:</span>
+                    <span className="text-muted-foreground block text-[11px]">Contact Phone:</span>
                     <div className="font-bold text-foreground">{detail.contact_phone || "—"}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Email Address:</span>
-                    <div className="font-bold text-foreground">{detail.contact_email || "—"}</div>
+                    <span className="text-muted-foreground block text-[11px]">Email Address:</span>
+                    <div className="font-bold text-foreground truncate">{detail.contact_email || "—"}</div>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Preferred Contact:</span>
+                    <span className="text-muted-foreground block text-[11px]">Preferred Contact:</span>
                     <div className="font-bold text-foreground">{detail.contact_method || "Email"}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Event Date & Location */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3.5 bg-card border border-border rounded-xl">
-                  <div className="text-[11px] uppercase font-bold text-muted-foreground">Date &amp; Schedule</div>
-                  <div className="text-sm font-bold text-foreground mt-1">
-                    {detail.event_date ? new Date(detail.event_date).toLocaleDateString() : "TBA"}
+              {/* Event Schedule & Location */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 bg-card border border-border rounded-xl space-y-1">
+                  <div className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                    <Calendar size={13} className="text-primary" /> Date &amp; Time
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{detail.start_time || "Time TBA"} ({detail.duration_hours || 4} hrs)</div>
+                  <div className="text-sm font-bold text-foreground">
+                    {detail.event_date ? new Date(detail.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{detail.start_time || "Time TBA"} ({detail.duration_hours || 4} hrs)</div>
                 </div>
 
-                <div className="p-3.5 bg-card border border-border rounded-xl">
-                  <div className="text-[11px] uppercase font-bold text-muted-foreground">Venue &amp; Location</div>
-                  <div className="text-sm font-bold text-foreground mt-1">{detail.venue_type || "Venue"}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ") || "Location TBA"}</div>
+                <div className="p-3.5 bg-card border border-border rounded-xl space-y-1">
+                  <div className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                    <Users size={13} className="text-primary" /> Guests &amp; Package
+                  </div>
+                  <div className="text-sm font-bold text-foreground">{detail.guest_count || 0} Guests</div>
+                  <div className="text-xs text-muted-foreground truncate">{detail.package_id?.name || detail.package_name_snapshot || "Custom Catering Package"}</div>
+                </div>
+
+                <div className="p-3.5 bg-card border border-border rounded-xl space-y-1">
+                  <div className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                    <MapPin size={13} className="text-primary" /> Venue Location
+                  </div>
+                  <div className="text-sm font-bold text-foreground">{detail.venue_type || "Venue"}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {[detail.street, detail.barangay, detail.municipality].filter(Boolean).join(", ") || "Location TBA"}
+                  </div>
                 </div>
               </div>
 
-              {/* Staff Team */}
-              <div className="space-y-2">
+              {/* Menu & Selected Dishes */}
+              <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assigned Staff Team</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Utensils size={14} className="text-primary" /> Catering Menu &amp; Selected Dishes
+                  </h4>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {(detail.menu_items || []).length} Dishes Selected
+                  </span>
+                </div>
+
+                {(!detail.menu_items || detail.menu_items.length === 0) ? (
+                  <p className="text-xs text-muted-foreground italic py-2">
+                    Package menu items will follow standard catering specifications or chef recommendations.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {detail.menu_items.map((item, idx) => (
+                      <div key={idx} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-foreground text-xs">{item.name}</div>
+                          {item.note && <div className="text-[11px] text-muted-foreground">{item.note}</div>}
+                        </div>
+                        {item.category && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card border border-border text-muted-foreground shrink-0">
+                            {item.category}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add-ons & Service Items */}
+              {((detail.service_items && detail.service_items.length > 0) || (detail.additional_charges && detail.additional_charges.length > 0)) && (
+                <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Layers size={14} className="text-primary" /> Add-on Services &amp; Event Styling
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {(detail.service_items || []).map((srv, idx) => (
+                      <div key={`srv-${idx}`} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
+                        <div>
+                          <div className="font-bold text-foreground">{srv.name}</div>
+                          {srv.note && <div className="text-[11px] text-muted-foreground">{srv.note}</div>}
+                        </div>
+                        {srv.quantity > 1 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                            Qty: {srv.quantity}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {(detail.additional_charges || []).map((chg, idx) => (
+                      <div key={`chg-${idx}`} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
+                        <div>
+                          <div className="font-bold text-foreground">{chg.label}</div>
+                          {chg.reason && <div className="text-[11px] text-muted-foreground">{chg.reason}</div>}
+                        </div>
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                          {formatMoney(chg.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dispatched Equipment & Inventory */}
+              {detail.inventory_items && detail.inventory_items.length > 0 && (
+                <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <PackageCheck size={14} className="text-primary" /> Dispatched Equipment &amp; Logistics
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                    {detail.inventory_items.map((eq, idx) => (
+                      <div key={`eq-${idx}`} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
+                        <div className="truncate">
+                          <div className="font-bold text-foreground truncate">{eq.name || eq.inventory_id?.item_name || "Equipment Item"}</div>
+                          {eq.category && <div className="text-[10px] text-muted-foreground truncate">{eq.category}</div>}
+                        </div>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-card border border-border text-foreground shrink-0 ml-1.5">
+                          {eq.quantity} units
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Dietary Requirements & Special Requests */}
+              {(detail.dietary_restrictions || detail.allergies || detail.special_requests || detail.notes) && (
+                <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2 text-xs">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-amber-600" /> Dietary Restrictions &amp; Client Requests
+                  </h4>
+                  <div className="space-y-1.5 text-amber-950">
+                    {detail.dietary_restrictions && (
+                      <div><strong>Dietary Needs:</strong> {detail.dietary_restrictions}</div>
+                    )}
+                    {detail.allergies && (
+                      <div><strong>Allergies:</strong> {detail.allergies}</div>
+                    )}
+                    {detail.special_requests && (
+                      <div><strong>Special Requests:</strong> {detail.special_requests}</div>
+                    )}
+                    {detail.notes && (
+                      <div><strong>Notes:</strong> {detail.notes}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Staff Team */}
+              <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Users size={14} className="text-primary" /> Assigned Staff Team
+                  </h4>
                   <button
                     type="button"
                     onClick={() => {
@@ -672,20 +875,31 @@ export default function ManagerBookings() {
                       setDetail(null);
                       openAssign(target);
                     }}
-                    className="text-xs font-bold text-primary hover:underline"
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    Edit Assignments
+                    <UserCheck size={13} /> Edit Assignments
                   </button>
                 </div>
 
                 {(!detail.staff_assignments || detail.staff_assignments.length === 0) ? (
-                  <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                    No staff assigned yet. Click Edit Assignments above to dispatch team.
-                  </p>
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center justify-between gap-2">
+                    <span>No staff assigned yet. Click Edit Assignments to dispatch your team.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = detail;
+                        setDetail(null);
+                        openAssign(target);
+                      }}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-xs shrink-0 cursor-pointer"
+                    >
+                      Assign Now
+                    </button>
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                     {detail.staff_assignments.map((assignment, idx) => (
-                      <div key={idx} className="p-2.5 bg-card border border-border rounded-lg flex items-center justify-between text-xs">
+                      <div key={idx} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
                         <div>
                           <div className="font-bold text-foreground">{assignment.name || assignment.user_id?.full_name || "Staff Member"}</div>
                           <div className="text-[11px] text-muted-foreground">{assignment.role || "Staff"}</div>
@@ -701,7 +915,9 @@ export default function ManagerBookings() {
 
               {/* Event Notes */}
               <div className="space-y-2 pt-2 border-t border-border">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Coordinator Notes</h4>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <FileText size={14} className="text-primary" /> Coordinator Operations Briefing Notes
+                </h4>
                 <div className="space-y-2">
                   <textarea
                     rows={2}

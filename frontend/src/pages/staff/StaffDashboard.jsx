@@ -9,6 +9,7 @@ import Badge from "../../components/admin/ui/Badge";
 import Modal from "../../components/common/Modal";
 import useAuth from "../../hooks/useAuth";
 import useToast from "../../hooks/useToast";
+import { getSocket } from "../../api/socket";
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -74,6 +75,24 @@ export default function StaffDashboard() {
 
   useEffect(() => {
     loadBookings();
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket.connected) socket.connect();
+
+    const handleRefresh = (data) => {
+      if (!data || data.type === "booking" || data.type === "staff") {
+        loadBookings();
+      }
+    };
+
+    socket.on("system:refresh", handleRefresh);
+    socket.on("notification:new", handleRefresh);
+    return () => {
+      socket.off("system:refresh", handleRefresh);
+      socket.off("notification:new", handleRefresh);
+    };
   }, []);
 
   const monthKey = useMemo(() => {

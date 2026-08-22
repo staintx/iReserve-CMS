@@ -2675,7 +2675,7 @@ exports.executeInquiryConversion = async ({
     }
   }
 
-  // Realtime notification
+  // Realtime notification & alerts
   if (io) {
     try {
       io.emit("system:refresh", { type: "booking", action: "converted", booking_id: newBooking._id });
@@ -2683,6 +2683,20 @@ exports.executeInquiryConversion = async ({
       if (quotation) io.emit("system:refresh", { type: "quotation", action: "converted", quotation_id: quotation._id });
       io.emit("system:refresh", { type: "payment", action: "update" });
     } catch (e) {}
+  }
+
+  if (finalManagerId) {
+    createNotification(
+      {
+        userId: finalManagerId,
+        title: "New Booking Assigned",
+        body: `You have been assigned to manage ${newBooking.event_type || "Event"} (${newBooking.reference || String(newBooking._id).slice(-6).toUpperCase()}) on ${new Date(newBooking.event_date).toLocaleDateString()}. Please assign the staff team.`,
+        type: "info",
+        link: `/manager/bookings?booking_id=${newBooking._id}&action=assign`,
+        meta: { booking_id: newBooking._id, action: "assign" },
+      },
+      io
+    ).catch(console.error);
   }
 
   return newBooking;

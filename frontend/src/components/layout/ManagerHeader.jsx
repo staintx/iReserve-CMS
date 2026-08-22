@@ -1,8 +1,9 @@
 import { useState } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
-import { Bell, LogOut, Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import ConfirmDialog from "../common/ConfirmDialog";
+import NotificationBell from "../common/NotificationBell";
 
 export default function ManagerHeader() {
   const { user, logout } = useAuth();
@@ -26,9 +27,7 @@ export default function ManagerHeader() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button className="grid w-10 h-10 border rounded-full place-items-center border-slate-200 text-slate-700" type="button" aria-label="Notifications">
-            <Bell className="w-5 h-5" />
-          </button>
+          <NotificationBell />
           <div className="hidden text-sm font-semibold text-ink-900 sm:block">
             {user?.full_name || "Manager"}
           </div>

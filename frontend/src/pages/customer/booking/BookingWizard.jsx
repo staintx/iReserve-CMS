@@ -23,9 +23,9 @@ import StepMenuSelection from "./steps/StepMenuSelection";
 import StepDietaryNeeds from "./steps/StepDietaryNeeds";
 import StepContactInfo from "./steps/StepContactInfo";
 import StepReviewBooking from "./steps/StepReviewBooking";
-import StepAddonSelection from "./steps/StepAddonSelection";
 import StepPackageSelection from "./steps/StepPackageSelection";
 import StepPackageAddOns from "./steps/StepPackageAddOns";
+
 
 import {
   SERVICE_TYPES,
@@ -344,8 +344,9 @@ export default function BookingWizard() {
       if (form.include_food !== false) {
         steps.push({ id: "DietaryNeeds", label: "Dietary needs", key: "dietary" });
       }
-      steps.push({ id: "AddonSelection", label: "Extras", key: "addons" });
+      steps.push({ id: "PackageAddOns", label: "Extras", key: "addons" });
     } else {
+
       // Started from Package page
       steps.push({ id: "EventDetails", label: "Event details", key: "event" });
       // A combo's food is shown, not chosen, so the step is named for what it
@@ -1333,24 +1334,17 @@ export default function BookingWizard() {
         return <StepDietaryNeeds form={form} setForm={setForm} />;
 
       case "AddonSelection":
-        return (
-          <StepAddonSelection
-            form={form}
-            setForm={setForm}
-            addons={addons}
-            estimate={estimate}
-          />
-        );
-
       case "PackageAddOns":
         return (
           <StepPackageAddOns
             form={form}
             setForm={setForm}
             packageDetails={packageDetails}
+            addons={addons}
             estimate={estimate}
           />
         );
+
 
       case "ContactInfo":
         return (

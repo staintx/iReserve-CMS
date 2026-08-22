@@ -6,6 +6,7 @@ import { createConversation } from "../../api/messages";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import CustomerQuotationModal from "../../components/customer/CustomerQuotationModal";
+import CustomerInquiryEditModal from "../../components/customer/CustomerInquiryEditModal";
 import { Button } from "../../components/ui/button";
 import {
   Dialog,
@@ -44,6 +45,8 @@ import {
   CreditCard,
   FileCheck2,
   XCircle,
+  Pencil,
+  Clock,
 } from "lucide-react";
 
 const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
@@ -74,6 +77,9 @@ export default function CustomerInquiries() {
   // Cancel Dialog State
   const [cancellingInquiry, setCancellingInquiry] = useState(null);
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  // Edit Details Modal State
+  const [editingInquiry, setEditingInquiry] = useState(null);
 
   const fetchInquiries = async () => {
     try {
@@ -256,6 +262,13 @@ export default function CustomerInquiries() {
     );
     const isPending = ["Pending Review", "Under Review"].includes(inq.status);
     const isClosed = group === "closed";
+    // Editable while still a working draft — no quotation has committed a
+    // price against it yet. A deliberately narrower check than the
+    // "under_review" display group: "Revision Requested" still shows under
+    // that tab, but a quotation already exists for it by then, so it must
+    // stay locked to direct edits — see CUSTOMER_EDITABLE_STATUSES on the
+    // backend, which this mirrors.
+    const isEditable = ["Pending Review", "Under Review"].includes(inq.status);
     const location = inq.municipality || inq.province || inq.venue_type || "Location to be confirmed";
 
     // The money column only earns its place once there is a real number in it;
@@ -266,7 +279,10 @@ export default function CustomerInquiries() {
         ? { label: "Your budget", value: inq.budget_range, tone: "neutral" }
         : null;
 
-    // Exactly one primary action per state.
+    // Exactly one primary action per state. isConverted is checked first
+    // (rather than derived only from status) because converted_booking_id can
+    // be set slightly ahead of the status write finishing, and this is the
+    // more authoritative signal.
     const primaryAction = isConverted ? (
       <Button
         onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`)}
@@ -278,17 +294,31 @@ export default function CustomerInquiries() {
       <Button onClick={() => openQuotationView(inq)} disabled={isLoadingQuotation} className="w-full sm:w-auto">
         <Eye className="h-4 w-4" /> Review &amp; accept quote
       </Button>
-    ) : canPayDeposit ? (
+    ) : isAccepted ? (
       <Button
-        onClick={() => startInquiryCheckout(inq)}
+        onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`)}
         className="w-full sm:w-auto"
       >
-        <CreditCard className="h-4 w-4" /> Pay deposit
+        <ArrowRight className="h-4 w-4" /> Go to booking
       </Button>
     ) : null;
 
-    // No secondary action competing in the notice strip when state is already handled
-    const secondaryAction = null;
+    // Paying the deposit and editing details are each the one lower-weight
+    // action worth surfacing without expanding the card — they never overlap,
+    // since a request that can still be edited hasn't reached "accepted" yet.
+    const secondaryAction = canPayDeposit ? (
+      <Button
+        variant="outline"
+        onClick={() => startInquiryCheckout(inq)}
+        className={cn("w-full sm:w-auto", ACTION_PAY_SECONDARY)}
+      >
+        <CreditCard className="h-4 w-4" /> Pay deposit
+      </Button>
+    ) : isEditable ? (
+      <Button variant="outline" onClick={() => setEditingInquiry(inq)} className="w-full sm:w-auto">
+        <Pencil className="h-4 w-4" /> Edit details
+      </Button>
+    ) : null;
 
     const secondaryActions = (
       <>
@@ -322,7 +352,20 @@ export default function CustomerInquiries() {
     const details = (
       <div className="space-y-5">
         <DetailGrid
+          title="Event details"
+          items={[
+            { label: "Event date & time", value: formatEventDateTime(inq.event_date, inq.start_time) },
+            { label: "Duration", value: inq.duration_hours ? `${inq.duration_hours} hours` : null },
+            { label: "Guest count", value: inq.guest_count ? `${inq.guest_count} guests` : null },
+            { label: "Service type", value: serviceType },
+            { label: "Theme", value: [inq.event_theme, ...(inq.event_palette || [])].filter(Boolean).join(" · ") || null },
+            { label: "Delivery method", value: inq.delivery_method ? inq.delivery_method.charAt(0).toUpperCase() + inq.delivery_method.slice(1) : null },
+          ]}
+        />
+
+        <DetailGrid
           title="Request details"
+          className="border-t border-border pt-4"
           items={[
             { label: "Reference number", value: refCode, mono: true },
             { label: "Submitted", value: formatShortDate(inq.createdAt) },
@@ -339,6 +382,8 @@ export default function CustomerInquiries() {
           items={[
             { label: "Venue address", value: address || location, wide: true },
             { label: "Special requests", value: inq.special_requests || "None", wide: true },
+            inq.allergies && { label: "Allergies", value: inq.allergies, wide: true },
+            inq.dietary_restrictions && { label: "Dietary restrictions", value: inq.dietary_restrictions, wide: true },
             inq.dietary_requirements && { label: "Dietary needs", value: inq.dietary_requirements, wide: true },
           ]}
         />
@@ -517,6 +562,14 @@ export default function CustomerInquiries() {
           onUpdated={fetchInquiries}
         />
       )}
+
+      {/* Edit Inquiry Details Modal */}
+      <CustomerInquiryEditModal
+        open={!!editingInquiry}
+        inquiry={editingInquiry}
+        onClose={() => setEditingInquiry(null)}
+        onSaved={fetchInquiries}
+      />
 
       {/* Cancel Inquiry Confirmation */}
       <Dialog open={!!cancellingInquiry} onOpenChange={(open) => !open && setCancellingInquiry(null)}>

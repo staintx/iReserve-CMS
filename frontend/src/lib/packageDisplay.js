@@ -155,6 +155,9 @@ export function priceLabel(pkg) {
   const perGuest = perGuestPrice(pkg);
   if (perGuest) return `${peso(perGuest)} per guest`;
 
+  const setupPrice = Number(pkg?.setup_price);
+  if (Number.isFinite(setupPrice) && setupPrice > 0) return `${peso(setupPrice)} setup fee`;
+
   const setupFrom = setupFromPrice(pkg);
   if (setupFrom) return `Setup from ${peso(setupFrom)}`;
 

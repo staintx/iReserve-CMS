@@ -64,7 +64,7 @@ export default function AdminInquiries() {
    * what this pass removes — the statuses are dropped from the data scope,
    * not just hidden from the filter bar.
    */
-  const ACTIVE_STATUSES = ["Pending Review", "Under Review", "Waiting for Customer"];
+  const ACTIVE_STATUSES = ["Pending Review", "Under Review"];
 
   /**
    * Archive is either an explicit admin filing decision (`archived`) or an
@@ -77,7 +77,7 @@ export default function AdminInquiries() {
 
   // "Active Leads" was a synonym for "all" once the non-active statuses left
   // the page, so it is gone rather than duplicated.
-  const statuses = ["all", "Pending Review", "Under Review", "Waiting for Customer", "Archive"];
+  const statuses = ["all", "Pending Review", "Under Review", "Archive"];
 
   const loadData = () => {
     setLoading(true);

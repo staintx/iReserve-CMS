@@ -138,7 +138,10 @@ const InquirySchema = new mongoose.Schema(
       enum: [
         "Pending Review",
         "Under Review",
-        "Waiting for Customer",
+        // Set only by quotation.controller.js#requestRevision, once a
+        // quotation already exists — never a pre-quotation draft state, and
+        // never directly editable by the customer (see
+        // CUSTOMER_EDITABLE_STATUSES in inquiry.controller.js).
         "Revision Requested",
         "Quotation Sent",
         "Quote Accepted",

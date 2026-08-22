@@ -8,18 +8,23 @@ import useToast from "../../../hooks/useToast";
 export default function GalleryModal({ item, onClose, onSave }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
+  const KNOWN_CATEGORIES = ["Weddings", "Birthday", "Corporate Events", "Food Display"];
+
   const [formData, setFormData] = useState({
     title: "",
     category: "Weddings"
   });
+  const [customCategory, setCustomCategory] = useState("");
   const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
     if (item) {
+      const isKnown = KNOWN_CATEGORIES.includes(item.category);
       setFormData({
         title: item.title || "",
-        category: item.category || "Weddings"
+        category: isKnown ? item.category : "Others"
       });
+      setCustomCategory(isKnown ? "" : (item.category || ""));
     }
   }, [item]);
 
@@ -33,12 +38,16 @@ export default function GalleryModal({ item, onClose, onSave }) {
       notify("Please upload a photo.", "error");
       return;
     }
+    if (formData.category === "Others" && !customCategory.trim()) {
+      notify("Please enter a custom category name.", "error");
+      return;
+    }
 
     setLoading(true);
     try {
       const data = new FormData();
       data.append("title", formData.title);
-      data.append("category", formData.category);
+      data.append("category", formData.category === "Others" ? customCategory.trim() : formData.category);
       if (imageFile) data.append("image", imageFile);
 
       if (item && item._id) {
@@ -99,8 +108,22 @@ export default function GalleryModal({ item, onClose, onSave }) {
               <option value="Birthday">Birthday</option>
               <option value="Corporate Events">Corporate Events</option>
               <option value="Food Display">Food Display</option>
+              <option value="Others">Others</option>
             </select>
           </div>
+
+          {formData.category === "Others" && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Custom Category Name</label>
+              <input
+                type="text"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                placeholder="e.g. Debut, Baptism"
+                value={customCategory}
+                onChange={e => setCustomCategory(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">

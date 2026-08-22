@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import Btn from "./Btn";
+import { Switch } from "../../ui/switch";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
@@ -10,7 +11,7 @@ export default function AddonModal({ addon, onClose, onSave }) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    status: "available",
+    available: true,
   });
 
   useEffect(() => {
@@ -18,13 +19,13 @@ export default function AddonModal({ addon, onClose, onSave }) {
       setFormData({
         name: addon.name || "",
         description: addon.description || "",
-        status: addon.available === false ? "unavailable" : "available",
+        available: addon.available !== false,
       });
     } else {
       setFormData({
         name: "",
         description: "",
-        status: "available",
+        available: true,
       });
     }
   }, [addon]);
@@ -41,7 +42,7 @@ export default function AddonModal({ addon, onClose, onSave }) {
       const payload = {
         name: formData.name.trim(),
         description: formData.description.trim(),
-        available: formData.status === "available",
+        available: formData.available,
       };
 
       if (addon && addon._id) {
@@ -100,16 +101,15 @@ export default function AddonModal({ addon, onClose, onSave }) {
               />
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Status</label>
-              <select
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white transition-colors"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              >
-                <option value="available">Available</option>
-                <option value="unavailable">Unavailable (Disabled)</option>
-              </select>
+            <div className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5">
+              <div>
+                <p className="text-sm text-gray-700 font-medium">Availability</p>
+                <p className="text-xs text-gray-500">{formData.available ? "Available" : "Unavailable (Disabled)"}</p>
+              </div>
+              <Switch
+                checked={formData.available}
+                onCheckedChange={(checked) => setFormData({ ...formData, available: checked })}
+              />
             </div>
           </div>
 

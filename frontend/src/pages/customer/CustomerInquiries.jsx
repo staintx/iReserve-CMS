@@ -47,6 +47,11 @@ import {
   XCircle,
   Pencil,
   Clock,
+  // Used by the "View paid quote" action below. Its absence here blanked the
+  // whole page for any customer holding a deposit-paid inquiry: that branch is
+  // the only one that renders it, so the ReferenceError stayed invisible until
+  // an account actually had one.
+  CheckCircle2,
 } from "lucide-react";
 
 const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];

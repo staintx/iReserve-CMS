@@ -15,8 +15,11 @@
  *   2. Its guest count belongs to the combo, not to the customer. A 10-pax
  *      combo is booked for 10 guests, which is why the wizard shows the count
  *      rather than asking for it.
- *   3. Its food is the combo's own fixed list. The customer picks nothing —
- *      that is what makes it a combo rather than a menu.
+ *   3. Its food is the combo's own list of courses. A course naming one dish
+ *      includes it; a course naming several lets the customer choose between
+ *      them — but only from that course, and only as many as it asks for.
+ *      What makes it a combo rather than a menu is that the combo decides the
+ *      courses and the price, not that the customer is offered no choice.
  *
  * A combo is **food and nothing else**. The event-space build a regular package
  * sells — scaffold sizes, setup equipment, a base setup price, package add-ons —
@@ -146,6 +149,86 @@ export function offerFoodByCategory(pkgOrItems) {
     groups.get(category).items.push(item.item_name);
   });
   return [...groups.values()];
+}
+
+/**
+ * How many dishes a course asks the customer to choose.
+ *
+ * The number is written into the course name by the admin — "Main Course
+ * (choose 2)" — because a combo's courses are free text rather than a
+ * structured field. One is the default: a course that says nothing about
+ * choosing is a course with a single pick.
+ *
+ * Mirrors the same helper in `backend/src/utils/specialOffers.js`, which
+ * re-applies it on the way into the database.
+ */
+export function offerCourseRequirement(category) {
+  const match = String(category || "").match(/choose\s*(\d+)/i);
+  const count = match ? parseInt(match[1], 10) : 1;
+  return Number.isFinite(count) && count > 0 ? count : 1;
+}
+
+/**
+ * The combo food to show for a request that has already been submitted.
+ *
+ * Deliberately more conservative than the server's `normalizeOfferSelection`:
+ * what the request stored is the record of what was sold, so nothing here
+ * rewrites it against a combo that may have been re-plated or renamed since.
+ * It fills in only the courses the request never recorded at all and that ask
+ * for no choice — which is exactly what a request submitted before the wizard
+ * seeded automatically included dishes looks like — and falls back to the
+ * combo's own food for a request that stored none.
+ *
+ * A course the customer was meant to choose from and didn't is left alone:
+ * guessing one here would put a dish nobody ordered in front of the kitchen.
+ *
+ * Returns `[{ menu_category, item_name }]`, the shape the snapshot already
+ * has, so `offerFoodByCategory` groups the result directly.
+ */
+export function offerFoodForDisplay(record, pkg) {
+  const snapshot = (
+    Array.isArray(record?.offer_food_snapshot) ? record.offer_food_snapshot : []
+  ).filter((entry) => String(entry?.item_name || "").trim());
+
+  const courses = offerFoodByCategory(pkg);
+  if (courses.length === 0) return snapshot;
+  if (snapshot.length === 0) {
+    return offerFoodItems(pkg).map(({ menu_category, item_name }) => ({
+      menu_category,
+      item_name,
+    }));
+  }
+
+  const byCourse = new Map();
+  snapshot.forEach((entry) => {
+    // "Included" is `offerFoodByCategory`'s label for an uncategorised course
+    // rather than something the admin typed, so a stored blank and that label
+    // are the same course.
+    const key = String(entry?.menu_category || "").trim() || "Included";
+    if (!byCourse.has(key)) byCourse.set(key, []);
+    byCourse.get(key).push(entry);
+  });
+
+  // Rebuilt in the combo's own course order, so a filled-in course appears
+  // where the admin arranged it rather than appended after the meal.
+  const ordered = [];
+  courses.forEach((course) => {
+    const recorded = byCourse.get(course.category);
+    if (recorded?.length) {
+      ordered.push(...recorded);
+      byCourse.delete(course.category);
+    } else if (course.items.length === 1) {
+      ordered.push({
+        menu_category: course.category === "Included" ? "" : course.category,
+        item_name: course.items[0],
+      });
+    }
+  });
+
+  // A course the combo no longer has is still what this request was sold, so
+  // it is kept rather than dropped.
+  byCourse.forEach((entries) => ordered.push(...entries));
+  return ordered;
 }
 
 /**

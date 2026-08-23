@@ -15,8 +15,11 @@
  *   2. The guest count belongs to the combo, not to the customer. A 10-pax
  *      combo is booked for 10 guests; the booking's guest count is that
  *      number, which is why nothing here reads a count off the request.
- *   3. The food is the combo's own fixed list of dishes. The customer picks
- *      nothing — that is what makes it a combo rather than a menu.
+ *   3. The food is the combo's own list of courses. A course naming one dish
+ *      includes it; a course naming several lets the customer choose between
+ *      them — but only from that course, and only as many as it asks for.
+ *      What makes it a combo rather than a menu is that the combo decides the
+ *      courses and the price, not that the customer is offered no choice.
  *
  * A combo is **food and nothing else**. The event-space build a regular package
  * sells — scaffold sizes, setup equipment, a base setup price, package add-ons —
@@ -136,6 +139,88 @@ const offerFoodSnapshot = (pkg) =>
     menu_category,
     item_name,
   }));
+
+/**
+ * How many dishes a course asks the customer to choose.
+ *
+ * The number is written into the course name by the admin — "Main Course
+ * (choose 2)" — because a combo's courses are free text rather than a
+ * structured field. One is the default: a course that says nothing about
+ * choosing is a course with a single pick.
+ *
+ * Mirrors the same helper in `frontend/src/lib/specialOffers.js`. The wizard
+ * validates against it and this re-applies it on the way into the database.
+ */
+function offerCourseRequirement(category) {
+  const match = String(category || "").match(/choose\s*(\d+)/i);
+  const count = match ? parseInt(match[1], 10) : 1;
+  return Number.isFinite(count) && count > 0 ? count : 1;
+}
+
+/**
+ * The food a combo request is actually sold, settled course by course.
+ *
+ * A combo's courses come in two kinds: one listing a single dish includes it
+ * automatically, one listing several asks the customer to pick. The wizard
+ * shows both but only ever submitted the picks — an automatically included
+ * dish was labelled "included with this combo" on screen and then left out of
+ * the payload. Because the old fallback fired only for an entirely empty
+ * snapshot, a combo mixing the two kinds stored a partial meal and nothing
+ * ever recovered it: the missing courses travelled on into the quotation
+ * builder and then into the booking's own menu, so the kitchen never saw them.
+ *
+ * The snapshot is therefore settled here rather than accepted as sent:
+ *
+ *   - only dishes the course actually lists survive, so a crafted payload
+ *     cannot put arbitrary food on a fixed-price combo;
+ *   - no course keeps more dishes than it asks for;
+ *   - a course with no valid pick falls back to its own first dishes, which
+ *     includes a single-dish course automatically and gives a multi-dish
+ *     course a deterministic default rather than every option it offers.
+ */
+function normalizeOfferSelection(pkg, submitted) {
+  const courses = offerFoodByCategory(pkg);
+  if (courses.length === 0) return [];
+
+  const picks = Array.isArray(submitted) ? submitted : [];
+  const selection = [];
+
+  courses.forEach((course) => {
+    const required = offerCourseRequirement(course.category);
+    const taken = new Set();
+    const chosen = [];
+
+    picks.forEach((entry) => {
+      if (chosen.length >= required) return;
+      // "Included" is `offerFoodByCategory`'s label for an uncategorised
+      // course rather than something the admin typed, so a stored blank and
+      // that label are the same course.
+      const category = String(entry?.menu_category || "").trim() || "Included";
+      if (category !== course.category) return;
+
+      // Matched case-insensitively against the course's own dishes: the name
+      // that gets stored is the combo's spelling, not the browser's.
+      const name = String(entry?.item_name || "").trim().toLowerCase();
+      const offered = course.items.find((item) => item.toLowerCase() === name);
+      if (!offered || taken.has(offered.toLowerCase())) return;
+
+      taken.add(offered.toLowerCase());
+      chosen.push(offered);
+    });
+
+    const settled = chosen.length > 0 ? chosen : course.items.slice(0, required);
+    settled.forEach((item_name) => {
+      selection.push({
+        // The display label is never written back onto the record, so a course
+        // the admin left unnamed stays unnamed.
+        menu_category: course.category === "Included" ? "" : course.category,
+        item_name,
+      });
+    });
+  });
+
+  return selection;
+}
 
 /**
  * The combo's inclusions as the customer reads them.
@@ -326,6 +411,8 @@ module.exports = {
   offerFoodItems,
   offerFoodByCategory,
   offerFoodSnapshot,
+  offerCourseRequirement,
+  normalizeOfferSelection,
   offerInclusions,
   PACKAGE_ONLY_FIELDS,
   PACKAGE_ONLY_REQUEST_FIELDS,

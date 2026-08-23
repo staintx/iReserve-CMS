@@ -16,6 +16,15 @@ import {
 import Badge from "../../components/admin/ui/Badge";
 import { pendingChangeRequestOf } from "../../utils/quotationDiff";
 import { priceLabel, capacityLabel } from "../../lib/packageDisplay";
+import {
+  BOOKING_TYPES,
+  bookingIdentity,
+  offerFoodByCategory,
+  offerFoodForDisplay,
+  offerInclusions,
+  offerPricePerPax,
+  offerBaseFoodPrice,
+} from "../../lib/specialOffers";
 import { formatCurrency, formatShortDate } from "../../utils/format";
 import { menuAmountLabel, menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
 import { eventSpaceLabel } from "../../lib/packageDisplay";
@@ -38,8 +47,14 @@ const CompactCard = ({ title, icon: Icon, children, headerRight, className = "" 
   </div>
 );
 
-/* --- Compact Info Grid Field --- */
-const CompactField = ({ icon: Icon, label, value, children, span = "col-span-1" }) => (
+/* --- Compact Info Grid Field ---
+   `hideWhenEmpty` is for a fact that does not apply to this kind of request at
+   all, as opposed to one that applies and was left blank. A combo has no event
+   space to size, so rendering "Not specified" there reported missing data on a
+   question that was never asked. */
+const CompactField = ({ icon: Icon, label, value, children, span = "col-span-1", hideWhenEmpty = false }) => {
+  if (hideWhenEmpty && !children && !value) return null;
+  return (
   <div className={`bg-slate-50/60 rounded-lg p-2 sm:p-2.5 border border-slate-100/90 flex flex-col justify-between ${span}`}>
     <div className="flex items-center gap-1.5 text-slate-400 mb-1">
       {Icon && <Icon size={12} className="shrink-0 text-slate-400" />}
@@ -49,7 +64,8 @@ const CompactField = ({ icon: Icon, label, value, children, span = "col-span-1" 
       {children || value || <span className="text-slate-300 font-normal italic">Not specified</span>}
     </div>
   </div>
-);
+  );
+};
 
 /* --- One money line in the quotation summary --- */
 const MoneyLine = ({ label, detail, value, strong, deduct }) => (
@@ -398,6 +414,34 @@ export default function AdminQuoteDetails() {
                         quotations.some(q => q.inquiry_payment_status === "deposit_paid" || q.inquiry_payment_status === "fully_paid" || q.approved_payment || q.is_paid);
   const isConverted = quote.status === "Converted to Booking";
 
+  /**
+   * What kind of request this is, and — when it is a combo — the food it was
+   * actually sold.
+   *
+   * A Special Offer stores its food in `offer_food_snapshot` and its price in
+   * `offer_base_price`, because the server empties `selected_menu` for a combo
+   * and clears the equipment and scaffold fields a setup booking carries. This
+   * page read only the setup-booking fields, so every combo reached the "no
+   * menu items or add-ons selected" empty state below — telling the admin the
+   * customer chose nothing on a request where they had picked a dish for every
+   * course.
+   *
+   * `bookingIdentity` is the same helper the Inquiries list identifies a row
+   * with, so both surfaces name a request the same way.
+   */
+  const identity = bookingIdentity(quote);
+  const isOffer = identity.type === BOOKING_TYPES.SPECIAL;
+  const offerPackage =
+    quote.package_id && typeof quote.package_id === "object" ? quote.package_id : null;
+  const offerCourses = isOffer
+    ? offerFoodByCategory(offerFoodForDisplay(quote, offerPackage))
+    : [];
+  const offerExtras = isOffer ? offerInclusions(offerPackage) : [];
+  const offerPerPax = isOffer ? offerPricePerPax(offerPackage) : 0;
+  const offerBase =
+    Number(quote.offer_base_price) ||
+    (isOffer ? offerBaseFoodPrice(offerPackage, Number(quote.guest_count)) : 0);
+
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-4 pb-8">
@@ -658,10 +702,21 @@ export default function AdminQuoteDetails() {
                           {quote.package_id.name}
                         </h4>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          {quote.package_id.package_type && (
-                            <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10.5px] font-semibold">
-                              {quote.package_id.package_type}
+                          {/* A combo is filed as "Food Only" — `comboPayload`
+                              forces the type, because a combo sells no event
+                              space. Showing that raw made a Special Offer
+                              indistinguishable from a regular Food Only
+                              package on the one page an admin quotes from. */}
+                          {isOffer ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10.5px] font-bold">
+                              {identity.label}
                             </span>
+                          ) : (
+                            quote.package_id.package_type && (
+                              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10.5px] font-semibold">
+                                {quote.package_id.package_type}
+                              </span>
+                            )
                           )}
                           {quote.package_id.event_type && (
                             <span className="px-2 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[10.5px] font-medium">
@@ -809,6 +864,7 @@ export default function AdminQuoteDetails() {
                   icon={Ruler}
                   label="Event Space / Scaffold Size"
                   value={eventSpaceLabel(quote, quote.package_id) || null}
+                  hideWhenEmpty={isOffer}
                 />
 
                 <CompactField 
@@ -840,6 +896,64 @@ export default function AdminQuoteDetails() {
               icon={quote.service_type === "Event Setup Only" ? Layers : Utensils}
             >
               <div className="space-y-3">
+                {/* A combo's food, course by course, as the customer chose it.
+                    Grouped from the request's own snapshot rather than the
+                    combo as it stands today, so a combo re-plated since still
+                    reads as what was actually sold. */}
+                {isOffer && offerCourses.length > 0 && (
+                  <div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-1.5">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        Combo Meal — {identity.name}
+                      </span>
+                      {offerPerPax > 0 && (
+                        <span className="text-[11px] font-semibold text-slate-600 tabular-nums">
+                          {formatCurrency(offerPerPax)} / pax
+                          {offerBase > 0 && (
+                            <>
+                              {" · "}
+                              <span className="text-slate-800">{formatCurrency(offerBase)}</span>
+                              <span className="text-slate-400 font-medium">
+                                {" "}for {Number(quote.guest_count) || 0} pax
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {offerCourses.map((course, i) => (
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-3 bg-slate-50/80 border border-slate-100 rounded-md px-2.5 py-1.5 text-xs">
+                          <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 sm:w-40 shrink-0">
+                            {course.category}
+                          </span>
+                          <span className="font-medium text-slate-800">
+                            {course.items.join(", ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {offerExtras.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">
+                          Combo Inclusions
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {offerExtras.map((inc, i) => (
+                            <span key={i} className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md text-slate-700 border border-slate-200/60 text-xs font-medium">
+                              <Check size={11} className="text-emerald-600 shrink-0" />
+                              <span>{inc}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="mt-1.5 text-[10.5px] text-slate-400 leading-snug">
+                      The combo's base food price. The quotation remains the authoritative figure.
+                    </p>
+                  </div>
+                )}
+
                 {quote.service_type !== "Event Setup Only" && Array.isArray(quote.selected_menu) && quote.selected_menu.length > 0 && (
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1.5">
@@ -904,8 +1018,11 @@ export default function AdminQuoteDetails() {
                   </div>
                 )}
 
-                {/* Empty State */}
-                {(!Array.isArray(quote.selected_menu) || quote.selected_menu.length === 0) &&
+                {/* Empty State. A combo whose courses rendered above has had
+                    its food answered, even though it carries no `selected_menu`
+                    — the server stores a combo's dishes on the snapshot. */}
+                {offerCourses.length === 0 &&
+                 (!Array.isArray(quote.selected_menu) || quote.selected_menu.length === 0) &&
                  (!Array.isArray(quote.service_items) || quote.service_items.length === 0) &&
                  (!Array.isArray(quote.additional_services) || quote.additional_services.length === 0) &&
                  (!Array.isArray(quote.inventory_items) || quote.inventory_items.length === 0) && (

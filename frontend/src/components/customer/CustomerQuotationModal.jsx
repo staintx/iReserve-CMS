@@ -197,10 +197,10 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   };
 
   const isExpired = quotation.expiration_date && new Date(quotation.expiration_date) < new Date();
-  const isDepositPaid = inquiry?.payment_status === "deposit_paid" || inquiry?.payment_status === "fully_paid" || Boolean(inquiry?.converted_booking_id);
+  const isDepositPaid = inquiry?.payment_status === "deposit_paid" || inquiry?.payment_status === "fully_paid" || Boolean(inquiry?.converted_booking_id) || quotation?.inquiry_payment_status === "deposit_paid" || quotation?.inquiry_payment_status === "fully_paid" || Boolean(quotation?.approved_payment);
   // A Draft is unfinished work the server no longer serves to customers, so it
   // is not something to accept, decline, or ask for changes to.
-  const canRespond = quotation.status === "Sent" && !isExpired;
+  const canRespond = quotation.status === "Sent" && !isExpired && !isDepositPaid;
   const canRetryPayment = (quotation.status === "Awaiting Final Confirmation" || quotation.status === "Accepted") && !isDepositPaid && !isExpired;
 
   /**
@@ -242,7 +242,9 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   const eventSpace =
     eventDetail("event_space_label") || eventSpaceLabel(inquiry, inquiry?.package_id) || "";
 
-  const status = statusMeta(quotation.status, isExpired);
+  const status = isDepositPaid 
+    ? { tone: "success", label: "Deposit Paid & Confirmed", icon: CheckCircle2 } 
+    : statusMeta(quotation.status, isExpired);
   const total = Number(quotation.total_cost || 0);
   const deposit = Number(quotation.deposit_amount || 0);
   const remaining = Number(
@@ -256,8 +258,14 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
    * The customer pays this from their dashboard once the admin converts the inquiry to a booking.
    */
   const dueOnAcceptance = deposit > 0 ? deposit : total;
-  const headline = {
-    label: deposit > 0 ? "Deposit required to confirm booking" : "Amount due to confirm booking",
+  const headline = isDepositPaid
+    ? {
+        label: "Deposit status: Paid & Confirmed",
+        amount: deposit,
+        note: "Your deposit payment was confirmed in real time. Your event date is secured.",
+      }
+    : {
+        label: deposit > 0 ? "Deposit required to confirm booking" : "Amount due to confirm booking",
     value: formatCurrency(dueOnAcceptance),
     hint: deposit > 0
       ? "Pay this deposit to reserve your event date. Once paid, our team will provide final booking confirmation."
@@ -561,8 +569,21 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 { label: "Total cost", value: formatCurrency(total), strong: true },
                 {
                   label: "Deposit to reserve your date",
-                  value: formatCurrency(deposit),
-                  hint: deposit > 0 ? null : "Not required — the full amount is due on acceptance",
+                  value: (
+                    <span className="flex items-center gap-2">
+                      <span>{formatCurrency(deposit)}</span>
+                      {isDepositPaid && (
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Paid
+                        </span>
+                      )}
+                    </span>
+                  ),
+                  hint: isDepositPaid
+                    ? "Deposit confirmed via PayMongo online payment."
+                    : deposit > 0
+                    ? null
+                    : "Not required — the full amount is due on acceptance",
                 },
                 deposit > 0 && {
                   label: "Remaining balance after deposit",

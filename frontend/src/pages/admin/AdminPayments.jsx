@@ -518,9 +518,9 @@ export default function AdminPayments() {
               <RowActionsMenu
                 actions={[
                   { key: "view", label: "View Details", icon: Eye, onSelect: () => setDrawerRow(p) },
-                  { key: "approve", label: "Approve Payment", icon: CheckCircle2, onSelect: () => handleUpdateStatus(p, "approved") },
-                  { key: "verify", label: "Verify with Gateway", icon: ShieldCheck, show: p.method === "paymongo", onSelect: () => handleVerify(p) },
-                  { key: "reject", label: "Reject Payment", icon: XCircle, onSelect: () => handleUpdateStatus(p, "rejected") },
+                  { key: "verify", label: "Sync with Gateway", icon: ShieldCheck, show: p.method === "paymongo", onSelect: () => handleVerify(p) },
+                  { key: "approve", label: "Approve Payment", icon: CheckCircle2, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "approved") },
+                  { key: "reject", label: "Reject Payment", icon: XCircle, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "rejected") },
                 ]}
               />
             )}
@@ -795,17 +795,20 @@ export default function AdminPayments() {
                 </div>
                 {getStatusBadgeLabel(drawerRow.status) === "Pending" && (
                   <div className="flex items-center gap-2">
-                    {drawerRow.method === "paymongo" && (
+                    {drawerRow.method === "paymongo" ? (
                       <Btn variant="secondary" size="sm" onClick={() => handleVerify(drawerRow)} disabled={actionLoading}>
-                        <ShieldCheck size={13} /> Verify Gateway
+                        <ShieldCheck size={13} /> Sync with Gateway
                       </Btn>
+                    ) : (
+                      <>
+                        <Btn variant="danger" size="sm" onClick={() => handleUpdateStatus(drawerRow, "rejected")} disabled={actionLoading}>
+                          <XCircle size={13} /> Reject
+                        </Btn>
+                        <Btn variant="primary" size="sm" onClick={() => handleUpdateStatus(drawerRow, "approved")} disabled={actionLoading}>
+                          <CheckCircle2 size={13} /> Approve Payment
+                        </Btn>
+                      </>
                     )}
-                    <Btn variant="danger" size="sm" onClick={() => handleUpdateStatus(drawerRow, "rejected")} disabled={actionLoading}>
-                      <XCircle size={13} /> Reject
-                    </Btn>
-                    <Btn variant="primary" size="sm" onClick={() => handleUpdateStatus(drawerRow, "approved")} disabled={actionLoading}>
-                      <CheckCircle2 size={13} /> Approve Payment
-                    </Btn>
                   </div>
                 )}
               </div>

@@ -1,6 +1,8 @@
 const Inquiry = require("../models/Inquiry");
 const Package = require("../models/Package");
 const BlockedDate = require("../models/BlockedDate");
+const Payment = require("../models/Payment");
+const Booking = require("../models/Booking");
 const asyncHandler = require("../utils/asyncHandler");
 const { checkInventoryAvailability } = require("./booking.controller");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
@@ -184,6 +186,28 @@ exports.getInquiries = asyncHandler(async (req, res) => {
     .populate("package_id", "name offer_type package_type")
     .lean();
 
+  const inqIds = inquiries.map(i => i._id);
+  const convertedBookingIds = inquiries.map(i => i.converted_booking_id).filter(Boolean);
+
+  const [approvedPayments, bookings] = await Promise.all([
+    Payment.find({
+      $or: [
+        { inquiry_id: { $in: inqIds }, status: "approved" },
+        ...(convertedBookingIds.length > 0 ? [{ booking_id: { $in: convertedBookingIds }, status: "approved" }] : [])
+      ]
+    }).lean(),
+    convertedBookingIds.length > 0 ? Booking.find({ _id: { $in: convertedBookingIds } }).lean() : []
+  ]);
+
+  const approvedInquiryMap = new Map();
+  approvedPayments.forEach(p => {
+    if (p.inquiry_id) approvedInquiryMap.set(String(p.inquiry_id), p);
+    if (p.booking_id) approvedInquiryMap.set(String(p.booking_id), p);
+  });
+
+  const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
+  const inqIdsToUpdate = [];
+
   // Requests submitted before booking_type existed still have to identify
   // themselves. Resolved from the same relation, never from the name.
   inquiries.forEach((inquiry) => {
@@ -192,7 +216,25 @@ exports.getInquiries = asyncHandler(async (req, res) => {
         ? bookingTypeForPackage(inquiry.package_id)
         : BOOKING_TYPES.CUSTOM;
     }
+
+    const booking = inquiry.converted_booking_id ? bookingMap.get(String(inquiry.converted_booking_id)) : null;
+    const hasApprovedPayment = approvedInquiryMap.has(String(inquiry._id)) || (booking && approvedInquiryMap.has(String(booking._id)));
+    const bookingIsPaid = booking && ["deposit_paid", "fully_paid"].includes(booking.payment_status);
+
+    if (hasApprovedPayment || bookingIsPaid || inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid") {
+      inquiry.payment_status = (booking && booking.payment_status === "fully_paid") ? "fully_paid" : (inquiry.payment_status === "fully_paid" ? "fully_paid" : "deposit_paid");
+      inquiry.is_deposit_paid = true;
+      inqIdsToUpdate.push(inquiry._id);
+    }
   });
+
+  if (inqIdsToUpdate.length > 0) {
+    Inquiry.updateMany(
+      { _id: { $in: inqIdsToUpdate }, payment_status: { $in: ["unpaid", "pending", null] } },
+      { payment_status: "deposit_paid" }
+    ).catch(() => {});
+  }
+
   res.json(inquiries);
 });
 
@@ -226,6 +268,22 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   
   const inquiryObj = inquiry.toObject();
   inquiryObj.had_package_selection = hadPackageSelection;
+
+  const approvedPayment = await Payment.findOne({
+    $or: [
+      { inquiry_id: inquiry._id, status: "approved" },
+      ...(inquiry.converted_booking_id ? [{ booking_id: inquiry.converted_booking_id, status: "approved" }] : [])
+    ]
+  }).lean();
+
+  if (approvedPayment || inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid") {
+    inquiryObj.payment_status = inquiry.payment_status === "fully_paid" ? "fully_paid" : "deposit_paid";
+    inquiryObj.is_deposit_paid = true;
+    if (rawInquiry.payment_status !== "deposit_paid" && rawInquiry.payment_status !== "fully_paid") {
+      rawInquiry.payment_status = "deposit_paid";
+      await rawInquiry.save();
+    }
+  }
 
   res.json(inquiryObj);
 });

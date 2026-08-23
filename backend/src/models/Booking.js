@@ -13,6 +13,14 @@ const BookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Package",
     },
+    inquiry_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Inquiry",
+    },
+    quotation_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Quotation",
+    },
 
     // Carried over from the inquiry so a converted booking still says what it
     // was booked from — regular package, Special Offer, or a custom build —

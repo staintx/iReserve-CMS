@@ -54,7 +54,6 @@ export default function AdminBookingDetails() {
   const [payments, setPayments] = useState([]);
 
   // Modals state
-  const [showChangeModal, setShowChangeModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCompleteOcularModal, setShowCompleteOcularModal] = useState(false);
   const [showAssignManagerModal, setShowAssignManagerModal] = useState(false);
@@ -62,6 +61,7 @@ export default function AdminBookingDetails() {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [sourceQuotation, setSourceQuotation] = useState(null);
 
   // Form states
   const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
@@ -141,6 +141,31 @@ export default function AdminBookingDetails() {
         setPayments((pRes.data || []).filter(p => String(p.booking_id?._id || p.booking_id) === String(bId) || String(p.inquiry_id?._id || p.inquiry_id) === String(bId)));
       } catch (pErr) {
         setPayments([]);
+      }
+
+      // Fetch source quotation lineage
+      try {
+        let inquiryId = bookingData.inquiry_id?._id || bookingData.inquiry_id;
+        if (!inquiryId) {
+          const inqRes = await AdminAPI.getInquiries();
+          const sourceInquiry = (inqRes.data || []).find(
+            (i) => String(i.converted_booking_id || "") === String(bookingData._id)
+          );
+          inquiryId = sourceInquiry?._id;
+        }
+        if (inquiryId) {
+          const qRes = await AdminAPI.getQuotationsForInquiry(inquiryId);
+          const allVersions = qRes.data || [];
+          if (allVersions.length > 0) {
+            setSourceQuotation({ versions: allVersions });
+          } else {
+            setSourceQuotation(null);
+          }
+        } else {
+          setSourceQuotation(null);
+        }
+      } catch (qErr) {
+        setSourceQuotation(null);
       }
 
       // Populate edit form
@@ -525,7 +550,7 @@ export default function AdminBookingDetails() {
         )}
 
         {/* Change Request Alert Banner */}
-        {booking.change_request?.status === "pending" && booking.change_request?.message && (
+        {booking.change_request?.status === "pending" && booking.change_request?.message && (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) && (
           <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-start justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
               <Send className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
@@ -534,8 +559,16 @@ export default function AdminBookingDetails() {
                 <p className="text-indigo-800 mt-0.5 leading-relaxed">{booking.change_request.message}</p>
               </div>
             </div>
-            <Btn size="sm" variant="primary" className="shrink-0" onClick={() => setShowChangeModal(true)}>
-              Review Request
+            <Btn
+              size="sm"
+              variant="primary"
+              className="shrink-0 font-bold"
+              onClick={() => {
+                handleOpenEditModal();
+                setRevisionNote(booking.change_request.message);
+              }}
+            >
+              Review &amp; Propose Changes
             </Btn>
           </div>
         )}
@@ -1052,7 +1085,7 @@ export default function AdminBookingDetails() {
 
         {/* Revision Audit History Section */}
         <AdminCard className="!p-5 space-y-4">
-          <BookingRevisionHistory booking={booking} />
+          <BookingRevisionHistory booking={booking} sourceQuotation={sourceQuotation} />
         </AdminCard>
 
         {/* Modal: Equipment Assignment */}

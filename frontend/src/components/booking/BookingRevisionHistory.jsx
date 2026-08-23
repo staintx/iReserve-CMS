@@ -16,13 +16,13 @@ const fmtCurrency = (val) => {
   return "₱" + Number(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-export default function BookingRevisionHistory({ booking }) {
+export default function BookingRevisionHistory({ booking, sourceQuotation = null }) {
   if (!booking) return null;
 
   const revisions = Array.isArray(booking.revisions) ? booking.revisions : [];
   const hasPending = Boolean(booking.pending_revision && ["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status));
 
-  if (revisions.length === 0 && !hasPending) {
+  if (revisions.length === 0 && !hasPending && (!sourceQuotation || sourceQuotation.versions?.length <= 1)) {
     return (
       <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs">
         <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -32,8 +32,17 @@ export default function BookingRevisionHistory({ booking }) {
     );
   }
 
+  const EXCLUDED_FIELDS = new Set([
+    "event_manager_id",
+    "staff_ids",
+    "staff_assignments",
+    "equipment_assignments",
+    "equipment_returned",
+    "_id",
+  ]);
+
   const renderChangesSummary = (changes = {}) => {
-    const entries = Object.entries(changes);
+    const entries = Object.entries(changes).filter(([k]) => !EXCLUDED_FIELDS.has(k));
     if (entries.length === 0) return <span className="text-slate-400 italic">No specific field changes recorded</span>;
 
     return (
@@ -49,6 +58,9 @@ export default function BookingRevisionHistory({ booking }) {
           } else if (key === "total_price") {
             fromVal = fmtCurrency(val.from);
             toVal = fmtCurrency(val.to);
+          } else if (key === "guest_count") {
+            fromVal = val?.from !== undefined ? `${val.from} pax` : "N/A";
+            toVal = val?.to !== undefined ? `${val.to} pax` : "N/A";
           }
 
           return (
@@ -151,6 +163,23 @@ export default function BookingRevisionHistory({ booking }) {
             </div>
           );
         })}
+
+        {/* Quotation Lineage if available */}
+        {sourceQuotation?.versions?.length > 1 && (
+          <div className="pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-[11px] font-bold text-slate-600">Pre-Booking Quotation Versions:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {sourceQuotation.versions.map((qv) => (
+                <span key={qv._id || qv.version_number} className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded-md border border-slate-200">
+                  {qv.quotation_number || "Quote"} v{qv.version_number}.0 ({qv.status})
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

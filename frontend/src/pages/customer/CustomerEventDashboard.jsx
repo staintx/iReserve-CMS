@@ -109,7 +109,6 @@ export default function CustomerEventDashboard() {
       if (changeFields.venue_type) payload.venue_type = changeFields.venue_type;
 
       await CustomerAPI.proposeRevision(booking._id, payload);
-      await CustomerAPI.requestBookingChange(booking._id, { message: nextMessage || "Proposed booking revision" });
 
       notify("Your revision proposal was submitted to the admin for review!", "success");
       setRequestingChange(false);
@@ -264,6 +263,7 @@ export default function CustomerEventDashboard() {
       .then((res) => {
         const found = res.data.find(b => b._id === id);
         setBooking(found || null);
+        if (found) fetchSourceQuotation(found);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -272,26 +272,28 @@ export default function CustomerEventDashboard() {
   /**
    * Which quotation this booking came from.
    *
-   * Booking has no quotation_id — the only stored link runs the other way
-   * (Inquiry.converted_booking_id, set during conversion), so it is resolved
-   * by reverse lookup through existing customer endpoints. Read-only, and it
-   * mirrors the backend's own "prefer Accepted, else latest version" rule so
-   * the reference can't disagree with the version the booking was built from.
+   * Checks direct booking.inquiry_id if populated, falling back to
+   * Inquiry.converted_booking_id reverse lookup for older records.
    */
-  const fetchSourceQuotation = async () => {
+  const fetchSourceQuotation = async (currentBooking = booking) => {
     try {
-      const inqRes = await CustomerAPI.getInquiries();
-      const sourceInquiry = (inqRes.data || []).find(
-        (i) => String(i.converted_booking_id || "") === String(id)
-      );
-      if (!sourceInquiry) return;
+      let inquiryId = currentBooking?.inquiry_id?._id || currentBooking?.inquiry_id;
+      let sourceInquiry = null;
 
-      const qRes = await CustomerAPI.getQuotationsForInquiry(sourceInquiry._id);
+      if (!inquiryId) {
+        const inqRes = await CustomerAPI.getInquiries();
+        sourceInquiry = (inqRes.data || []).find(
+          (i) => String(i.converted_booking_id || "") === String(id)
+        );
+        inquiryId = sourceInquiry?._id;
+      }
+
+      if (!inquiryId) return;
+
+      const qRes = await CustomerAPI.getQuotationsForInquiry(inquiryId);
       const allVersions = qRes.data || [];
       const picked = selectSourceQuotation(allVersions);
       if (picked) {
-        // Keep every saved version too: the quotation evolution that led to
-        // this booking is real history worth showing alongside the reference.
         setSourceQuotation({ quotation: picked, inquiry: sourceInquiry, versions: allVersions });
       }
     } catch {

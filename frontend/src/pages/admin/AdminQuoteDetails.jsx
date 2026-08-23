@@ -78,7 +78,7 @@ const MoneyLine = ({ label, detail, value, strong, deduct }) => (
  * quoted since. The inquiry is still below, unchanged and labelled as the
  * original — this card is what is true today.
  */
-function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
+function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid, paymentInfo }) {
   const expiry = quotation.expiration_date ? new Date(quotation.expiration_date) : null;
   const expired =
     expiry &&
@@ -110,6 +110,11 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
       icon={FileText}
       headerRight={
         <div className="flex items-center gap-1.5">
+          {isDepositPaid && (
+            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10.5px] font-bold text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
+              <Check size={11} className="text-emerald-700" /> Paid
+            </span>
+          )}
           <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold tabular-nums text-primary">
             v{Number(quotation.version_number) || 1}
           </span>
@@ -130,6 +135,11 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
               ? `${expired ? "Expired" : "Valid until"} ${formatShortDate(quotation.expiration_date)}`
               : "No expiry set"}
           </span>
+          {isDepositPaid && (
+            <span className="rounded bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 font-bold text-emerald-800 flex items-center gap-1">
+              <Check size={11} className="text-emerald-600" /> Deposit Paid
+            </span>
+          )}
           {hasDraft && (
             <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800">
               Newer draft not sent
@@ -176,7 +186,19 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft }) {
           )}
           <div className="mt-1 border-t border-slate-200 pt-1.5">
             <MoneyLine label="Quoted total" value={formatCurrency(quotation.total_cost)} strong />
-            <MoneyLine label="Deposit to confirm" value={formatCurrency(quotation.deposit_amount)} />
+            <div className="flex items-baseline justify-between gap-4 text-xs">
+              <span className="min-w-0 text-slate-600 flex items-center gap-1.5">
+                Deposit to confirm
+                {isDepositPaid && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <Check size={10} className="text-emerald-700" /> Paid
+                  </span>
+                )}
+              </span>
+              <span className={`shrink-0 tabular-nums ${isDepositPaid ? "font-bold text-emerald-700" : "font-semibold text-slate-800"}`}>
+                {formatCurrency(quotation.deposit_amount)}
+              </span>
+            </div>
             <MoneyLine label="Balance before event" value={formatCurrency(quotation.remaining_balance)} />
           </div>
         </div>
@@ -371,7 +393,9 @@ export default function AdminQuoteDetails() {
   const isRevisionRequested = quote.status === "Revision Requested";
   const isQuotationSent = quote.status === "Quotation Sent";
   const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation", "Accepted"].includes(quote.status);
-  const isDepositPaid = quote.payment_status === "deposit_paid" || quote.payment_status === "fully_paid";
+  const isDepositPaid = quote.payment_status === "deposit_paid" || 
+                        quote.payment_status === "fully_paid" || 
+                        quotations.some(q => q.inquiry_payment_status === "deposit_paid" || q.inquiry_payment_status === "fully_paid" || q.approved_payment || q.is_paid);
   const isConverted = quote.status === "Converted to Booking";
 
   return (
@@ -397,6 +421,11 @@ export default function AdminQuoteDetails() {
                 {currentQuotation ? "Quotation" : "Inquiry Details"}
               </h1>
               <Badge status={quote.status} />
+              {isDepositPaid && (
+                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-emerald-700" /> Deposit Paid
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-mono mt-1">
               <span className="flex items-center gap-1">
@@ -557,12 +586,12 @@ export default function AdminQuoteDetails() {
               </div>
               <div className="min-w-0">
                 <h4 className={`font-bold text-xs sm:text-sm leading-tight ${isDepositPaid ? "text-emerald-950" : "text-purple-950"}`}>
-                  {isDepositPaid ? "Customer Accepted & Deposit Verified ✓" : "Customer Accepted & Awaiting Final Confirmation"}
+                  {isDepositPaid ? "Customer Accepted & Deposit Paid ✓" : "Customer Accepted & Awaiting Deposit"}
                 </h4>
                 <p className={`text-[11px] mt-0.5 ${isDepositPaid ? "text-emerald-700" : "text-purple-700"}`}>
                   {isDepositPaid
-                    ? "Deposit has been approved. Convert to confirmed booking and assign an Event Manager."
-                    : "The customer accepted this quotation. Verify the deposit before finalizing."}
+                    ? "Deposit has been confirmed in real time. Convert to confirmed booking and assign an Event Manager."
+                    : "The customer accepted this quotation. Awaiting customer deposit payment."}
                 </p>
               </div>
             </div>
@@ -588,6 +617,7 @@ export default function AdminQuoteDetails() {
                 quotation={currentQuotation}
                 versionCount={issuedVersions.length}
                 hasDraft={hasDraft}
+                isDepositPaid={isDepositPaid}
               />
             )}
 

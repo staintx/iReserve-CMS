@@ -9,6 +9,7 @@ import {
   Clock, 
   Send, 
   CheckCircle, 
+  Check,
   Search, 
   Filter, 
   PlusCircle,
@@ -42,14 +43,14 @@ export default function AdminQuotesList() {
   /**
    * Payment state per booking, keyed by booking id.
    *
-   * Quotations owns the record right up until the deposit clears — that is the
-   * hand-off point to Reservations — so this page has to know whether the
-   * booking a quotation converted into has actually been paid. The quotation
-   * itself only knows it was converted.
+   * A converted booking that already paid its deposit is not "awaiting
+   * deposit" even though its quotation still carries the same total.
+   * Quotations themselves do not record payment, so we read the booking's
+   * live payment_status back from the bookings collection to decide.
    */
   const [bookingPayments, setBookingPayments] = useState(() => new Map());
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [qtnRes, bookingRes] = await Promise.all([
@@ -65,11 +66,11 @@ export default function AdminQuotesList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [notify]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   useRealTimeRefresh(loadData);
 
@@ -106,17 +107,29 @@ export default function AdminQuotesList() {
   }, [quotations]);
 
   /**
-   * A converted quotation whose booking has not paid its deposit yet. These
-   * are the records that used to sit in Reservations under "Pending Deposit";
-   * they belong here until the money arrives.
+   * Whether an accepted quotation is still waiting on the customer's deposit.
+   *
+   * Only accepted quotations take deposits — an inquiry still under review
+   * or a draft nobody has sent yet is waiting on the office, not on money.
+   * If the quotation has already been converted to a booking, we look at the
+   * booking's payment_status; if it is still only an inquiry, the deposit
+   * has not been recorded yet.
    */
   const isAwaitingDeposit = useCallback((q) => {
-    if (q.status !== "Converted to Booking") return false;
+    const isAccepted =
+      q.status === "Accepted" ||
+      q.status === "Quote Accepted" ||
+      q.status === "Awaiting Final Confirmation" ||
+      q.status === "Converted to Booking";
+    if (!isAccepted) return false;
+
+    if (q.payment_status === "deposit_paid" || q.payment_status === "fully_paid" || q.is_paid) {
+      return false;
+    }
+
     const bookingId = q.inquiry_id?.converted_booking_id;
-    if (!bookingId) return false;
+    if (!bookingId) return true;
     const paymentStatus = bookingPayments.get(String(bookingId?._id || bookingId));
-    // Unknown booking → treat as still owed rather than silently promoting it
-    // to Reservations, so a record can never fall out of both sections.
     return paymentStatus === undefined || paymentStatus === "pending";
   }, [bookingPayments]);
 
@@ -137,6 +150,9 @@ export default function AdminQuotesList() {
     // Latest Quotations per Inquiry thread
     let items = groupedQuotations.map(q => {
       const inq = q.inquiry_id || {};
+      const isPaid = Boolean(q.is_paid || q.payment_status === "deposit_paid" || q.payment_status === "fully_paid" || !isAwaitingDeposit(q));
+      const payStatus = q.payment_status || (isPaid ? "deposit_paid" : "unpaid");
+
       return {
         type: "QUOTATION",
         id: q._id,
@@ -149,6 +165,8 @@ export default function AdminQuotesList() {
         eventDate: inq.event_date,
         guestCount: q.guest_count || inq.guest_count,
         status: q.status,
+        paymentStatus: payStatus,
+        isPaid,
         awaitingDeposit: isAwaitingDeposit(q),
         hasDraft: Boolean(q.hasDraft),
         version: q.version_number || 1,
@@ -204,6 +222,35 @@ export default function AdminQuotesList() {
       default:
         return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 w-fit">{status}</span>;
     }
+  };
+
+  const getPaymentBadge = (status, isPaid) => {
+    if (isPaid || status === "deposit_paid") {
+      return (
+        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center gap-1 w-fit">
+          <Check size={11} className="text-emerald-700" /> Deposit Paid
+        </span>
+      );
+    }
+    if (status === "fully_paid") {
+      return (
+        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center gap-1 w-fit">
+          <CheckCircle size={11} className="text-emerald-700" /> Fully Paid
+        </span>
+      );
+    }
+    if (status === "pending") {
+      return (
+        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200/60 flex items-center gap-1 w-fit">
+          <Clock size={11} /> Pending
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 w-fit">
+        Unpaid
+      </span>
+    );
   };
 
   return (
@@ -334,7 +381,8 @@ export default function AdminQuotesList() {
                     <th className="py-3.5 px-6 font-semibold">Customer</th>
                     <th className="py-3.5 px-6 font-semibold">Event Date</th>
                     <th className="py-3.5 px-6 font-semibold">Quoted Total</th>
-                    <th className="py-3.5 px-6 font-semibold">Status</th>
+                    <th className="py-3.5 px-6 font-semibold">Quote Status</th>
+                    <th className="py-3.5 px-6 font-semibold">Payment Status</th>
                     <th className="py-3.5 px-6 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
@@ -402,6 +450,9 @@ export default function AdminQuotesList() {
                               )}
                             </div>
                           </td>
+                          <td className="py-4 px-6">
+                            {getPaymentBadge(item.paymentStatus, item.isPaid)}
+                          </td>
                           <td className="py-4 px-6 text-right">
                             <button
                               type="button"
@@ -417,7 +468,7 @@ export default function AdminQuotesList() {
                         {/* Expanded Version History Sub-row */}
                         {isExpanded && hasHistory && (
                           <tr className="bg-slate-50/90 border-t border-b border-amber-200/60">
-                            <td colSpan={6} className="p-4 pl-14">
+                            <td colSpan={7} className="p-4 pl-14">
                               <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">

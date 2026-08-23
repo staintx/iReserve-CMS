@@ -420,7 +420,43 @@ exports.getAllQuotations = asyncHandler(async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .lean();
-  res.json(quotations);
+
+  const allPayments = await Payment.find().sort({ createdAt: -1 }).lean();
+  const paymentByInquiry = new Map();
+  const paymentByBooking = new Map();
+
+  allPayments.forEach(p => {
+    if (p.inquiry_id) {
+      const inqId = String(p.inquiry_id._id || p.inquiry_id);
+      if (!paymentByInquiry.has(inqId) || p.status === "approved") {
+        paymentByInquiry.set(inqId, p);
+      }
+    }
+    if (p.booking_id) {
+      const bId = String(p.booking_id._id || p.booking_id);
+      if (!paymentByBooking.has(bId) || p.status === "approved") {
+        paymentByBooking.set(bId, p);
+      }
+    }
+  });
+
+  const enriched = quotations.map(q => {
+    const inq = q.inquiry_id;
+    const inqId = inq ? String(inq._id || inq) : null;
+    const bookingId = inq?.converted_booking_id ? String(inq.converted_booking_id._id || inq.converted_booking_id) : null;
+    const payment = (inqId && paymentByInquiry.get(inqId)) || (bookingId && paymentByBooking.get(bookingId)) || null;
+    const isApproved = payment?.status === "approved" || inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid";
+    
+    return {
+      ...q,
+      payment_status: isApproved ? (inq?.payment_status || "deposit_paid") : (payment?.status || inq?.payment_status || "unpaid"),
+      payment_method: payment?.method || null,
+      payment_amount: payment?.amount || null,
+      is_paid: isApproved
+    };
+  });
+
+  res.json(enriched);
 });
 
 // Get all quotations for an inquiry
@@ -439,7 +475,30 @@ exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
   if (req.user?.role === "customer") filter.status = { $ne: "Draft" };
 
   const quotations = await Quotation.find(filter).sort({ version_number: -1 }).lean();
-  res.json(quotations);
+
+  // Find payments for this inquiry to attach real-time payment status
+  const payments = await Payment.find({ 
+    $or: [
+      { inquiry_id: req.params.inquiryId },
+      ...(inquiry.converted_booking_id ? [{ booking_id: inquiry.converted_booking_id }] : [])
+    ]
+  }).sort({ createdAt: -1 }).lean();
+
+  const approvedPayment = payments.find(p => p.status === "approved");
+  const latestPayment = payments[0] || null;
+  const paymentStatus = (approvedPayment || inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid")
+    ? (inquiry.payment_status || "deposit_paid")
+    : (inquiry.payment_status || latestPayment?.status || "unpaid");
+
+  const enrichedQuotations = quotations.map(q => ({
+    ...q,
+    inquiry_payment_status: paymentStatus,
+    payments,
+    approved_payment: approvedPayment || null,
+    latest_payment: latestPayment || null,
+  }));
+
+  res.json(enrichedQuotations);
 });
 
 // Get specific quotation
@@ -455,7 +514,16 @@ exports.getQuotationById = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Quotation not found" });
   }
 
-  res.json(quotation);
+  const qObj = quotation.toObject ? quotation.toObject() : quotation;
+  const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id;
+  const payments = await Payment.find({ inquiry_id: inquiryId }).sort({ createdAt: -1 }).lean();
+  const approvedPayment = payments.find(p => p.status === "approved");
+
+  qObj.payments = payments;
+  qObj.approved_payment = approvedPayment || null;
+  qObj.inquiry_payment_status = approvedPayment ? "deposit_paid" : (quotation.inquiry_id?.payment_status || "unpaid");
+
+  res.json(qObj);
 });
 
 // Customer accepts quotation

@@ -115,6 +115,32 @@ export default function CustomerInquiries() {
     fetchInquiries();
   }, []);
 
+  // Automatic real-time confirmation on return from PayMongo checkout
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const paymentStatus = params.get("payment");
+    const paymentId = params.get("payment_id");
+
+    if (paymentStatus === "success" && paymentId) {
+      const verify = async () => {
+        try {
+          notify("Confirming your payment with the payment gateway...", "info");
+          await CustomerAPI.verifyPayment(paymentId);
+          notify("Deposit payment confirmed in real time! Your booking is locked.", "success");
+          fetchInquiries();
+        } catch (err) {
+          console.error("Payment auto-verification error:", err);
+          fetchInquiries();
+        }
+      };
+      verify();
+      navigate(location.pathname, { replace: true });
+    } else if (paymentStatus === "cancelled") {
+      notify("Payment checkout was cancelled.", "warning");
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search]);
+
   useRealTimeRefresh(fetchInquiries);
 
   const isRecentInquiry = (inq) => {
@@ -210,12 +236,12 @@ export default function CustomerInquiries() {
   const startInquiryCheckout = async (inq) => {
     try {
       const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
-      const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
+      const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid === true || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
 
       if (isConverted || isDepositPaid) {
-        notify("Deposit for this booking is already paid or confirmed.", "info");
-        if (inq.converted_booking_id || inq._id) {
-          navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`);
+        notify("The deposit payment for this inquiry has already been completed.", "info");
+        if (inq.converted_booking_id) {
+          navigate(`/customer/bookings/${inq.converted_booking_id}`);
         }
         return;
       }
@@ -271,20 +297,15 @@ export default function CustomerInquiries() {
     const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
     const isQuotationReady = inq.status === "Quotation Sent";
     const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
-    const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
+    const isDepositPaid = inq.payment_status === "deposit_paid" || inq.payment_status === "fully_paid" || inq.is_deposit_paid === true || ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
     const isAccepted = ["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) || isConverted;
     const canPayDeposit = !isConverted && !isDepositPaid && (
-      ["Quotation Sent", "Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) ||
-      (Number(inq.total_price) > 0 && !["Cancelled", "Quote Rejected", "Expired"].includes(inq.status))
+      ["Quotation Sent", "Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) &&
+      Number(inq.total_price) > 0 &&
+      !["Cancelled", "Quote Rejected", "Expired"].includes(inq.status)
     );
     const isPending = ["Pending Review", "Under Review"].includes(inq.status);
     const isClosed = group === "closed";
-    // Editable while still a working draft — no quotation has committed a
-    // price against it yet. A deliberately narrower check than the
-    // "under_review" display group: "Revision Requested" still shows under
-    // that tab, but a quotation already exists for it by then, so it must
-    // stay locked to direct edits — see CUSTOMER_EDITABLE_STATUSES on the
-    // backend, which this mirrors.
     const isEditable = ["Pending Review", "Under Review"].includes(inq.status);
     const location = inq.municipality || inq.province || inq.venue_type || "Location to be confirmed";
 
@@ -296,13 +317,10 @@ export default function CustomerInquiries() {
         ? { label: "Your budget", value: inq.budget_range, tone: "neutral" }
         : null;
 
-    // Exactly one primary action per state. isConverted is checked first
-    // (rather than derived only from status) because converted_booking_id can
-    // be set slightly ahead of the status write finishing, and this is the
-    // more authoritative signal.
+    // Primary action per state
     const primaryAction = isConverted ? (
       <Button
-        onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`)}
+        onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id}`)}
         className="w-full sm:w-auto"
       >
         <ArrowRight className="h-4 w-4" /> Go to booking
@@ -311,27 +329,25 @@ export default function CustomerInquiries() {
       <Button onClick={() => openQuotationView(inq)} disabled={isLoadingQuotation} className="w-full sm:w-auto">
         <Eye className="h-4 w-4" /> Review &amp; accept quote
       </Button>
-    ) : isAccepted ? (
+    ) : canPayDeposit ? (
       <Button
-        onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id || inq._id}`)}
-        className="w-full sm:w-auto"
-      >
-        <ArrowRight className="h-4 w-4" /> Go to booking
-      </Button>
-    ) : null;
-
-    // Paying the deposit and editing details are each the one lower-weight
-    // action worth surfacing without expanding the card — they never overlap,
-    // since a request that can still be edited hasn't reached "accepted" yet.
-    const secondaryAction = canPayDeposit ? (
-      <Button
-        variant="outline"
         onClick={() => startInquiryCheckout(inq)}
         className={cn("w-full sm:w-auto", ACTION_PAY_SECONDARY)}
       >
         <CreditCard className="h-4 w-4" /> Pay deposit
       </Button>
-    ) : isEditable ? (
+    ) : isDepositPaid ? (
+      <Button
+        variant="outline"
+        onClick={() => openQuotationView(inq)}
+        disabled={isLoadingQuotation}
+        className="w-full sm:w-auto border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
+      >
+        <CheckCircle2 className="h-4 w-4 text-emerald-600" /> View paid quote
+      </Button>
+    ) : null;
+
+    const secondaryAction = isEditable ? (
       <Button
         variant="outline"
         onClick={() => openEditModal(inq)}

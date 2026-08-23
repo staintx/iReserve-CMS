@@ -210,7 +210,7 @@ export const inquiryStatusMeta = (inquiry) => {
       };
 
     case "Awaiting Final Confirmation":
-      if (inquiry.payment_status === "deposit_paid") {
+      if (inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid" || inquiry.is_deposit_paid) {
         return {
           tone: "success",
           label: "Deposit Paid · Awaiting Final Confirmation",
@@ -230,11 +230,23 @@ export const inquiryStatusMeta = (inquiry) => {
       };
 
     case "Quote Accepted":
+      if (inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid" || inquiry.is_deposit_paid) {
+        return {
+          tone: "success",
+          label: "Deposit Paid · Quote Accepted",
+          icon: CheckCircle2,
+          notice: {
+            tone: "success",
+            title: "Deposit payment verified.",
+            text: "Your deposit payment has been confirmed. Our team is finalizing your booking.",
+          },
+        };
+      }
       return {
         tone: "success",
         label: "Quote Accepted",
         icon: CheckCircle2,
-        notice: { tone: "success", title: "Your quote is accepted.", text: "Continue to payment or await final confirmation from our team." },
+        notice: { tone: "success", title: "Your quote is accepted.", text: "Please complete the deposit payment to confirm your booking." },
       };
 
     case "Converted to Booking":

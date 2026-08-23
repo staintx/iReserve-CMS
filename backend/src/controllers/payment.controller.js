@@ -28,6 +28,14 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 	const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
 	if (!inquiry) return null;
 
+	// Always mark inquiry as deposit_paid if payment is approved
+	if (payment && payment.status === "approved") {
+		inquiry.payment_status = (payment.payment_type === "full" || payment.amount >= (inquiry.total_price || 0))
+			? "fully_paid"
+			: "deposit_paid";
+		await inquiry.save();
+	}
+
 	// If already converted, link payment to booking
 	if (inquiry.converted_booking_id) {
 		const existingBooking = await Booking.findById(inquiry.converted_booking_id);
@@ -51,7 +59,14 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 				paymentDoc: payment,
 				io,
 			});
-			return newBooking;
+			if (newBooking) {
+				if (io) {
+					io.emit("system:refresh", { type: "inquiry", action: "converted", inquiry_id: inquiryId });
+					io.emit("system:refresh", { type: "quotation", action: "converted" });
+					io.emit("system:refresh", { type: "booking", action: "created", booking_id: newBooking._id });
+				}
+				return newBooking;
+			}
 		}
 	} catch (err) {
 		console.error("Auto conversion error in payment.controller:", err);
@@ -59,7 +74,7 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 
 	// Fallback status update
 	inquiry.status = "Awaiting Final Confirmation";
-	inquiry.payment_status = "deposit_paid";
+	inquiry.payment_status = (payment && payment.status === "approved") ? "deposit_paid" : inquiry.payment_status;
 	await inquiry.save();
 
 	const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
@@ -67,6 +82,12 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 		quotation.status = "Awaiting Final Confirmation";
 		await quotation.save();
 	}
+
+	if (io) {
+		io.emit("system:refresh", { type: "inquiry", action: "updated", inquiry_id: inquiryId });
+		io.emit("system:refresh", { type: "quotation", action: "updated" });
+	}
+
 	return null;
 }
 
@@ -105,6 +126,9 @@ exports.syncPaymentFromGateway = async (payment, io = null) => {
 		if (payment.booking_id) await exports.syncBookingStatus(payment.booking_id);
 		if (payment.inquiry_id) { 
 			await convertInquiryToBooking(payment.inquiry_id, payment, io);
+		}
+		if (io) {
+			io.emit("system:refresh", { type: "payment", action: "approved", payment_id: payment._id });
 		}
 	} else if (payment.gateway_payment_intent_id) {
 		await payment.save();
@@ -211,10 +235,16 @@ exports.getById = asyncHandler(async (req, res) => {
 
 exports.update = asyncHandler(async (req, res) => {
 	const payment = await Payment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
-	if (req.body.status && payment && payment.booking_id) {
-		await exports.syncBookingStatus(payment.booking_id);
+	const io = req.app.get("io");
+
+	if (req.body.status && payment) {
+		if (payment.booking_id) {
+			await exports.syncBookingStatus(payment.booking_id);
+		}
+		if (payment.status === "approved" && payment.inquiry_id) {
+			await convertInquiryToBooking(payment.inquiry_id, payment, io);
+		}
 		
-		const io = req.app.get("io");
 		if (payment.customer_id && io) {
 			const statusLabel = payment.status === "approved" ? "Payment approved" : "Payment update";
 			const body = payment.status === "approved"
@@ -228,12 +258,11 @@ exports.update = asyncHandler(async (req, res) => {
 				body,
 				type: payment.status === "approved" ? "success" : payment.status === "rejected" ? "error" : "info",
 				link: "/customer/payments",
-				meta: { payment_id: payment._id, booking_id: payment.booking_id }
+				meta: { payment_id: payment._id, booking_id: payment.booking_id, inquiry_id: payment.inquiry_id }
 			}, io);
 		}
 	}
 	
-	const io = req.app.get("io");
 	if (io) io.emit("system:refresh", { type: "payment", action: "update" });
 	
 	res.json(payment);
@@ -577,7 +606,6 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 	const payment = await Payment.findById(id);
 	
 	if (!payment) return res.status(404).json({ message: "Payment not found" });
-	if (payment.status === "approved") return res.json({ payment });
 	const isOwner = String(payment.customer_id) === String(req.user._id);
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) {
@@ -585,7 +613,16 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 	}
 
 	const io = req.app.get("io");
-	await exports.syncPaymentFromGateway(payment, io);
+	if (payment.status !== "approved") {
+		await exports.syncPaymentFromGateway(payment, io);
+	} else {
+		if (payment.inquiry_id) {
+			await convertInquiryToBooking(payment.inquiry_id, payment, io);
+		}
+		if (payment.booking_id) {
+			await exports.syncBookingStatus(payment.booking_id);
+		}
+	}
 	res.json({ payment });
 });
 

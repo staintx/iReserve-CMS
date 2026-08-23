@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Turnstile } from '@marsidev/react-turnstile';
 import { MailCheck } from "lucide-react";
 import { CustomerAPI } from "../../api/customer";
@@ -25,6 +25,7 @@ export default function ForgotPassword() {
   const [formError, setFormError] = useState(null);
   const [resendState, setResendState] = useState(null);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const resendTurnstileRef = useRef(null);
   const { notify } = useToast();
   const cooldown = useCooldown(RESEND_COOLDOWN_SECONDS);
 
@@ -55,6 +56,10 @@ export default function ForgotPassword() {
       }
       notify(resolved.message, resolved.tone === "warning" ? "warning" : "error");
     } finally {
+      if (isResend) {
+        setTurnstileToken("");
+        resendTurnstileRef.current?.reset();
+      }
       setLoading(false);
     }
   };
@@ -82,8 +87,11 @@ export default function ForgotPassword() {
               {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
                 <div className="flex justify-center w-full mb-4">
                   <Turnstile
+                    ref={resendTurnstileRef}
                     siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
                     onSuccess={(token) => setTurnstileToken(token)}
+                    onExpire={() => setTurnstileToken("")}
+                    onError={() => setTurnstileToken("")}
                   />
                 </div>
               )}

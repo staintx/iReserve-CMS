@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
@@ -190,6 +190,7 @@ export default function QuoteWizard() {
 
   const [blockedDates, setBlockedDates] = useState([]);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef(null);
   useEffect(() => {
     CustomerAPI.getMenu()
       .then((res) => setMenuItems(res.data))
@@ -517,6 +518,8 @@ export default function QuoteWizard() {
         },
       });
     } catch (err) {
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
       const backendErrors = mapBackendErrors(err.response?.data?.errors);
       if (Object.keys(backendErrors).length > 0) {
         setErrors(backendErrors);
@@ -1161,8 +1164,11 @@ export default function QuoteWizard() {
                         {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
                           <div className="flex justify-center pt-2">
                             <Turnstile 
+                              ref={turnstileRef}
                               siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
                               onSuccess={(token) => setTurnstileToken(token)}
+                              onExpire={() => setTurnstileToken("")}
+                              onError={() => setTurnstileToken("")}
                             />
                           </div>
                         )}

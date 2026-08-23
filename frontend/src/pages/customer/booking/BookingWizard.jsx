@@ -212,6 +212,7 @@ export default function BookingWizard() {
   const [form, setForm] = useState(() => restoredDraft?.form || buildInitialForm());
   const [step, setStep] = useState(() => restoredDraft?.step ?? 0);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef(null);
   const [draftNoticeVisible, setDraftNoticeVisible] = useState(
     Boolean(restoredDraft),
   );
@@ -1249,6 +1250,8 @@ export default function BookingWizard() {
         },
       });
     } catch (err) {
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
       setError(
         err?.response?.data?.message ||
           "Could not send your request right now. Try again in a moment.",
@@ -1447,6 +1450,7 @@ export default function BookingWizard() {
             editTargets={editTargets}
             errors={fieldErrors}
             setTurnstileToken={setTurnstileToken}
+            turnstileRef={turnstileRef}
             offer={isOffer ? packageDetails : null}
             deliveryMethod={deliveryMethod}
           />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Turnstile } from '@marsidev/react-turnstile';
 import { Check, LockKeyhole, Mail, UserRound, X } from "lucide-react";
 import {
@@ -35,6 +35,14 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
   const [showConfirm, setShowConfirm] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef(null);
+
+  useEffect(() => {
+    if (formError) {
+      setTurnstileToken("");
+      turnstileRef.current?.reset();
+    }
+  }, [formError]);
 
   const validate = (field, value, all = values) => {
     switch (field) {
@@ -259,8 +267,11 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
         {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
           <div className="flex justify-center my-4">
             <Turnstile
+              ref={turnstileRef}
               siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
               onSuccess={(token) => setTurnstileToken(token)}
+              onExpire={() => setTurnstileToken("")}
+              onError={() => setTurnstileToken("")}
             />
           </div>
         )}

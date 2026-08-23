@@ -107,6 +107,7 @@ export default function StepReviewBooking({
   editTargets = {},
   errors = {},
   setTurnstileToken,
+  turnstileRef = null,
   offer = null,
   deliveryMethod = "setup",
 }) {
@@ -597,6 +598,7 @@ export default function StepReviewBooking({
             {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
               <div className="mt-4 flex justify-center border-t border-[#E2E8F0] pt-4">
                 <Turnstile
+                  ref={turnstileRef}
                   siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
                   onSuccess={(token) => setTurnstileToken && setTurnstileToken(token)}
                   onExpire={() => setTurnstileToken && setTurnstileToken("")}

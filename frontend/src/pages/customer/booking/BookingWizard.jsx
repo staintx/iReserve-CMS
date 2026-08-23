@@ -52,6 +52,7 @@ import {
   offerGuestCount,
   offerBookingProblem,
   offerFoodByCategory,
+  offerCourseRequirement,
 } from "../../../lib/specialOffers";
 import { formatEventDate } from "../../../utils/format";
 
@@ -915,8 +916,7 @@ export default function BookingWizard() {
             const missing = [];
 
             courses.forEach((course) => {
-              const reqMatch = String(course.category || "").match(/choose\s*(\d+)/i);
-              const req = reqMatch ? Math.max(1, parseInt(reqMatch[1], 10)) : 1;
+              const req = offerCourseRequirement(course.category);
               const count = snapshot.filter(
                 (entry) => entry.menu_category === course.category,
               ).length;

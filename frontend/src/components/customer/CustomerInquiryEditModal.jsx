@@ -12,6 +12,11 @@ import {
   Package as PackageIcon,
   Boxes,
   DollarSign,
+  X,
+  Minus,
+  Plus,
+  Ruler,
+  Search,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -38,6 +43,8 @@ import { getBatangasMunicipalities, getBatangasBarangays, BATANGAS_PROVINCE } fr
 import { eventSpaceLabel } from "../../lib/packageDisplay";
 import {
   offerFoodByCategory,
+  offerFoodForDisplay,
+  offerCourseRequirement,
   offerInclusions,
   offerPricePerPax,
   offerBaseFoodPrice,
@@ -63,6 +70,65 @@ function LockedBadge() {
     <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
       <Lock className="h-3 w-3" /> As submitted
     </span>
+  );
+}
+
+/**
+ * Marks a card the customer can change, next to the locked ones.
+ *
+ * The modal shows the whole request, and only some of it is editable. Saying
+ * which is which on the card itself is what stops a customer hunting for a
+ * control that was never there — the counterpart to `LockedBadge`.
+ */
+function EditableBadge({ children }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+      {children}
+    </span>
+  );
+}
+
+/** A dish or add-on the customer has chosen, removable from the summary row. */
+function PickChip({ label, onRemove }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-background py-1 pl-2.5 pr-1 text-xs text-foreground">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${label}`}
+        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+/** −/+ stepper for an add-on's quantity. */
+function QuantityStepper({ value, onChange, disabled }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(0, value - 1))}
+        disabled={disabled || value <= 0}
+        aria-label="Decrease quantity"
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+      >
+        <Minus className="h-3 w-3" />
+      </button>
+      <span className="w-6 text-center text-sm font-semibold tabular-nums text-foreground">{value}</span>
+      <button
+        type="button"
+        onClick={() => onChange(value + 1)}
+        disabled={disabled}
+        aria-label="Increase quantity"
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
@@ -119,17 +185,51 @@ function formFromInquiry(inquiry) {
     contact_email: inquiry?.contact_email || "",
     contact_phone: inquiry?.contact_phone || "",
     contact_alt_phone: inquiry?.contact_alt_phone || "",
+
+    // Selections. Held as the request stores them so what the customer sees is
+    // what they submitted; the server re-derives all of it on save.
+    selected_menu: Array.isArray(inquiry?.selected_menu)
+      ? inquiry.selected_menu.filter((item) => item && typeof item === "object")
+      : [],
+    service_items: Array.isArray(inquiry?.service_items)
+      ? inquiry.service_items.map((item) => ({
+          name: item?.name || "",
+          description: item?.description || "",
+          price: Number(item?.price) || 0,
+          quantity: Math.max(1, Number(item?.quantity) || 1),
+        }))
+      : [],
+    offer_food_snapshot: Array.isArray(inquiry?.offer_food_snapshot)
+      ? inquiry.offer_food_snapshot.map((entry) => ({
+          menu_category: entry?.menu_category || "",
+          item_name: entry?.item_name || "",
+        }))
+      : [],
+    selected_scaffold_option_id: inquiry?.selected_scaffold_option_id || "",
+    custom_setup_scope: Array.isArray(inquiry?.custom_setup_scope)
+      ? inquiry.custom_setup_scope
+      : [],
+    custom_setup_notes: inquiry?.custom_setup_notes || "",
+    budget_range: inquiry?.budget_range || "",
   };
 }
 
 /**
- * Lets a customer correct their own inquiry's event details while it is still
- * pre-quotation (see CUSTOMER_EDITABLE_STATUSES on the backend). Deliberately
- * narrower than the booking wizard: package, menu, and setup size were chosen
- * once and stay fixed here — changing those means cancelling and sending a
- * new request. The backend re-checks everything this form assumes (blocked
- * dates, the Special Offer guest-count lock), so this validation is for a
- * good experience, not the actual guardrail.
+ * Lets a customer change their own request while it is still pre-quotation
+ * (see CUSTOMER_EDITABLE_STATUSES on the backend).
+ *
+ * A focused edit surface rather than the booking wizard again: the customer
+ * already answered every question once, so this shows the whole request on one
+ * screen and lets them revise the parts that are still theirs to revise —
+ * their dishes, their add-ons, and the setup size their package offers,
+ * choosing freely from the same catalogues the wizard offered rather than only
+ * from what they happened to pick the first time.
+ *
+ * What stays locked is what was never theirs to set: the package the request
+ * was made against, the equipment its setup reserves, every price, and a
+ * combo's guest count and service type. The backend re-derives all of it
+ * regardless of what this form sends (see utils/requestSelections.js), so the
+ * validation here is for a good experience, not the actual guardrail.
  */
 export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSaved }) {
   const { notify } = useToast();
@@ -138,12 +238,63 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   const [touched, setTouched] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // The catalogues the customer chooses from. Loaded here rather than passed
+  // in, because the list this modal opens from carries only a summary of each
+  // request — it has never needed the menu or the add-on catalogue before.
+  const [menuCatalog, setMenuCatalog] = useState([]);
+  const [addonCatalog, setAddonCatalog] = useState([]);
+  const [packageRecord, setPackageRecord] = useState(null);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [dishQuery, setDishQuery] = useState("");
+
   useEffect(() => {
     if (open) {
       setForm(formFromInquiry(inquiry));
       setErrors({});
       setTouched({});
+      setDishQuery("");
     }
+  }, [open, inquiry]);
+
+  /**
+   * What the customer may choose from.
+   *
+   * The package is re-fetched rather than read off the inquiry's populated
+   * relation because the edit needs its full configuration — the sizes it
+   * offers and the add-ons sold with it — and the inquiry carries only what
+   * was selected. A failure here is not fatal: the selection cards fall back
+   * to what the request already holds, so the rest of the form still saves.
+   */
+  useEffect(() => {
+    if (!open || !inquiry) return;
+    let alive = true;
+
+    const packageId =
+      inquiry.package_id && typeof inquiry.package_id === "object"
+        ? inquiry.package_id._id
+        : inquiry.package_id;
+
+    setLoadingCatalog(true);
+    Promise.allSettled([
+      CustomerAPI.getMenu(),
+      CustomerAPI.getAddons(),
+      packageId ? CustomerAPI.getPackageById(packageId) : Promise.resolve(null),
+    ])
+      .then(([menuRes, addonRes, packageRes]) => {
+        if (!alive) return;
+        setMenuCatalog(menuRes.status === "fulfilled" ? menuRes.value?.data || [] : []);
+        setAddonCatalog(addonRes.status === "fulfilled" ? addonRes.value?.data || [] : []);
+        setPackageRecord(
+          packageRes.status === "fulfilled" ? packageRes.value?.data || null : null,
+        );
+      })
+      .finally(() => {
+        if (alive) setLoadingCatalog(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [open, inquiry]);
 
   const isOffer = inquiry?.booking_type === "special";
@@ -154,23 +305,160 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
   const barangays = useMemo(() => getBatangasBarangays(form.municipality), [form.municipality]);
 
-  // --- Read-only snapshot of what was actually submitted. Package, menu,
-  // add-ons, and scaffold size are never editable here (see
-  // CUSTOMER_EDITABLE_FIELDS on the backend), so these are derived straight
-  // from `inquiry` rather than `form` — nothing below ever feeds handleSubmit.
+  // --- What was submitted. The package the request was made against, the
+  // equipment its setup reserves, and every price stay locked (see
+  // CUSTOMER_EDITABLE_FIELDS on the backend), so those are read straight from
+  // `inquiry`. The selections below read from `form`, because they are the
+  // parts this modal can change.
   const submittedPackage =
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
-  const packageName = submittedPackage?.name || inquiry?.package_name_snapshot || "";
-  const eventSpace = inquiry ? eventSpaceLabel(inquiry, submittedPackage) : "";
-  const selectedMenu = Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : [];
-  const menuNames = selectedMenu
-    .map((item) => (item && typeof item === "object" ? item.name : null))
-    .filter(Boolean);
-  const serviceItems = Array.isArray(inquiry?.service_items) ? inquiry.service_items : [];
+  // The freshly fetched package where it loaded, because only that carries the
+  // sizes and add-ons the customer chooses between; the relation stored on the
+  // request is the fallback.
+  const activePackage = packageRecord || submittedPackage;
+  const packageName = activePackage?.name || inquiry?.package_name_snapshot || "";
+  const eventSpace = inquiry ? eventSpaceLabel(inquiry, activePackage) : "";
   const inventoryItems = Array.isArray(inquiry?.inventory_items) ? inquiry.inventory_items : [];
   const addOnLabel = (item) =>
     Number(item.quantity) > 1 ? `${item.name} × ${item.quantity}` : item.name;
   const includesFood = inquiry?.include_food !== false;
+
+  // ---------------------------------------------------------------------------
+  // Selections the customer can change
+  // ---------------------------------------------------------------------------
+
+  /** Dishes, grouped the way the menu reads, filtered by the search box. */
+  const menuGroups = useMemo(() => {
+    const query = dishQuery.trim().toLowerCase();
+    const groups = new Map();
+    (menuCatalog || [])
+      .filter((item) => !query || String(item?.name || "").toLowerCase().includes(query))
+      .forEach((item) => {
+        const category = String(item?.category || "Other").trim() || "Other";
+        if (!groups.has(category)) groups.set(category, { category, items: [] });
+        groups.get(category).items.push(item);
+      });
+    return [...groups.values()];
+  }, [menuCatalog, dishQuery]);
+
+  const isDishChosen = (item) =>
+    (form.selected_menu || []).some((chosen) => String(chosen._id) === String(item._id));
+
+  const toggleDish = (item) =>
+    setForm((prev) => {
+      const current = prev.selected_menu || [];
+      const already = current.some((chosen) => String(chosen._id) === String(item._id));
+      return {
+        ...prev,
+        selected_menu: already
+          ? current.filter((chosen) => String(chosen._id) !== String(item._id))
+          : [...current, item],
+      };
+    });
+
+  /**
+   * Every add-on that can be on this request: the package's own, the general
+   * catalogue, and anything already on the request that is neither — a service
+   * agreed outside the catalogue stays visible and removable rather than
+   * disappearing the moment the customer opens this form.
+   */
+  const addOnChoices = useMemo(() => {
+    const seen = new Set();
+    const choices = [];
+    const push = (name, description, price, source) => {
+      const key = String(name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      choices.push({ name, description: description || "", price: Number(price) || 0, source });
+    };
+
+    (Array.isArray(activePackage?.add_ons) ? activePackage.add_ons : []).forEach((addOn) =>
+      // A package add-on carries a name and a quantity but no price: it is
+      // quoted per event, so it sits at ₱0 until the quotation prices it.
+      push(addOn?.name, addOn?.qty ? `Package add-on (${addOn.qty})` : "Package add-on", 0, "package"),
+    );
+    (Array.isArray(addonCatalog) ? addonCatalog : [])
+      .filter((addOn) => addOn?.available !== false)
+      .forEach((addOn) => push(addOn?.name, addOn?.description, addOn?.price, "catalog"));
+    (form.service_items || []).forEach((item) =>
+      push(item?.name, item?.description, item?.price, "existing"),
+    );
+
+    return choices;
+  }, [activePackage, addonCatalog, form.service_items]);
+
+  const addOnQuantity = (name) =>
+    (form.service_items || []).find(
+      (item) => String(item.name || "").toLowerCase() === String(name || "").toLowerCase(),
+    )?.quantity || 0;
+
+  const setAddOnQuantity = (choice, quantity) =>
+    setForm((prev) => {
+      const current = prev.service_items || [];
+      const index = current.findIndex(
+        (item) => String(item.name || "").toLowerCase() === String(choice.name || "").toLowerCase(),
+      );
+      const next = [...current];
+      if (quantity <= 0) {
+        if (index >= 0) next.splice(index, 1);
+      } else if (index >= 0) {
+        next[index] = { ...next[index], quantity };
+      } else {
+        next.push({
+          name: choice.name,
+          description: choice.description,
+          price: choice.price,
+          quantity,
+        });
+      }
+      return { ...prev, service_items: next };
+    });
+
+  /** A combo's courses, with what this request has chosen for each. */
+  const offerCourses = useMemo(
+    () => (isOffer ? offerFoodByCategory(activePackage) : []),
+    [isOffer, activePackage],
+  );
+
+  const chosenForCourse = (category) =>
+    (form.offer_food_snapshot || []).filter(
+      (entry) => (entry.menu_category || "Included") === category,
+    );
+
+  /**
+   * Choosing a dish for a course. A course asking for one dish swaps; a course
+   * asking for several fills up to its limit and then replaces the oldest
+   * pick, so the control never simply stops responding.
+   */
+  const toggleCourseDish = (category, itemName, required) =>
+    setForm((prev) => {
+      const current = prev.offer_food_snapshot || [];
+      const inCourse = current.filter(
+        (entry) => (entry.menu_category || "Included") === category,
+      );
+      const others = current.filter(
+        (entry) => (entry.menu_category || "Included") !== category,
+      );
+      const already = inCourse.some((entry) => entry.item_name === itemName);
+
+      let nextInCourse;
+      if (already) {
+        nextInCourse = inCourse.filter((entry) => entry.item_name !== itemName);
+      } else if (required === 1) {
+        nextInCourse = [{ menu_category: category, item_name: itemName }];
+      } else if (inCourse.length < required) {
+        nextInCourse = [...inCourse, { menu_category: category, item_name: itemName }];
+      } else {
+        nextInCourse = [...inCourse.slice(1), { menu_category: category, item_name: itemName }];
+      }
+
+      return { ...prev, offer_food_snapshot: [...others, ...nextInCourse] };
+    });
+
+  /** The sizes this package sells, when it sells more than one. */
+  const scaffoldOptions = Array.isArray(activePackage?.scaffold_size_options)
+    ? activePackage.scaffold_size_options
+    : [];
   const hasCustomSetupDetails =
     Boolean(inquiry?.is_custom_setup) &&
     (Boolean(inquiry?.custom_setup_notes) ||
@@ -199,6 +487,33 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
     if (!isPickup) {
       if (!form.municipality) next.municipality = "Choose the municipality of the venue.";
       if (!form.barangay) next.barangay = "Choose the barangay of the venue.";
+    }
+
+    // A food order with no food. The wizard refuses to submit one, so an edit
+    // must not be the way to arrive at one.
+    if (
+      !isOffer &&
+      form.service_type === SERVICE_TYPES.FOOD_ONLY &&
+      (form.selected_menu || []).length === 0
+    ) {
+      next.selected_menu = "Choose at least one dish, or message us to cancel this request.";
+    }
+
+    // Every course a combo asks the customer to choose from needs an answer.
+    // The server settles a course left blank to the combo's own default, so
+    // this is about the customer getting what they meant rather than about
+    // protecting the record.
+    if (isOffer) {
+      const unanswered = offerCourses
+        .filter(
+          (course) =>
+            course.items.length > 1 &&
+            chosenForCourse(course.category).length < offerCourseRequirement(course.category),
+        )
+        .map((course) => course.category);
+      if (unanswered.length > 0) {
+        next.offer_food_snapshot = `Choose your dish for: ${unanswered.join(", ")}.`;
+      }
     }
     ["contact_first_name", "contact_last_name", "contact_email", "contact_phone"].forEach((field) => {
       const err = contactFieldError(field, form[field]);
@@ -252,6 +567,33 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
     if (showDelivery) {
       payload.delivery_method = form.delivery_method;
       payload.delivery_instructions = form.delivery_instructions;
+    }
+
+    /**
+     * Selections. Sent as *what* was chosen — ids and names — and never as
+     * what they cost: the server prices every one of them from the catalogue
+     * and recomputes the estimate, so a price sent from here would be ignored
+     * anyway (see utils/requestSelections.js).
+     */
+    if (isOffer) {
+      payload.offer_food_snapshot = form.offer_food_snapshot || [];
+    } else {
+      payload.selected_menu = (form.selected_menu || []).map((item) => item._id || item);
+    }
+
+    payload.service_items = (form.service_items || []).map((item) => ({
+      name: item.name,
+      quantity: Math.max(1, Number(item.quantity) || 1),
+    }));
+
+    if (scaffoldOptions.length > 0) {
+      payload.selected_scaffold_option_id = form.selected_scaffold_option_id || "";
+    }
+
+    if (inquiry.is_custom_setup) {
+      payload.custom_setup_scope = form.custom_setup_scope || [];
+      payload.custom_setup_notes = form.custom_setup_notes || "";
+      payload.budget_range = form.budget_range || "";
     }
 
     try {
@@ -328,79 +670,36 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
               </Card>
             )}
 
-            {isOffer ? (
-              <Card className="border-dashed p-4">
-                <SectionTitle icon={Utensils} right={<LockedBadge />}>
-                  Combo meal &amp; selections
-                </SectionTitle>
-                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <SnapshotRow
-                    label="Food pricing"
-                    value={
-                      offerPricePerPax(submittedPackage) > 0
-                        ? `${formatCurrency(offerPricePerPax(submittedPackage))} / pax · ${formatCurrency(
-                            offerBaseFoodPrice(submittedPackage, inquiry.guest_count),
-                          )} for ${inquiry.guest_count} ${inquiry.guest_count === 1 ? "guest" : "guests"}`
-                        : "To be confirmed on your quotation"
-                    }
-                    wide
-                  />
-                  {offerFoodByCategory(submittedPackage).map((course) => {
-                    const chosen = (inquiry.offer_food_snapshot || []).filter(
-                      (entry) => entry.menu_category === course.category,
-                    );
-                    const displayVal =
-                      chosen.length > 0
-                        ? chosen.map((c) => c.item_name).join(", ")
-                        : course.items.join(", ");
-                    return <SnapshotRow key={course.category} label={course.category} value={displayVal} wide />;
-                  })}
-                  {offerInclusions(submittedPackage).length > 0 && (
-                    <SnapshotRow label="Inclusions" value={offerInclusions(submittedPackage).join(", ")} wide />
-                  )}
-                </dl>
-              </Card>
-            ) : (
-              includesFood && (
-                <Card className="border-dashed p-4">
-                  <SectionTitle icon={Utensils} right={<LockedBadge />}>
-                    Food &amp; menu
-                  </SectionTitle>
-                  <SnapshotRow
-                    label="Dishes"
-                    value={
-                      menuNames.length > 0
-                        ? menuNames.join(", ")
-                        : "None selected. Our team will suggest options with your quotation."
-                    }
-                    wide
-                  />
-                </Card>
-              )
-            )}
-
-            {(serviceItems.length > 0 || inventoryItems.length > 0) && (
+            {/* --- Equipment and the estimate: derived, never chosen. The
+                equipment a setup reserves follows from the package and the
+                size, and the estimate follows from the selections — so both
+                are shown as the consequences they are, and change only when
+                the choices above them change. */}
+            {inventoryItems.length > 0 && (
               <Card className="border-dashed p-4">
                 <SectionTitle icon={Boxes} right={<LockedBadge />}>
-                  Add-ons &amp; equipment
+                  Reserved equipment
                 </SectionTitle>
-                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {serviceItems.length > 0 && (
-                    <SnapshotRow label="Add-ons" value={serviceItems.map(addOnLabel).join(", ")} wide />
-                  )}
-                  {inventoryItems.length > 0 && (
-                    <SnapshotRow label="Reserved equipment" value={inventoryItems.map(addOnLabel).join(", ")} wide />
-                  )}
-                </dl>
+                <SnapshotRow
+                  label="Included with your setup"
+                  value={inventoryItems.map(addOnLabel).join(", ")}
+                  wide
+                />
+                <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+                  Reserved for you based on the package and size above. It updates on its own if you change them.
+                </p>
               </Card>
             )}
 
             {Number(inquiry.estimated_total) > 0 && (
               <Card className="border-dashed p-4">
                 <SectionTitle icon={DollarSign} right={<LockedBadge />}>
-                  Estimate shown at submission
+                  Current estimate
                 </SectionTitle>
                 <SnapshotRow label="Estimated total" value={formatCurrency(inquiry.estimated_total)} />
+                <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+                  Recalculated when you save. Your official quotation is the final price.
+                </p>
               </Card>
             )}
           </div>
@@ -408,6 +707,240 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
           <p className="pt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Editable details
           </p>
+
+          {/* --- Selections. Add or remove freely: the customer is not held to
+              what they happened to pick the first time, only to what the
+              package or combo actually offers. */}
+          {isOffer ? (
+            <Card className="p-4">
+              <SectionTitle
+                icon={Utensils}
+                right={<EditableBadge>Choose your dishes</EditableBadge>}
+              >
+                Combo meal
+              </SectionTitle>
+
+              {offerPricePerPax(activePackage) > 0 && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {formatCurrency(offerPricePerPax(activePackage))} / pax ·{" "}
+                  <span className="font-semibold text-foreground">
+                    {formatCurrency(offerBaseFoodPrice(activePackage, inquiry.guest_count))}
+                  </span>{" "}
+                  for {inquiry.guest_count} {inquiry.guest_count === 1 ? "guest" : "guests"} — fixed by the combo.
+                </p>
+              )}
+
+              {loadingCatalog && offerCourses.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Loading your combo…</p>
+              ) : offerCourses.length === 0 ? (
+                <SnapshotRow
+                  label="Your dishes"
+                  value={offerFoodForDisplay(inquiry, activePackage)
+                    .map((entry) => entry.item_name)
+                    .join(", ")}
+                  wide
+                />
+              ) : (
+                <div className="space-y-3">
+                  {errors.offer_food_snapshot && (
+                    <p className="text-xs font-medium text-destructive">{errors.offer_food_snapshot}</p>
+                  )}
+                  {offerCourses.map((course) => {
+                    const required = offerCourseRequirement(course.category);
+                    const chosen = chosenForCourse(course.category);
+                    const single = course.items.length === 1;
+                    return (
+                      <div key={course.category}>
+                        <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {course.category}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {single ? "Included" : `Choose ${required} (${chosen.length}/${required})`}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {course.items.map((dish) => {
+                            const active = single || chosen.some((entry) => entry.item_name === dish);
+                            return (
+                              <button
+                                key={dish}
+                                type="button"
+                                disabled={single}
+                                onClick={() => toggleCourseDish(course.category, dish, required)}
+                                className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                                  active
+                                    ? "border-primary bg-primary/5 font-semibold text-foreground"
+                                    : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                                } ${single ? "cursor-default" : "cursor-pointer"}`}
+                              >
+                                {dish}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {offerInclusions(activePackage).length > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <SnapshotRow
+                        label="Also included"
+                        value={offerInclusions(activePackage).join(", ")}
+                        wide
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+          ) : (
+            includesFood && (
+              <Card className="p-4">
+                <SectionTitle
+                  icon={Utensils}
+                  right={<EditableBadge>{(form.selected_menu || []).length} selected</EditableBadge>}
+                >
+                  Food &amp; menu
+                </SectionTitle>
+
+                {(form.selected_menu || []).length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-1.5">
+                    {form.selected_menu.map((item) => (
+                      <PickChip key={item._id} label={item.name} onRemove={() => toggleDish(item)} />
+                    ))}
+                  </div>
+                )}
+
+                <Field
+                  label="Add dishes"
+                  hint="Pick as many or as few as you like. Your per-guest rate is set on your quotation."
+                  error={errors.selected_menu}
+                >
+                  <TInput
+                    icon={<Search className="h-3.5 w-3.5" />}
+                    placeholder="Search dishes"
+                    value={dishQuery}
+                    onChange={setDishQuery}
+                  />
+                </Field>
+
+                <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border">
+                  {loadingCatalog ? (
+                    <p className="p-3 text-xs text-muted-foreground">Loading the menu…</p>
+                  ) : menuGroups.length === 0 ? (
+                    <p className="p-3 text-xs text-muted-foreground">
+                      {dishQuery
+                        ? "No dishes match that search."
+                        : "The menu could not be loaded. Your existing dishes are unchanged."}
+                    </p>
+                  ) : (
+                    menuGroups.map((group) => (
+                      <div key={group.category} className="border-b border-border last:border-b-0">
+                        <p className="bg-muted/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {group.category}
+                        </p>
+                        {group.items.map((item) => (
+                          <label
+                            key={item._id}
+                            className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-xs transition-colors hover:bg-muted/40"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isDishChosen(item)}
+                              onChange={() => toggleDish(item)}
+                              className="h-3.5 w-3.5 accent-primary"
+                            />
+                            <span className="text-foreground">{item.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+            )
+          )}
+
+          {addOnChoices.length > 0 && (
+            <Card className="p-4">
+              <SectionTitle icon={Boxes} right={<EditableBadge>Add or remove</EditableBadge>}>
+                Add-ons &amp; extra services
+              </SectionTitle>
+              <div className="divide-y divide-border">
+                {addOnChoices.map((choice) => (
+                  <div key={choice.name} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">{choice.name}</p>
+                      {choice.description && (
+                        <p className="truncate text-[11px] text-muted-foreground">{choice.description}</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {choice.price > 0 ? formatCurrency(choice.price) : "Quoted"}
+                      </span>
+                      <QuantityStepper
+                        value={addOnQuantity(choice.name)}
+                        onChange={(next) => setAddOnQuantity(choice, next)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {scaffoldOptions.length > 1 && (
+            <Card className="p-4">
+              <SectionTitle icon={Ruler} right={<EditableBadge>Choose a size</EditableBadge>}>
+                Event space size
+              </SectionTitle>
+              <Field
+                label="Setup size"
+                hint="The equipment reserved for your event follows the size you pick."
+              >
+                <TSelect
+                  value={form.selected_scaffold_option_id}
+                  onChange={(val) => setForm((prev) => ({ ...prev, selected_scaffold_option_id: val }))}
+                  options={scaffoldOptions.map((option) => ({
+                    value: String(option._id),
+                    label:
+                      eventSpaceLabel({ selected_scaffold_option_id: option._id }, activePackage) ||
+                      option.label ||
+                      "Setup size",
+                  }))}
+                  placeholder="Select a size"
+                />
+              </Field>
+            </Card>
+          )}
+
+          {inquiry.is_custom_setup && (
+            <Card className="p-4">
+              <SectionTitle icon={Palette} right={<EditableBadge>Editable</EditableBadge>}>
+                Custom setup brief
+              </SectionTitle>
+              <div className="grid grid-cols-1 gap-3">
+                <Field label="Target budget" hint="Optional.">
+                  <TInput
+                    placeholder="e.g. 50,000 - 80,000"
+                    value={form.budget_range}
+                    onChange={(val) => setForm((prev) => ({ ...prev, budget_range: val }))}
+                  />
+                </Field>
+                <Field label="Setup notes" hint="Tell our stylists what you have in mind.">
+                  <TTextarea
+                    rows={3}
+                    value={form.custom_setup_notes}
+                    onChange={(val) => setForm((prev) => ({ ...prev, custom_setup_notes: val }))}
+                  />
+                </Field>
+              </div>
+            </Card>
+          )}
+
 
           <Card className="p-4">
             <SectionTitle icon={CalendarDays}>Event</SectionTitle>

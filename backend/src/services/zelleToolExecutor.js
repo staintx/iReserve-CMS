@@ -20,7 +20,7 @@ const {
   offerPricePerPax,
   offerBaseFoodPrice,
   offerFoodByCategory,
-  offerFoodSnapshot,
+  normalizeOfferSelection,
   offerInclusions,
   offerBookingProblem,
 } = require("../utils/specialOffers");
@@ -485,7 +485,7 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
           ...(isSpecialOffer(pkg)
             ? {
                 offer_base_price: offerBaseFoodPrice(pkg, Number(params.guest_count) || offerGuestCount(pkg) || 1),
-                offer_food_snapshot: offerFoodSnapshot(pkg),
+                offer_food_snapshot: normalizeOfferSelection(pkg, []),
               }
             : {}),
           service_type: isSpecialOffer(pkg)

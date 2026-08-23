@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, X } from "lucide-react";
 import {
   Card,
@@ -13,6 +13,7 @@ import EstimateSummary from "../components/EstimateSummary";
 import { resolveGroup, CATEGORY_GROUPS } from "@/lib/menuCategories";
 import {
   offerFoodByCategory,
+  offerCourseRequirement,
   offerInclusions,
   offerGuestCount,
   offerPricePerPax,
@@ -126,6 +127,48 @@ export default function StepMenuSelection({
   offer = null,
 }) {
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
+
+  /**
+   * A combo course that lists one dish includes it, and this is what puts that
+   * dish on the request.
+   *
+   * The card below has always said "Automatically included with this combo",
+   * and step validation has always let the customer past without touching it —
+   * but nothing ever wrote it into `offer_food_snapshot`, so the dish was
+   * promised on screen and then missing from everything downstream: the
+   * estimate, the review page, the submitted request, the quotation and the
+   * booking's own menu. Seeding it here is what makes the screen's promise
+   * true. The server settles the same thing again on submit
+   * (`normalizeOfferSelection`), because this runs in a browser.
+   */
+  useEffect(() => {
+    if (!offer) return;
+    const courses = offerFoodByCategory(offer);
+    if (courses.length === 0) return;
+
+    setForm((prev) => {
+      const current = Array.isArray(prev.offer_food_snapshot)
+        ? prev.offer_food_snapshot
+        : [];
+      const missing = courses.filter(
+        (course) =>
+          course.items.length === 1 &&
+          !current.some((entry) => entry.menu_category === course.category),
+      );
+      if (missing.length === 0) return prev;
+
+      return {
+        ...prev,
+        offer_food_snapshot: [
+          ...current,
+          ...missing.map((course) => ({
+            menu_category: course.category,
+            item_name: course.items[0],
+          })),
+        ],
+      };
+    });
+  }, [offer, setForm]);
 
   const isSelected = (item) =>
     selected.some((chosen) => String(chosen._id) === String(item._id));
@@ -290,14 +333,6 @@ export default function StepMenuSelection({
       ? form.offer_food_snapshot
       : [];
 
-    const getRequiredCount = (categoryName, itemsCount) => {
-      const match = String(categoryName || "").match(/choose\s*(\d+)/i);
-      if (match && match[1]) {
-        return Math.max(1, parseInt(match[1], 10));
-      }
-      return 1;
-    };
-
     const isDishSelected = (category, itemName) =>
       currentSnapshot.some(
         (entry) =>
@@ -356,7 +391,7 @@ export default function StepMenuSelection({
     // Auto-select single-item categories if not selected yet
     const completedCoursesCount = courses.filter((course) => {
       const selected = getSelectedForCategory(course.category);
-      const req = getRequiredCount(course.category, course.items.length);
+      const req = offerCourseRequirement(course.category);
       return selected.length >= req || (course.items.length === 1 && selected.length > 0);
     }).length;
 
@@ -402,7 +437,7 @@ export default function StepMenuSelection({
 
           {/* Render each course category with selectable items */}
           {courses.map((course) => {
-            const req = getRequiredCount(course.category, course.items.length);
+            const req = offerCourseRequirement(course.category);
             const selectedInThis = getSelectedForCategory(course.category);
             const isCategoryComplete =
               selectedInThis.length >= req ||

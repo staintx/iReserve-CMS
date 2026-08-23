@@ -25,7 +25,7 @@ export default function InquirySubmitted() {
   const estimate = Number(state?.estimatedTotal) || 0;
 
   useEffect(() => {
-    document.title = "Request Submitted · Caezelle's Catering";
+    document.title = "Inquiry Submitted · Caezelle's Catering";
   }, []);
 
   const handleCopy = () => {
@@ -49,7 +49,7 @@ export default function InquirySubmitted() {
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold font-serif text-slate-900 tracking-tight">
-            {kind === "custom" ? "Quote Request Submitted" : "Booking Request Submitted"}
+            Inquiry Submitted
           </h1>
           {/* What happens to the customer next, before anything about what the
               system did. The first thing they want to know after sending a form

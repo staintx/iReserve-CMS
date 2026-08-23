@@ -11,13 +11,21 @@ const {
   cateringRequested,
   serviceTypeForRequest,
 } = require("../utils/catering");
+const BusinessInfo = require("../models/BusinessInfo");
+const {
+  resolveMenuSelection,
+  resolveServiceItems,
+  resolveScaffold,
+  resolveInventoryItems,
+  estimatedTotalForRequest,
+} = require("../utils/requestSelections");
 const {
   BOOKING_TYPES,
   isSpecialOffer,
   bookingTypeForPackage,
   offerGuestCount,
   offerBaseFoodPrice,
-  offerFoodSnapshot,
+  normalizeOfferSelection,
   offerBookingProblem,
   applyComboRequestBoundary,
 } = require("../utils/specialOffers");
@@ -89,17 +97,14 @@ exports.createInquiry = asyncHandler(async (req, res) => {
       payload.delivery_method = "delivery";
     }
 
-    // Selected dishes snapshot: if sent by customer, keep customer's chosen dishes; else fallback to combo's defaults
-    if (Array.isArray(payload.offer_food_snapshot) && payload.offer_food_snapshot.length > 0) {
-      payload.offer_food_snapshot = payload.offer_food_snapshot
-        .map((item) => ({
-          menu_category: String(item.menu_category || "").trim(),
-          item_name: String(item.item_name || "").trim(),
-        }))
-        .filter((item) => item.item_name);
-    } else {
-      payload.offer_food_snapshot = offerFoodSnapshot(pkg);
-    }
+    // The dishes this combo is sold with, settled course by course against the
+    // combo itself: the customer's pick where they made one, the course's own
+    // dishes where it includes them automatically. Never the raw list the
+    // browser sent — see normalizeOfferSelection.
+    payload.offer_food_snapshot = normalizeOfferSelection(
+      pkg,
+      payload.offer_food_snapshot,
+    );
 
     payload.selected_menu = [];
     payload.offer_base_price = offerBaseFoodPrice(pkg, requestedGuests);
@@ -297,9 +302,22 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
 // through the quotation's own "Request Changes" flow instead.
 const CUSTOMER_EDITABLE_STATUSES = ["Pending Review", "Under Review"];
 
-// Event details only. Package, menu, pricing, scaffold/setup size, status, and
-// every other admin-controlled field is deliberately left off this list, and
-// nothing outside it is read from the request body no matter what is sent.
+/**
+ * What a customer may change on their own request while it is still a draft.
+ *
+ * Two kinds of field appear below. Most are plain answers stored as sent —
+ * a date, an address, a phone number. The selections at the end name things
+ * from a catalogue, and none of them is stored as sent: each is re-derived
+ * against the package or catalogue it came from, further down, so choosing
+ * *which* dish or add-on is the customer's decision while *what it is and what
+ * it costs* stays the server's (see utils/requestSelections.js).
+ *
+ * Everything absent is absent on purpose and is not read from the body no
+ * matter what is sent: the package the request was made against, the equipment
+ * its setup reserves, every price, the status, the archive flag, and the
+ * `is_custom_setup` decision — switching a request between a package build and
+ * a bespoke one is a different request, not an edit to this one.
+ */
 const CUSTOMER_EDITABLE_FIELDS = [
   "event_type",
   "event_date",
@@ -327,7 +345,24 @@ const CUSTOMER_EDITABLE_FIELDS = [
   "contact_phone",
   "contact_alt_phone",
   "contact_method",
+
+  // Selections. Re-derived, never stored as sent.
+  "selected_menu",
+  "service_items",
+  "offer_food_snapshot",
+  "selected_scaffold_option_id",
+  "custom_setup_scope",
+  "custom_setup_notes",
+  "budget_range",
+  "inspiration_images",
 ];
+
+/**
+ * Selections that only mean something on a request that already has the thing
+ * they describe. A customer cannot acquire a bespoke setup by sending notes
+ * for one, so these are read only when the request is already bespoke.
+ */
+const CUSTOM_SETUP_FIELDS = ["custom_setup_scope", "custom_setup_notes", "inspiration_images"];
 
 // A Special Offer's guest count, food, and service type belong to the combo,
 // not the customer — the same invariant createInquiry enforces at submission
@@ -362,6 +397,12 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
     }
   }
 
+  // Bespoke-setup answers belong to a bespoke request. On any other request
+  // they are not an edit, they are an attempt to become one.
+  if (!inquiry.is_custom_setup) {
+    CUSTOM_SETUP_FIELDS.forEach((field) => delete updates[field]);
+  }
+
   if (inquiry.booking_type === "special") {
     const violated = OFFER_LOCKED_FIELDS.some(
       (field) =>
@@ -375,12 +416,116 @@ exports.updateInquiryByCustomer = asyncHandler(async (req, res) => {
     }
   }
 
-  // Service type is derived from the catering answer, never trusted raw —
-  // the same helper createInquiry uses.
-  if (Object.prototype.hasOwnProperty.call(updates, "service_type")) {
+  /**
+   * Selections are settled against the catalogue they came from, so an edit
+   * goes through every guardrail submission does. What the customer chose is
+   * honoured; what they claimed it is, is not.
+   *
+   * The package is loaded once, because everything below is derived from it:
+   * which dishes and add-ons were on offer, what a scaffold size measures and
+   * costs, what equipment the setup reserves, and what a combo's food is.
+   */
+  const pkg = inquiry.package_id ? await Package.findById(inquiry.package_id) : null;
+
+  /**
+   * A package that has been taken down since the request was made.
+   *
+   * Everything derived from a package derives to *nothing* when the package is
+   * gone — an empty combo menu, a cleared footprint, no equipment — so
+   * re-deriving here would quietly erase what the customer was actually sold,
+   * on an edit as innocent as correcting a phone number. What the request
+   * recorded is the record of the sale and stays exactly as it is; the admin
+   * already sees the "no longer available" warning on the details page.
+   */
+  const packageGone = Boolean(inquiry.package_id) && !pkg;
+
+  if (Object.prototype.hasOwnProperty.call(updates, "selected_menu")) {
+    updates.selected_menu = await resolveMenuSelection(updates.selected_menu);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, "service_items")) {
+    updates.service_items = await resolveServiceItems(
+      updates.service_items,
+      pkg,
+      inquiry.service_items,
+    );
+  }
+
+  // Service type is derived from the catering answer, never trusted raw — the
+  // same helper createInquiry uses. Re-run whenever the answer *or* the dishes
+  // move, because emptying the menu is the customer withdrawing catering just
+  // as much as changing the service type is.
+  if (
+    Object.prototype.hasOwnProperty.call(updates, "service_type") ||
+    Object.prototype.hasOwnProperty.call(updates, "selected_menu")
+  ) {
     const merged = { ...inquiry.toObject(), ...updates };
     updates.include_food = cateringRequested(merged);
     updates.service_type = serviceTypeForRequest(merged);
+    if (!updates.include_food) updates.selected_menu = [];
+  }
+
+  // The footprint is the package option's, not the request's: the request
+  // records only which size was chosen.
+  if (!packageGone && Object.prototype.hasOwnProperty.call(updates, "selected_scaffold_option_id")) {
+    Object.assign(updates, resolveScaffold(updates.selected_scaffold_option_id, pkg));
+  } else {
+    delete updates.selected_scaffold_option_id;
+  }
+
+  // Equipment follows the setup rather than being chosen, so it is re-derived
+  // whenever the setup it belongs to moves.
+  const setupChanged =
+    Object.prototype.hasOwnProperty.call(updates, "selected_scaffold_option_id") ||
+    Object.prototype.hasOwnProperty.call(updates, "service_type");
+  if (!packageGone && setupChanged) {
+    updates.inventory_items = resolveInventoryItems(pkg, {
+      ...inquiry.toObject(),
+      ...updates,
+    });
+  }
+
+  /**
+   * A combo's food and price. The dishes are settled course by course against
+   * the combo itself — the same call `createInquiry` makes — so an edit cannot
+   * put food on a combo that the combo does not offer, and the price follows
+   * from the combo rather than from the request.
+   *
+   * The boundary is re-applied last: a combo sells food, so it carries no
+   * scaffold and no equipment however this edit arrived.
+   */
+  if (inquiry.booking_type === "special") {
+    if (packageGone) {
+      // Nothing to settle the food against. What was sold stands.
+      delete updates.offer_food_snapshot;
+    } else {
+      if (Object.prototype.hasOwnProperty.call(updates, "offer_food_snapshot")) {
+        updates.offer_food_snapshot = normalizeOfferSelection(
+          pkg,
+          updates.offer_food_snapshot,
+        );
+      }
+      updates.offer_base_price = offerBaseFoodPrice(pkg, inquiry.guest_count);
+    }
+    updates.selected_menu = [];
+    applyComboRequestBoundary(updates);
+  } else {
+    delete updates.offer_food_snapshot;
+  }
+
+  /**
+   * What the customer is now looking at. Recomputed from the server's own
+   * figures rather than accepted from the browser, so the estimate the admin
+   * reads always matches the selections printed beside it.
+   */
+  if (!packageGone) {
+    const businessInfo = await BusinessInfo.findOne().lean();
+    updates.estimated_total = estimatedTotalForRequest({
+      request: { ...inquiry.toObject(), ...updates },
+      pkg,
+      offerBasePrice: updates.offer_base_price || inquiry.offer_base_price || 0,
+      businessInfoPrice: businessInfo?.custom_event_setup_price,
+    });
   }
 
   const dateChanged =

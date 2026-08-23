@@ -18,6 +18,15 @@ import { diffQuotationVersions, previousVersionOf } from "../../utils/quotationD
 
 const MONEY_FIELDS = new Set(["total_price", "price_difference", "deposit_amount"]);
 
+const EXCLUDED_FIELDS = new Set([
+  "event_manager_id",
+  "staff_ids",
+  "staff_assignments",
+  "equipment_assignments",
+  "equipment_returned",
+  "_id",
+]);
+
 const prettyField = (key) =>
   key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -142,13 +151,14 @@ export default function BookingVersionHistory({ booking, sourceQuotation = null 
     );
   }
 
-  const changeEntries = Object.entries(selected?.changes || {});
+  const changeEntries = Object.entries(selected?.changes || {}).filter(([k]) => !EXCLUDED_FIELDS.has(k));
+  const pendingChangeEntries = Object.entries(pending?.proposed_changes || {}).filter(([k]) => !EXCLUDED_FIELDS.has(k));
 
   return (
     <div className="space-y-5">
       {/* §6 — only shown while a revision is genuinely awaiting a decision. */}
       {hasPending && (
-        <div className="flex flex-col gap-1 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3.5">
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
           <p className="flex items-start gap-2.5 text-sm text-amber-900">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
             <span>
@@ -165,7 +175,22 @@ export default function BookingVersionHistory({ booking, sourceQuotation = null 
             </span>
           </p>
           {pending.message && (
-            <p className="pl-[26px] text-sm leading-relaxed text-amber-900/90">{pending.message}</p>
+            <p className="pl-[26px] text-sm leading-relaxed text-amber-900/90 font-medium">{pending.message}</p>
+          )}
+          {pendingChangeEntries.length > 0 && (
+            <div className="pl-[26px] pt-2 border-t border-amber-200/60 mt-1">
+              <p className="text-xs font-semibold text-amber-900 mb-1.5">Proposed Modifications:</p>
+              <ul className="space-y-1 text-xs text-amber-950">
+                {pendingChangeEntries.map(([key, val]) => (
+                  <li key={key} className="flex items-center gap-2">
+                    <span className="font-medium">{prettyField(key)}:</span>
+                    <span className="text-muted-foreground line-through">{prettyValue(key, val?.from)}</span>
+                    <ArrowRight className="h-3 w-3 text-amber-600 shrink-0" />
+                    <span className="font-bold">{prettyValue(key, val?.to)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}

@@ -587,13 +587,13 @@ exports.create = asyncHandler(async (req, res) => {
 
 exports.getAll = asyncHandler(async (req, res) => {
   res.json(
-    await Booking.find().populate("customer_id package_id event_manager_id").lean(),
+    await Booking.find().populate("customer_id package_id event_manager_id inquiry_id quotation_id").lean(),
   );
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
   const bookings = await Booking.find({ customer_id: req.user._id }).populate(
-    "customer_id package_id event_manager_id",
+    "customer_id package_id event_manager_id inquiry_id quotation_id",
   ).lean();
   res.json(bookings);
 });
@@ -603,14 +603,14 @@ exports.getById = asyncHandler(async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       customer_id: req.user._id,
-    }).populate("customer_id package_id event_manager_id staff_ids").lean();
+    }).populate("customer_id package_id event_manager_id staff_ids inquiry_id quotation_id").lean();
     if (!booking) return res.status(404).json({ message: "Booking not found" });
     return res.json(booking);
   }
 
   res.json(
     await Booking.findById(req.params.id).populate(
-      "customer_id package_id event_manager_id staff_ids",
+      "customer_id package_id event_manager_id staff_ids inquiry_id quotation_id",
     ).lean(),
   );
 });
@@ -799,7 +799,7 @@ exports.update = asyncHandler(async (req, res) => {
     );
   }
 
-  // Build changes object for the log
+  // Build changes object for the audit log (tracks all changes)
   const trackFields = [
     "status",
     "payment_status",
@@ -828,6 +828,30 @@ exports.update = asyncHandler(async (req, res) => {
     }
   }
 
+  // Contract-level revision fields (only track customer-facing contract terms)
+  const contractRevisionFields = [
+    "event_date",
+    "start_time",
+    "guest_count",
+    "duration_hours",
+    "total_price",
+    "venue_type",
+    "service_type",
+    "province",
+    "municipality",
+    "barangay",
+    "street",
+  ];
+  const revisionChanges = {};
+  for (const field of contractRevisionFields) {
+    if (
+      req.body[field] !== undefined &&
+      String(current[field] ?? "") !== String(req.body[field] ?? "")
+    ) {
+      revisionChanges[field] = { from: current[field], to: req.body[field] };
+    }
+  }
+
   const changedFieldNames = Object.keys(changes);
   const detailParts =
     changedFieldNames.length > 0
@@ -850,6 +874,7 @@ exports.update = asyncHandler(async (req, res) => {
   if (updated?.customer_id && req.user?.role !== "customer") {
     const statusChanged = current.status !== updated.status;
     const paymentChanged = current.payment_status !== updated.payment_status;
+    const hasContractChanges = Object.keys(revisionChanges).length > 0;
     const otherChanged = Object.keys(req.body).some(
       (key) => !["status", "payment_status", "payment_method"].includes(key),
     );
@@ -891,7 +916,7 @@ exports.update = asyncHandler(async (req, res) => {
       }
     }
 
-    if (otherChanged) {
+    if (hasContractChanges) {
       updated.revision_count = (updated.revision_count || 0) + 1;
       updated.is_revised = true;
       if (!Array.isArray(updated.revisions)) updated.revisions = [];
@@ -902,7 +927,7 @@ exports.update = asyncHandler(async (req, res) => {
         admin_confirmed_at: new Date(),
         customer_confirmed_at: req.user?.role === "customer" ? new Date() : undefined,
         status: "confirmed",
-        changes,
+        changes: revisionChanges,
         message: req.body.revision_note || "Booking details updated by administrator",
         price_difference: (updated.total_price || 0) - (current.total_price || 0),
         snapshot: {
@@ -923,6 +948,13 @@ exports.update = asyncHandler(async (req, res) => {
           status: "approved",
           resolved_at: new Date(),
           reviewed_by: req.user?._id
+        };
+      }
+      if (updated.pending_revision?.status === "pending_admin_approval") {
+        updated.pending_revision = {
+          ...updated.pending_revision.toObject?.(),
+          status: "approved",
+          resolved_at: new Date(),
         };
       }
       await updated.save();
@@ -1156,7 +1188,43 @@ exports.requestChange = asyncHandler(async (req, res) => {
     requested_at: new Date(),
     resolved_at: null,
   };
-  await booking.save();  logAction({
+
+  const proposedSnapshot = {
+    event_date: req.body.event_date || booking.event_date,
+    start_time: req.body.start_time || booking.start_time,
+    guest_count: req.body.guest_count !== undefined && req.body.guest_count !== "" ? Number(req.body.guest_count) : booking.guest_count,
+    total_price: req.body.total_price !== undefined && req.body.total_price !== "" ? Number(req.body.total_price) : booking.total_price,
+    venue_type: req.body.venue_type || booking.venue_type,
+    service_type: req.body.service_type || booking.service_type,
+  };
+
+  const proposedChanges = req.body.proposed_changes || {};
+  if (req.body.event_date && new Date(req.body.event_date).toISOString() !== new Date(booking.event_date).toISOString()) {
+    proposedChanges.event_date = { from: booking.event_date, to: req.body.event_date };
+  }
+  if (req.body.guest_count !== undefined && Number(req.body.guest_count) !== Number(booking.guest_count)) {
+    proposedChanges.guest_count = { from: booking.guest_count, to: Number(req.body.guest_count) };
+  }
+  if (req.body.start_time && req.body.start_time !== booking.start_time) {
+    proposedChanges.start_time = { from: booking.start_time, to: req.body.start_time };
+  }
+  if (req.body.venue_type && req.body.venue_type !== booking.venue_type) {
+    proposedChanges.venue_type = { from: booking.venue_type, to: req.body.venue_type };
+  }
+
+  booking.pending_revision = {
+    status: "pending_admin_approval",
+    proposed_by: "customer",
+    proposed_by_user_id: req.user._id,
+    proposed_changes: proposedChanges,
+    proposed_snapshot: proposedSnapshot,
+    message: requestMessage,
+    price_difference: (proposedSnapshot.total_price || booking.total_price || 0) - (booking.total_price || 0),
+    requested_at: new Date(),
+  };
+
+  await booking.save();
+  logAction({
     user_id: req.user._id,
     action: "booking_change_requested",
     entity_type: "booking",
@@ -1173,9 +1241,9 @@ exports.requestChange = asyncHandler(async (req, res) => {
         ? "Booking change request updated"
         : "Booking change request",
       body: isUpdate
-        ? `${req.user.full_name || req.user.email || "A customer"} updated the change request for booking #${booking._id}.`
-        : `${req.user.full_name || req.user.email || "A customer"} requested a change for booking #${booking._id}.`,
-      type: "info",
+        ? `${req.user.full_name || req.user.email || "A customer"} updated the change request for booking #${booking.reference || booking._id}.`
+        : `${req.user.full_name || req.user.email || "A customer"} requested a change for booking #${booking.reference || booking._id}.`,
+      type: "warning",
       link: `/admin/bookings/${booking._id}/details`,
       meta: {
         booking_id: booking._id,
@@ -1907,42 +1975,6 @@ exports.requestOcular = asyncHandler(async (req, res) => {
   res.json(booking);
 });
 
-exports.requestChange = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id });
-  if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-  booking.change_request = {
-    status: "pending",
-    message: req.body.message,
-    requested_at: new Date()
-  };
-
-  await booking.save();
-  
-  if (req.user) {
-    await logAction({
-      user_id: req.user._id,
-      action: "change_request_submitted",
-      entity_type: "booking",
-      entity_id: booking._id,
-      details: `Customer requested a change: ${req.body.message}`,
-      ip_address: req.ip,
-    });
-  }
-
-  const io = req.app.get("io");
-  const { notifyAdmins } = require("../utils/notify");
-  await notifyAdmins({
-    title: "New Change Request",
-    body: `Customer requested a change for booking ${booking.reference || booking._id}.`,
-    type: "warning",
-    link: `/admin/bookings/${booking._id}/details`,
-    meta: { booking_id: booking._id }
-  }, io);
-
-  res.json(booking);
-});
-
 exports.resolveChangeRequest = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
@@ -1953,6 +1985,11 @@ exports.resolveChangeRequest = asyncHandler(async (req, res) => {
 
   booking.change_request.status = req.body.status; // 'approved' or 'rejected'
   booking.change_request.resolved_at = new Date();
+
+  if (booking.pending_revision?.status === "pending_admin_approval") {
+    booking.pending_revision.status = req.body.status === "approved" ? "approved" : "rejected";
+    booking.pending_revision.resolved_at = new Date();
+  }
 
   await booking.save();
   
@@ -1966,6 +2003,9 @@ exports.resolveChangeRequest = asyncHandler(async (req, res) => {
       ip_address: req.ip,
     });
   }
+
+  const io = req.app.get("io");
+  if (io) io.emit("system:refresh", { type: "booking", action: "update" });
 
   res.json(booking);
 });
@@ -2039,6 +2079,15 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
     price_difference: priceDifference,
     requested_at: new Date(),
   };
+
+  if (proposedBy === "customer") {
+    booking.change_request = {
+      status: "pending",
+      message: message || "Customer requested booking revisions",
+      requested_at: new Date(),
+      resolved_at: null,
+    };
+  }
 
   await booking.save();
 
@@ -2571,6 +2620,8 @@ exports.executeInquiryConversion = async ({
   const payload = {
     customer_id: inquiry.customer_id?._id || inquiry.customer_id,
     package_id: pkgId,
+    inquiry_id: inquiryId,
+    quotation_id: quotation?._id || null,
     booking_type:
       inquiry.booking_type || bookingTypeForPackage(inquiry.package_id || null),
     package_name_snapshot:

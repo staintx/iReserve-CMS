@@ -3,13 +3,22 @@ import { CheckCircle2, Calendar, User, Package as PackageIcon, DollarSign, Alert
 import Modal from "../../common/Modal";
 import { AdminAPI } from "../../../api/admin";
 
-export default function ConvertBookingModal({ quote, onClose, onConfirm, submitting }) {
+export default function ConvertBookingModal({ quote, isDepositPaidProp = false, onClose, onConfirm, submitting }) {
   const [managers, setManagers] = useState([]);
   const [selectedManagerId, setSelectedManagerId] = useState("");
   const [loadingManagers, setLoadingManagers] = useState(true);
   const [bypassDeposit, setBypassDeposit] = useState(false);
   const [syncingPayment, setSyncingPayment] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+
+  const [depositPaid, setDepositPaid] = useState(
+    Boolean(
+      isDepositPaidProp || 
+      quote?.payment_status === "deposit_paid" || 
+      quote?.payment_status === "fully_paid" || 
+      quote?.is_deposit_paid
+    )
+  );
 
   const handleSyncPayment = async () => {
     try {
@@ -21,13 +30,11 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
         const pendingPayment = inqPayments.find(p => p.status === "pending") || inqPayments[0];
         const verifyRes = await AdminAPI.verifyPayment(pendingPayment._id);
         if (verifyRes.data?.payment?.status === "approved") {
-          setSyncMessage("Deposit verified & approved! Reloading details...");
-          setTimeout(() => {
-            window.location.reload();
-          }, 1200);
+          setDepositPaid(true);
+          setSyncMessage("Deposit verified from PayMongo! Ready to convert.");
           return;
         } else {
-          setSyncMessage("Checked PayMongo: No completed payment found yet.");
+          setSyncMessage("Checked PayMongo: No completed online payment found yet.");
         }
       } else {
         setSyncMessage("No PayMongo checkout found for this inquiry.");
@@ -55,8 +62,6 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
 
   if (!quote) return null;
 
-  const isDepositPaid = quote.payment_status === "deposit_paid" || quote.payment_status === "fully_paid";
-
   const customerName = quote.customer_id?.full_name 
     || `${quote.contact_first_name || ''} ${quote.contact_last_name || ''}`.trim() 
     || "Customer";
@@ -73,7 +78,7 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
 
   const totalAmount = quote.total_price || quote.total_cost || quote.subtotal || 0;
 
-  const canSubmit = (isDepositPaid || bypassDeposit) && Boolean(selectedManagerId);
+  const canSubmit = (depositPaid || bypassDeposit) && Boolean(selectedManagerId);
 
   return (
     <Modal onClose={onClose} className="max-w-lg w-full p-0 overflow-hidden rounded-2xl shadow-2xl border-0">
@@ -144,9 +149,9 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
                   <span className="font-bold text-slate-900">₱{Number(totalAmount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div>
-                  {isDepositPaid ? (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">
-                      Deposit Paid ✓
+                  {depositPaid ? (
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                      <CheckCircle2 size={11} className="text-emerald-600" /> Deposit Paid ✓
                     </span>
                   ) : (
                     <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
@@ -159,28 +164,9 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
           </div>
         </div>
 
-        {/* PayMongo Verification & Offline Bypass if Unpaid */}
-        {!isDepositPaid && (
-          <div className="w-full space-y-2">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-left">
-              <div className="text-xs text-slate-600">
-                <span className="font-semibold text-slate-800">Online Checkout:</span> Check if customer completed PayMongo payment.
-              </div>
-              <button
-                type="button"
-                onClick={handleSyncPayment}
-                disabled={syncingPayment}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {syncingPayment ? "Checking..." : "Sync PayMongo"}
-              </button>
-            </div>
-            {syncMessage && (
-              <p className="text-[11px] font-medium text-slate-600 text-left px-1">
-                {syncMessage}
-              </p>
-            )}
-
+        {/* Offline Deposit Bypass & Optional Gateway Check if Unpaid */}
+        {!depositPaid && (
+          <div className="w-full space-y-2.5">
             <label className="w-full flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-left text-xs text-amber-950 cursor-pointer">
               <input
                 type="checkbox"
@@ -192,6 +178,25 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
                 <strong>Offline Deposit Verified:</strong> Customer has paid the deposit offline via Cash or Bank Transfer. Allow immediate conversion.
               </span>
             </label>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200/70 rounded-xl text-left text-xs">
+              <span className="text-slate-500 text-[11.5px]">
+                Customer claims they paid online?
+              </span>
+              <button
+                type="button"
+                onClick={handleSyncPayment}
+                disabled={syncingPayment}
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-[11px] font-semibold shrink-0 transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {syncingPayment ? "Checking..." : "Check Gateway Status"}
+              </button>
+            </div>
+            {syncMessage && (
+              <p className="text-[11px] font-medium text-slate-600 text-left px-1">
+                {syncMessage}
+              </p>
+            )}
           </div>
         )}
 
@@ -256,9 +261,9 @@ export default function ConvertBookingModal({ quote, onClose, onConfirm, submitt
             )}
             {submitting
               ? "Converting..."
-              : !isDepositPaid && !bypassDeposit
+              : !depositPaid && !bypassDeposit
               ? "Deposit Verification Required"
-              : "Yes, Convert to Booking"}
+              : "Confirm & Convert to Booking"}
           </button>
         </div>
       </div>

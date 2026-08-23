@@ -1123,6 +1123,7 @@ export default function AdminQuoteDetails() {
       {showConfirmConvert && (
         <ConvertBookingModal
           quote={quote}
+          isDepositPaidProp={isDepositPaid}
           submitting={submitting}
           onClose={() => setShowConfirmConvert(false)}
           onConfirm={(managerId, bypassDeposit = false) => {

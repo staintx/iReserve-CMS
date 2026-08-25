@@ -123,10 +123,10 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
 
   if (events.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-10 text-center">
-        <Clock className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" aria-hidden="true" />
-        <p className="font-sans text-sm font-semibold text-foreground">No history yet</p>
-        <p className="mt-1 text-sm text-muted-foreground">
+      <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
+        <Clock className="mx-auto mb-2 h-6 w-6 text-muted-foreground/40" aria-hidden="true" />
+        <p className="font-sans text-xs font-semibold text-foreground">No history yet</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Payments, site visits and status updates will appear here as they happen.
         </p>
       </div>
@@ -134,35 +134,35 @@ export default function BookingHistoryTimeline({ booking, payments = [] }) {
   }
 
   return (
-    <ol className="relative space-y-5 border-l border-border pl-6">
+    <ol className="relative space-y-3.5 border-l border-border pl-5">
       {events.map((event, idx) => (
         <li key={idx} className="relative">
           <span
             className={cn(
-              "absolute -left-[34px] flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-card",
+              "absolute -left-[29px] flex h-5 w-5 items-center justify-center rounded-full ring-3 ring-card",
               TONE_ACCENT[event.tone] || TONE_ACCENT.neutral
             )}
             aria-hidden="true"
           >
-            <event.icon className="h-3.5 w-3.5" />
+            <event.icon className="h-3 w-3" />
           </span>
 
           <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-              <h4 className={cn("font-sans text-sm font-semibold", TONE_TEXT[event.tone] || "text-foreground")}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2.5 gap-y-0.5">
+              <h4 className={cn("font-sans text-xs sm:text-sm font-semibold", TONE_TEXT[event.tone] || "text-foreground")}>
                 {event.title}
               </h4>
-              <time className="font-sans text-xs tabular-nums text-muted-foreground">
+              <time className="font-sans text-[11px] tabular-nums text-muted-foreground">
                 {fmtDateTime(event.at)}
               </time>
             </div>
 
             {event.detail && (
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{event.detail}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{event.detail}</p>
             )}
 
             {event.meta?.length > 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 {event.meta.map((m, i) => (
                   <span key={i}>
                     {i > 0 && <span className="px-1.5 opacity-40" aria-hidden="true">·</span>}

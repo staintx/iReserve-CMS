@@ -1,14 +1,12 @@
 import { cn } from "@/lib/utils";
-import { TONE_ACCENT } from "./tones";
 
 /**
- * Compact overview metric. Interactive when `onClick` is supplied so the
- * dashboard numbers double as shortcuts into the matching list.
- *
- * `tone` tints only the icon tile — the card surface stays white so a row of
- * tiles reads as one set rather than as four coloured blocks.
+ * Modern shadcn/ClientsNext metric card style.
+ * Top row: Label + floating unboxed icon
+ * Middle: Large bold numerical value
+ * Bottom: Secondary hint / trend text
  */
-export default function StatTile({ icon: Icon, label, value, hint, tone = "neutral", onClick, className }) {
+export default function StatTile({ icon: Icon, label, value, hint, onClick, className }) {
   const Wrapper = onClick ? "button" : "div";
 
   return (
@@ -16,27 +14,33 @@ export default function StatTile({ icon: Icon, label, value, hint, tone = "neutr
       type={onClick ? "button" : undefined}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3.5 rounded-xl border border-border bg-card p-4 text-left transition-colors",
-        onClick && "hover:border-primary/30 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group relative flex flex-col justify-between rounded-md border border-slate-200 bg-white p-5 text-left transition-all shadow-2xs",
+        onClick && "hover:border-slate-300 hover:shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A] cursor-pointer",
         className
       )}
     >
-      {Icon && (
-        <span
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-            TONE_ACCENT[tone] || TONE_ACCENT.neutral
-          )}
-          aria-hidden="true"
-        >
-          <Icon className="h-5 w-5" />
+      {/* Top Row: Label & Floating Icon */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate font-sans">
+          {label}
         </span>
-      )}
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
-        <div className="text-2xl font-bold leading-tight text-foreground tabular-nums">{value}</div>
-        {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+        {Icon && (
+          <Icon className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-slate-600 transition-colors" aria-hidden="true" />
+        )}
+      </div>
+
+      {/* Middle Row: Large Value */}
+      <div className="mt-2.5">
+        <div className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 tabular-nums font-sans">
+          {value}
+        </div>
+        {hint && (
+          <p className="mt-1 text-xs text-slate-500 font-normal truncate">
+            {hint}
+          </p>
+        )}
       </div>
     </Wrapper>
   );
 }
+

@@ -262,7 +262,7 @@ export default function CustomerBookings() {
     >
       {/* What needs your attention, in one sentence */}
       {!loading && needsPayment.length > 0 && (
-        <StateNotice tone="warning" icon={CreditCard} title="Payment needed." className="mb-6">
+        <StateNotice tone="warning" icon={CreditCard} title="Payment needed." className="mb-4">
           {needsPayment.length === 1
             ? `One booking has ${formatCurrency(amountDue)} still to pay.`
             : `${needsPayment.length} bookings have ${formatCurrency(amountDue)} still to pay in total.`}{" "}
@@ -279,7 +279,7 @@ export default function CustomerBookings() {
       )}
 
       <PortalToolbar
-        className="mb-6"
+        className="mb-4"
         activeSegment={statusTab}
         onSegmentChange={setStatusTab}
         segments={[
@@ -307,7 +307,7 @@ export default function CustomerBookings() {
       />
 
       {/* Bookings List Cards */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {loading ? (
           <LoadingState label="Loading your bookings" />
         ) : filteredBookings.length === 0 ? (

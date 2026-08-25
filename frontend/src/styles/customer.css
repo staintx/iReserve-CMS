@@ -10,21 +10,41 @@
    warmer boutique palette below untouched.
    ═══════════════════════════════════════════════════════════════ */
 .customer-shell {
-  --color-primary: #4C81E0;
+  --color-primary: #2C4B8A;
   --color-primary-foreground: #FFFFFF;
-  --color-accent: #C5A059;
-  --color-accent-foreground: #4A3B1F;
+  --color-primary-hover: #1E3563;
+  --color-accent: #D2B67C;
+  --color-accent-foreground: #1E293B;
+  --color-accent-soft: #F8FAFC;
   --color-border: #E2E8F0;
-  --color-muted: #F1F5F9;
+  --color-border-subtle: #F1F5F9;
+  --color-muted: #F8FAFC;
   --color-muted-foreground: #64748B;
-  --color-foreground: #1E293B;
-  --color-background: #F8FAFC;
+  --color-foreground: #0F172A;
+  --color-body: #1E293B;
+  --color-background: #FFFFFF;
   --color-card: #FFFFFF;
-  /* Without this, anything inside a <Card> that doesn't set its own colour
-     (e.g. CardTitle) falls back to the boutique brown from globals.css and
-     renders warm brown text on the portal's cool slate surfaces. */
-  --color-card-foreground: #1E293B;
-  --color-ring: #4C81E0;
+  --color-card-foreground: #0F172A;
+  --color-powder: #F1F5F9;
+  --color-ring: #2C4B8A;
+  font-family: var(--font-sans);
+  background-color: #FFFFFF;
+}
+
+/* Crisp operational utility classes */
+.op-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.5rem; /* 8px */
+}
+
+.op-card-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.op-card-hover:hover {
+  border-color: #CBD5E1;
+  background-color: #F8FAFC;
 }
 
 /* Customer UI theme tokens */

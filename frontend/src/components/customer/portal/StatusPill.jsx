@@ -20,12 +20,12 @@ export default function StatusPill({ tone = "neutral", label, icon, className })
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-none",
+        "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold leading-tight",
         TONE_BADGE[tone] || TONE_BADGE.neutral,
         className
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
       {label}
     </span>
   );

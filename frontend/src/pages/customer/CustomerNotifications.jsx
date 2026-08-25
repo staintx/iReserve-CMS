@@ -130,21 +130,21 @@ export default function CustomerNotifications() {
     >
       <div className="space-y-5">
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1 border-b border-border">
+        <div className="flex items-center gap-2 border-b border-slate-200">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => changeFilter(f.key)}
               className={cn(
-                "px-3.5 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors",
+                "px-3.5 py-2 text-xs font-bold border-b-2 -mb-px transition-colors cursor-pointer",
                 filter === f.key
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  ? "border-[#2C4B8A] text-[#2C4B8A]"
+                  : "border-transparent text-slate-500 hover:text-slate-900"
               )}
             >
               {f.label}
               {f.key === "unread" && unreadCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold align-middle">
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#2C4B8A] text-white text-[10px] font-bold align-middle">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -153,7 +153,7 @@ export default function CustomerNotifications() {
         </div>
 
         {/* Notifications Card Container */}
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground text-sm">
               Loading notifications...

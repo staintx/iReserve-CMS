@@ -57,46 +57,41 @@ export default function RecordCard({
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-xl border transition-colors",
-        quiet ? "border-border bg-muted/40" : "border-border bg-card hover:border-primary/30",
+        "overflow-hidden rounded-lg border transition-all shadow-2xs",
+        quiet ? "border-slate-200 bg-slate-50/60 opacity-80" : "border-slate-200 bg-white hover:border-slate-300",
         className
       )}
     >
       <div
         className={cn(
-          "flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:p-5",
+          "flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:p-4.5",
           hasDetails && "cursor-pointer"
         )}
         onClick={hasDetails ? onToggle : undefined}
       >
         {/* Identity: name, status, when */}
-        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+        <div className="flex min-w-0 items-start gap-3">
           {Icon && (
-            // Shape says what service it is; tint repeats the status, so the
-            // state of a record is readable before you get to the badge.
             <span
-              className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                quiet ? TONE_ACCENT.neutral : TONE_ACCENT[status?.tone] || TONE_ACCENT.neutral
-              )}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600 mt-0.5"
               aria-hidden="true"
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4" />
             </span>
           )}
 
-          <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               <h3
                 className={cn(
-                  "font-sans text-base font-semibold leading-snug",
-                  quiet ? "text-muted-foreground" : "text-foreground"
+                  "font-sans text-sm sm:text-base font-bold leading-snug",
+                  quiet ? "text-slate-500" : "text-slate-900"
                 )}
               >
                 {title}
               </h3>
               {isNew && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-500/30 uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-500/30 uppercase tracking-wider">
                   <Sparkles className="h-3 w-3 text-amber-600" /> NEW
                 </span>
               )}
@@ -104,11 +99,9 @@ export default function RecordCard({
             </div>
 
             {visibleMeta.length > 0 && (
-              // The first entry is the event date — the one thing customers
-              // scan for — so it carries weight; the rest stay secondary.
-              <p className="text-sm leading-relaxed text-muted-foreground">
+              <p className="text-xs leading-relaxed text-slate-500">
                 {visibleMeta.map((item, index) => (
-                  <span key={index} className={index === 0 ? "font-medium text-foreground" : undefined}>
+                  <span key={index} className={index === 0 ? "font-semibold text-slate-800" : undefined}>
                     {index > 0 && <span className="px-1.5 font-normal opacity-40" aria-hidden="true">·</span>}
                     {item}
                   </span>
@@ -119,14 +112,14 @@ export default function RecordCard({
         </div>
 
         {/* Money + disclosure */}
-        <div className="flex items-end justify-between gap-4 border-t border-border pt-3 sm:items-start sm:justify-end sm:border-0 sm:pt-0">
+        <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-2.5 sm:items-start sm:justify-end sm:border-0 sm:pt-0">
           {amount && (
             <div className="text-left sm:text-right">
-              <div className="text-xs font-medium text-muted-foreground">{amount.label}</div>
-              <div className={cn("text-lg font-semibold tabular-nums", TONE_TEXT[amount.tone] || TONE_TEXT.neutral)}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{amount.label}</div>
+              <div className={cn("text-base font-bold tabular-nums", TONE_TEXT[amount.tone] || TONE_TEXT.neutral)}>
                 {amount.value}
               </div>
-              {amount.hint && <div className="text-xs text-muted-foreground">{amount.hint}</div>}
+              {amount.hint && <div className="text-[11px] text-slate-400 font-medium">{amount.hint}</div>}
             </div>
           )}
 
@@ -139,34 +132,32 @@ export default function RecordCard({
               }}
               aria-expanded={expanded}
               aria-controls={panelId}
-              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]"
             >
               <span>{expanded ? "Hide details" : "Details"}</span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} aria-hidden="true" />
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")} aria-hidden="true" />
               <span className="sr-only">for {title}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* What's happening + the single next step.
-          A full-bleed tinted strip rather than a nested box, so the card keeps
-          one border and one radius. */}
+      {/* Notice strip */}
       {(notice || primaryAction || secondaryAction) && (() => {
         const tone = notice?.tone || "neutral";
         const NoticeIcon = notice?.icon || NOTICE_ICON[tone] || NOTICE_ICON.neutral;
         return (
           <div
             className={cn(
-              "flex flex-col gap-3 border-t px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:px-5",
+              "flex flex-col gap-2.5 border-t px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4.5",
               TONE_NOTICE[tone] || TONE_NOTICE.neutral
             )}
           >
             {notice && (
-              <p className="flex items-start gap-2.5 text-sm leading-relaxed">
-                <NoticeIcon className={cn("mt-0.5 h-4 w-4 shrink-0", TONE_ICON[tone])} aria-hidden="true" />
+              <p className="flex items-start gap-2 text-xs leading-relaxed">
+                <NoticeIcon className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", TONE_ICON[tone])} aria-hidden="true" />
                 <span>
-                  {notice.title && <strong className="font-semibold">{notice.title} </strong>}
+                  {notice.title && <strong className="font-bold">{notice.title} </strong>}
                   {notice.text}
                 </span>
               </p>
@@ -174,7 +165,7 @@ export default function RecordCard({
             {(primaryAction || secondaryAction) && (
               <div
                 className={cn(
-                  "flex shrink-0 flex-col gap-2 sm:flex-row-reverse sm:items-center",
+                  "flex shrink-0 flex-col gap-1.5 sm:flex-row-reverse sm:items-center",
                   !notice && "sm:ml-auto"
                 )}
               >
@@ -188,10 +179,10 @@ export default function RecordCard({
 
       {/* Progressive disclosure */}
       {hasDetails && expanded && (
-        <div id={panelId} className="space-y-5 border-t border-border bg-muted/40 p-4 sm:p-5">
+        <div id={panelId} className="space-y-4 border-t border-slate-100 bg-slate-50/70 p-3.5 sm:p-4">
           {details}
           {secondaryActions && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">{secondaryActions}</div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-200/80 pt-3">{secondaryActions}</div>
           )}
         </div>
       )}

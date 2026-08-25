@@ -135,85 +135,95 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
             )}
           </button>
         ) : (
-          <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:bg-powder hover:text-primary">
-            <Bell className={cn("w-5 h-5", unreadCount > 0 && "text-primary")} />
+          <button
+            type="button"
+            className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]"
+            title="Notifications"
+          >
+            <Bell className={cn("w-4 h-4", unreadCount > 0 && "text-[#2C4B8A]")} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-[#2C4B8A] text-[10px] font-bold text-white ring-2 ring-white">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
-          </Button>
+          </button>
         )}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent side={isSidebarItem ? "right" : "bottom"} align={isSidebarItem ? "start" : "end"} sideOffset={isSidebarItem ? 16 : 4} className="w-80 sm:w-96 p-0 border-border shadow-lg z-[100]">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
+      <DropdownMenuContent 
+        side={isSidebarItem ? "right" : "bottom"} 
+        align={isSidebarItem ? "start" : "end"} 
+        sideOffset={isSidebarItem ? 16 : 8} 
+        className="w-80 sm:w-96 p-0 bg-white border border-slate-200 rounded-xl shadow-lg z-[100] overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground">Notifications</span>
+            <span className="font-bold text-sm text-slate-900 font-sans">Notifications</span>
             {unreadCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-powder text-primary text-xs font-medium">
+              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-[#2C4B8A] text-[11px] font-bold border border-blue-200/60">
                 {unreadCount} new
               </span>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={markAllRead}
             disabled={unreadCount === 0}
-            className="h-8 text-xs px-2 text-muted-foreground hover:text-foreground disabled:opacity-40"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-40 disabled:hover:text-slate-500 transition-colors cursor-pointer"
           >
-            <Check className="w-3.5 h-3.5 mr-1" />
+            <Check className="w-3.5 h-3.5" />
             Mark all read
-          </Button>
+          </button>
         </div>
 
-        <ScrollArea className="h-[420px]">
+        <ScrollArea className="max-h-[380px]">
           {empty ? (
-            <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
-              <Bell className="w-8 h-8 mb-3 opacity-20" />
-              <p className="text-sm">No notifications yet.</p>
-              <p className="text-xs mt-1 text-muted-foreground/70">You'll see updates here as they happen.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <Bell className="w-7 h-7 mb-2 opacity-30" />
+              <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">You'll see activity updates here as they happen.</p>
             </div>
           ) : (
-            <div className="flex flex-col">
+            <div className="divide-y divide-slate-100">
               {groups.map(([label, groupItems]) => (
                 <div key={label}>
-                  <div className="sticky top-0 z-10 px-4 pt-3 pb-1.5 bg-card/95 backdrop-blur-sm text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  <div className="px-4 py-1.5 bg-slate-50/90 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
                     {label}
                   </div>
-                  <div className="flex flex-col">
+                  <div className="divide-y divide-slate-100">
                     {groupItems.map((item) => {
                       const meta = getNotificationMeta(item.type);
                       const Icon = meta.icon;
                       return (
-                        <DropdownMenuItem
-                          key={item._id}
-                          className={cn(
-                            "flex items-start gap-3 px-4 py-3 cursor-pointer relative transition-colors duration-150 focus:bg-muted/50 focus:text-foreground hover:bg-muted/50 border-l-2",
-                            item.is_read ? "border-transparent opacity-80" : "border-primary bg-powder/40"
-                          )}
-                          onClick={() => handleItemClick(item)}
-                        >
-                          <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full", meta.chipClass)}>
-                            <Icon className={cn("w-3.5 h-3.5", meta.iconClass)} />
-                          </div>
-                          <div className="flex-1 min-w-0 space-y-0.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className={cn("text-sm leading-snug", item.is_read ? "font-medium text-foreground/80" : "font-semibold text-foreground")}>
-                                {item.title}
-                              </p>
-                              {!item.is_read && (
-                                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shrink-0" aria-hidden="true" />
-                              )}
+                        <DropdownMenuItem asChild key={item._id}>
+                          <button
+                            type="button"
+                            className={cn(
+                              "w-full flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50 focus:bg-slate-50 text-left outline-none",
+                              !item.is_read ? "bg-blue-50/30" : "bg-white"
+                            )}
+                            onClick={() => handleItemClick(item)}
+                          >
+                            <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md", meta.chipClass)}>
+                              <Icon className={cn("w-3.5 h-3.5", meta.iconClass)} />
                             </div>
-                            <p className="text-xs leading-relaxed line-clamp-2 text-muted-foreground">
-                              {item.body}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground/70 font-medium pt-0.5">
-                              {formatTime(item.createdAt)}
-                            </p>
-                          </div>
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className={cn("text-xs leading-snug", !item.is_read ? "font-bold text-slate-900" : "font-medium text-slate-700")}>
+                                  {item.title}
+                                </p>
+                                {!item.is_read && (
+                                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#2C4B8A] shrink-0" aria-hidden="true" />
+                                )}
+                              </div>
+                              <p className="text-xs leading-relaxed text-slate-500 line-clamp-2">
+                                {item.body}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-medium pt-0.5">
+                                {formatTime(item.createdAt)}
+                              </p>
+                            </div>
+                          </button>
                         </DropdownMenuItem>
                       );
                     })}
@@ -224,10 +234,11 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           )}
         </ScrollArea>
 
-        <div className="p-2 border-t border-border bg-muted/50">
+        <div className="p-2 border-t border-slate-100 bg-slate-50/70">
           <Button
             variant="ghost"
-            className="w-full text-sm font-medium text-primary hover:text-primary-hover hover:bg-powder"
+            size="sm"
+            className="w-full text-xs font-bold text-[#2C4B8A] hover:bg-slate-100 h-8 rounded-md transition-colors"
             onClick={() => {
               setOpen(false);
               if (onCloseSidebar) onCloseSidebar();
@@ -238,7 +249,7 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
               }
             }}
           >
-            View All
+            View all notifications
           </Button>
         </div>
       </DropdownMenuContent>

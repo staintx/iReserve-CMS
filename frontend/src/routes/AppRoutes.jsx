@@ -21,6 +21,7 @@ import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
 import CustomerEventDashboard from "../pages/customer/CustomerEventDashboard";
 import CustomerProfile from "../pages/customer/CustomerProfile";
 import CustomerNotifications from "../pages/customer/CustomerNotifications";
+import CustomerAgent from "../pages/customer/CustomerAgent";
 import Packages from "../pages/customer/Packages";
 import PackageDetails from "../pages/customer/PackageDetails";
 import Menu from "../pages/customer/Menu";
@@ -123,6 +124,7 @@ export default function AppRoutes() {
         {/* Booking & Quote (protected) */}
         <Route path="/customer/home" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
         <Route path="/customer/dashboard" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerDashboard /></ProtectedRoute>} />
+        <Route path="/customer/agent" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerAgent /></ProtectedRoute>} />
         <Route path="/customer/book" element={<ProtectedRoute allowedRoles={customerOnly}><BookingWizard /></ProtectedRoute>} />
         <Route path="/customer/booking-success" element={<ProtectedRoute allowedRoles={customerOnly}><BookingSuccess /></ProtectedRoute>} />
         {/* Completion state for a submitted inquiry, shared by the package

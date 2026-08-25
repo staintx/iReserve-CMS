@@ -22,7 +22,8 @@ import {
   Layers,
   History,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Minus
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -426,10 +427,10 @@ export default function ZelleAIPanel() {
       {isOpen ? (
         <div
           className={cn(
-            "fixed z-50 border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
+            "fixed z-50 border border-slate-200 shadow-2xl bg-white flex flex-col overflow-hidden transition-all duration-300 ease-out font-sans",
             isExpanded
-              ? "inset-4 sm:inset-10 rounded-3xl md:w-[900px] md:h-[800px] md:max-h-[85vh] md:m-auto"
-              : "right-4 sm:right-6 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-3xl origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+              ? "inset-4 sm:inset-10 rounded-md md:w-[880px] md:h-[760px] md:max-h-[85vh] md:m-auto"
+              : "right-4 sm:right-6 w-[92vw] max-w-95 sm:w-96 h-136 max-h-[84vh] rounded-md origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
           )}
           style={!isExpanded ? { bottom: "var(--chat-fab-bottom, 1.5rem)" } : {}}
         >
@@ -444,31 +445,33 @@ export default function ZelleAIPanel() {
               onNewConversation={() => { handleResetZelle(); setIsHistoryOpen(false); }}
             />
           )}
+
           {/* HEADER WITH TABS */}
-          <div className="bg-gradient-to-r from-[#1B366B] via-[#2C4B8A] to-[#1E3A73] text-white p-3.5 shadow-md relative flex flex-col gap-2.5">
+          <div className="bg-[#2C4B8A] text-white p-3.5 px-4 shadow-2xs relative flex flex-col gap-2.5 shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-2xs">
+                  <div className="w-8 h-8 rounded-md bg-white/15 backdrop-blur-xs flex items-center justify-center text-white border border-white/20 shadow-2xs">
                     {activeTab === "zelle" ? <Sparkles className="w-4 h-4 text-amber-300" /> : <Headphones className="w-4 h-4 text-white" />}
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#1B366B] rounded-full" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 border-2 border-[#2C4B8A] rounded-full" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-sm leading-snug text-white tracking-wide">
+                  <h3 className="font-sans font-bold text-sm leading-tight text-white">
                     {activeTab === "zelle" ? "Zelle AI Assistant" : "Caezelle Support Team"}
                   </h3>
-                  <p className="text-[10px] text-white/85 font-medium">
-                    {activeTab === "zelle" ? "Instant 24/7 AI Assistance" : "Event Coordinators • Replies in minutes"}
+                  <p className="text-[10px] text-white/80 font-normal mt-0.5">
+                    {activeTab === "zelle" ? "Instant 24/7 AI Concierge" : "Event Coordinators • Live Support"}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              {/* Header Action Buttons */}
+              <div className="flex items-center gap-0.5">
                 {activeTab === "zelle" && (
                   <button
                     onClick={handleResetZelle}
-                    className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
+                    className="text-white/80 hover:text-white p-1.5 rounded hover:bg-white/15 transition-colors cursor-pointer"
                     title="Restart conversation"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -477,7 +480,7 @@ export default function ZelleAIPanel() {
                 {user && activeTab === "zelle" && (
                   <button
                     onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                    className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
+                    className="text-white/80 hover:text-white p-1.5 rounded hover:bg-white/15 transition-colors cursor-pointer"
                     title="Previous Conversations"
                   >
                     <History className="w-3.5 h-3.5" />
@@ -485,16 +488,25 @@ export default function ZelleAIPanel() {
                 )}
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer hidden sm:block"
-                  aria-label={isExpanded ? "Minimize" : "Maximize"}
-                  title={isExpanded ? "Minimize" : "Maximize"}
+                  className="text-white/80 hover:text-white p-1.5 rounded hover:bg-white/15 transition-colors cursor-pointer hidden sm:block"
+                  aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                  title={isExpanded ? "Collapse" : "Expand"}
                 >
                   {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
+                  className="text-white/80 hover:text-white p-1.5 rounded hover:bg-white/15 transition-colors cursor-pointer"
+                  aria-label="Minimize chat"
+                  title="Minimize chat"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="text-white/80 hover:text-white p-1.5 rounded hover:bg-white/15 transition-colors cursor-pointer"
                   aria-label="Close chat"
+                  title="Close chat"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -502,14 +514,14 @@ export default function ZelleAIPanel() {
             </div>
 
             {/* TAB SELECTOR */}
-            <div className="flex items-center p-1 bg-black/25 rounded-xl border border-white/10 backdrop-blur-xs">
+            <div className="flex items-center p-0.5 bg-black/20 rounded-md border border-white/10">
               <button
                 type="button"
                 onClick={() => setActiveTab("zelle")}
                 className={cn(
-                  "flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                  "flex-1 py-1 text-xs font-semibold rounded transition-all flex items-center justify-center gap-1.5 cursor-pointer",
                   activeTab === "zelle"
-                    ? "bg-white text-[#1B366B] shadow-sm"
+                    ? "bg-white text-[#2C4B8A] shadow-2xs"
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 )}
               >
@@ -519,13 +531,13 @@ export default function ZelleAIPanel() {
                 type="button"
                 onClick={() => setActiveTab("support")}
                 className={cn(
-                  "flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                  "flex-1 py-1 text-xs font-semibold rounded transition-all flex items-center justify-center gap-1.5 cursor-pointer",
                   activeTab === "support"
-                    ? "bg-white text-[#1B366B] shadow-sm"
+                    ? "bg-white text-[#2C4B8A] shadow-2xs"
                     : "text-white/80 hover:text-white hover:bg-white/10"
                 )}
               >
-                <Headphones className={cn("w-3 h-3", activeTab === "support" ? "text-[#1B366B]" : "text-white/80")} /> Message Staff
+                <Headphones className={cn("w-3 h-3", activeTab === "support" ? "text-[#2C4B8A]" : "text-white/80")} /> Message Staff
               </button>
             </div>
           </div>
@@ -535,8 +547,8 @@ export default function ZelleAIPanel() {
           {/* ========================================================================= */}
           {activeTab === "zelle" && (
             <>
-              <ScrollArea className="flex-1 p-3.5 bg-muted/10">
-                <div className="space-y-3.5 pb-2">
+              <ScrollArea className="flex-1 p-3.5 bg-slate-50/50">
+                <div className="space-y-3 pb-2">
                   {zelleMessages.map((msg, index) => (
                     <ZelleMessage
                       key={index}
@@ -548,8 +560,8 @@ export default function ZelleAIPanel() {
 
                   {/* AI Typing Indicator */}
                   {isZelleLoading && (
-                    <div className="flex items-center gap-2 text-xs italic text-muted-foreground bg-card border border-border/80 px-3 py-1.5 rounded-2xl w-fit animate-pulse">
-                      <Sparkles className="w-3.5 h-3.5 text-primary animate-spin" />
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md w-fit shadow-2xs animate-pulse">
+                      <Sparkles className="w-3.5 h-3.5 text-[#2C4B8A] animate-spin" />
                       <span>Zelle is checking packages and data...</span>
                     </div>
                   )}
@@ -559,14 +571,14 @@ export default function ZelleAIPanel() {
               </ScrollArea>
 
               {/* QUICK SUGGESTIONS */}
-              <div className="p-2 bg-card/80 border-t border-border/60">
-                <div className="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
+              <div className="p-2.5 px-3 bg-white border-t border-slate-200/80 shrink-0">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
                   {ZELLE_SUGGESTIONS.map((suggestion, idx) => (
                     <button
                       key={idx}
                       onClick={() => handleSendZelle(suggestion)}
                       disabled={isZelleLoading}
-                      className="text-[11px] whitespace-nowrap bg-muted/80 hover:bg-muted text-foreground px-2.5 py-1 rounded-full border border-border/60 transition-colors font-medium shrink-0 cursor-pointer"
+                      className="text-[11px] whitespace-nowrap bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200/80 transition-colors font-medium shrink-0 cursor-pointer"
                     >
                       {suggestion}
                     </button>
@@ -575,7 +587,7 @@ export default function ZelleAIPanel() {
               </div>
 
               {/* INPUT BAR */}
-              <div className="p-3 bg-card border-t border-border">
+              <div className="p-3 bg-white border-t border-slate-200 shrink-0">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -588,15 +600,15 @@ export default function ZelleAIPanel() {
                     value={zelleDraft}
                     onChange={(e) => setZelleDraft(e.target.value)}
                     disabled={isZelleLoading}
-                    className="text-xs h-10 rounded-2xl border-input bg-background"
+                    className="text-xs h-9 rounded-md border-slate-200 bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400"
                   />
                   <Button
                     type="submit"
                     size="icon"
                     disabled={isZelleLoading || !zelleDraft.trim()}
-                    className="h-10 w-10 rounded-2xl shrink-0 bg-primary text-primary-foreground shadow-sm hover:scale-105 transition-transform"
+                    className="h-9 w-9 rounded-md shrink-0 bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-2xs cursor-pointer"
                   >
-                    <Send className="w-4 h-4" />
+                    <Send className="w-3.5 h-3.5" />
                   </Button>
                 </form>
               </div>
@@ -608,40 +620,40 @@ export default function ZelleAIPanel() {
           {/* ========================================================================= */}
           {activeTab === "support" && (
             <>
-              <ScrollArea className="flex-1 p-4 bg-muted/10">
+              <ScrollArea className="flex-1 p-3.5 bg-slate-50/50">
                 {!user ? (
                   <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4 my-auto py-12">
-                    <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                      <User className="w-7 h-7" />
+                    <div className="w-12 h-12 rounded-md bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center">
+                      <User className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-serif font-bold text-base text-foreground">Sign in to message our team</h4>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <h4 className="font-sans font-bold text-sm text-slate-900">Sign in to message our team</h4>
+                      <p className="text-xs text-slate-500 mt-1">
                         Sign in to message our staff coordinators directly and track custom quotes.
                       </p>
                     </div>
                     <div className="flex items-center gap-2 w-full pt-2">
-                      <Button onClick={() => navigate("/login")} size="sm" className="flex-1 text-xs">
+                      <Button onClick={() => navigate("/login")} size="sm" className="flex-1 text-xs h-8 rounded-md bg-[#2C4B8A] hover:bg-[#1E3563] text-white">
                         <LogIn className="w-3.5 h-3.5 mr-1" /> Log In
                       </Button>
-                      <Button onClick={() => navigate("/signup")} variant="outline" size="sm" className="flex-1 text-xs">
+                      <Button onClick={() => navigate("/signup")} variant="outline" size="sm" className="flex-1 text-xs h-8 rounded-md border-slate-200">
                         Sign Up
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4 pb-2">
+                  <div className="space-y-3 pb-2">
                     <div className="flex items-start gap-2">
-                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] shrink-0">
+                      <div className="w-7 h-7 rounded-md bg-[#2C4B8A]/10 text-[#2C4B8A] font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
                         CS
                       </div>
-                      <div className="bg-card border border-border/80 text-foreground px-3.5 py-2.5 rounded-2xl rounded-bl-xs text-xs shadow-2xs max-w-[85%] leading-relaxed">
+                      <div className="bg-white border border-slate-200 text-slate-800 px-3.5 py-2.5 rounded-md text-xs shadow-2xs max-w-[85%] leading-relaxed">
                         Hello! Welcome to Caezelle's Catering Support. How can our team help you today?
                       </div>
                     </div>
 
                     {isSupportLoading && (
-                      <div className="text-center text-[11px] text-muted-foreground py-4 animate-pulse">
+                      <div className="text-center text-[11px] text-slate-400 py-4 animate-pulse">
                         Loading messages...
                       </div>
                     )}
@@ -651,26 +663,26 @@ export default function ZelleAIPanel() {
                       return (
                         <div key={msg._id} className={cn("flex items-end gap-2", isMe ? "justify-end" : "justify-start")}>
                           {!isMe && (
-                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px] shrink-0">
+                            <div className="w-7 h-7 rounded-md bg-[#2C4B8A]/10 text-[#2C4B8A] font-bold flex items-center justify-center text-[10px] shrink-0 mb-1">
                               CS
                             </div>
                           )}
                           <div className={cn("flex flex-col max-w-[82%]", isMe ? "items-end" : "items-start")}>
                             <div
                               className={cn(
-                                "px-3.5 py-2.5 rounded-2xl text-xs whitespace-pre-wrap break-words shadow-2xs leading-relaxed",
+                                "px-3.5 py-2.5 rounded-md text-xs whitespace-pre-wrap break-words shadow-2xs leading-relaxed",
                                 isMe
-                                  ? "bg-primary text-primary-foreground rounded-br-xs"
-                                  : "bg-card border border-border text-foreground rounded-bl-xs"
+                                  ? "bg-[#2C4B8A] text-white"
+                                  : "bg-white border border-slate-200 text-slate-800"
                               )}
                             >
                               {msg.body}
                             </div>
-                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1 px-1">
+                            <div className="flex items-center gap-1 text-[9px] text-slate-400 mt-1 px-1">
                               <span>
                                 {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}
                               </span>
-                              {isMe && <CheckCheck className="w-3 h-3 text-primary opacity-80" />}
+                              {isMe && <CheckCheck className="w-3 h-3 text-[#2C4B8A]" />}
                             </div>
                           </div>
                         </div>
@@ -683,7 +695,7 @@ export default function ZelleAIPanel() {
               </ScrollArea>
 
               {user && (
-                <div className="p-3 bg-card border-t border-border">
+                <div className="p-3 bg-white border-t border-slate-200 shrink-0">
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -696,15 +708,15 @@ export default function ZelleAIPanel() {
                       value={supportDraft}
                       onChange={(e) => setSupportDraft(e.target.value)}
                       disabled={isSupportSending}
-                      className="text-xs h-10 rounded-2xl border-input bg-background"
+                      className="text-xs h-9 rounded-md border-slate-200 bg-slate-50 focus:bg-white text-slate-900 placeholder:text-slate-400"
                     />
                     <Button
                       type="submit"
                       size="icon"
                       disabled={isSupportSending || !supportDraft.trim()}
-                      className="h-10 w-10 rounded-2xl shrink-0 bg-primary text-primary-foreground shadow-sm"
+                      className="h-9 w-9 rounded-md shrink-0 bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-2xs cursor-pointer"
                     >
-                      <Send className="w-4 h-4" />
+                      <Send className="w-3.5 h-3.5" />
                     </Button>
                   </form>
                 </div>

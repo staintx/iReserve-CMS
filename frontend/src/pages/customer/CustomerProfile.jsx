@@ -3,13 +3,13 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import useAuth from "../../hooks/useAuth";
-import { User, Mail, Phone, MapPin, Lock, ShieldCheck, CreditCard, Save, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Phone, MapPin, Lock, Save, Eye, EyeOff } from "lucide-react";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import { describePasswordGap } from "../../components/auth/passwordPolicy";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function CustomerProfile() {
   const { user, updateUser } = useAuth();
@@ -52,7 +52,8 @@ export default function CustomerProfile() {
         email: form.email,
         username: form.username,
         phone: form.phone,
-        address: form.address
+        address: form.address,
+        alt_phone: form.alt_phone
       });
       if (res.data) {
         updateUser(res.data);
@@ -73,7 +74,6 @@ export default function CustomerProfile() {
     if (security.next !== security.confirm) {
       return notify("Your passwords don't match yet.", "error");
     }
-    // Same policy the sign-up and reset screens enforce.
     const passwordGap = describePasswordGap(security.next);
     if (passwordGap) {
       return notify(passwordGap, "error");
@@ -95,200 +95,195 @@ export default function CustomerProfile() {
   };
 
   return (
-    <CustomerDashboardLayout
-      title="Profile Settings"
-      subtitle="Manage your account information and preferences"
-    >
-      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
-        {/* Left Column: Personal Info */}
-        <div className="flex-1 space-y-8">
+    <CustomerDashboardLayout fullBleed>
+      <div className="h-[calc(100vh-3.5rem)] w-full bg-slate-50/50 flex flex-col font-sans antialiased overflow-hidden">
+        {/* Top Header Bar */}
+        <div className="shrink-0 border-b border-slate-200 bg-white px-5 sm:px-6 py-3.5">
+          <h1 className="font-sans font-bold text-base text-slate-900 leading-tight">
+            Profile Settings
+          </h1>
+          <p className="text-xs text-slate-500">
+            Manage your personal information, contact details, and account security
+          </p>
+        </div>
 
-          {/* Personal Settings Card */}
-          <Card className="border-slate-200 bg-white shadow-2xs overflow-hidden">
-            <CardHeader className="border-b border-slate-100 bg-slate-50/70 pb-5 flex flex-row items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-[#2C4B8A]/10 flex items-center justify-center text-[#2C4B8A] shrink-0">
-                <User className="w-5 h-5" />
+        {/* Content Body (Single-Page Viewport) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex items-start justify-center [scrollbar-width:thin]">
+          <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Left Column: Personal Info (7 cols on lg) */}
+            <div className="lg:col-span-7 bg-white border border-slate-200 rounded-md shadow-2xs overflow-hidden">
+              <div className="p-3.5 px-4 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded bg-[#2C4B8A]/10 flex items-center justify-center text-[#2C4B8A] shrink-0">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-bold text-slate-900 leading-tight font-sans">
+                    Personal Details
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Update your public name and primary contact details
+                  </p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-lg font-bold font-sans text-slate-900">Personal Details</CardTitle>
-                <CardDescription className="text-xs text-slate-500">Update your public profile and contact information</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <form onSubmit={save} className="p-6 sm:p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                      <User className="w-3.5 h-3.5 text-slate-400" /> Full Name
+
+              <form onSubmit={save} className="p-4 sm:p-5 space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Full Name
                     </Label>
                     <Input
                       placeholder="e.g. Jane Doe"
                       value={form.full_name || ""}
                       onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900"
+                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                      <User className="w-3.5 h-3.5 text-slate-400" /> Username
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Username
                     </Label>
                     <Input
                       placeholder="e.g. janedoe99"
                       value={form.username || ""}
                       onChange={(e) => setForm({ ...form, username: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900"
+                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
+                </div>
 
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                      <Mail className="w-3.5 h-3.5 text-slate-400" /> Email Address
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Email Address
                     </Label>
                     <Input
                       placeholder="jane@example.com"
                       type="email"
                       value={form.email || ""}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900"
+                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" /> Phone Number
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Primary Phone
                     </Label>
                     <Input
-                      placeholder="+1 (555) 000-0000"
+                      placeholder="+63 900 000 0000"
                       value={form.phone || ""}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                      <Phone className="w-3.5 h-3.5 text-slate-400" /> Alternative Phone
-                    </Label>
-                    <Input
-                      placeholder="+1 (555) 111-1111"
-                      value={form.alt_phone || ""}
-                      onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
-                      className="bg-white border-slate-200 text-xs text-slate-900"
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Address
-                    </Label>
-                    <textarea
-                      className="flex min-h-[90px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]/20 focus-visible:border-[#2C4B8A] resize-y"
-                      placeholder="123 Main St, City, Country"
-                      value={form.address || ""}
-                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-end">
-                  <Button type="submit" disabled={isLoading} className="bg-[#2C4B8A] hover:bg-[#203766] text-white font-semibold text-xs rounded-lg">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">
+                    Alternative Phone
+                  </Label>
+                  <Input
+                    placeholder="+63 900 111 2222"
+                    value={form.alt_phone || ""}
+                    onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
+                    className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-slate-700">
+                    Default Event &amp; Delivery Address
+                  </Label>
+                  <textarea
+                    className="flex min-h-[64px] h-[64px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2C4B8A] focus-visible:border-[#2C4B8A] resize-none"
+                    placeholder="Street, Barangay, City, Province, Zip Code"
+                    value={form.address || ""}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  />
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md h-8 px-4 cursor-pointer shadow-2xs"
+                  >
                     <Save className="w-3.5 h-3.5 mr-1.5" />
-                    {isLoading ? "Saving Details..." : "Save Details"}
+                    {isLoading ? "Saving..." : "Save Details"}
                   </Button>
                 </div>
               </form>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        {/* Right Column: Security */}
-        <div className="w-full lg:w-[400px] space-y-8">
-
-          {/* Security Card */}
-          <Card className="border-slate-200 bg-white shadow-2xs overflow-hidden">
-            <CardHeader className="border-b border-slate-100 bg-slate-50/70 pb-5 flex flex-row items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-bold font-sans text-slate-900">Security</CardTitle>
-                <CardDescription className="text-xs text-slate-500">Update your account password</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <form onSubmit={savePassword} className="p-6 sm:p-8 space-y-5">
-                {[
-                  { key: "current", label: "Current Password", placeholder: "Enter current password", autoComplete: "current-password" },
-                  { key: "next", label: "New Password", placeholder: "Choose a new password", autoComplete: "new-password" },
-                  { key: "confirm", label: "Confirm Password", placeholder: "Repeat new password", autoComplete: "new-password" }
-                ].map((field) => (
-                  <div key={field.key} className="space-y-2">
-                    <Label htmlFor={`profile-${field.key}`} className="flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-muted-foreground" /> {field.label}
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id={`profile-${field.key}`}
-                        className="pr-11"
-                        placeholder={field.placeholder}
-                        type={visible[field.key] ? "text" : "password"}
-                        autoComplete={field.autoComplete}
-                        value={security[field.key]}
-                        onChange={(e) => setSecurity({ ...security, [field.key]: e.target.value })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setVisible((v) => ({ ...v, [field.key]: !v[field.key] }))}
-                        aria-label={visible[field.key] ? `Hide ${field.label.toLowerCase()}` : `Show ${field.label.toLowerCase()}`}
-                        aria-pressed={visible[field.key]}
-                        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      >
-                        {visible[field.key] ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
-                      </button>
-                    </div>
-                    {field.key === "next" && security.next && (
-                      <PasswordRequirements value={security.next} className="pt-1" />
-                    )}
-                  </div>
-                ))}
-
-                <div className="pt-4">
-                  <Button type="submit" disabled={isSecurityLoading} className="w-full bg-rose-600 hover:bg-rose-700 text-white" size="lg">
-                    <Lock className="w-4 h-4 mr-2" />
-                    {isSecurityLoading ? "Updating..." : "Update Password"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Payment Methods Card */}
-          <Card className="border-slate-200 bg-white shadow-2xs overflow-hidden">
-            <CardHeader className="border-b border-slate-100 bg-slate-50/70 pb-5 flex flex-row items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-bold font-sans text-slate-900">Payment Methods</CardTitle>
-                <CardDescription className="text-xs text-slate-500">Saved payment methods and receipts</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-white">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-6 bg-slate-100 rounded border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-700 tracking-wider">
-                    GCash
+            {/* Right Column: Security & Credentials (5 cols on lg) */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Security Card */}
+              <div className="bg-white border border-slate-200 rounded-md shadow-2xs overflow-hidden">
+                <div className="p-3.5 px-4 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded bg-[#2C4B8A]/10 flex items-center justify-center text-[#2C4B8A] shrink-0">
+                    <Lock className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-slate-900">Digital Payment & Bank Transfer</div>
-                    <div className="text-[11px] text-slate-500">Supported for all bookings</div>
+                    <h2 className="text-xs font-bold text-slate-900 leading-tight font-sans">
+                      Security &amp; Password
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Update your account password
+                    </p>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
+                <form onSubmit={savePassword} className="p-4 sm:p-5 space-y-3">
+                  {[
+                    { key: "current", label: "Current Password", placeholder: "Enter current password", autoComplete: "current-password" },
+                    { key: "next", label: "New Password", placeholder: "Choose a new password", autoComplete: "new-password" },
+                    { key: "confirm", label: "Confirm Password", placeholder: "Repeat new password", autoComplete: "new-password" }
+                  ].map((field) => (
+                    <div key={field.key} className="space-y-1">
+                      <Label htmlFor={`profile-${field.key}`} className="text-[11px] font-semibold text-slate-700">
+                        {field.label}
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id={`profile-${field.key}`}
+                          className="pr-9 bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
+                          placeholder={field.placeholder}
+                          type={visible[field.key] ? "text" : "password"}
+                          autoComplete={field.autoComplete}
+                          value={security[field.key]}
+                          onChange={(e) => setSecurity({ ...security, [field.key]: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setVisible((v) => ({ ...v, [field.key]: !v[field.key] }))}
+                          aria-label={visible[field.key] ? `Hide ${field.label.toLowerCase()}` : `Show ${field.label.toLowerCase()}`}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:text-slate-700 cursor-pointer"
+                        >
+                          {visible[field.key] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      {field.key === "next" && security.next && (
+                        <PasswordRequirements value={security.next} className="pt-1" />
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="pt-2 border-t border-slate-100">
+                    <Button
+                      type="submit"
+                      disabled={isSecurityLoading}
+                      className="w-full bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md h-8.5 cursor-pointer shadow-2xs"
+                    >
+                      <Lock className="w-3.5 h-3.5 mr-1.5" />
+                      {isSecurityLoading ? "Updating..." : "Update Password"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </CustomerDashboardLayout>

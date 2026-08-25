@@ -264,50 +264,50 @@ export function ToolExecutionStepper({ toolExecutions, isExpandedDefault = false
   };
 
   return (
-    <div className="my-2 p-3 rounded-2xl bg-card border border-border/70 shadow-2xs transition-all max-w-lg">
-      {/* Header with multi-colored ring (Photo style) */}
+    <div className="my-2 p-3 rounded-md bg-slate-50 border border-slate-200 shadow-2xs transition-all max-w-lg">
+      {/* Header */}
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-amber-400 border-r-blue-500 border-b-primary flex items-center justify-center shrink-0">
+          <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-amber-400 border-r-blue-500 border-b-[#2C4B8A] flex items-center justify-center shrink-0">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
-          <span className="font-semibold text-xs text-foreground truncate">
+          <span className="font-semibold text-xs text-slate-800 truncate">
             Completed {toolExecutions.length} {toolExecutions.length === 1 ? "step" : "steps"} across catering database
           </span>
         </div>
 
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+        <div className="flex items-center gap-1 text-[10px] text-slate-400 shrink-0">
           <span>{isExpanded ? "Hide" : "Details"}</span>
           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </div>
       </button>
 
-      {/* Expanded Vertical Stepper (Photo 5 style) */}
+      {/* Expanded Vertical Stepper */}
       {isExpanded && (
-        <div className="mt-3 pt-3 border-t border-border/40 space-y-2.5 animate-in fade-in duration-150">
+        <div className="mt-2.5 pt-2.5 border-t border-slate-200 space-y-2 animate-in fade-in duration-150">
           {toolExecutions.map((tool, idx) => {
             const meta = toolLabels[tool] || { title: `Executed ${tool}`, desc: "Retrieved system records" };
             return (
               <div key={idx} className="flex items-start justify-between gap-3 text-xs">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                <div className="flex items-start gap-2 min-w-0">
+                  <div className="w-5 h-5 rounded bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
                     {idx + 1}
                   </div>
                   <div className="min-w-0">
-                    <span className="font-semibold text-foreground text-[11px] block truncate">
+                    <span className="font-semibold text-slate-800 text-[11px] block truncate">
                       {meta.title}
                     </span>
-                    <span className="text-[10px] text-muted-foreground block truncate">
+                    <span className="text-[10px] text-slate-500 block truncate">
                       {meta.desc}
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold shrink-0">
+                <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-semibold shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Done</span>
                 </div>
@@ -334,37 +334,37 @@ export default function ZelleMessage({
   return (
     <div
       className={cn(
-        "flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-200",
+        "flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-1 duration-200 font-sans",
         isMe ? "justify-end" : "justify-start"
       )}
     >
       {!isMe && (
-        <div className="w-7 h-7 rounded-2xl bg-gradient-to-tr from-primary to-blue-600 text-white flex items-center justify-center shadow-2xs shrink-0 mt-0.5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+        <div className="w-7 h-7 rounded-md bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shadow-2xs shrink-0 mt-0.5">
+          <Sparkles className="w-3.5 h-3.5 text-[#2C4B8A]" />
         </div>
       )}
 
       <div className={cn("flex flex-col max-w-[88%]", isMe ? "items-end" : "items-start")}>
-        {/* User Bubble (Royal Blue Pill matching photo) */}
+        {/* User Bubble */}
         {isMe ? (
-          <div className="px-4 py-2.5 rounded-full bg-blue-600 text-white text-xs font-medium shadow-2xs">
+          <div className="px-3.5 py-2 rounded-md bg-[#2C4B8A] text-white text-xs font-medium shadow-2xs leading-relaxed">
             {message.text}
           </div>
         ) : (
           /* AI Response Container */
           <div className="w-full space-y-2">
-            {/* Multi-step execution stepper (Photo style) */}
+            {/* Multi-step execution stepper */}
             {message.tool_executions?.length > 0 && (
               <ToolExecutionStepper toolExecutions={message.tool_executions} />
             )}
 
             {/* Markdown Body */}
-            <div className="p-4 rounded-3xl bg-card border border-border/80 text-foreground shadow-2xs w-full">
+            <div className="p-3.5 rounded-md bg-white border border-slate-200 text-slate-800 shadow-2xs w-full text-xs leading-relaxed">
               <RichMarkdownRenderer text={message.text} />
 
               {/* Generative UI Cards */}
               {Array.isArray(message.ui_cards) && message.ui_cards.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-border/40 space-y-3">
+                <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
                   {message.ui_cards.map((card, cIdx) => {
                     if (card.type === "package_carousel") {
                       return (
@@ -398,7 +398,7 @@ export default function ZelleMessage({
           </div>
         )}
 
-        <span className="text-[9px] text-muted-foreground mt-1 px-1">
+        <span className="text-[9px] text-slate-400 mt-1 px-1">
           {message.timestamp
             ? new Date(message.timestamp).toLocaleTimeString([], {
                 hour: "2-digit",

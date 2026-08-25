@@ -1,19 +1,19 @@
 import { cn } from "@/lib/utils";
 
-/** Titled content panel — the standard section container for the portal. */
+/** Clean operational section card container for the portal */
 export default function PortalSection({ title, description, action, children, className, bodyClassName }) {
   return (
-    <section className={cn("rounded-xl border border-border bg-card", className)}>
+    <section className={cn("rounded-md border border-slate-200 bg-white shadow-2xs", className)}>
       {(title || action) && (
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3.5 sm:px-5">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100/80 px-5 py-4 sm:px-6">
           <div className="min-w-0">
-            {title && <h2 className="font-sans text-base font-semibold text-foreground">{title}</h2>}
-            {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+            {title && <h2 className="font-sans text-base font-bold text-slate-900 tracking-tight">{title}</h2>}
+            {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
           </div>
           {action}
         </header>
       )}
-      <div className={cn("p-4 sm:p-5", bodyClassName)}>{children}</div>
+      <div className={cn("p-5 sm:p-6", bodyClassName)}>{children}</div>
     </section>
   );
 }

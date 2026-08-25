@@ -19,20 +19,20 @@ export default function AmountSummary({ rows = [], headline, action, className }
   const visible = rows.filter(Boolean);
 
   return (
-    <div className={cn("overflow-hidden rounded-xl border border-border bg-card", className)}>
+    <div className={cn("overflow-hidden rounded-lg border border-border bg-card shadow-2xs", className)}>
       {visible.length > 0 && (
         <dl className="divide-y divide-border">
           {visible.map((row) => (
-            <div key={row.label} className="flex items-baseline justify-between gap-4 px-4 py-3 sm:px-5">
+            <div key={row.label} className="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-4.5">
               <dt className="min-w-0">
-                <span className={cn("text-sm", row.strong ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                <span className={cn("text-xs sm:text-sm", row.strong ? "font-semibold text-foreground" : "text-muted-foreground")}>
                   {row.label}
                 </span>
-                {row.hint && <span className="mt-0.5 block text-xs text-muted-foreground">{row.hint}</span>}
+                {row.hint && <span className="mt-0.5 block text-[11px] text-muted-foreground">{row.hint}</span>}
               </dt>
               <dd
                 className={cn(
-                  "shrink-0 font-sans text-sm tabular-nums",
+                  "shrink-0 font-sans text-xs sm:text-sm tabular-nums",
                   row.strong ? "font-semibold" : "font-medium",
                   TONE_TEXT[row.tone] || "text-foreground"
                 )}
@@ -48,16 +48,16 @@ export default function AmountSummary({ rows = [], headline, action, className }
       {headline && (
         <div
           className={cn(
-            "flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5 sm:px-5",
+            "flex flex-col gap-2.5 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4.5",
             TONE_NOTICE[headline.tone] || TONE_NOTICE.neutral
           )}
         >
           <div className="min-w-0">
-            <div className="text-sm font-semibold">{headline.label}</div>
-            {headline.hint && <div className="mt-0.5 text-xs opacity-90">{headline.hint}</div>}
+            <div className="text-xs sm:text-sm font-semibold">{headline.label}</div>
+            {headline.hint && <div className="mt-0.5 text-[11px] opacity-90">{headline.hint}</div>}
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <span className="font-sans text-2xl font-bold tabular-nums leading-none">{headline.value}</span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <span className="font-sans text-xl font-bold tabular-nums leading-none">{headline.value}</span>
             {action}
           </div>
         </div>

@@ -637,48 +637,48 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
     : (activeCustomer?.full_name || activeCustomer?.email || "Customer");
 
   return (
-    <div className="h-[calc(100vh-160px)] min-h-140 bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col md:flex-row">
+    <div className="h-[calc(100vh-3.5rem)] w-full bg-white flex flex-col md:flex-row font-sans antialiased overflow-hidden">
       {/* LEFT PANE: Thread List */}
       <div className={cn(
-        "w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card shrink-0 transition-all",
+        "w-full md:w-80 lg:w-88 border-r border-slate-200 flex flex-col bg-white shrink-0 transition-all",
         activeId ? "hidden md:flex" : "flex"
       )}>
-        <div className="p-4 border-b border-border space-y-3 bg-muted/20">
+        <div className="p-3.5 px-4 border-b border-slate-200 space-y-2.5 bg-white">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif font-bold text-lg text-foreground flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-primary" />
-              Inbox Hub
+            <h2 className="font-sans font-bold text-sm text-slate-900 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-[#2C4B8A]" />
+              Inbox
             </h2>
-            <Badge variant="outline" className="font-mono text-xs font-semibold">
+            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
               {threads.length} {threads.length === 1 ? "chat" : "chats"}
-            </Badge>
+            </span>
           </div>
 
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-background h-9 text-xs rounded-xl"
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-100/80 focus:bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200 outline-none transition-all"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-1 bg-muted p-1 rounded-xl text-xs font-medium overflow-x-auto">
+          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-md border border-slate-200/60 text-xs font-medium overflow-x-auto [scrollbar-width:none]">
             {["all", "event", "inquiry", "support"].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "flex-1 py-1 px-2.5 rounded-lg capitalize transition-all whitespace-nowrap text-center",
+                  "flex-1 py-1 px-2.5 rounded text-[11px] capitalize transition-colors whitespace-nowrap text-center cursor-pointer",
                   activeTab === tab 
-                    ? "bg-card text-foreground font-semibold shadow-xs" 
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-white text-slate-900 font-bold shadow-2xs" 
+                    : "text-slate-600 hover:text-slate-900"
                 )}
               >
                 {tab}
@@ -687,16 +687,16 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 divide-y divide-border">
+        <ScrollArea className="flex-1 divide-y divide-slate-100">
           {isLoadingThreads && (
-            <div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Loading conversations...</div>
+            <div className="p-8 text-center text-xs text-slate-400 animate-pulse">Loading conversations...</div>
           )}
 
           {!isLoadingThreads && filteredThreads.length === 0 && (
-            <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
+            <div className="p-8 text-center text-slate-400 flex flex-col items-center">
               <MessageSquare className="w-8 h-8 opacity-30 mb-2" />
-              <p className="text-sm font-medium">No conversations found</p>
-              <p className="text-xs text-muted-foreground mt-1">Try resetting your search filter.</p>
+              <p className="text-xs font-semibold text-slate-700">No conversations found</p>
+              <p className="text-[11px] text-slate-400 mt-1">Try resetting your search filter.</p>
             </div>
           )}
 
@@ -713,37 +713,39 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 key={thread._id}
                 onClick={() => selectThread(thread._id)}
                 className={cn(
-                  "p-3.5 flex items-start gap-3 cursor-pointer transition-all hover:bg-muted/40 relative group",
-                  isSelected ? "bg-primary/5 border-l-4 border-primary" : "",
-                  isUnread ? "bg-accent/5 font-semibold" : ""
+                  "p-3 px-4 flex items-start gap-3 cursor-pointer transition-colors border-b border-slate-100 relative group",
+                  isSelected 
+                    ? "bg-slate-100/90 border-l-2 border-[#2C4B8A] text-slate-900" 
+                    : "hover:bg-slate-50 text-slate-700",
+                  isUnread && "font-semibold"
                 )}
               >
-                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0 mt-0.5 shadow-2xs">
+                <div className="w-8 h-8 rounded-full bg-[#2C4B8A]/10 text-[#2C4B8A] border border-[#2C4B8A]/20 font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">
                   {getInitials(avatarName)}
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="font-bold text-xs text-foreground truncate">{title}</span>
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                    <span className="font-bold text-xs text-slate-900 truncate">{title}</span>
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap">
                       {formatTime(thread.last_message_at || thread.updatedAt)}
                     </span>
                   </div>
 
-                  <div className="text-xs text-muted-foreground truncate mt-0.5">
+                  <div className="text-[11px] text-slate-500 truncate mt-0.5">
                     {subtitle}
                   </div>
 
-                  <p className="text-xs text-muted-foreground/80 truncate mt-1">
+                  <p className="text-xs text-slate-500 truncate mt-1">
                     {thread.last_message || "No messages yet"}
                   </p>
 
-                  <div className="flex items-center justify-between mt-2 pt-1 border-t border-border/50">
-                    <Badge variant={badge.type === "event" ? "default" : badge.type === "inquiry" ? "secondary" : "outline"} className="text-[10px] py-0 px-1.5 font-mono">
+                  <div className="flex items-center justify-between mt-2 pt-1">
+                    <span className="text-[10px] py-0.5 px-1.5 font-mono rounded bg-slate-100 text-slate-600 border border-slate-200/80 font-semibold">
                       {badge.text}
-                    </Badge>
+                    </span>
                     {isUnread && (
-                      <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-[#2C4B8A]" />
                     )}
                   </div>
                 </div>
@@ -755,28 +757,28 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
       {/* MIDDLE PANE: Active Chat feed */}
       {activeId ? (
-        <div className="flex-1 flex flex-col min-w-0 bg-background">
+        <div className="flex-1 flex flex-col min-w-0 bg-white">
           {/* Header */}
-          <div className="p-3.5 px-4 border-b border-border bg-card flex items-center justify-between gap-3 shadow-2xs">
+          <div className="h-14 px-5 border-b border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => { setActiveId(null); navigate(basePath); }}
-                className="md:hidden text-muted-foreground h-8 w-8"
+                className="md:hidden text-slate-500 h-8 w-8 -ml-2"
               >
                 <ChevronRight className="w-5 h-5 rotate-180" />
               </Button>
 
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+              <div className="w-8 h-8 rounded-full bg-[#2C4B8A]/10 text-[#2C4B8A] border border-[#2C4B8A]/20 font-bold flex items-center justify-center text-xs shrink-0">
                 {getInitials(chatHeaderAvatarName)}
               </div>
 
               <div className="min-w-0">
-                <h3 className="font-bold text-sm text-foreground truncate leading-tight">
+                <h3 className="font-bold text-sm text-slate-900 truncate leading-tight font-sans">
                   {getConversationTitle(activeConversation, user)}
                 </h3>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                   <span className="truncate">{chatHeaderSubtitle}</span>
                   {!isCustomerRole && activeCustomer?.phone && <span>· {activeCustomer.phone}</span>}
                 </div>
@@ -788,9 +790,9 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowDetailsPane(!showDetailsPane)}
-                className="hidden lg:flex gap-1.5 text-xs h-8"
+                className="hidden lg:flex gap-1.5 text-xs h-8 rounded-md border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer shadow-2xs"
               >
-                <Info className="w-3.5 h-3.5" />
+                <Info className="w-3.5 h-3.5 text-slate-500" />
                 {showDetailsPane ? "Hide Info" : "View Context"}
               </Button>
             </div>
@@ -798,43 +800,43 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
           {/* Customer Top Booking Banner Context */}
           {isCustomerRole && activeBooking && (
-            <div className="bg-primary/5 border-b border-primary/15 px-4 py-2.5 flex items-center justify-between gap-2">
+            <div className="bg-slate-50 border-b border-slate-200/80 px-5 py-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs min-w-0">
-                <Calendar className="w-4 h-4 text-primary shrink-0" />
-                <span className="font-medium text-foreground truncate">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span className="font-semibold text-slate-900 truncate">
                   {activeBooking.event_type} — {activeBooking.event_date ? new Date(activeBooking.event_date).toLocaleDateString(undefined, { dateStyle: "medium" }) : "Upcoming Event"}
                 </span>
-                <Badge variant="outline" className="text-[10px] uppercase font-mono shrink-0">
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 font-semibold shrink-0">
                   {activeBooking.status}
-                </Badge>
+                </span>
               </div>
               <Button
                 variant="ghost"
                 size="xs"
                 onClick={() => navigate(`/customer/bookings/${activeBooking._id}`)}
-                className="text-primary text-xs shrink-0 gap-1 hover:bg-primary/10"
+                className="text-[#2C4B8A] text-xs font-semibold shrink-0 gap-1 hover:bg-slate-100 cursor-pointer"
               >
-                Booking Details <ExternalLink className="w-3.5 h-3.5" />
+                Booking Details <ExternalLink className="w-3 h-3" />
               </Button>
             </div>
           )}
 
           {/* Messages Stream */}
-          <ScrollArea className="flex-1 p-4 bg-muted/10">
-            <div className="space-y-6 max-w-3xl mx-auto pb-4">
+          <ScrollArea className="flex-1 p-5 sm:p-6 bg-white">
+            <div className="space-y-5 max-w-3xl mx-auto pb-4">
               {isLoadingMessages && (
-                <div className="text-center text-xs text-muted-foreground py-8 animate-pulse">
+                <div className="text-center text-xs text-slate-400 py-8 animate-pulse">
                   Loading chat history...
                 </div>
               )}
 
               {!isLoadingMessages && messages.length === 0 && (
                 <div className="text-center py-12 flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
-                    <Sparkles className="w-6 h-6" />
+                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mb-3">
+                    <Sparkles className="w-5 h-5" />
                   </div>
-                  <p className="font-serif font-bold text-base text-foreground">Start the Conversation</p>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  <p className="font-sans font-bold text-sm text-slate-900">Start the Conversation</p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs">
                     Type a message below to communicate directly with your team.
                   </p>
                 </div>
@@ -844,7 +846,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 <div key={gIdx} className="space-y-4">
                   {/* Date Divider */}
                   <div className="flex items-center justify-center my-4">
-                    <span className="text-[11px] font-semibold text-muted-foreground bg-card border border-border px-3 py-1 rounded-full shadow-2xs">
+                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md">
                       {group.dateHeader}
                     </span>
                   </div>
@@ -860,38 +862,38 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                         className={cn("flex items-end gap-2.5 group", isMe ? "justify-end" : "justify-start")}
                       >
                         {!isMe && (
-                          <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-xs shrink-0 border border-slate-200/60 mb-1">
                             {getInitials(senderName)}
                           </div>
                         )}
 
                         <div className={cn("flex flex-col max-w-[78%]", isMe ? "items-end" : "items-start")}>
                           {!isMe && (
-                            <span className="text-[11px] font-semibold text-muted-foreground mb-1 ml-1 capitalize">
+                            <span className="text-[11px] font-semibold text-slate-500 mb-1 ml-0.5 capitalize">
                               {senderName} ({senderRole === "admin" ? "Support" : senderRole})
                             </span>
                           )}
 
                           <div
                             className={cn(
-                              "px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap wrap-break-word shadow-2xs leading-relaxed",
+                              "px-4 py-2.5 rounded-md text-xs sm:text-sm whitespace-pre-wrap wrap-break-word leading-relaxed",
                               isMe
-                                ? "bg-primary text-primary-foreground rounded-br-xs font-normal"
-                                : "bg-card border border-border text-foreground rounded-bl-xs font-normal"
+                                ? "bg-[#2C4B8A] text-white shadow-2xs font-normal"
+                                : "bg-slate-100 border border-slate-200/60 text-slate-900 shadow-2xs font-normal"
                             )}
                           >
                             {msg.body}
 
                             {/* Attachments */}
                             {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
-                              <div className="mt-2.5 space-y-1 border-t border-border/30 pt-2">
+                              <div className="mt-2.5 space-y-1 border-t border-slate-200/40 pt-2">
                                 {msg.attachments.map((att, aIdx) => (
                                   <a
                                     key={aIdx}
                                     href={att.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center gap-2 p-2 rounded-lg bg-background/20 hover:bg-background/40 transition text-xs font-medium underline truncate"
+                                    className="flex items-center gap-2 p-2 rounded bg-white/20 hover:bg-white/40 transition text-xs font-medium underline truncate"
                                   >
                                     <Paperclip className="w-3.5 h-3.5 shrink-0" />
                                     <span className="truncate">{att.fileName || att.url}</span>
@@ -902,10 +904,10 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-1 px-1">
+                          <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1 px-0.5">
                             <span>{formatTime(msg.createdAt)}</span>
                             {isMe && (
-                              <CheckCheck className="w-3.5 h-3.5 text-primary opacity-80" />
+                              <CheckCheck className="w-3.5 h-3.5 text-slate-400" />
                             )}
                           </div>
                         </div>
@@ -917,12 +919,12 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
               {/* Typing indicator */}
               {typingUsers.length > 0 && (
-                <div className="flex items-center gap-2 text-xs italic text-muted-foreground bg-card border border-border px-3 py-1.5 rounded-full w-fit">
+                <div className="flex items-center gap-2 text-xs italic text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-md w-fit">
                   <span>{typingUsers.map((u) => u.name).join(", ")} is typing</span>
                   <span className="flex gap-1">
-                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <span className="w-1.5 h-1.5 bg-[#2C4B8A]/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 bg-[#2C4B8A]/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 bg-[#2C4B8A]/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </span>
                 </div>
               )}
@@ -933,7 +935,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
           {/* Quick Replies Bar for Admin / Manager */}
           {!isCustomerRole && (
-            <div className="px-4 py-2 border-t border-border bg-card/60 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+            <div className="px-4 py-2 border-t border-slate-200 bg-slate-50/60 flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
               <Button
                 size="xs"
                 variant="outline"
@@ -955,13 +957,13 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                   }
                 }}
                 disabled={isAiDrafting || !activeId}
-                className="text-xs h-7 rounded-full bg-gradient-to-r from-amber-500/10 to-primary/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 shrink-0 font-medium"
+                className="text-xs h-7 rounded-md bg-white border-amber-300 text-amber-800 hover:bg-amber-50 shrink-0 font-medium cursor-pointer"
               >
                 <Sparkles className={cn("w-3.5 h-3.5 text-amber-500 mr-1", isAiDrafting && "animate-spin")} />
                 {isAiDrafting ? "Drafting with Zelle..." : "Draft with Zelle"}
               </Button>
 
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0 flex items-center gap-1 ml-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1 ml-2">
                 Quick Reply:
               </span>
               {QUICK_REPLIES.map((reply, idx) => (
@@ -969,7 +971,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                   key={idx}
                   onClick={() => handleSend(reply)}
                   disabled={isSending}
-                  className="text-xs bg-muted hover:bg-muted/80 text-foreground px-2.5 py-1 rounded-full whitespace-nowrap transition-colors border border-border/60"
+                  className="text-xs bg-white hover:bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md whitespace-nowrap transition-colors border border-slate-200 cursor-pointer"
                 >
                   {reply.length > 35 ? reply.slice(0, 35) + "..." : reply}
                 </button>
@@ -979,16 +981,16 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
           {/* AI Response Draft Banner */}
           {aiDraft && (
-            <div className="px-4 py-3 bg-amber-50/70 dark:bg-amber-950/30 border-t border-amber-500/30 flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-2">
+            <div className="px-4 py-3 bg-amber-50/80 border-t border-amber-200 flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                   <span>Zelle AI Suggested Response Draft:</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Button
                     size="xs"
-                    className="h-6 text-[11px] bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                    className="h-6 text-[11px] bg-amber-600 hover:bg-amber-700 text-white rounded-md cursor-pointer"
                     onClick={() => {
                       setDraft(aiDraft);
                       setAiDraft(null);
@@ -999,14 +1001,14 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                   <Button
                     size="xs"
                     variant="ghost"
-                    className="h-6 text-[11px] text-muted-foreground"
+                    className="h-6 text-[11px] text-slate-500 hover:text-slate-800 cursor-pointer"
                     onClick={() => setAiDraft(null)}
                   >
                     Dismiss
                   </Button>
                 </div>
               </div>
-              <p className="text-xs text-foreground/90 whitespace-pre-wrap bg-card/90 p-2.5 rounded-xl border border-border/60 leading-relaxed font-sans">
+              <p className="text-xs text-slate-800 whitespace-pre-wrap bg-white p-2.5 rounded-md border border-amber-200/80 leading-relaxed font-sans">
                 {aiDraft}
               </p>
             </div>
@@ -1014,69 +1016,78 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
           {/* Attachment Input Overlay */}
           {showAttachmentInput && (
-            <div className="px-4 py-2 bg-muted/40 border-t border-border flex items-center gap-2">
-              <Paperclip className="w-4 h-4 text-muted-foreground" />
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
+              <Paperclip className="w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Enter document / image URL..."
                 value={attachmentUrl}
                 onChange={(e) => setAttachmentUrl(e.target.value)}
-                className="h-8 text-xs bg-background flex-1"
+                className="h-8 text-xs bg-white flex-1 rounded-md border-slate-200"
               />
-              <Button size="xs" variant="ghost" onClick={() => setShowAttachmentInput(false)}>
+              <Button size="xs" variant="ghost" onClick={() => setShowAttachmentInput(false)} className="cursor-pointer">
                 <X className="w-4 h-4" />
               </Button>
             </div>
           )}
 
-          {/* Input Box */}
-          <div className="p-3 bg-card border-t border-border">
+          {/* Modern Bottom Composer */}
+          <div className="p-4 bg-white border-t border-slate-200">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-              className="flex items-end gap-2 max-w-3xl mx-auto"
+              className="max-w-3xl mx-auto rounded-md border border-slate-200 bg-white p-3 shadow-2xs focus-within:border-slate-400 transition-all space-y-2"
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowAttachmentInput(!showAttachmentInput)}
-                className="h-11 w-11 rounded-xl shrink-0 text-muted-foreground hover:text-foreground"
-                title="Attach URL link"
-              >
-                <Paperclip className="w-4 h-4" />
-              </Button>
+              <textarea
+                className="w-full resize-none bg-transparent text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none min-h-12 max-h-32 leading-relaxed"
+                placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)"
+                value={draft}
+                onChange={handleDraftChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                rows={1}
+              />
 
-              <div className="relative flex-1">
-                <textarea
-                  className="flex w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-11 max-h-30 resize-none leading-relaxed"
-                  placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)"
-                  value={draft}
-                  onChange={handleDraftChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  rows={1}
-                />
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAttachmentInput(!showAttachmentInput)}
+                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                    title="Attach URL link"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <span className="text-[11px] text-slate-400 hidden sm:inline ml-1">
+                    💬 Catering Coordination
+                  </span>
+                </div>
+
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSending || (!draft.trim() && !attachmentUrl.trim())}
+                  className={cn(
+                    "h-7 px-3 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs",
+                    draft.trim() || attachmentUrl.trim()
+                      ? "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  )}
+                >
+                  <span>Send</span>
+                  <Send className="w-3 h-3" />
+                </Button>
               </div>
-
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isSending || (!draft.trim() && !attachmentUrl.trim())}
-                className="h-11 w-11 rounded-xl shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
             </form>
           </div>
         </div>
       ) : (
-        <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 text-center text-muted-foreground bg-muted/5">
-          <MessageSquare className="w-12 h-12 opacity-20 mb-3" />
-          <h3 className="font-serif font-bold text-lg text-foreground">No Conversation Selected</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+        <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-slate-50/30">
+          <MessageSquare className="w-10 h-10 opacity-20 mb-3" />
+          <h3 className="font-sans font-bold text-base text-slate-900">No Conversation Selected</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm">
             Choose a conversation thread from the list on the left to start messaging.
           </p>
         </div>
@@ -1084,27 +1095,27 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
       {/* RIGHT PANE: Linked Context Drawer (for Admin/Manager or when toggled) */}
       {activeId && showDetailsPane && (
-        <div className="hidden lg:flex w-72 border-l border-border bg-card flex-col p-4 space-y-4 shrink-0 overflow-y-auto">
-          <div className="flex items-center justify-between pb-2 border-b border-border">
-            <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-primary" /> Context Details
+        <div className="hidden lg:flex w-80 border-l border-slate-200 bg-slate-50/40 flex-col p-4 space-y-4 shrink-0 overflow-y-auto">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-[#2C4B8A]" /> Context Details
             </h4>
           </div>
 
           {/* Customer Info Card */}
           {activeCustomer && (
-            <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2">
+            <div className="p-4 bg-white rounded-md border border-slate-200 shadow-2xs space-y-2">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">
+                <div className="w-8 h-8 rounded-full bg-[#2C4B8A]/10 text-[#2C4B8A] border border-[#2C4B8A]/20 font-bold flex items-center justify-center text-xs shrink-0">
                   {getInitials(activeCustomer.full_name)}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold text-xs text-foreground truncate">{activeCustomer.full_name}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{activeCustomer.email}</p>
+                  <p className="font-bold text-xs text-slate-900 truncate">{activeCustomer.full_name}</p>
+                  <p className="text-[11px] text-slate-500 truncate">{activeCustomer.email}</p>
                 </div>
               </div>
               {activeCustomer.phone && (
-                <p className="text-xs text-muted-foreground pt-1 border-t border-border/40">
+                <p className="text-xs text-slate-600 pt-1.5 border-t border-slate-100">
                   📞 {activeCustomer.phone}
                 </p>
               )}
@@ -1113,32 +1124,32 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
           {/* Linked Booking Card */}
           {activeBooking && (
-            <div className="p-3.5 bg-primary/5 rounded-xl border border-primary/20 space-y-2.5">
+            <div className="p-4 bg-white rounded-md border border-slate-200 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
-                <Badge variant="default" className="text-[10px]">
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700">
                   EVT-{activeBooking.booking_number || activeBooking._id.slice(-6).toUpperCase()}
-                </Badge>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2C4B8A]">
                   {activeBooking.status}
                 </span>
               </div>
 
               <div>
-                <p className="font-serif font-bold text-sm text-foreground">{activeBooking.event_type}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <Calendar className="w-3 h-3 text-muted-foreground" />
+                <p className="font-sans font-bold text-sm text-slate-900">{activeBooking.event_type}</p>
+                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                  <Calendar className="w-3 h-3 text-slate-400" />
                   {activeBooking.event_date ? new Date(activeBooking.event_date).toLocaleDateString(undefined, { dateStyle: "medium" }) : "N/A"}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-border/60">
+              <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">Guests</span>
-                  <span className="font-semibold text-foreground">{activeBooking.guests || 0} pax</span>
+                  <span className="text-[10px] text-slate-400 block">Guests</span>
+                  <span className="font-semibold text-slate-900">{activeBooking.guests || 0} pax</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">Venue</span>
-                  <span className="font-semibold text-foreground truncate block">{activeBooking.venue || "N/A"}</span>
+                  <span className="text-[10px] text-slate-400 block">Venue</span>
+                  <span className="font-semibold text-slate-900 truncate block">{activeBooking.venue || "N/A"}</span>
                 </div>
               </div>
 
@@ -1146,7 +1157,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(isCustomerRole ? `/customer/bookings/${activeBooking._id}` : `/admin/bookings/${activeBooking._id}/details`)}
-                className="w-full text-xs h-8 gap-1.5 mt-1"
+                className="w-full text-xs h-8 gap-1.5 mt-1 rounded-md border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 View Booking <ExternalLink className="w-3 h-3" />
               </Button>
@@ -1155,20 +1166,20 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
 
           {/* Linked Inquiry Card */}
           {activeInquiry && !activeBooking && (
-            <div className="p-3.5 bg-secondary/10 rounded-xl border border-secondary/30 space-y-2.5">
+            <div className="p-4 bg-white rounded-md border border-slate-200 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
-                <Badge variant="secondary" className="text-[10px]">
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700">
                   INQ-{activeInquiry.inquiry_number || activeInquiry._id.slice(-6).toUpperCase()}
-                </Badge>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   {activeInquiry.status}
                 </span>
               </div>
 
               <div>
-                <p className="font-serif font-bold text-sm text-foreground">{activeInquiry.event_type || "Event Inquiry"}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <Calendar className="w-3 h-3" />
+                <p className="font-sans font-bold text-sm text-slate-900">{activeInquiry.event_type || "Event Inquiry"}</p>
+                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                  <Calendar className="w-3 h-3 text-slate-400" />
                   {activeInquiry.event_date ? new Date(activeInquiry.event_date).toLocaleDateString(undefined, { dateStyle: "medium" }) : "N/A"}
                 </p>
               </div>
@@ -1177,7 +1188,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
                 variant="outline"
                 size="sm"
                 onClick={() => navigate(isCustomerRole ? "/customer/inquiries" : "/admin/bookings/inquiries")}
-                className="w-full text-xs h-8 gap-1.5 mt-1"
+                className="w-full text-xs h-8 gap-1.5 mt-1 rounded-md border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Manage Inquiries <ExternalLink className="w-3 h-3" />
               </Button>

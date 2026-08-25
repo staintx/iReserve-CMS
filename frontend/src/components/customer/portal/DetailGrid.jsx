@@ -11,20 +11,21 @@ export default function DetailGrid({ items = [], columns = 3, title, className }
 
   return (
     <div className={className}>
-      {title && <h4 className="mb-3 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>}
+      {title && <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{title}</h4>}
       <dl
         className={cn(
-          "grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2",
+          "grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2",
           columns >= 3 && "lg:grid-cols-3"
         )}
       >
         {visible.map((item) => (
           <div key={item.label} className={cn("min-w-0", item.wide && "sm:col-span-2 lg:col-span-3")}>
-            <dt className="text-xs font-medium text-muted-foreground">{item.label}</dt>
-            <dd className={cn("mt-1 text-sm font-medium text-foreground", item.mono && "font-mono")}>{item.value}</dd>
+            <dt className="text-[11px] font-medium text-slate-500">{item.label}</dt>
+            <dd className={cn("mt-0.5 text-xs sm:text-sm font-semibold text-slate-900", item.mono && "font-mono text-slate-800")}>{item.value}</dd>
           </div>
         ))}
       </dl>
     </div>
   );
 }
+

@@ -29,18 +29,18 @@ export default function ZelleAIFab({ isOpen, onClick }) {
       <div
         className={cn(
           "absolute inset-0 transition-opacity duration-700",
-          isOpen ? "opacity-100 bg-slate-800" : "opacity-0"
+          isOpen ? "opacity-100 bg-[#1E3563]" : "opacity-0"
         )}
       />
       <div
         className={cn(
-          "absolute inset-0 bg-blue-600 transition-opacity duration-700",
+          "absolute inset-0 bg-[#2C4B8A] transition-opacity duration-700",
           !isOpen && iconState === "message" ? "opacity-100" : "opacity-0"
         )}
       />
       <div
         className={cn(
-          "absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-500 to-amber-500 transition-opacity duration-700",
+          "absolute inset-0 bg-gradient-to-tr from-[#1E3563] via-[#2C4B8A] to-[#3B66BD] transition-opacity duration-700",
           !isOpen && iconState === "ai" ? "opacity-100" : "opacity-0"
         )}
       />

@@ -425,9 +425,6 @@ export default function CustomerDashboard() {
             <div className="p-5 rounded-md border border-slate-200 bg-slate-50/70 shadow-2xs space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900 font-sans">Direct Event Support</span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200/60">
-                  Online
-                </span>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Have questions or need assistance with your booking details?

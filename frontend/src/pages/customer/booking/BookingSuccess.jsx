@@ -200,17 +200,17 @@ export default function BookingSuccess() {
                   {booking?.service_type !== "food" && booking?.service_type !== "Food Only" && (
                     <Button 
                       size="lg"
-                      className="w-full text-base font-medium rounded-xl h-14 bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="w-full text-sm font-semibold rounded-lg h-11 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                       onClick={() => setShowOcular(true)}
                     >
-                      <MapPin className="w-5 h-5 mr-2" />
+                      <MapPin className="w-4 h-4 mr-2" />
                       Schedule an Ocular Visit
                     </Button>
                   )}
                   <Button 
                     variant="outline"
                     size="lg"
-                    className="w-full text-base font-medium rounded-xl h-14"
+                    className="w-full text-sm font-semibold rounded-lg h-11 cursor-pointer"
                     onClick={() => navigate("/customer/bookings")}
                   >
                     Go to Event Dashboard
@@ -221,57 +221,57 @@ export default function BookingSuccess() {
           </Card>
         ) : (
           <div>
-            <div className="text-center mb-10 max-w-2xl mx-auto">
-              <h2 className="font-serif font-bold text-3xl text-foreground mb-3">Schedule Ocular Visit</h2>
-              <p className="text-muted-foreground">Choose a preferred date and time for your venue walkthrough. Admin will confirm within 24 hours.</p>
+            <div className="text-center mb-8 max-w-2xl mx-auto">
+              <h2 className="font-serif font-bold text-2xl sm:text-3xl text-foreground mb-2">Schedule Ocular Visit</h2>
+              <p className="text-muted-foreground text-xs sm:text-sm">Choose a preferred date and time for your venue walkthrough. Admin will confirm within 24 hours.</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
               {/* Calendar Column */}
-              <Card className="p-8 flex flex-col items-center border-border">
-                <div className="flex justify-between items-center w-full mb-8">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+              <Card className="p-6 flex flex-col items-center border-border rounded-lg">
+                <div className="flex justify-between items-center w-full mb-6">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                     {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(currentMonth)}
                   </h3>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <Button 
-                      variant="ghost"
+                      variant="ghost" 
                       size="icon"
-                      className="rounded-full text-muted-foreground"
+                      className="rounded-md text-muted-foreground h-8 w-8"
                       onClick={() => {
                         const newDate = new Date(currentMonth);
                         newDate.setMonth(newDate.getMonth() - 1);
                         setCurrentMonth(newDate);
                       }}
                     >
-                      <ChevronRight className="w-5 h-5 rotate-180" />
+                      <ChevronRight className="w-4 h-4 rotate-180" />
                     </Button>
                     <Button
                       variant="ghost" 
                       size="icon"
-                      className="rounded-full text-muted-foreground"
+                      className="rounded-md text-muted-foreground h-8 w-8"
                       onClick={() => {
                         const newDate = new Date(currentMonth);
                         newDate.setMonth(newDate.getMonth() + 1);
                         setCurrentMonth(newDate);
                       }}
                     >
-                      <ChevronRight className="w-5 h-5" />
+                      <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
 
                 <div className="mb-2 gap-1 text-center w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                    <div key={day} className="py-2 text-[11px] font-semibold text-muted-foreground/60">
+                    <div key={day} className="py-1.5 text-[11px] font-semibold text-muted-foreground/60">
                       {day}
                     </div>
                   ))}
                 </div>
-                <div className="gap-1 text-center mb-6 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+                <div className="gap-1 text-center mb-4 w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
 
                   {getDaysInMonth(currentMonth).map((date, idx) => {
-                    if (!date) return <div key={`empty-${idx}`} className="p-2" />;
+                    if (!date) return <div key={`empty-${idx}`} className="p-1.5" />;
                     const dateString = date.toISOString().split('T')[0];
                     const isSelected = ocularDate === dateString;
                     const isPast = date < new Date(new Date().setHours(0,0,0,0));
@@ -285,11 +285,11 @@ export default function BookingSuccess() {
                         disabled={isDisabled}
                         onClick={() => setOcularDate(dateString)}
                         className={cn(
-                          "mx-auto flex h-9 w-9 items-center justify-center rounded-lg text-sm transition-all font-medium",
+                          "mx-auto flex h-8 w-8 items-center justify-center rounded-md text-xs transition-all font-medium",
                           isDisabled 
                               ? "cursor-not-allowed text-muted-foreground/30" 
-                              : "text-foreground hover:bg-muted/50",
-                          isSelected ? "bg-accent font-bold text-accent-foreground shadow-sm hover:bg-accent/90" : ""
+                              : "text-foreground hover:bg-muted/50 cursor-pointer",
+                          isSelected ? "bg-accent font-bold text-accent-foreground shadow-2xs hover:bg-accent/90" : ""
                         )}
                       >
                         {date.getDate()}
@@ -300,18 +300,18 @@ export default function BookingSuccess() {
               </Card>
 
               {/* Time Slots & Info Column */}
-              <div className="flex flex-col gap-6">
-                <Card className="p-8 border-border">
-                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-6">
+              <div className="flex flex-col gap-4">
+                <Card className="p-5 border-border rounded-lg">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                     Preferred Time
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-2.5">
                     {["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM"].map(time => (
                       <button
                         key={time}
                         onClick={() => setOcularTime(time)}
                         className={cn(
-                          "py-3.5 px-4 rounded-xl border text-sm font-medium transition-all text-center",
+                          "py-2.5 px-3 rounded-lg border text-xs font-medium transition-all text-center cursor-pointer",
                           ocularTime === time
                             ? "border-accent ring-1 ring-accent bg-accent/10 text-accent-foreground"
                             : "border-border text-foreground hover:border-accent/50 hover:bg-accent/5"
@@ -323,9 +323,9 @@ export default function BookingSuccess() {
                   </div>
                 </Card>
 
-                <div className="bg-accent/10 rounded-2xl p-6 text-sm text-foreground">
-                  <p className="font-semibold mb-2">What to expect:</p>
-                  <ul className="space-y-1.5 opacity-80">
+                <div className="bg-accent/10 rounded-lg p-4 text-xs text-foreground">
+                  <p className="font-semibold mb-1.5">What to expect:</p>
+                  <ul className="space-y-1 opacity-80 text-[11px]">
                     <li>• 45-60 minute venue walkthrough</li>
                     <li>• Meet your assigned event coordinator</li>
                     <li>• Finalize table layout and décor</li>
@@ -333,7 +333,7 @@ export default function BookingSuccess() {
                   </ul>
                 </div>
 
-                <div className="flex flex-col gap-4 mt-2">
+                <div className="flex flex-col gap-3 mt-1">
                   {schedulingError && (
                     <InlineMessage tone="error" assertive onDismiss={() => setSchedulingError("")}>
                       {schedulingError}
@@ -341,7 +341,7 @@ export default function BookingSuccess() {
                   )}
                   <Button
                     size="lg"
-                    className="w-full h-14 rounded-2xl text-base font-medium"
+                    className="w-full h-11 rounded-lg text-sm font-semibold cursor-pointer"
                     onClick={handleScheduleOcular}
                     disabled={!ocularDate || !ocularTime || scheduling}
                   >
@@ -350,7 +350,7 @@ export default function BookingSuccess() {
                   
                   <Button
                     variant="ghost" 
-                    className="w-full text-muted-foreground hover:text-foreground"
+                    className="w-full text-xs text-muted-foreground hover:text-foreground cursor-pointer"
                     onClick={() => navigate("/customer/bookings")}
                   >
                     Skip for Now

@@ -5,13 +5,13 @@ import { cn } from "@/lib/utils";
 import { focusRing } from "../lib/bookingUI";
 
 const controlBase =
-  "w-full rounded-xl text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all focus:outline-none focus:ring-2";
+  "w-full rounded-md text-sm text-slate-800 placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2";
 const controlIdle =
-  "border border-[#E2E8F0] bg-[#F8FAFC] focus:ring-[#4C81E0]/40 focus:border-[#4C81E0] hover:border-[#CBD5E1]";
+  "border border-slate-200 bg-white focus:ring-[#4C81E0]/20 focus:border-[#4C81E0] hover:border-slate-300";
 const controlError =
-  "border border-red-300 bg-red-50 focus:ring-red-200 focus:border-red-400";
+  "border border-red-300 bg-red-50/50 focus:ring-red-200 focus:border-red-400";
 const controlDisabled =
-  "disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-[#F1F5F9] disabled:hover:border-[#E2E8F0]";
+  "disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-slate-100 disabled:hover:border-slate-200";
 
 export function PrimaryBtn({
   onClick,
@@ -24,18 +24,18 @@ export function PrimaryBtn({
   ...rest
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 cursor-pointer select-none whitespace-nowrap";
+    "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-150 cursor-pointer select-none whitespace-nowrap";
   const sizes = {
-    sm: "h-9 px-4 text-[13px]",
-    md: "h-11 px-6 text-sm",
+    sm: "h-8.5 px-3 text-xs",
+    md: "h-10 px-4 sm:px-5 text-xs sm:text-sm",
   };
   const v = {
     primary:
-      "bg-[#4C81E0] text-white hover:bg-[#3D6BC4] shadow-sm hover:shadow-md active:scale-[0.98]",
+      "bg-[#4C81E0] text-white hover:bg-[#3b6ec6] shadow-2xs active:scale-[0.98]",
     outline:
-      "border border-[#4C81E0] text-[#4C81E0] bg-white hover:bg-[#D6E4F7]/60 active:scale-[0.98]",
+      "border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 active:scale-[0.98]",
     ghost:
-      "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] bg-transparent",
+      "text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-transparent",
   };
   return (
     <button
@@ -62,7 +62,7 @@ export function Card({ children, className = "", onClick, ...rest }) {
     <div
       onClick={onClick}
       className={cn(
-        "bg-white rounded-2xl border border-[#E2E8F0] shadow-sm",
+        "bg-white rounded-lg border border-slate-200/90 shadow-2xs",
         className,
       )}
       {...rest}
@@ -77,7 +77,7 @@ export function FL({ children, required = false, htmlFor }) {
   return (
     <label
       htmlFor={htmlFor}
-      className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]"
+      className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600"
     >
       {children}
       {required && (
@@ -96,9 +96,9 @@ export function Field({ label, required, hint, error, children, className = "" }
       {label && <FL required={required}>{label}</FL>}
       {children}
       {error ? (
-        <p className="mt-1 text-xs font-medium text-red-600">{error}</p>
+        <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-[#94A3B8]">{hint}</p>
+        <p className="mt-1 text-[11px] text-slate-400">{hint}</p>
       ) : null}
     </div>
   );
@@ -237,29 +237,16 @@ export function TTextarea({
 }
 
 /**
- * Step heading. The one place in the booking flow that keeps the Playfair
- * display face, as the title of the screen the customer is on.
- *
- * The rest of the wizard is opted out of the site-wide serif heading rule
- * (see `body.booking-flow` in globals.css) because everything else here is
- * transactional: section titles, questions, labels, prices and counts are
- * scanned, not read, and a display serif slows that down.
+ * Step heading. Clean, modern, high-density display.
  */
 export function SH({ title, sub, aside }) {
   return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-2">
       <div className="min-w-0">
-        <span
-          className="mb-1.5 block h-[3px] w-8 rounded-full bg-[#C5A059]"
-          aria-hidden="true"
-        />
-        <h2
-          style={{ fontFamily: "var(--font-serif)" }}
-          className="text-xl font-semibold leading-tight text-[#1E293B]"
-        >
+        <h2 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-snug">
           {title}
         </h2>
-        {sub && <p className="mt-1 text-[13px] text-[#64748B]">{sub}</p>}
+        {sub && <p className="mt-0.5 text-xs text-slate-500 leading-normal">{sub}</p>}
       </div>
       {aside && <div className="shrink-0">{aside}</div>}
     </div>
@@ -271,11 +258,11 @@ export function SectionTitle({ icon: Icon, children, className = "", right }) {
   return (
     <div
       className={cn(
-        "mb-2.5 flex items-center justify-between gap-3 border-b border-[#E2E8F0] pb-1.5",
+        "mb-2.5 flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5",
         className,
       )}
     >
-      <h3 className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wider text-[#1E293B]">
+      <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
         {Icon && <Icon size={14} className="text-[#4C81E0]" />}
         {children}
       </h3>
@@ -285,20 +272,17 @@ export function SectionTitle({ icon: Icon, children, className = "", right }) {
 }
 
 /**
- * A field's at-a-glance state, for a sub-section header — "Optional" when
- * nothing is chosen yet, or the chosen value itself once it is, so a customer
- * scanning a long step never has to open a field to know whether they already
- * answered it.
+ * A field's at-a-glance state, for a sub-section header.
  */
 export function FieldStatusPill({ value, optionalLabel = "Optional" }) {
   const filled = Boolean(value);
   return (
     <span
       className={cn(
-        "inline-flex max-w-[220px] items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold",
+        "inline-flex max-w-[220px] items-center gap-1 truncate rounded-md px-2 py-0.5 text-[11px] font-semibold",
         filled
           ? "bg-[#4C81E0]/10 text-[#4C81E0]"
-          : "bg-[#F1F5F9] text-[#94A3B8]",
+          : "bg-slate-100 text-slate-400",
       )}
       title={filled ? value : undefined}
     >
@@ -310,31 +294,31 @@ export function FieldStatusPill({ value, optionalLabel = "Optional" }) {
 /** Informational callout used across steps. */
 export function InfoNote({ icon: Icon, title, children, tone = "info", className = "" }) {
   const tones = {
-    info: "border-[#4C81E0]/20 bg-[#4C81E0]/5 text-[#64748B]",
-    warn: "border-amber-200 bg-amber-50 text-amber-800",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    danger: "border-red-200 bg-red-50 text-red-700",
+    info: "border-blue-200 bg-blue-50/60 text-slate-600",
+    warn: "border-amber-200 bg-amber-50/70 text-amber-900",
+    success: "border-emerald-200 bg-emerald-50/70 text-emerald-900",
+    danger: "border-red-200 bg-red-50/70 text-red-700",
   };
   const iconTones = {
     info: "text-[#4C81E0]",
-    warn: "text-amber-500",
-    success: "text-emerald-500",
+    warn: "text-amber-600",
+    success: "text-emerald-600",
     danger: "text-red-500",
   };
   return (
     <div
       className={cn(
-        "flex gap-3 rounded-xl border p-3 text-[13px] leading-relaxed",
+        "flex gap-2.5 rounded-lg border p-2.5 text-xs leading-relaxed",
         tones[tone],
         className,
       )}
     >
       {Icon && (
-        <Icon size={16} className={cn("mt-0.5 shrink-0", iconTones[tone])} />
+        <Icon size={15} className={cn("mt-0.5 shrink-0", iconTones[tone])} />
       )}
       <div className="min-w-0">
         {title && (
-          <strong className="mb-0.5 block font-semibold text-[#1E293B]">
+          <strong className="mb-0.5 block font-semibold text-slate-900">
             {title}
           </strong>
         )}
@@ -364,19 +348,19 @@ export function SelectableCard({
       disabled={disabled}
       aria-pressed={selected}
       className={cn(
-        "relative w-full rounded-2xl border-2 p-4 text-left transition-all duration-200",
+        "relative w-full rounded-lg border p-3 sm:p-3.5 text-left transition-all duration-150 cursor-pointer select-none",
         selected
-          ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm"
-          : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50 hover:shadow-sm",
-        disabled && "cursor-not-allowed opacity-50 hover:border-[#E2E8F0] hover:shadow-none",
+          ? "border-[#4C81E0] bg-[#4C81E0]/[0.03] ring-1 ring-[#4C81E0] shadow-xs"
+          : "border-slate-200 bg-white hover:border-[#4C81E0]/40 hover:bg-slate-50/60 shadow-2xs",
+        disabled && "cursor-not-allowed opacity-50 hover:border-slate-200 hover:bg-white hover:shadow-none",
         focusRing,
         className,
       )}
       {...rest}
     >
       {selected && showCheck && (
-        <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#4C81E0] text-white shadow-sm">
-          <Check size={12} strokeWidth={3} />
+        <span className="absolute right-2.5 top-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#4C81E0] text-white shadow-2xs">
+          <Check size={10} strokeWidth={3} />
         </span>
       )}
       {children}
@@ -387,11 +371,11 @@ export function SelectableCard({
 /** Compact −/+ quantity control shared by both add-on steps. */
 export function QtyStepper({ value = 0, onDecrease, onIncrease, label = "quantity" }) {
   const btn = cn(
-    "flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40",
+    "flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 active:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer",
     focusRing,
   );
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         onClick={onDecrease}
@@ -399,10 +383,10 @@ export function QtyStepper({ value = 0, onDecrease, onIncrease, label = "quantit
         aria-label={`Decrease ${label}`}
         className={btn}
       >
-        <Minus size={14} />
+        <Minus size={13} />
       </button>
       <span
-        className="w-6 text-center text-sm font-semibold tabular-nums text-[#1E293B]"
+        className="w-5 text-center text-xs font-bold tabular-nums text-slate-800"
         aria-live="polite"
       >
         {value}
@@ -413,25 +397,14 @@ export function QtyStepper({ value = 0, onDecrease, onIncrease, label = "quantit
         aria-label={`Increase ${label}`}
         className={btn}
       >
-        <Plus size={14} />
+        <Plus size={13} />
       </button>
     </div>
   );
 }
 
 /**
- * Guest count.
- *
- * The previous control stepped by 5 from a minimum of 1, so the sequence read
- * 1, 6, 11, 16 and looked like it only accepted multiples of six. It also
- * clamped on every keystroke, which made a value below the minimum impossible
- * to type at all: with min 40, pressing "1" snapped the field to 40 before the
- * second digit arrived.
- *
- * Nothing in the data requires round numbers. The only real constraints are
- * Package.guest_min/guest_max and the per-size guest ranges on a setup option,
- * both of which arrive here as `min`/`max`. So: type any number freely, and the
- * value is only corrected when the field is left.
+ * Guest count counter. Clean, responsive, high-density.
  */
 export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
   const numeric = Number(value) || 0;
@@ -459,7 +432,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
   };
 
   const btn = cn(
-    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#1E293B] transition-colors hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-40",
+    "flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 active:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer",
     focusRing,
   );
 
@@ -470,7 +443,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => step(-10)}
@@ -478,7 +451,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
           aria-label="Ten fewer guests"
           className={btn}
         >
-          <Minus size={15} />
+          <Minus size={14} />
         </button>
         <input
           type="text"
@@ -496,7 +469,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
           }}
           className={cn(
             controlBase,
-            "h-11 flex-1 px-2 text-center text-base font-semibold tabular-nums",
+            "h-9.5 flex-1 px-2 text-center text-sm font-bold tabular-nums",
             controlIdle,
           )}
         />
@@ -507,12 +480,12 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
           aria-label="Ten more guests"
           className={btn}
         >
-          <Plus size={15} />
+          <Plus size={14} />
         </button>
       </div>
 
       {presets.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-1.5 flex flex-wrap gap-1">
           {presets.map((preset) => (
             <button
               key={preset}
@@ -520,10 +493,10 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
               onClick={() => onChange(preset)}
               aria-pressed={numeric === preset}
               className={cn(
-                "rounded-lg border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors",
+                "rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors cursor-pointer",
                 numeric === preset
-                  ? "border-[#4C81E0] bg-[#4C81E0]/5 text-[#1E293B]"
-                  : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#4C81E0]/40",
+                  ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#4C81E0]"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
                 focusRing,
               )}
             >
@@ -538,20 +511,19 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
 
 /**
  * Standard step wrapper: one max width, one rhythm, optional sticky sidebar.
- * `width` keeps single-column steps readable without changing the page frame.
  */
 export function StepShell({ children, aside, width = "wide", className = "" }) {
   const widths = {
     narrow: "max-w-2xl",
     medium: "max-w-4xl",
-    wide: "max-w-6xl",
+    wide: "max-w-5xl",
   };
   if (aside) {
     return (
       <div className={cn("mx-auto w-full", widths.wide, className)}>
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">{children}</div>
-          <div className="w-full shrink-0 lg:w-[300px]">{aside}</div>
+          <div className="w-full shrink-0 lg:w-[290px]">{aside}</div>
         </div>
       </div>
     );

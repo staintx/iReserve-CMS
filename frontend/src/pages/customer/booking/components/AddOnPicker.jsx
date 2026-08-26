@@ -52,38 +52,38 @@ export default function AddOnPicker({
 
   if (items.length === 0) {
     return (
-      <div className="mt-2 rounded-2xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC]/60 p-8 text-center">
-        <Info className="mx-auto mb-2.5 h-6 w-6 text-[#94A3B8]" />
-        <p className="text-sm font-semibold text-[#1E293B]">{emptyTitle}</p>
-        <p className="mt-1 text-xs text-[#64748B]">{emptyHint}</p>
+      <div className="mt-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+        <Info className="mx-auto mb-2 h-5 w-5 text-slate-400" />
+        <p className="text-xs font-bold text-slate-800">{emptyTitle}</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">{emptyHint}</p>
       </div>
     );
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-2.5">
       {/* Said once, for the whole list, instead of on every item. */}
-      <p className="text-xs leading-relaxed text-[#64748B]">
-        Tap an add-on to include it. Anything marked{" "}
-        <span className="font-medium text-[#475569]">On quotation</span> is
+      <p className="text-xs leading-relaxed text-slate-500">
+        Tap an add-on to include it in your request. Anything marked{" "}
+        <strong className="font-semibold text-slate-700">On quotation</strong> is
         priced by our team on your official quotation.
       </p>
 
       {isSearchable && (
-        <div className="relative mt-3">
+        <div className="relative mt-2">
           <Search
-            size={14}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]"
+            size={13}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
             aria-hidden="true"
           />
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={`Search ${items.length} add-ons`}
+            placeholder={`Search ${items.length} add-ons...`}
             aria-label="Search add-ons"
             className={cn(
-              "h-10 w-full rounded-xl border border-[#E2E8F0] bg-white pl-9 pr-3 text-[13px] text-[#1E293B] placeholder:text-[#94A3B8]",
+              "h-8.5 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
               focusRing,
             )}
           />
@@ -91,11 +91,11 @@ export default function AddOnPicker({
       )}
 
       {visible.length === 0 ? (
-        <p className="mt-3 rounded-xl border border-dashed border-[#E2E8F0] px-3 py-4 text-center text-[13px] text-[#64748B]">
+        <p className="mt-2.5 rounded-lg border border-dashed border-slate-200 px-3 py-3 text-center text-xs text-slate-400">
           No add-on matches “{query.trim()}”.
         </p>
       ) : (
-        <ul className="mt-3 space-y-2">
+        <ul className="mt-2.5 space-y-1.5">
           {visible.map((item) => {
             const quantity = quantityOf(item) || 0;
             const isSelected = quantity > 0;
@@ -105,10 +105,10 @@ export default function AddOnPicker({
               <li
                 key={item.key}
                 className={cn(
-                  "flex items-stretch rounded-xl border transition-colors",
+                  "flex items-stretch rounded-lg border transition-all select-none",
                   isSelected
-                    ? "border-[#4C81E0] bg-[#4C81E0]/[0.05]"
-                    : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50 hover:bg-[#F8FAFC]",
+                    ? "border-[#4C81E0] bg-[#4C81E0]/[0.04] ring-1 ring-[#4C81E0]/50"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
                 )}
               >
                 <button
@@ -116,30 +116,28 @@ export default function AddOnPicker({
                   aria-pressed={isSelected}
                   onClick={() => onToggle(item)}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left",
+                    "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left cursor-pointer",
                     focusRing,
                   )}
                 >
-                  {/* The selected state, as a checkbox rather than as the wording
-                      of a button — readable in one pass down the list. */}
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-colors",
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
                       isSelected
                         ? "border-[#4C81E0] bg-[#4C81E0] text-white"
-                        : "border-[#CBD5E1] bg-white text-transparent",
+                        : "border-slate-300 bg-white text-transparent",
                     )}
                   >
-                    <Check size={12} strokeWidth={3} />
+                    <Check size={10} strokeWidth={3} />
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-semibold leading-snug text-[#1E293B]">
+                    <span className="block text-xs font-bold leading-snug text-slate-800">
                       {item.name}
                     </span>
                     {item.description && (
-                      <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-[#64748B]">
+                      <span className="line-clamp-1 block text-[11px] leading-tight text-slate-400">
                         {item.description}
                       </span>
                     )}
@@ -149,8 +147,8 @@ export default function AddOnPicker({
                     className={cn(
                       "shrink-0 text-right text-xs",
                       hasPrice
-                        ? "font-semibold tabular-nums text-[#1E293B]"
-                        : "font-medium text-[#94A3B8]",
+                        ? "font-bold tabular-nums text-slate-900"
+                        : "font-medium text-slate-400",
                     )}
                   >
                     {hasPrice
@@ -159,11 +157,8 @@ export default function AddOnPicker({
                   </span>
                 </button>
 
-                {/* Only ever shown for an add-on that is both counted and
-                    chosen: a stepper on an item nobody has added is a control
-                    with nothing to adjust. */}
                 {item.isQuantity && isSelected && (
-                  <div className="flex shrink-0 items-center border-l border-[#4C81E0]/20 px-2">
+                  <div className="flex shrink-0 items-center border-l border-[#4C81E0]/20 px-2 bg-blue-50/30">
                     <QtyStepper
                       value={quantity}
                       label={item.name}

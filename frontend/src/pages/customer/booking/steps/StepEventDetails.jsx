@@ -121,14 +121,14 @@ export default function StepEventDetails({
         sub={
           isOffer
             ? "Choose how you'd like to avail this combo, specify your guest count, and provide location details."
-            : "Your venue and guest count. Both affect your price."
+            : "Specify your event type, guest count, and venue location."
         }
         aside={
           !isCustomBooking && selectedPackageName ? (
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#4C81E0]/25 bg-[#4C81E0]/10 px-3 py-1.5 text-[13px]">
-              <Package size={14} className="text-[#4C81E0]" />
-              <span className="text-[#64748B]">{isOffer ? "Combo:" : "Package:"}</span>
-              <strong className="font-semibold text-[#1E293B]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs">
+              <Package size={13} className="text-[#4C81E0]" />
+              <span className="text-slate-500">{isOffer ? "Combo:" : "Package:"}</span>
+              <strong className="font-semibold text-slate-800">
                 {selectedPackageName}
               </strong>
             </span>
@@ -138,13 +138,9 @@ export default function StepEventDetails({
 
       {/* Special Offer Fulfillment Option Selection */}
       {isOffer && (
-        <Card className="mb-4 p-4">
+        <Card className="mb-3.5 p-3.5 sm:p-4">
           <SectionTitle icon={Sparkles}>Choose your service option</SectionTitle>
-          <p className="mb-3 text-[13px] text-[#64748B]">
-            Select how you would like your {offer.name} prepared and fulfilled:
-          </p>
-
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {fulfillmentOptions.map((opt) => {
               const Icon = opt.icon;
               return (
@@ -153,35 +149,23 @@ export default function StepEventDetails({
                   selected={opt.active}
                   showCheck={false}
                   onClick={() => handleOptionChange(opt.key)}
-                  className="flex flex-col items-start gap-2.5 p-3.5"
+                  className="flex items-start gap-2.5 p-3"
                 >
-                  <div className="flex w-full items-center justify-between">
-                    <span
-                      className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
-                        opt.active
-                          ? "bg-[#4C81E0] text-white"
-                          : "bg-[#F1F5F9] text-[#64748B]",
-                      )}
-                    >
-                      <Icon size={18} />
-                    </span>
-                    <span
-                      className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold transition-colors",
-                        opt.active
-                          ? "bg-[#4C81E0] text-white"
-                          : "border border-[#CBD5E1] bg-white text-transparent",
-                      )}
-                    >
-                      ✓
-                    </span>
-                  </div>
-                  <div>
-                    <span className="block text-sm font-semibold text-[#1E293B]">
+                  <span
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                      opt.active
+                        ? "bg-[#4C81E0] text-white"
+                        : "bg-slate-100 text-slate-500",
+                    )}
+                  >
+                    <Icon size={16} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-xs font-bold text-slate-900 leading-tight">
                       {opt.title}
                     </span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-[#64748B]">
+                    <span className="block text-[11px] text-slate-500 leading-tight mt-0.5">
                       {opt.description}
                     </span>
                   </div>
@@ -192,120 +176,127 @@ export default function StepEventDetails({
         </Card>
       )}
 
-      {/* Guest Count Card */}
-      <Card className="mb-4 p-4">
-        <SectionTitle icon={Users}>Guest Count</SectionTitle>
-        <div className="space-y-3">
-          <Field
-            label={guestCountLabel(offer)}
-            required
-            hint={
-              isOffer
-                ? perPax > 0
-                  ? `₱${perPax.toLocaleString("en-PH")} per pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated food price`
-                  : guestCountHelp(offer)
-                : setupCapacity?.status === "ok"
-                  ? setupCapacity.message
-                  : `${guestCountHelp(offer)} ${guestMin} to ${guestMax} guests.`
-            }
-            error={
-              errors.guest_count ||
-              (setupCapacity?.status === "under" ? setupCapacity.message : "")
-            }
-          >
-            <GuestCounter
-              value={currentCount}
-              onChange={handleGuestChange}
-              min={guestMin || 1}
-              max={guestMax || 1000}
-            />
-          </Field>
-        </div>
-      </Card>
-
-      {/* Conditional Details based on Selected Option */}
+      {/* Conditional Details based on Selected Option for Offer */}
       {isOffer && isPickup ? (
-        <Card className="p-4">
-          <SectionTitle icon={Store}>Pickup Location</SectionTitle>
-          <InfoNote icon={Store} title="You're collecting this order">
-            Your {offer.name} order will be prepared fresh and packed ready for pickup at{" "}
-            <strong>{pickupAddress || "Caezelle's Catering Kitchen (Batangas)"}</strong> on your selected date and time.
-          </InfoNote>
-        </Card>
+        <div className="flex flex-col gap-3.5">
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={Users}>Guest count</SectionTitle>
+            <Field
+              label={guestCountLabel(offer)}
+              required
+              hint={
+                perPax > 0
+                  ? `₱${perPax.toLocaleString("en-PH")} / pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated total`
+                  : guestCountHelp(offer)
+              }
+              error={errors.guest_count}
+            >
+              <GuestCounter
+                value={currentCount}
+                onChange={handleGuestChange}
+                min={guestMin || 1}
+                max={guestMax || 1000}
+              />
+            </Field>
+          </Card>
+
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={Store}>Pickup location</SectionTitle>
+            <InfoNote icon={Store} title="Kitchen pickup">
+              Your {offer.name} order will be prepared fresh and packed ready for pickup at{" "}
+              <strong>{pickupAddress || "Caezelle's Catering Kitchen (Batangas)"}</strong> on your selected date and time.
+            </InfoNote>
+          </Card>
+        </div>
       ) : isOffer && isDelivery ? (
-        <Card className="p-4">
-          <SectionTitle icon={Truck}>Delivery Address</SectionTitle>
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Municipality" required error={errors.municipality}>
-                <TSelect
-                  value={form.municipality}
-                  onChange={(val) =>
-                    setForm({ ...form, municipality: val, barangay: "" })
-                  }
-                  options={municipalities}
-                  placeholder="Select municipality"
-                  hasError={!!errors.municipality}
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 items-start">
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={Users}>Guest count</SectionTitle>
+            <Field
+              label={guestCountLabel(offer)}
+              required
+              hint={
+                perPax > 0
+                  ? `₱${perPax.toLocaleString("en-PH")} / pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated total`
+                  : guestCountHelp(offer)
+              }
+              error={errors.guest_count}
+            >
+              <GuestCounter
+                value={currentCount}
+                onChange={handleGuestChange}
+                min={guestMin || 1}
+                max={guestMax || 1000}
+              />
+            </Field>
+          </Card>
+
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={Truck}>Delivery address</SectionTitle>
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <Field label="Municipality" required error={errors.municipality}>
+                  <TSelect
+                    value={form.municipality}
+                    onChange={(val) =>
+                      setForm({ ...form, municipality: val, barangay: "" })
+                    }
+                    options={municipalities}
+                    placeholder="Select municipality"
+                    hasError={!!errors.municipality}
+                  />
+                </Field>
+                <Field
+                  label="Barangay"
+                  required
+                  hint={!form.municipality ? "Select a municipality first" : undefined}
+                  error={errors.barangay}
+                >
+                  <TSelect
+                    value={form.barangay}
+                    onChange={(val) => setForm({ ...form, barangay: val })}
+                    options={barangays}
+                    placeholder="Select barangay"
+                    disabled={!form.municipality}
+                    hasError={!!errors.barangay}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                label="Street and building"
+                required
+                error={errors.street}
+              >
+                <TInput
+                  placeholder="e.g. Purok 4, Lopez Building"
+                  value={form.street}
+                  onChange={(val) => setForm({ ...form, street: val })}
+                  hasError={!!errors.street}
                 />
               </Field>
-              <Field
-                label="Barangay"
-                required
-                hint={
-                  !form.municipality ? "Select a municipality first" : undefined
-                }
-                error={errors.barangay}
-              >
-                <TSelect
-                  value={form.barangay}
-                  onChange={(val) => setForm({ ...form, barangay: val })}
-                  options={barangays}
-                  placeholder="Select barangay"
-                  disabled={!form.municipality}
-                  hasError={!!errors.barangay}
+
+              <Field label="Landmark" hint="Optional, helps driver find location">
+                <TInput
+                  placeholder="e.g. Across the municipal hall"
+                  value={form.landmark}
+                  onChange={(val) => setForm({ ...form, landmark: val })}
                 />
               </Field>
             </div>
-
-            <Field
-              label="Street and building"
-              required
-              hint="Where our delivery driver will drop off the food."
-              error={errors.street}
-            >
-              <TInput
-                placeholder="e.g. Purok 4, Lopez Building"
-                value={form.street}
-                onChange={(val) => setForm({ ...form, street: val })}
-                hasError={!!errors.street}
-              />
-            </Field>
-
-            <Field label="Landmark" hint="Optional, helps our driver find you.">
-              <TInput
-                placeholder="e.g. Across the municipal hall"
-                value={form.landmark}
-                onChange={(val) => setForm({ ...form, landmark: val })}
-              />
-            </Field>
-          </div>
-        </Card>
+          </Card>
+        </div>
       ) : (
-        /* With Event Setup or Regular Package */
-        <>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <Card className="p-4">
+        /* Regular Package or Event Setup Flow */
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 items-start">
+          {/* Left Column: Event Basics & Theme */}
+          <div className="flex flex-col gap-3.5">
+            <Card className="p-3.5 sm:p-4">
               <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
-
               <div className="space-y-3">
                 <Field
                   label="Event type"
                   required
-                  hint={
-                    initialEventType
-                      ? "Prefilled from the package you picked. Change it if your event is something else."
-                      : undefined
-                  }
                   error={errors.event_type}
                 >
                   <TSelect
@@ -326,71 +317,132 @@ export default function StepEventDetails({
 
                 {form.event_type === OTHER_EVENT_TYPE && (
                   <Field
-                    label="Which kind of event?"
+                    label="Specify event type"
                     required
                     error={errors.event_type_other}
                   >
                     <TInput
-                      placeholder="e.g. Reunion"
+                      placeholder="e.g. Family Reunion"
                       value={form.event_type_other}
                       onChange={(val) => setForm({ ...form, event_type_other: val })}
                       hasError={!!errors.event_type_other}
                     />
                   </Field>
                 )}
+
+                <Field
+                  label={guestCountLabel(offer)}
+                  required
+                  hint={
+                    setupCapacity?.status === "ok"
+                      ? setupCapacity.message
+                      : `${guestMin} to ${guestMax} guests supported.`
+                  }
+                  error={
+                    errors.guest_count ||
+                    (setupCapacity?.status === "under" ? setupCapacity.message : "")
+                  }
+                >
+                  <GuestCounter
+                    value={currentCount}
+                    onChange={handleGuestChange}
+                    min={guestMin || 1}
+                    max={guestMax || 1000}
+                  />
+                </Field>
               </div>
             </Card>
 
-            <Card className="p-4">
-              <SectionTitle icon={MapPin}>Venue location</SectionTitle>
-
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Municipality" required error={errors.municipality}>
-                    <TSelect
-                      value={form.municipality}
-                      onChange={(val) =>
-                        setForm({ ...form, municipality: val, barangay: "" })
-                      }
-                      options={municipalities}
-                      placeholder="Select municipality"
-                      hasError={!!errors.municipality}
-                    />
-                  </Field>
-                  <Field
-                    label="Barangay"
-                    required
-                    hint={
-                      !form.municipality ? "Select a municipality first" : undefined
-                    }
-                    error={errors.barangay}
-                  >
-                    <TSelect
-                      value={form.barangay}
-                      onChange={(val) => setForm({ ...form, barangay: val })}
-                      options={barangays}
-                      placeholder="Select barangay"
-                      disabled={!form.municipality}
-                      hasError={!!errors.barangay}
-                    />
-                  </Field>
-                </div>
-
-                <Field
-                  label="Street and building"
-                  hint="Optional, but it helps our team find the venue."
+            {/* Theme & Palette (when not in Bespoke Custom Setup tab) */}
+            {!form.is_custom_setup && (
+              <Card className="p-3.5 sm:p-4">
+                <SectionTitle
+                  icon={Palette}
+                  right={<FieldStatusPill value={form.event_theme} />}
                 >
-                  <TInput
-                    placeholder="e.g. Purok 4, Lopez Building"
-                    value={form.street}
-                    onChange={(val) => setForm({ ...form, street: val })}
+                  Theme &amp; styling motif
+                </SectionTitle>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                      Event Theme (Optional)
+                    </label>
+                    <ThemePicker
+                      value={form.event_theme}
+                      onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+                    />
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                        Color palette (Optional)
+                      </label>
+                      <FieldStatusPill
+                        value={
+                          Array.isArray(form.event_palette) && form.event_palette.length > 0
+                            ? form.event_palette.join(", ")
+                            : ""
+                        }
+                      />
+                    </div>
+                    <ColorPalettePicker
+                      value={form.event_palette}
+                      onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
+                    />
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column: Venue Location */}
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={MapPin}>Venue location</SectionTitle>
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <Field label="Municipality" required error={errors.municipality}>
+                  <TSelect
+                    value={form.municipality}
+                    onChange={(val) =>
+                      setForm({ ...form, municipality: val, barangay: "" })
+                    }
+                    options={municipalities}
+                    placeholder="Select municipality"
+                    hasError={!!errors.municipality}
                   />
                 </Field>
-
                 <Field
-                  label="Venue type"
-                  hint="Optional."
+                  label="Barangay"
+                  required
+                  hint={!form.municipality ? "Select municipality first" : undefined}
+                  error={errors.barangay}
                 >
+                  <TSelect
+                    value={form.barangay}
+                    onChange={(val) => setForm({ ...form, barangay: val })}
+                    options={barangays}
+                    placeholder="Select barangay"
+                    disabled={!form.municipality}
+                    hasError={!!errors.barangay}
+                  />
+                </Field>
+              </div>
+
+              <Field
+                label="Street and building"
+                hint="Street, subdivision, or building name"
+              >
+                <TInput
+                  placeholder="e.g. Purok 4, Lopez Building"
+                  value={form.street}
+                  onChange={(val) => setForm({ ...form, street: val })}
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <Field label="Venue type" hint="Optional">
                   <TSelect
                     value={isVenueTypeOther ? OTHER_VENUE_TYPE : form.venue_type}
                     onChange={(val) =>
@@ -406,28 +458,7 @@ export default function StepEventDetails({
                   />
                 </Field>
 
-                {isVenueTypeOther && (
-                  <Field
-                    label="Please specify your venue type"
-                    required
-                    error={errors.venue_type_other}
-                  >
-                    <TInput
-                      placeholder="e.g. Rooftop terrace"
-                      value={venueTypeOther}
-                      onChange={(val) =>
-                        setForm({
-                          ...form,
-                          venue_type: OTHER_VENUE_TYPE,
-                          venue_type_other: val,
-                        })
-                      }
-                      hasError={!!errors.venue_type_other}
-                    />
-                  </Field>
-                )}
-
-                <Field label="Landmark" hint="Optional.">
+                <Field label="Landmark" hint="Optional">
                   <TInput
                     placeholder="e.g. Across the municipal hall"
                     value={form.landmark}
@@ -435,45 +466,30 @@ export default function StepEventDetails({
                   />
                 </Field>
               </div>
-            </Card>
-          </div>
 
-          {/* Design from Scratch, chosen on the Package step, already asked for
-              a theme and palette alongside the rest of that custom concept —
-              asking again here would be the same question twice. */}
-          {!form.is_custom_setup && (
-            <Card className="mt-3 p-4">
-              <SectionTitle icon={Palette}>Theme and colour palette</SectionTitle>
-              <p className="mb-3 text-[13px] text-[#64748B]">
-                Two independent, optional choices. Enter a theme, pick a color palette, or both — our stylists coordinate the setup, backdrop and table decorations to match whatever you choose.
-              </p>
-
-              <div className="mb-1.5 flex items-center justify-between gap-3">
-                <h4 className="text-[12px] font-semibold text-[#1E293B]">Theme</h4>
-                <FieldStatusPill value={form.event_theme} />
-              </div>
-              <ThemePicker
-                value={form.event_theme}
-                onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
-              />
-
-              <div className="mt-4 mb-1.5 flex items-center justify-between gap-3 border-t border-[#E2E8F0] pt-4">
-                <h4 className="text-[12px] font-semibold text-[#1E293B]">Color palette</h4>
-                <FieldStatusPill
-                  value={
-                    Array.isArray(form.event_palette) && form.event_palette.length > 0
-                      ? form.event_palette.join(", ")
-                      : ""
-                  }
-                />
-              </div>
-              <ColorPalettePicker
-                value={form.event_palette}
-                onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
-              />
-            </Card>
-          )}
-        </>
+              {isVenueTypeOther && (
+                <Field
+                  label="Specify venue type"
+                  required
+                  error={errors.venue_type_other}
+                >
+                  <TInput
+                    placeholder="e.g. Rooftop terrace, Covered court"
+                    value={venueTypeOther}
+                    onChange={(val) =>
+                      setForm({
+                        ...form,
+                        venue_type: OTHER_VENUE_TYPE,
+                        venue_type_other: val,
+                      })
+                    }
+                    hasError={!!errors.venue_type_other}
+                  />
+                </Field>
+              )}
+            </div>
+          </Card>
+        </div>
       )}
     </StepShell>
   );

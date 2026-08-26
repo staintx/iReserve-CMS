@@ -2,8 +2,8 @@
 // Booking flow design tokens
 // -----------------------------------------------------------------------------
 // Spacing scale ....... 4 / 8 / 12 / 16 / 24 (gap-1 … gap-6)
-// Radius .............. controls: rounded-xl (12px) · cards: rounded-2xl (16px)
-// Control height ...... h-10 (40px) — compact but comfortable
+// Radius .............. controls: rounded-md (6px) · cards: rounded-lg (8px)
+// Control height ...... h-9 / h-9.5 (36-38px) — compact, dense, professional
 // Shadow .............. shadow-sm on resting surfaces, shadow-md on raised
 // Typography .......... UI typeface throughout, never the Playfair display
 //                       face: booking is transactional and has to be scanned,

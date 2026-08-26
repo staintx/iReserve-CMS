@@ -94,7 +94,7 @@ export default function InquirySubmitted() {
         {/* 2-Column Content Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
           {/* Left Column: Request Summary */}
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-4 flex flex-col justify-between">
+          <div className="bg-white rounded-lg border border-slate-200/80 shadow-2xs p-4 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-100">
                 <Receipt className="w-4 h-4 text-primary" />
@@ -116,7 +116,7 @@ export default function InquirySubmitted() {
             </div>
 
             {estimate > 0 && (
-              <div className="mt-2.5 pt-2 border-t border-slate-200/80 bg-slate-50/70 -mx-4 -mb-4 p-3 rounded-b-xl">
+              <div className="mt-2.5 pt-2 border-t border-slate-200/80 bg-slate-50/70 -mx-4 -mb-4 p-3 rounded-b-lg">
                 <div className="flex justify-between items-baseline">
                   <span className="text-xs font-bold text-slate-800">Estimated Total</span>
                   <span className="text-sm sm:text-base font-bold text-primary font-mono">{formatCurrency(estimate)}</span>
@@ -129,7 +129,7 @@ export default function InquirySubmitted() {
           </div>
 
           {/* Right Column: Next Steps */}
-          <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-4 flex flex-col justify-between">
+          <div className="bg-white rounded-lg border border-slate-200/80 shadow-2xs p-4 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 pb-2 mb-2 border-b border-slate-100">
                 <Clock className="w-4 h-4 text-primary" />

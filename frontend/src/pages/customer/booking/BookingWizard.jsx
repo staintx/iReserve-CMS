@@ -234,7 +234,6 @@ export default function BookingWizard() {
   const [agreements, setAgreements] = useState({ terms: false, privacy: false });
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showScheduleConfirm, setShowScheduleConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const hasSubmitted = useRef(false);
 
@@ -1467,10 +1466,10 @@ export default function BookingWizard() {
   return (
     <CustomerLayout
       marketing
-      contentClassName="mx-auto flex min-h-[calc(100vh-var(--ls-header-h))] w-full max-w-6xl flex-col px-4 pb-0 pt-4 sm:px-6"
+      contentClassName="mx-auto flex w-full max-w-6xl flex-col px-4 pb-0 pt-2 sm:px-6"
     >
       {/* Progress header — sticks under the site header so users never lose place */}
-      <div className="sticky top-[var(--ls-header-h,73px)] z-20 -mx-4 mb-4 border-b border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky top-[var(--ls-header-h,76px)] z-20 -mx-4 mb-2.5 border-b border-[#E2E8F0] bg-white/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
         <BookingStepper
           currentStepIndex={step + 1}
           steps={wizardSteps}
@@ -1492,13 +1491,13 @@ export default function BookingWizard() {
 
       {/* Prominent Editing Mode Banner */}
       {isEditing && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200/80 bg-blue-50/70 p-3 sm:px-4 text-[13px] shadow-xs">
-          <div className="flex items-center gap-2.5 text-blue-900 font-medium min-w-0">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#4C81E0]">
-              <Pencil size={12} />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-blue-200/80 bg-blue-50/70 p-2.5 sm:px-3.5 text-[13px] shadow-2xs">
+          <div className="flex items-center gap-2 text-blue-900 font-medium min-w-0">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[#4C81E0]">
+              <Pencil size={11} />
             </span>
             <span className="truncate">
-              Editing: <strong className="font-semibold text-[#1E293B]">{wizardSteps[step]?.label}</strong>
+              Editing: <strong className="font-semibold text-slate-900">{wizardSteps[step]?.label}</strong>
               <span className="hidden sm:inline text-slate-500 font-normal"> — Update your details and return to review.</span>
             </span>
           </div>
@@ -1506,15 +1505,15 @@ export default function BookingWizard() {
             <button
               type="button"
               onClick={handleNext}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#4C81E0] px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-[#3b6ec6] active:scale-95 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#4C81E0] px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-[#3b6ec6] active:scale-95 transition-all cursor-pointer"
             >
-              <Check size={13} />
+              <Check size={12} />
               Save & Return to Review
             </button>
             <button
               type="button"
               onClick={returnToReview}
-              className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
             >
               Cancel
             </button>
@@ -1523,7 +1522,7 @@ export default function BookingWizard() {
       )}
 
       {draftNoticeVisible && !isEditing && (
-        <InfoNote tone="info" title="We picked up where you left off" className="mb-4">
+        <InfoNote tone="info" title="We picked up where you left off" className="mb-3">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             Your earlier answers are still here.
             <button
@@ -1545,20 +1544,18 @@ export default function BookingWizard() {
         </InfoNote>
       )}
 
-      {/* Extra bottom room on mobile so the last row of any grid can be
-          scrolled clear of the floating chat button, which is a shared global
-          widget and stays where it is on every other page. */}
-      <div className="flex-1 pb-20 sm:pb-4">{renderStep()}</div>
+      {/* Step content container */}
+      <div className="flex-1 pb-16 sm:pb-3">{renderStep()}</div>
 
       {/* Sticky action bar — the single primary action for every step */}
-      <div className="sticky bottom-0 z-30 -mx-4 border-t border-[#E2E8F0] bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-0 z-30 -mx-4 border-t border-[#E2E8F0] bg-white/95 px-4 py-2.5 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col gap-2">
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700"
+              className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
             >
-              <AlertCircle size={15} className="mt-0.5 shrink-0" />
+              <AlertCircle size={14} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
@@ -1598,34 +1595,6 @@ export default function BookingWizard() {
                   "Send request"
                 )}
               </PrimaryBtn>
-            ) : currentStepId === "DateTime" ? (
-              <PrimaryBtn
-                variant="primary"
-                onClick={() => {
-                  const { valid, message } = validateStep("DateTime");
-                  if (!valid && !form.event_date) {
-                    setError(message);
-                    return;
-                  }
-                  if (!form.start_time) {
-                    setError("Choose a start time to continue.");
-                    return;
-                  }
-                  setShowScheduleConfirm(true);
-                }}
-              >
-                {isEditing ? (
-                  <>
-                    <Check size={16} />
-                    Save & Return to Review
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </PrimaryBtn>
             ) : (
               <PrimaryBtn variant="primary" onClick={handleNext}>
                 {isEditing ? (
@@ -1646,74 +1615,6 @@ export default function BookingWizard() {
       </div>
 
       {/* Modals */}
-      {showScheduleConfirm && (
-        <Modal
-          title="Confirm your schedule"
-          onClose={() => setShowScheduleConfirm(false)}
-        >
-          <div className="space-y-4 text-sm text-[#64748B]">
-            <p>
-              We&apos;ll price your event for
-              <strong className="text-[#1E293B]"> {scheduleDisplay.date}</strong> at
-              <strong className="text-[#1E293B]"> {scheduleDisplay.time}</strong>.
-              You can change this later from the review step.
-            </p>
-
-            {isAvailabilityPending && (
-              <InfoNote tone="info">
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 size={14} className="animate-spin text-[#4C81E0]" />
-                  Checking that this slot is still free
-                </span>
-              </InfoNote>
-            )}
-
-            {availability.status === "error" && (
-              <InfoNote tone="danger" title="We couldn't check this slot">
-                Something went wrong reaching our booking calendar. Close this and use
-                Try again on the schedule card. Nothing you entered is lost.
-              </InfoNote>
-            )}
-
-            {isAvailabilityBlocked && availability.status !== "error" && (
-              <InfoNote tone="danger" title="This slot isn't available">
-                {availability.message ||
-                  "We already have an event at this time. Please choose a different date or time."}
-              </InfoNote>
-            )}
-          </div>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <PrimaryBtn
-              variant="outline"
-              onClick={() => setShowScheduleConfirm(false)}
-              className="w-full sm:w-auto"
-            >
-              {isAvailabilityBlocked ? "Choose another time" : "Cancel"}
-            </PrimaryBtn>
-            <PrimaryBtn
-              variant="primary"
-              onClick={() => {
-                setShowScheduleConfirm(false);
-                handleNext();
-              }}
-              disabled={!isAvailabilityConfirmed}
-              className="w-full sm:w-auto"
-            >
-              {isAvailabilityPending
-                ? "Checking"
-                : isEditing
-                  ? "Confirm & Return to Review"
-                  : "Confirm and continue"}
-            </PrimaryBtn>
-          </div>
-        </Modal>
-      )}
-
-
-      {/* The shared Modal clips its body (`overflow-hidden`) and DialogContent
-          sets no max height, so a full policy document has to bring its own
-          bounded, scrollable region or it runs off the viewport. */}
       {showTerms && (
         <Modal
           title="Terms and Conditions"

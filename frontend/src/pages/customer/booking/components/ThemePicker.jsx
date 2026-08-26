@@ -17,13 +17,13 @@ function SwatchCard({ selected, swatches, title, subtitle, dashed = false, onCli
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
+        "flex items-center gap-2 rounded-lg border p-2 sm:p-2.5 text-left transition-all cursor-pointer",
         dashed && "border-dashed",
         selected
-          ? "border-[#4C81E0] bg-[#4C81E0]/5"
+          ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]"
           : cn(
-              dashed ? "border-[#CBD5E1]" : "border-[#E2E8F0]",
-              "bg-white hover:border-[#4C81E0]/50",
+              dashed ? "border-slate-300" : "border-slate-200",
+              "bg-white hover:border-slate-300 hover:bg-slate-50",
             ),
         focusRing,
       )}
@@ -34,8 +34,8 @@ function SwatchCard({ selected, swatches, title, subtitle, dashed = false, onCli
             <span
               key={swatch + index}
               className={cn(
-                "h-6 w-6 rounded-full ring-1 ring-black/10",
-                index > 0 && "-ml-2",
+                "h-4 w-4 rounded-full ring-1 ring-black/15",
+                index > 0 && "-ml-1.5",
               )}
               style={{ backgroundColor: swatch }}
             />
@@ -44,13 +44,13 @@ function SwatchCard({ selected, swatches, title, subtitle, dashed = false, onCli
       )}
 
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-[#1E293B]">{title}</span>
+        <span className="block text-xs font-semibold text-slate-800 leading-tight truncate">{title}</span>
         {subtitle && (
-          <span className="block text-xs text-[#64748B]">{subtitle}</span>
+          <span className="block text-[10px] text-slate-400 leading-tight">{subtitle}</span>
         )}
       </span>
 
-      {selected && <Check size={16} className="shrink-0 text-[#4C81E0]" />}
+      {selected && <Check size={14} className="shrink-0 text-[#4C81E0]" />}
     </button>
   );
 }

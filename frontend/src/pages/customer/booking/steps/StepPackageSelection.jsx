@@ -67,69 +67,67 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
   const [expanded, setExpanded] = useState(false);
   const { written, equipment } = packageInclusions(pkg);
   const all = [...written, ...equipment];
-  const PREVIEW = 3;
+  const PREVIEW = 2;
   const preview = expanded ? all : all.slice(0, PREVIEW);
   const hiddenCount = all.length - preview.length;
 
   return (
     <div
       className={cn(
-        "flex flex-col rounded-xl border transition-colors",
+        "flex flex-col rounded-lg border transition-all select-none",
         isSelected
-          ? "border-[#4C81E0] bg-[#4C81E0]/5"
-          : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50",
+          ? "border-[#4C81E0] bg-[#4C81E0]/[0.03] ring-1 ring-[#4C81E0] shadow-xs"
+          : "border-slate-200 bg-white hover:border-[#4C81E0]/40 shadow-2xs",
       )}
     >
       <button
         type="button"
         aria-pressed={isSelected}
         onClick={onSelect}
-        className={cn("flex gap-3 rounded-t-xl p-3.5 text-left", focusRing)}
+        className={cn("flex gap-3 rounded-t-lg p-3 text-left cursor-pointer", focusRing)}
       >
-        <span className="block h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F8FAFC]">
+        <span className="block h-12 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 border border-slate-200/60">
           {pkg.image_url ? (
             <img src={pkg.image_url} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-[#CBD5E1]">
-              <Package2 size={20} />
+            <span className="flex h-full w-full items-center justify-center text-slate-300">
+              <Package2 size={18} />
             </span>
           )}
         </span>
 
         <span className="block min-w-0 flex-1">
-          <span className="flex items-start justify-between gap-2">
-            <span className="truncate text-base font-semibold text-[#1E293B]">
+          <span className="flex items-start justify-between gap-1.5">
+            <span className="truncate text-sm font-bold text-slate-900">
               {pkg.name}
             </span>
             {isSelected && (
-              <CheckCircle2 size={16} className="shrink-0 text-[#4C81E0]" />
+              <CheckCircle2 size={15} className="shrink-0 text-[#4C81E0]" />
             )}
           </span>
-          <span className="mt-0.5 block text-[13px] text-[#64748B]">
+          <span className="mt-0.5 block text-xs font-semibold text-[#4C81E0]">
             {showPerGuestPrice && pkg.price_per_guest > 0
               ? `${formatPeso(pkg.price_per_guest)} per guest`
               : pkg.setup_price > 0
-                ? `${formatPeso(pkg.setup_price)} for the setup`
-                : "Priced on your quotation"}
+                ? `${formatPeso(pkg.setup_price)} for setup`
+                : "Priced on quotation"}
           </span>
           {pkg.description && (
-            <span className="mt-1 line-clamp-2 block text-xs leading-snug text-[#64748B]">
+            <span className="mt-0.5 line-clamp-1 block text-[11px] text-slate-500">
               {pkg.description}
             </span>
           )}
         </span>
       </button>
 
-      {all.length > 0 && (
-        <div className="border-t border-[#E2E8F0] px-3.5 py-3">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-            Includes
-          </p>
-          <ul className="space-y-1 text-[13px] text-[#64748B]">
+      {/* Inclusions summary — collapsed to PREVIEW items */}
+      {preview.length > 0 && (
+        <div className="border-t border-slate-100 bg-slate-50/50 px-3 py-2 text-xs rounded-b-lg">
+          <ul className="space-y-0.5 text-slate-600 text-[11px]">
             {preview.map((line, idx) => (
-              <li key={`${line}-${idx}`} className="flex gap-2">
-                <Check size={13} className="mt-0.5 shrink-0 text-[#4C81E0]" />
-                {line}
+              <li key={`${line}-${idx}`} className="flex gap-1.5 items-start">
+                <Check size={12} className="mt-0.5 shrink-0 text-[#4C81E0]" />
+                <span className="truncate">{line}</span>
               </li>
             ))}
           </ul>
@@ -139,13 +137,13 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
               onClick={() => setExpanded((open) => !open)}
               aria-expanded={expanded}
               className={cn(
-                "mt-2 inline-flex items-center gap-1 rounded text-[13px] font-medium text-[#4C81E0]",
+                "mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#4C81E0] hover:underline cursor-pointer",
                 focusRing,
               )}
             >
-              {expanded ? "Show less" : `Show ${hiddenCount} more`}
+              {expanded ? "Show less" : `+${hiddenCount} more inclusions`}
               <ChevronDown
-                size={14}
+                size={12}
                 className={cn("transition-transform", expanded && "rotate-180")}
               />
             </button>
@@ -157,16 +155,16 @@ function PackageCard({ pkg, isSelected, showPerGuestPrice, onSelect }) {
         type="button"
         onClick={onSelect}
         className={cn(
-          "m-3.5 mt-auto rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors flex items-center justify-center gap-1.5",
+          "m-2.5 mt-auto rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer",
           isSelected
             ? "bg-[#4C81E0] text-white hover:bg-red-600"
-            : "border border-[#E2E8F0] bg-white text-[#1E293B] hover:border-[#4C81E0]",
+            : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
           focusRing,
         )}
       >
         {isSelected ? (
           <>
-            <X size={14} />
+            <X size={13} />
             Unselect Package
           </>
         ) : (
@@ -194,12 +192,6 @@ export default function StepPackageSelection({
 
   const isCustomSetup = Boolean(form.is_custom_setup);
 
-  // This step chooses a *setup* package and its scaffold size. A Special Offer
-  // is a different proposition — a combo pack, whose food and guest count are
-  // both fixed — and is booked from its own card on the Packages page, which is
-  // where those terms are actually explained. Listing one here would drop a
-  // customer into a setup-shaped flow that would then ask them to choose the
-  // very things the combo already decided.
   const matchingPackages = (packages || []).filter(
     (pkg) =>
       !isSpecialOffer(pkg) &&
@@ -219,7 +211,6 @@ export default function StepPackageSelection({
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
-  // Handle Tab Switch
   const handleTabSwitch = (tab) => {
     if (tab === "custom") {
       setForm((prev) => ({
@@ -244,7 +235,6 @@ export default function StepPackageSelection({
     }
   };
 
-  // Handle Setup Scope Checkbox Toggle
   const toggleScopeItem = (itemLabel) => {
     const currentScope = Array.isArray(form.custom_setup_scope)
       ? form.custom_setup_scope
@@ -256,7 +246,6 @@ export default function StepPackageSelection({
     updateForm({ custom_setup_scope: updated });
   };
 
-  // Handle Inspiration Image Uploads
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -310,41 +299,41 @@ export default function StepPackageSelection({
       />
 
       {/* Choice Tabs: Pre-made Package vs Design from Scratch */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mb-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => handleTabSwitch("package")}
           className={cn(
-            "flex items-center gap-3.5 rounded-xl border p-4 text-left transition-all",
+            "flex items-center gap-3 rounded-lg border p-3 text-left transition-all cursor-pointer",
             !isCustomSetup
-              ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm ring-1 ring-[#4C81E0]"
-              : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
+              ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-xs"
+              : "border-slate-200 bg-white hover:border-slate-300",
             focusRing,
           )}
         >
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+              "flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-md transition-colors",
               !isCustomSetup
                 ? "bg-[#4C81E0] text-white"
-                : "bg-slate-100 text-[#64748B]",
+                : "bg-slate-100 text-slate-500",
             )}
           >
-            <Package2 size={20} />
+            <Package2 size={17} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-[#1E293B]">
-                Start from a Pre-made Package
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
+                Pre-made Package
               </span>
               {!isCustomSetup && (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[10px]">
+                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
                   ✓
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-[#64748B]">
-              Pick from our ready-to-go styled setup packages with scaffold size options.
+            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+              Ready styled setup packages with scaffold size choices.
             </p>
           </div>
         </button>
@@ -353,36 +342,36 @@ export default function StepPackageSelection({
           type="button"
           onClick={() => handleTabSwitch("custom")}
           className={cn(
-            "flex items-center gap-3.5 rounded-xl border p-4 text-left transition-all",
+            "flex items-center gap-3 rounded-lg border p-3 text-left transition-all cursor-pointer",
             isCustomSetup
-              ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm ring-1 ring-[#4C81E0]"
-              : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
+              ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-xs"
+              : "border-slate-200 bg-white hover:border-slate-300",
             focusRing,
           )}
         >
           <div
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors",
+              "flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-md transition-colors",
               isCustomSetup
                 ? "bg-[#4C81E0] text-white"
-                : "bg-slate-100 text-[#64748B]",
+                : "bg-slate-100 text-slate-500",
             )}
           >
-            <Sparkles size={20} />
+            <Sparkles size={17} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-[#1E293B]">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
                 Design from Scratch (100% Custom)
               </span>
               {isCustomSetup && (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[10px]">
+                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
                   ✓
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-[#64748B]">
-              Specify your dream theme, color palette, custom setup items & moodboard pegs.
+            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+              Specify your dream theme, colors, elements & moodboard pegs.
             </p>
           </div>
         </button>
@@ -392,23 +381,23 @@ export default function StepPackageSelection({
       {/* TAB A: PRE-MADE PACKAGE SELECTION */}
       {/* ------------------------------------------------------------- */}
       {!isCustomSetup && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3.5">
           {selectedPackage && (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#4C81E0]/30 bg-[#4C81E0]/5 p-3 text-sm">
+            <div className="flex items-center justify-between gap-2.5 rounded-lg border border-[#4C81E0]/30 bg-[#4C81E0]/5 px-3 py-2 text-xs">
               <div className="flex items-center gap-2 min-w-0">
-                <CheckCircle2 size={18} className="shrink-0 text-[#4C81E0]" />
-                <span className="truncate text-[#1E293B]">
-                  <span className="font-semibold">Selected Package:</span>{" "}
-                  <span className="font-bold">{selectedPackage.name}</span>
+                <CheckCircle2 size={15} className="shrink-0 text-[#4C81E0]" />
+                <span className="truncate text-slate-800">
+                  <span className="font-semibold text-slate-500">Selected:</span>{" "}
+                  <strong className="text-slate-900">{selectedPackage.name}</strong>
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onSelectPackage(selectedPackage._id)}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-95 cursor-pointer"
+                className="flex shrink-0 items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-semibold text-red-600 shadow-2xs hover:bg-red-50 cursor-pointer"
               >
-                <X size={14} />
-                Unselect Package
+                <X size={12} />
+                Unselect
               </button>
             </div>
           )}
@@ -422,8 +411,8 @@ export default function StepPackageSelection({
           {matchingPackages.length > 0 ? (
             <div
               className={cn(
-                "grid grid-cols-1 gap-3",
-                matchingPackages.length > 1 && "xl:grid-cols-2",
+                "grid grid-cols-1 gap-2.5",
+                matchingPackages.length > 1 && "sm:grid-cols-2",
               )}
             >
               {matchingPackages.map((pkg) => (
@@ -437,20 +426,16 @@ export default function StepPackageSelection({
               ))}
             </div>
           ) : (
-            <Card className="p-6 text-center text-sm text-[#64748B]">
+            <Card className="p-5 text-center text-xs text-slate-500">
               No setup packages are available right now. Switch to &ldquo;Design from Scratch&rdquo; to describe your setup vision.
             </Card>
           )}
 
           {selectedPackage && scaffoldOptions.length > 0 && (
-            <Card className="p-4">
-              {/* The same words the summary panel and the review page use for
-                  this one fact. It was "setup footprint size" here, "setup size"
-                  on review and unnamed on the estimate panel — three names for
-                  the size the customer picks once. */}
+            <Card className="p-3.5 sm:p-4">
               <SectionTitle icon={Ruler}>Event space / scaffold size</SectionTitle>
-              <p className="mb-3 text-[13px] text-[#64748B]">
-                Pick the event space your venue needs. It sets your setup price.
+              <p className="mb-2 text-xs text-slate-500">
+                Select the scaffold dimensions for your venue footprint.
               </p>
 
               {setupCapacity && (
@@ -462,13 +447,13 @@ export default function StepPackageSelection({
                         ? "warn"
                         : "success"
                   }
-                  className="mb-3"
+                  className="mb-2.5"
                 >
                   {setupCapacity.message}
                 </InfoNote>
               )}
 
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {scaffoldOptions.map((option) => {
                   const isActive =
                     String(option._id) === String(form.selected_scaffold_option_id);
@@ -496,62 +481,62 @@ export default function StepPackageSelection({
                         })
                       }
                       className={cn(
-                        "w-full rounded-xl border-2 p-3 text-left transition-all",
+                        "w-full rounded-lg border p-2.5 text-left transition-all cursor-pointer",
                         isActive
-                          ? "border-[#4C81E0] bg-[#4C81E0]/5 shadow-sm"
-                          : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/50 hover:bg-[#F8FAFC]",
+                          ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-xs"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
                         focusRing,
                       )}
                     >
-                      <span className="flex items-center justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span
                             className={cn(
-                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold transition-colors",
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[10px] font-bold transition-colors",
                               isActive
                                 ? "bg-[#4C81E0] text-white"
-                                : "bg-[#F1F5F9] text-[#64748B]",
+                                : "bg-slate-100 text-slate-600",
                             )}
                           >
                             {option.width_ft}×{option.length_ft}
                           </span>
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm font-semibold text-[#1E293B]">
+                          <div className="min-w-0">
+                            <span className="block truncate text-xs font-bold text-slate-800 leading-tight">
                               {option.label || dimensions}
                             </span>
-                            <span className="block text-xs text-[#64748B]">
+                            <span className="block text-[11px] text-slate-400 leading-tight">
                               {dimensions}
                             </span>
-                          </span>
-                        </span>
+                          </div>
+                        </div>
 
-                        <span className="shrink-0 text-right">
-                          <span className="block text-[11px] uppercase tracking-wider text-[#94A3B8]">
+                        <div className="shrink-0 text-right">
+                          <span className="block text-[10px] uppercase font-semibold text-slate-400">
                             Setup Price
                           </span>
-                          <span className="block text-sm font-bold tabular-nums text-[#1E293B]">
+                          <span className="block text-xs font-bold tabular-nums text-slate-900">
                             {formatPeso(option.price)}
                           </span>
-                        </span>
-                      </span>
+                        </div>
+                      </div>
 
                       {hasGuestRange && (
-                        <span className="mt-2 flex items-center gap-2 border-t border-[#E2E8F0] pt-2">
+                        <div className="mt-1.5 flex items-center gap-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-500">
                           <Users
-                            size={13}
+                            size={11}
                             className={cn(
                               "shrink-0",
-                              isActive ? "text-[#4C81E0]" : "text-[#94A3B8]",
+                              isActive ? "text-[#4C81E0]" : "text-slate-400",
                             )}
                           />
-                          <span className="text-xs text-[#64748B]">
+                          <span>
                             {option.guest_min && option.guest_max
                               ? `${option.guest_min}–${option.guest_max} guests`
                               : option.guest_min
                                 ? `From ${option.guest_min} guests`
                                 : `Up to ${option.guest_max} guests`}
                           </span>
-                        </span>
+                        </div>
                       )}
                     </button>
                   );
@@ -566,204 +551,191 @@ export default function StepPackageSelection({
       {/* TAB B: 100% BESPOKE CUSTOM EVENT SETUP */}
       {/* ------------------------------------------------------------- */}
       {isCustomSetup && (
-        <div className="space-y-5">
-          {/* Card 1: Theme & Motif */}
-          <Card className="p-4 sm:p-5">
-            <SectionTitle
-              icon={Sparkles}
-              right={<FieldStatusPill value={form.event_theme} />}
-            >
-              1. Theme &amp; Styling Motif
-            </SectionTitle>
-            <p className="mb-3 text-[13px] text-[#64748B]">
-              Optional. Describe the theme or styling direction for your event — independent of the colors below.
-            </p>
-            <ThemePicker
-              value={form.event_theme}
-              onChange={(theme) => updateForm({ event_theme: theme })}
-            />
-            {errors.event_theme && (
-              <p className="text-xs text-red-600 mt-2">{errors.event_theme}</p>
-            )}
-          </Card>
-
-          {/* Card 2: Color Palette */}
-          <Card className="p-4 sm:p-5">
-            <SectionTitle
-              icon={Palette}
-              right={
-                <FieldStatusPill
-                  value={
-                    Array.isArray(form.event_palette) && form.event_palette.length > 0
-                      ? form.event_palette.join(", ")
-                      : ""
-                  }
-                />
-              }
-            >
-              2. Color Palette &amp; Accents
-            </SectionTitle>
-            <p className="mb-3 text-[13px] text-[#64748B]">
-              Optional. Choose the primary and accent colors for your linens, florals, and backdrop draping — independent of the theme above.
-            </p>
-            <ColorPalettePicker
-              value={form.event_palette}
-              onChange={(palette) => updateForm({ event_palette: palette })}
-            />
-          </Card>
-
-          {/* Card 3: Setup Scope & Requirements */}
-          <Card className="p-4 sm:p-5">
-            <SectionTitle icon={Layers}>3. What Would You Like Us to Style &amp; Setup?</SectionTitle>
-            <p className="mb-3 text-[13px] text-[#64748B]">
-              Select all elements you want our styling and production team to handle for your venue.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {SETUP_SCOPE_OPTIONS.map((item) => {
-                const isChecked = (form.custom_setup_scope || []).includes(item.label);
-                return (
-                  <label
-                    key={item.id}
-                    className={cn(
-                      "flex items-start gap-3 rounded-xl border p-3 transition-all cursor-pointer",
-                      isChecked
-                        ? "border-[#4C81E0] bg-[#4C81E0]/5"
-                        : "border-[#E2E8F0] bg-white hover:border-[#4C81E0]/40",
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleScopeItem(item.label)}
-                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#4C81E0] focus:ring-[#4C81E0]"
-                    />
-                    <div className="min-w-0">
-                      <span className="block text-xs font-semibold text-[#1E293B]">
-                        {item.label}
-                      </span>
-                      <span className="block text-[11px] text-[#64748B] leading-snug">
-                        {item.desc}
-                      </span>
-                    </div>
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 items-start">
+          {/* Card 1: Styling & Theme Direction */}
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={Sparkles}>1. Theme &amp; Color Palette</SectionTitle>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    Theme / Motif (Optional)
                   </label>
-                );
-              })}
-            </div>
-          </Card>
-
-          {/* Card 4: Moodboard & Inspiration Uploads */}
-          <Card className="p-4 sm:p-5">
-            <SectionTitle icon={ImageIcon}>4. Inspiration Photos &amp; Moodboard (Optional)</SectionTitle>
-            <p className="mb-3 text-[13px] text-[#64748B]">
-              Upload up to 5 reference photos (e.g. Pinterest pegs, Instagram styling) so our team can visualize your dream setup.
-            </p>
-
-            {/* Upload Button & Previews */}
-            <div className="flex flex-wrap items-center gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                id="moodboard-upload"
-              />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImages || (form.inspiration_images || []).length >= 5}
-                className={cn(
-                  "flex h-20 w-24 flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] text-center text-xs font-medium text-[#64748B] transition-colors hover:border-[#4C81E0] hover:text-[#4C81E0] disabled:opacity-50",
-                  focusRing,
-                )}
-              >
-                {uploadingImages ? (
-                  <Loader2 size={18} className="animate-spin text-[#4C81E0]" />
-                ) : (
-                  <>
-                    <Upload size={18} className="mb-1 text-[#94A3B8]" />
-                    <span>Upload</span>
-                  </>
-                )}
-              </button>
-
-              {(form.inspiration_images || []).map((url, idx) => (
-                <div
-                  key={idx}
-                  className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-[#E2E8F0] bg-slate-100 shadow-xs"
-                >
-                  <img
-                    src={url}
-                    alt={`Inspiration ${idx + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeInspirationImage(idx)}
-                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white opacity-90 hover:bg-red-600 transition-colors"
-                    title="Remove image"
-                  >
-                    <X size={11} />
-                  </button>
+                  <FieldStatusPill value={form.event_theme} />
                 </div>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-[#94A3B8]">
-              Formats accepted: JPG, PNG, WEBP. Max 5 photos.
-            </p>
-          </Card>
+                <ThemePicker
+                  value={form.event_theme}
+                  onChange={(theme) => updateForm({ event_theme: theme })}
+                />
+                {errors.event_theme && (
+                  <p className="text-[11px] text-red-600 mt-1">{errors.event_theme}</p>
+                )}
+              </div>
 
-          {/* Card 5: Target Budget & Notes */}
-          <Card className="p-4 sm:p-5">
-            <SectionTitle icon={DollarSign}>5. Target Budget &amp; Special Vision Notes</SectionTitle>
-            <p className="mb-3 text-[13px] text-[#64748B]">
-              Helping us understand your budget allows us to tailor fabrications and rentals to your financial comfort.
-            </p>
+              <div className="border-t border-slate-100 pt-2.5">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    Color Palette (Optional)
+                  </label>
+                  <FieldStatusPill
+                    value={
+                      Array.isArray(form.event_palette) && form.event_palette.length > 0
+                        ? form.event_palette.join(", ")
+                        : ""
+                    }
+                  />
+                </div>
+                <ColorPalettePicker
+                  value={form.event_palette}
+                  onChange={(palette) => updateForm({ event_palette: palette })}
+                />
+              </div>
 
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-[#1E293B] mb-1.5">
-                Target Budget Range (Optional)
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {BUDGET_PRESETS.map((budget) => {
-                  const isSelected = form.budget_range === budget;
-                  return (
-                    <button
-                      key={budget}
-                      type="button"
-                      onClick={() => updateForm({ budget_range: budget })}
-                      className={cn(
-                        "rounded-lg border px-3 py-2 text-xs font-medium transition-colors text-center",
-                        isSelected
-                          ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#1E293B] font-semibold ring-1 ring-[#4C81E0]"
-                          : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#4C81E0]/50",
-                        focusRing,
-                      )}
-                    >
-                      {budget}
-                    </button>
-                  );
-                })}
+              <div className="border-t border-slate-100 pt-2.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Setup Scope Elements
+                </label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {SETUP_SCOPE_OPTIONS.map((item) => {
+                    const isChecked = (form.custom_setup_scope || []).includes(item.label);
+                    return (
+                      <label
+                        key={item.id}
+                        className={cn(
+                          "flex items-start gap-2.5 rounded-lg border p-2 text-left transition-all cursor-pointer",
+                          isChecked
+                            ? "border-[#4C81E0] bg-[#4C81E0]/5"
+                            : "border-slate-200 bg-white hover:border-slate-300",
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleScopeItem(item.label)}
+                          className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#4C81E0] focus:ring-[#4C81E0]"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-xs font-bold text-slate-800 leading-tight">
+                            {item.label}
+                          </span>
+                          <span className="block text-[11px] text-slate-500 leading-tight">
+                            {item.desc}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+          </Card>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#1E293B] mb-1">
-                Custom Setup Vision &amp; Venue Details (Optional)
-              </label>
-              <textarea
-                rows={3}
-                value={form.custom_setup_notes || ""}
-                onChange={(e) => updateForm({ custom_setup_notes: e.target.value })}
-                placeholder="e.g. Venue has high ceilings with wooden trusses; we want fairy lights spanning across the hall with an elevated stage for the couple."
-                className={cn(
-                  "w-full rounded-xl border border-[#CBD5E1] bg-white p-3 text-sm text-[#1E293B] placeholder:text-[#94A3B8]",
-                  focusRing,
-                )}
-              />
+          {/* Card 2: Moodboard, Budget & Vision */}
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={ImageIcon}>2. Moodboard &amp; Notes</SectionTitle>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                  Inspiration Photos (Optional)
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="moodboard-upload"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImages || (form.inspiration_images || []).length >= 5}
+                    className={cn(
+                      "flex h-16 w-16 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-center text-[10px] font-semibold text-slate-500 hover:border-[#4C81E0] hover:text-[#4C81E0] disabled:opacity-50 cursor-pointer",
+                      focusRing,
+                    )}
+                  >
+                    {uploadingImages ? (
+                      <Loader2 size={15} className="animate-spin text-[#4C81E0]" />
+                    ) : (
+                      <>
+                        <Upload size={14} className="mb-0.5 text-slate-400" />
+                        <span>Upload</span>
+                      </>
+                    )}
+                  </button>
+
+                  {(form.inspiration_images || []).map((url, idx) => (
+                    <div
+                      key={idx}
+                      className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                    >
+                      <img
+                        src={url}
+                        alt={`Inspiration ${idx + 1}`}
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeInspirationImage(idx)}
+                        className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-white hover:bg-red-600 cursor-pointer"
+                        title="Remove"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Up to 5 images (JPG, PNG, WEBP).
+                </p>
+              </div>
+
+              <div className="border-t border-slate-100 pt-2.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                  Target Budget Range (Optional)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {BUDGET_PRESETS.map((budget) => {
+                    const isSelected = form.budget_range === budget;
+                    return (
+                      <button
+                        key={budget}
+                        type="button"
+                        onClick={() => updateForm({ budget_range: budget })}
+                        className={cn(
+                          "rounded-md border px-2 py-1 text-xs font-medium transition-colors text-center cursor-pointer",
+                          isSelected
+                            ? "border-[#4C81E0] bg-[#4C81E0]/10 text-[#4C81E0] font-bold"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                          focusRing,
+                        )}
+                      >
+                        {budget}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-2.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                  Custom Setup Vision &amp; Notes (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={form.custom_setup_notes || ""}
+                  onChange={(e) => updateForm({ custom_setup_notes: e.target.value })}
+                  placeholder="e.g. High ceilings with wooden trusses; warm fairy lights and elevated couple stage."
+                  className={cn(
+                    "w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]",
+                    focusRing,
+                  )}
+                />
+              </div>
             </div>
           </Card>
         </div>

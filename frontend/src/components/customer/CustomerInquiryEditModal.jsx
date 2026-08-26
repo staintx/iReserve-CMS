@@ -17,6 +17,9 @@ import {
   Plus,
   Ruler,
   Search,
+  Check,
+  UtensilsCrossed,
+  RotateCcw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Button } from "../ui/button";
@@ -49,40 +52,36 @@ import {
   offerPricePerPax,
   offerBaseFoodPrice,
 } from "../../lib/specialOffers";
+import { resolveGroup, CATEGORY_GROUPS } from "../../lib/menuCategories";
 import { formatCurrency } from "../../utils/format";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
+import { cn } from "@/lib/utils";
 
-/** One read-only fact in the submitted-request snapshot. Renders nothing for an empty value, so an optional field that was never filled in just doesn't leave a gap. */
+/** One read-only fact in the submitted-request snapshot. */
 function SnapshotRow({ label, value, wide = false }) {
   if (value === null || value === undefined || value === "") return null;
   return (
     <div className={wide ? "sm:col-span-2 min-w-0" : "min-w-0"}>
-      <dt className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 text-sm text-foreground">{value}</dd>
+      <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</dt>
+      <dd className="mt-0.5 text-xs font-semibold text-slate-800">{value}</dd>
     </div>
   );
 }
 
-/** Marks a snapshot card as part of the original submission, not something this form can change. */
+/** Marks a snapshot card as part of the original submission */
 function LockedBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-200/60">
       <Lock className="h-3 w-3" /> As submitted
     </span>
   );
 }
 
-/**
- * Marks a card the customer can change, next to the locked ones.
- *
- * The modal shows the whole request, and only some of it is editable. Saying
- * which is which on the card itself is what stops a customer hunting for a
- * control that was never there — the counterpart to `LockedBadge`.
- */
+/** Marks a card the customer can change */
 function EditableBadge({ children }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+    <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#4C81E0] border border-blue-200/60">
       {children}
     </span>
   );
@@ -91,16 +90,18 @@ function EditableBadge({ children }) {
 /** A dish or add-on the customer has chosen, removable from the summary row. */
 function PickChip({ label, onRemove }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-lg border border-border bg-background py-1 pl-2.5 pr-1 text-xs text-foreground">
-      {label}
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${label}`}
-        className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <X className="h-3 w-3" />
-      </button>
+    <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50/80 py-0.5 pl-2 pr-1 text-xs font-semibold text-blue-900 shadow-2xs">
+      <span className="truncate max-w-[130px]">{label}</span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${label}`}
+          className="flex h-3.5 w-3.5 items-center justify-center rounded text-blue-700 hover:bg-blue-200 hover:text-blue-900 cursor-pointer transition-colors"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </span>
   );
 }
@@ -108,23 +109,23 @@ function PickChip({ label, onRemove }) {
 /** −/+ stepper for an add-on's quantity. */
 function QuantityStepper({ value, onChange, disabled }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-md border border-slate-200">
       <button
         type="button"
         onClick={() => onChange(Math.max(0, value - 1))}
         disabled={disabled || value <= 0}
         aria-label="Decrease quantity"
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+        className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-600 shadow-2xs hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
       >
         <Minus className="h-3 w-3" />
       </button>
-      <span className="w-6 text-center text-sm font-semibold tabular-nums text-foreground">{value}</span>
+      <span className="w-6 text-center text-xs font-bold tabular-nums text-slate-800">{value}</span>
       <button
         type="button"
         onClick={() => onChange(value + 1)}
         disabled={disabled}
         aria-label="Increase quantity"
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+        className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-600 shadow-2xs hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
       >
         <Plus className="h-3 w-3" />
       </button>
@@ -246,6 +247,7 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   const [packageRecord, setPackageRecord] = useState(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [dishQuery, setDishQuery] = useState("");
+  const [activeCourseTab, setActiveCourseTab] = useState("all");
 
   useEffect(() => {
     if (open) {
@@ -253,6 +255,7 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
       setErrors({});
       setTouched({});
       setDishQuery("");
+      setActiveCourseTab("all");
     }
   }, [open, inquiry]);
 
@@ -327,19 +330,50 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   // Selections the customer can change
   // ---------------------------------------------------------------------------
 
-  /** Dishes, grouped the way the menu reads, filtered by the search box. */
-  const menuGroups = useMemo(() => {
-    const query = dishQuery.trim().toLowerCase();
-    const groups = new Map();
-    (menuCatalog || [])
-      .filter((item) => !query || String(item?.name || "").toLowerCase().includes(query))
-      .forEach((item) => {
-        const category = String(item?.category || "Other").trim() || "Other";
-        if (!groups.has(category)) groups.set(category, { category, items: [] });
-        groups.get(category).items.push(item);
-      });
-    return [...groups.values()];
-  }, [menuCatalog, dishQuery]);
+  /** Dishes, grouped by course categories, filtered by course tab and search box. */
+  const groupedDishes = useMemo(() => {
+    const byId = new Map();
+    (menuCatalog || []).forEach((item) => {
+      const group = resolveGroup(item?.category);
+      if (!byId.has(group.id)) byId.set(group.id, { ...group, items: [] });
+      byId.get(group.id).items.push(item);
+    });
+    const order = CATEGORY_GROUPS.map((group) => group.id);
+    return [...byId.values()].sort((a, b) => {
+      const ai = order.indexOf(a.id);
+      const bi = order.indexOf(b.id);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.label.localeCompare(b.label);
+    });
+  }, [menuCatalog]);
+
+  const selectedCountsByGroup = useMemo(() => {
+    const counts = {};
+    (form.selected_menu || []).forEach((dish) => {
+      const group = resolveGroup(dish?.category);
+      counts[group.id] = (counts[group.id] || 0) + 1;
+    });
+    return counts;
+  }, [form.selected_menu]);
+
+  const filteredDishes = useMemo(() => {
+    const q = dishQuery.trim().toLowerCase();
+    return groupedDishes
+      .filter((group) => activeCourseTab === "all" || group.id === activeCourseTab)
+      .map((group) => {
+        const matchingItems = q
+          ? group.items.filter(
+              (item) =>
+                item.name?.toLowerCase().includes(q) ||
+                item.description?.toLowerCase().includes(q),
+            )
+          : group.items;
+        return { ...group, items: matchingItems };
+      })
+      .filter((group) => group.items.length > 0);
+  }, [groupedDishes, activeCourseTab, dishQuery]);
 
   const isDishChosen = (item) =>
     (form.selected_menu || []).some((chosen) => String(chosen._id) === String(item._id));
@@ -613,16 +647,22 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose?.()}>
-      <DialogContent className="block w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit request details</DialogTitle>
-          <DialogDescription>
-            {inquiry.reference ? `${inquiry.reference} — ` : ""}
-            Here's everything you submitted. Sections marked "As submitted" can't be changed here — update the editable details below instead.
+      <DialogContent className="w-full max-w-3xl max-h-[88vh] rounded-xl border border-slate-200 shadow-2xl p-0 overflow-hidden flex flex-col bg-white">
+        <DialogHeader className="px-5 pt-4 pb-3 border-b border-slate-100 bg-white shrink-0">
+          <DialogTitle className="font-sans font-bold text-base sm:text-lg text-slate-900 tracking-tight flex items-center gap-2">
+            <span>Edit Request Details</span>
+            {inquiry.reference && (
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-blue-50 text-[#4C81E0] border border-blue-200/60">
+                {inquiry.reference}
+              </span>
+            )}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mt-0.5">
+            Sections marked "As submitted" cannot be changed. Update any of the editable selections below.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 px-5 py-4 overflow-y-auto flex-1">
           {/* --- Read-only snapshot: everything originally submitted that this
               form cannot change. Shown first so a customer sees the whole
               request before touching anything, distinguished from the
@@ -805,59 +845,203 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
                   Food &amp; menu
                 </SectionTitle>
 
+                {/* Selected Dishes Tray */}
                 {(form.selected_menu || []).length > 0 && (
-                  <div className="mb-3 flex flex-wrap gap-1.5">
-                    {form.selected_menu.map((item) => (
-                      <PickChip key={item._id} label={item.name} onRemove={() => toggleDish(item)} />
-                    ))}
+                  <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50/40 p-2.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900">
+                        Selected Dishes ({(form.selected_menu || []).length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, selected_menu: [] }))}
+                        className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.selected_menu.map((item) => (
+                        <PickChip key={item._id} label={item.name} onRemove={() => toggleDish(item)} />
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                <Field
-                  label="Add dishes"
-                  hint="Pick as many or as few as you like. Your per-guest rate is set on your quotation."
-                  error={errors.selected_menu}
-                >
-                  <TInput
-                    icon={<Search className="h-3.5 w-3.5" />}
-                    placeholder="Search dishes"
-                    value={dishQuery}
-                    onChange={setDishQuery}
-                  />
-                </Field>
+                <div className="space-y-2.5">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search
+                      size={13}
+                      className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                      aria-hidden="true"
+                    />
+                    <input
+                      type="search"
+                      value={dishQuery}
+                      onChange={(e) => setDishQuery(e.target.value)}
+                      placeholder="Search dishes by name or category (e.g. Sisig, Lumpia, Pork)..."
+                      aria-label="Search dishes"
+                      className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-8 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4C81E0]/20 focus:border-[#4C81E0]"
+                    />
+                    {dishQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setDishQuery("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                        aria-label="Clear search"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
 
-                <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border">
-                  {loadingCatalog ? (
-                    <p className="p-3 text-xs text-muted-foreground">Loading the menu…</p>
-                  ) : menuGroups.length === 0 ? (
-                    <p className="p-3 text-xs text-muted-foreground">
-                      {dishQuery
-                        ? "No dishes match that search."
-                        : "The menu could not be loaded. Your existing dishes are unchanged."}
-                    </p>
-                  ) : (
-                    menuGroups.map((group) => (
-                      <div key={group.category} className="border-b border-border last:border-b-0">
-                        <p className="bg-muted/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                          {group.category}
-                        </p>
-                        {group.items.map((item) => (
-                          <label
-                            key={item._id}
-                            className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 text-xs transition-colors hover:bg-muted/40"
+                  {/* Course Filter Pills */}
+                  <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none" role="group" aria-label="Filter dishes by course">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCourseTab("all")}
+                      className={cn(
+                        "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                        activeCourseTab === "all"
+                          ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                      )}
+                    >
+                      <span>All dishes</span>
+                      <span
+                        className={cn(
+                          "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
+                          activeCourseTab === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
+                        )}
+                      >
+                        {menuCatalog?.length || 0}
+                      </span>
+                    </button>
+
+                    {groupedDishes.map((group) => {
+                      const count = group.items.length;
+                      const selectedCount = selectedCountsByGroup[group.id] || 0;
+                      const isActive = activeCourseTab === group.id;
+
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() => setActiveCourseTab(group.id)}
+                          className={cn(
+                            "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                            isActive
+                              ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                          )}
+                        >
+                          <span>{group.label}</span>
+                          <span
+                            className={cn(
+                              "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
+                              isActive
+                                ? "bg-white/20 text-white"
+                                : selectedCount > 0
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-slate-100 text-slate-500",
+                            )}
                           >
-                            <input
-                              type="checkbox"
-                              checked={isDishChosen(item)}
-                              onChange={() => toggleDish(item)}
-                              className="h-3.5 w-3.5 accent-primary"
-                            />
-                            <span className="text-foreground">{item.name}</span>
-                          </label>
-                        ))}
+                            {count}
+                          </span>
+                          {selectedCount > 0 && !isActive && (
+                            <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
+                              {selectedCount}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Dishes Grid */}
+                  <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 p-2 space-y-3">
+                    {loadingCatalog ? (
+                      <p className="p-4 text-center text-xs text-slate-400">Loading dishes...</p>
+                    ) : filteredDishes.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400 space-y-2">
+                        <p>{dishQuery ? `No dishes match "${dishQuery}"` : "No dishes available."}</p>
+                        {dishQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDishQuery("");
+                              setActiveCourseTab("all");
+                            }}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#4C81E0] hover:underline cursor-pointer"
+                          >
+                            <RotateCcw size={12} /> Reset filters
+                          </button>
+                        )}
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      filteredDishes.map((group) => (
+                        <div key={group.id}>
+                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            {group.label} ({group.items.length})
+                          </p>
+                          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                            {group.items.map((item) => {
+                              const isChosen = isDishChosen(item);
+                              return (
+                                <button
+                                  key={item._id}
+                                  type="button"
+                                  onClick={() => toggleDish(item)}
+                                  className={cn(
+                                    "group flex items-center justify-between gap-2 rounded-lg border p-1.5 text-left transition-all cursor-pointer select-none",
+                                    isChosen
+                                      ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0]/50 shadow-2xs"
+                                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    {item.image_url ? (
+                                      <img
+                                        src={item.image_url}
+                                        alt=""
+                                        className="h-8 w-8 shrink-0 rounded object-cover border border-slate-200/70"
+                                      />
+                                    ) : (
+                                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-400">
+                                        <Utensils size={12} />
+                                      </span>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-xs font-bold text-slate-800 leading-tight">
+                                        {item.name}
+                                      </p>
+                                      {item.description && (
+                                        <p className="truncate text-[10px] text-slate-500 leading-tight">
+                                          {item.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <span
+                                    className={cn(
+                                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ml-1",
+                                      isChosen
+                                        ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
+                                        : "border-slate-300 bg-white text-transparent group-hover:border-slate-400",
+                                    )}
+                                  >
+                                    <Check size={10} strokeWidth={3} />
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </Card>
             )
@@ -1252,14 +1436,14 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
           </Card>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+        <DialogFooter className="px-5 py-3 border-t border-slate-100 bg-slate-50/80 shrink-0 flex items-center justify-end gap-2.5">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving} className="rounded-lg h-9 px-4 text-xs font-semibold cursor-pointer">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving}>
+          <Button onClick={handleSubmit} disabled={saving} className="rounded-lg h-9 px-5 text-xs font-semibold bg-[#4C81E0] hover:bg-[#3b6ec6] text-white shadow-2xs cursor-pointer">
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Saving…
               </>
             ) : (
               "Save changes"

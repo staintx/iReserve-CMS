@@ -69,9 +69,9 @@ export default function CustomerInquiryDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 rounded-md overflow-hidden bg-white border border-slate-200 shadow-xl">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 rounded-md overflow-hidden bg-white border border-slate-200 shadow-xl">
         {/* Header Bar */}
-        <div className="p-5 pr-12 border-b border-slate-200 bg-slate-50/70 shrink-0 space-y-3">
+        <div className="p-4 sm:p-5 pr-12 border-b border-slate-200 bg-slate-50/80 shrink-0 space-y-3">
           {/* Top metadata row */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-xs font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
@@ -96,7 +96,7 @@ export default function CustomerInquiryDetailModal({
 
           {/* Title & Subtitle */}
           <div>
-            <h2 className="font-sans font-bold text-lg text-slate-900 leading-tight">
+            <h2 className="font-sans font-bold text-base sm:text-lg text-slate-900 leading-tight">
               {data ? recordTitle(data) : "Inquiry Details"}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -105,7 +105,7 @@ export default function CustomerInquiryDetailModal({
           </div>
 
           {/* Clean Segmented Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-md text-xs font-medium">
+          <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-md text-xs font-medium overflow-x-auto [scrollbar-width:none]">
             {[
               { id: "overview", label: "Event Specifications" },
               { id: "menu", label: "Package & Inclusions" },
@@ -117,7 +117,7 @@ export default function CustomerInquiryDetailModal({
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex-1 py-1.5 px-2.5 rounded text-xs transition-all whitespace-nowrap text-center cursor-pointer",
+                  "flex-1 py-1.5 px-2.5 rounded text-xs transition-all whitespace-nowrap text-center cursor-pointer shrink-0",
                   activeTab === tab.id
                     ? "bg-white text-slate-900 font-bold shadow-2xs"
                     : "text-slate-600 hover:text-slate-900 font-medium"

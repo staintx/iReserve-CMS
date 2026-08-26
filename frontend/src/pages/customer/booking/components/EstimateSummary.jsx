@@ -54,11 +54,11 @@ export default function EstimateSummary({
     return (
       <div
         className={cn(
-          "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl bg-[#1E293B] px-4 py-3 text-white",
+          "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg bg-[#1E293B] px-3.5 py-2.5 text-white",
           className,
         )}
       >
-        <p className="text-[13px] text-white/70">
+        <p className="text-xs text-white/70">
           {note || "Estimated total so far"}
           {guests > 0 && (
             <span className="text-white/50"> · {guestsLabel}: {guests}</span>
@@ -75,71 +75,59 @@ export default function EstimateSummary({
     <section
       aria-label="Estimated cost"
       className={cn(
-        "overflow-hidden rounded-2xl bg-[#1E293B] text-white",
-        variant === "sidebar" && "lg:sticky lg:top-[150px]",
+        "overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900 text-white shadow-xs",
+        variant === "sidebar" && "lg:sticky lg:top-[120px]",
         className,
       )}
     >
-      <div className="px-4 pt-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">
+      <div className="border-b border-slate-800 px-3.5 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Estimated cost
           </h3>
           {guests > 0 && (
-            <p className="text-[11px] text-white/50" aria-live="polite">
-              {guestsLabel}:{" "}
-              <span className="font-semibold text-white/80">{guests}</span>
-            </p>
+            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300" aria-live="polite">
+              {guestsLabel}: <strong className="text-white">{guests}</strong>
+            </span>
           )}
         </div>
-        <span
-          className="mt-2 block h-px w-8 bg-[#C5A059]"
-          aria-hidden="true"
-        />
 
-        {/* The size the setup line below is priced for, stated rather than left
-            to be inferred from the package name. It sits in the header with the
-            guest count because it is the same kind of fact — what this booking
-            is for — not another priced line. */}
         {eventSpace && (
-          <div className="mt-2.5 flex items-baseline justify-between gap-3">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">
-              Event space / scaffold size
+          <div className="mt-1 flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-[11px] text-slate-400">
+              Scaffold / Space:
             </span>
-            <span className="text-[13px] font-semibold text-white/90">
+            <span className="font-semibold text-slate-200">
               {eventSpace}
             </span>
           </div>
         )}
       </div>
 
-      <div className="px-4 py-3">
+      <div className="px-3.5 py-2.5">
         {lines.length > 0 && (
-          <dl className="space-y-2 text-[13px]">
+          <dl className="space-y-1.5 text-xs">
             {lines.map((line) => (
-              <div key={line.id} className="flex items-start justify-between gap-3">
+              <div key={line.id} className="flex items-start justify-between gap-2">
                 <dt className="min-w-0">
-                  <span className="block truncate text-white/90">
+                  <span className="block truncate text-slate-200 font-medium">
                     {line.isAddOn ? `Add-on: ${line.label}` : line.label}
                   </span>
                   {line.detail && (
-                    <span className="block text-xs text-white/45">
+                    <span className="block text-[11px] text-slate-400">
                       {line.detail}
                     </span>
                   )}
                 </dt>
-                {/* A line nobody has priced yet is not a line that costs
-                    nothing. Food is priced on the quotation, so showing ₱0
-                    against the customer's chosen dishes reads as free. */}
                 <dd
                   className={cn(
-                    "shrink-0",
+                    "shrink-0 text-right font-medium",
                     line.isQuotedLater
-                      ? "text-xs text-white/60"
-                      : "tabular-nums text-white/90",
+                      ? "text-[11px] text-slate-400"
+                      : "tabular-nums text-white",
                   )}
                 >
-                  {line.isQuotedLater ? "Priced on quotation" : formatPeso(line.amount)}
+                  {line.isQuotedLater ? "On quotation" : formatPeso(line.amount)}
                 </dd>
               </div>
             ))}
@@ -149,33 +137,28 @@ export default function EstimateSummary({
         {blockers.length > 0 && (
           <ul
             className={cn(
-              "space-y-1.5 text-[13px] text-white/60",
-              lines.length > 0 && "mt-3 border-t border-white/10 pt-3",
+              "space-y-1 text-xs text-slate-400",
+              lines.length > 0 && "mt-2 border-t border-slate-800 pt-2",
             )}
           >
             {blockers.map((blocker) => (
-              <li key={blocker}>{blocker}</li>
+              <li key={blocker} className="leading-snug">{blocker}</li>
             ))}
           </ul>
         )}
 
-        {/* What the combo covers, and what it does not. Two plain lists, so a
-            customer reading ₱25,000 cannot come away thinking set-up and
-            equipment were part of it. */}
         {(included?.length > 0 || quotedSeparately?.length > 0) && (
-          <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
+          <div className="mt-2.5 space-y-2 border-t border-slate-800 pt-2 text-xs">
             {included?.length > 0 && (
               <div>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#C5A059]">
-                  Included in this combo
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                  Included in combo
                 </p>
-                <ul className="space-y-1 text-[13px] text-white/75">
+                <ul className="space-y-0.5 text-slate-300 text-[11px]">
                   {included.map((entry) => (
-                    <li key={entry} className="flex gap-2">
-                      <span aria-hidden="true" className="text-[#7FE3BC]">
-                        ✓
-                      </span>
-                      {entry}
+                    <li key={entry} className="flex gap-1.5">
+                      <span aria-hidden="true" className="text-emerald-400 font-bold">✓</span>
+                      <span>{entry}</span>
                     </li>
                   ))}
                 </ul>
@@ -184,16 +167,14 @@ export default function EstimateSummary({
 
             {quotedSeparately?.length > 0 && (
               <div>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
-                  Not included · priced on your quotation
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Quoted Separately
                 </p>
-                <ul className="space-y-1 text-[13px] text-white/60">
+                <ul className="space-y-0.5 text-slate-400 text-[11px]">
                   {quotedSeparately.map((entry) => (
-                    <li key={entry} className="flex gap-2">
-                      <span aria-hidden="true" className="text-white/30">
-                        +
-                      </span>
-                      {entry}
+                    <li key={entry} className="flex gap-1.5">
+                      <span aria-hidden="true" className="text-slate-500">+</span>
+                      <span>{entry}</span>
                     </li>
                   ))}
                 </ul>
@@ -204,15 +185,15 @@ export default function EstimateSummary({
 
         <div
           className={cn(
-            "flex items-baseline justify-between gap-3 border-t border-white/10 pt-3",
-            lines.length > 0 || blockers.length > 0 ? "mt-3" : "",
+            "flex items-baseline justify-between gap-2 border-t border-slate-800 pt-2",
+            lines.length > 0 || blockers.length > 0 ? "mt-2.5" : "",
           )}
         >
-          <span className="text-[13px] text-white/70">{totalLabel}</span>
+          <span className="text-xs font-semibold text-slate-300">{totalLabel}</span>
           <span
             className={cn(
-              "tabular-nums",
-              hasTotal ? "text-2xl font-semibold" : "text-[13px] text-white/60",
+              "tabular-nums font-bold",
+              hasTotal ? "text-lg text-white" : "text-xs text-slate-400",
             )}
             aria-live="polite"
           >
@@ -222,24 +203,17 @@ export default function EstimateSummary({
       </div>
 
       {hasTotal && (
-        <p className="border-t border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs leading-relaxed text-white/60">
+        <div className="border-t border-slate-800 bg-slate-950/60 px-3.5 py-2 text-[11px] leading-relaxed text-slate-400">
           {offerName ? (
             <>
-              This is the combo price. Anything else you and our team agree —
-              delivery, or an event set-up booked alongside it — is added on
-              your quotation, and the {depositPercentage}% deposit is worked out
-              from that final total and reserves your date once you accept it.
+              Combo base price. Extra rentals & services will be itemized on quotation. {depositPercentage}% deposit reserves date.
             </>
           ) : (
             <>
-              {depositPercentage}% deposit{" "}
-              <span className="font-semibold text-white">
-                {formatPeso(depositAmount)}
-              </span>{" "}
-              reserves your date after you accept the quotation.
+              {depositPercentage}% deposit (<strong className="text-white font-mono">{formatPeso(depositAmount)}</strong>) reserves date upon quotation acceptance.
             </>
           )}
-        </p>
+        </div>
       )}
     </section>
   );

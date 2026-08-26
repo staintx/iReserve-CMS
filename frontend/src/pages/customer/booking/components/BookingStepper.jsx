@@ -53,7 +53,7 @@ export default function BookingStepper({
       </div>
 
       {/* Full stepper — desktop */}
-      <ol className="hidden items-center gap-1 md:flex">
+      <ol className="hidden items-center gap-1 md:flex overflow-x-auto py-1">
         {items.map((step, index) => {
           const isActive = index + 1 === current;
           const isCompleted = index + 1 < current;
@@ -80,41 +80,41 @@ export default function BookingStepper({
                     : undefined
                 }
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-200 text-left",
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all duration-150 text-left cursor-pointer",
                   isActive
-                    ? "bg-[#4C81E0] text-white shadow-sm ring-2 ring-[#4C81E0]/20 cursor-default"
+                    ? "bg-[#4C81E0] text-white shadow-2xs cursor-default"
                     : isCompleted
-                      ? "bg-[#D6E4F7] text-[#1E293B] hover:bg-[#c2d7f3] cursor-pointer active:scale-95"
+                      ? "bg-blue-50/80 text-blue-900 border border-blue-200/70 hover:bg-blue-100/80 active:scale-95"
                       : isClickable
-                        ? "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0] cursor-pointer active:scale-95"
-                        : "bg-[#F1F5F9] text-[#94A3B8] cursor-not-allowed opacity-80",
+                        ? "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 active:scale-95"
+                        : "bg-slate-50 text-slate-400 border border-transparent cursor-not-allowed opacity-60",
                 )}
               >
                 <span
                   className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px]",
+                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
                     isCompleted
                       ? "bg-[#4C81E0] text-white"
                       : isActive
-                        ? "bg-white/25 text-white"
-                        : "bg-white text-[#94A3B8]",
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-200 text-slate-500",
                   )}
                 >
                   {isCompleted ? (
-                    <Check size={10} strokeWidth={3} />
+                    <Check size={9} strokeWidth={3} />
                   ) : (
                     index + 1
                   )}
                 </span>
-                <span className="truncate lg:max-w-none">{step.label}</span>
+                <span className="truncate">{step.label}</span>
                 {isCompleted && <span className="sr-only">completed</span>}
               </button>
               {index < items.length - 1 && (
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "mx-1 h-px w-3 shrink-0 transition-colors duration-200 lg:w-5",
-                    isCompleted ? "bg-[#4C81E0]/50" : "bg-[#E2E8F0]",
+                    "mx-1 h-px w-2.5 shrink-0 transition-colors duration-150 lg:w-4",
+                    isCompleted ? "bg-[#4C81E0]/40" : "bg-slate-200",
                   )}
                 />
               )}

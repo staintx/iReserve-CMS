@@ -130,8 +130,8 @@ export default function StepPackageAddOns({
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-        <Card className="p-5 space-y-6">
+      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 lg:items-start">
+        <Card className="p-3.5 sm:p-4 space-y-4">
           {/* Case 1: Package has specific add-ons */}
           {hasPackageItems && (
             <div>
@@ -151,7 +151,7 @@ export default function StepPackageAddOns({
 
           {/* Section Divider if both package-specific and common add-ons exist */}
           {hasPackageItems && hasCommonItems && (
-            <div className="border-t border-slate-100 pt-2" />
+            <div className="border-t border-slate-100 pt-1" />
           )}
 
           {/* Case 2: Common / Global Add-ons */}
@@ -163,8 +163,8 @@ export default function StepPackageAddOns({
                   : "Common Event Add-ons & Equipment"}
               </SectionTitle>
               {hasPackageItems && (
-                <p className="mt-1 text-xs text-[#64748B]">
-                  Popular sound & lighting, decor, and equipment options available across all events.
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Popular sound &amp; lighting, decor, and equipment options across all events.
                 </p>
               )}
               <AddOnPicker
@@ -182,10 +182,10 @@ export default function StepPackageAddOns({
           {!hasPackageItems && !hasCommonItems && (
             <div>
               <SectionTitle icon={Sparkles}>Event Add-ons</SectionTitle>
-              <div className="mt-2 rounded-2xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC]/60 p-8 text-center">
-                <Info className="mx-auto mb-2.5 h-6 w-6 text-[#94A3B8]" />
-                <p className="text-sm font-semibold text-[#1E293B]">No add-ons currently available</p>
-                <p className="mt-1 text-xs text-[#64748B]">
+              <div className="mt-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
+                <Info className="mx-auto mb-2 h-5 w-5 text-slate-400" />
+                <p className="text-xs font-bold text-slate-800">No add-ons currently available</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   You can describe any custom styling or equipment requests in the notes box.
                 </p>
               </div>
@@ -193,7 +193,7 @@ export default function StepPackageAddOns({
           )}
         </Card>
 
-        <Card className="p-5">
+        <Card className="p-3.5 sm:p-4">
           <SectionTitle icon={MessageSquare}>Anything else?</SectionTitle>
           <Field
             label="Additional requests or notes"

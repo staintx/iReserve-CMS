@@ -15,43 +15,41 @@ import {
  */
 export default function StepDietaryNeeds({ form, setForm }) {
   return (
-    <StepShell width="medium">
+    <StepShell width="wide">
       <SH
         title="Allergies & Dietary Needs"
-        sub="Both are optional. Anything you write here goes to our kitchen."
+        sub="Both are optional. Any special dietary requests or allergies will be shared directly with our kitchen crew."
       />
 
-      <Card className="p-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Card className="p-3.5 sm:p-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field
-            label="Allergies"
+            label="Allergies (Optional)"
             hint="Ingredients that must not touch the food at all."
           >
             <TTextarea
-              placeholder="e.g. Two guests have a severe peanut allergy"
+              placeholder="e.g. Two guests have severe peanut / seafood allergies"
               value={form.allergies || ""}
               onChange={(val) => setForm({ ...form, allergies: val })}
-              rows={4}
+              rows={3}
             />
           </Field>
 
           <Field
-            label="Dietary restrictions"
-            hint="Preferences, and religious or medical requirements."
+            label="Dietary restrictions (Optional)"
+            hint="Dietary preferences, religious or health requirements."
           >
             <TTextarea
-              placeholder="e.g. 5 vegetarian guests, no pork, halal preparation"
+              placeholder="e.g. 5 vegetarian guests, no pork, or low sodium"
               value={form.dietary_restrictions || ""}
               onChange={(val) => setForm({ ...form, dietary_restrictions: val })}
-              rows={4}
+              rows={3}
             />
           </Field>
         </div>
 
-        <InfoNote icon={Info} tone="warn" className="mt-4">
-          Our kitchen is not allergen free and we cannot guarantee no cross
-          contact, but we take every reasonable precaution for what you list
-          here.
+        <InfoNote icon={Info} tone="warn" className="mt-3">
+          Our kitchen prepares diverse menus. We follow strict hygiene protocols, though cross-contact risk is minimized rather than fully zero.
         </InfoNote>
       </Card>
     </StepShell>

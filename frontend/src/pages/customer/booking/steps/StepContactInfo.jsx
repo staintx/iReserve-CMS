@@ -64,18 +64,18 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
   const primaryPhoneFilled = !!form.contact_phone?.trim();
 
   return (
-    <StepShell width="medium">
+    <StepShell width="wide">
       <SH
-        title="How We Reach You"
-        sub="Your quotation and event updates go to these details."
+        title="Contact Information"
+        sub="Your official quotation, itemized breakdown, and event coordination updates go to these details."
       />
 
-      <Card className="p-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <Card className="p-3.5 sm:p-4">
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
           <div>
-            <SectionTitle icon={User}>Contact person</SectionTitle>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <SectionTitle icon={User}>Contact Person</SectionTitle>
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <Field
                   label="First name"
                   required
@@ -110,7 +110,7 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                 label="Email address"
                 required
                 error={errorFor("contact_email")}
-                hint="We send your quotation here."
+                hint="Your quotation PDF and status updates will be sent here."
               >
                 <TInput
                   type="email"
@@ -126,13 +126,13 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
           </div>
 
           <div>
-            <SectionTitle icon={Phone}>Phone numbers</SectionTitle>
-            <div className="space-y-3">
+            <SectionTitle icon={Phone}>Phone Numbers</SectionTitle>
+            <div className="space-y-2.5">
               <Field
                 label="Mobile number"
                 required
                 error={errorFor("contact_phone")}
-                hint="Philippine mobile number, e.g. 09123456789."
+                hint="Philippine mobile number (e.g. 09123456789)"
               >
                 <TInput
                   type="tel"
@@ -151,11 +151,11 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
               </Field>
 
               <Field
-                label="Backup number"
+                label="Backup contact number (Optional)"
                 error={errorFor("contact_alt_phone")}
                 hint={
                   primaryPhoneFilled
-                    ? "Optional backup contact number, e.g. 09123456789."
+                    ? "Alternative mobile number (e.g. 09123456789)"
                     : "Enter primary mobile number first"
                 }
               >
@@ -176,13 +176,13 @@ export default function StepContactInfo({ form, setForm, errors = {} }) {
                   hasError={!!errorFor("contact_alt_phone")}
                 />
               </Field>
-
-              <p className="text-xs text-[#94A3B8]">
-                We use these details only to coordinate your event.
-              </p>
             </div>
           </div>
         </div>
+
+        <p className="mt-3 border-t border-slate-100 pt-2.5 text-[11px] text-slate-400">
+          Your contact information is strictly protected and used only to deliver your event quotation and coordination updates.
+        </p>
       </Card>
     </StepShell>
   );

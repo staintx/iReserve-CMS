@@ -461,7 +461,7 @@ export default function ZelleAIPanel() {
                     {activeTab === "zelle" ? "Zelle AI Assistant" : "Caezelle Support Team"}
                   </h3>
                   <p className="text-[10px] text-white/80 font-normal mt-0.5">
-                    {activeTab === "zelle" ? "Instant 24/7 AI Concierge" : "Event Coordinators • Live Support"}
+                    {activeTab === "zelle" ? "Event Planning Assistant" : "Event Coordinator Support"}
                   </p>
                 </div>
               </div>

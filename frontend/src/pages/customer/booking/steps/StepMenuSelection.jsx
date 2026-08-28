@@ -11,6 +11,7 @@ import { focusRing } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 import EstimateSummary from "../components/EstimateSummary";
 import { resolveGroup, CATEGORY_GROUPS } from "@/lib/menuCategories";
+import CourseFilterBar from "../components/CourseFilterBar";
 import {
   offerFoodByCategory,
   offerCourseRequirement,
@@ -326,77 +327,13 @@ export default function StepMenuSelection({
       )}
 
       {/* 3. Category Tabs Bar with Counts & Selection Badges */}
-      <div
-        className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none"
-        role="group"
-        aria-label="Filter dishes by course"
-      >
-        <button
-          type="button"
-          aria-pressed={activeGroup === "all"}
-          className={cn(
-            "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-            activeGroup === "all"
-              ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
-            focusRing,
-          )}
-          onClick={() => setActiveGroup("all")}
-        >
-          <span>All dishes</span>
-          <span
-            className={cn(
-              "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
-              activeGroup === "all"
-                ? "bg-white/20 text-white"
-                : "bg-slate-100 text-slate-500",
-            )}
-          >
-            {menuItems?.length || 0}
-          </span>
-        </button>
-
-        {groupedItems.map((group) => {
-          const countInThis = group.items.length;
-          const selectedInThis = selectedCountsByGroup[group.id] || 0;
-          const isActive = activeGroup === group.id;
-
-          return (
-            <button
-              key={group.id}
-              type="button"
-              aria-pressed={isActive}
-              className={cn(
-                "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-                isActive
-                  ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
-                focusRing,
-              )}
-              onClick={() => setActiveGroup(group.id)}
-            >
-              <span>{group.label}</span>
-              <span
-                className={cn(
-                  "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
-                  isActive
-                    ? "bg-white/20 text-white"
-                    : selectedInThis > 0
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-slate-100 text-slate-500",
-                )}
-              >
-                {countInThis}
-              </span>
-              {selectedInThis > 0 && !isActive && (
-                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
-                  {selectedInThis}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <CourseFilterBar
+        activeGroup={activeGroup}
+        onSelectGroup={setActiveGroup}
+        totalDishCount={menuItems?.length || 0}
+        groups={groupedItems}
+        selectedCountsByGroup={selectedCountsByGroup}
+      />
 
       {/* 4. Filtered Dishes List */}
       {filteredGroups.length === 0 ? (

@@ -60,6 +60,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
     ...nameUpdates,
     ...(req.body.email && { email: req.body.email.trim().toLowerCase() }),
     ...(req.body.phone !== undefined && { phone: req.body.phone ? req.body.phone.trim() : "" }),
+    ...(req.body.alt_phone !== undefined && { alt_phone: req.body.alt_phone ? req.body.alt_phone.trim() : "" }),
     ...(req.body.address !== undefined && { address: req.body.address ? req.body.address.trim() : "" }),
     ...(req.body.position !== undefined && { position: req.body.position ? req.body.position.trim() : "" }),
     ...(req.body.username !== undefined && { username: req.body.username ? req.body.username.trim() : undefined })

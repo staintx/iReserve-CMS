@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 export default function CustomerProfile() {
   const { user, updateUser } = useAuth();
   const [form, setForm] = useState({
+    first_name: "",
+    last_name: "",
     full_name: "",
     email: "",
     username: "",
@@ -30,37 +32,71 @@ export default function CustomerProfile() {
   useEffect(() => {
     CustomerAPI.getProfile().then((res) => {
       if (res.data) {
+        const data = res.data;
+        const firstName =
+          (data.first_name || "").trim() ||
+          (data.full_name ? data.full_name.split(" ")[0] : "");
+        const lastName =
+          (data.last_name || "").trim() ||
+          (data.full_name && data.full_name.includes(" ")
+            ? data.full_name.split(" ").slice(1).join(" ")
+            : "");
+
         setForm({
-          full_name: res.data.full_name || "",
-          email: res.data.email || "",
-          username: res.data.username || "",
-          phone: res.data.phone || "",
-          address: res.data.address || "",
-          alt_phone: res.data.alt_phone || ""
+          first_name: firstName,
+          last_name: lastName,
+          full_name:
+            data.full_name || [firstName, lastName].filter(Boolean).join(" "),
+          email: data.email || "",
+          username: data.username || "",
+          phone: data.phone || "",
+          address: data.address || "",
+          alt_phone: data.alt_phone || ""
         });
         updateUser(res.data);
       }
     });
   }, [updateUser]);
 
+  const handleNameChange = (key, value) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      const first = key === "first_name" ? value : prev.first_name;
+      const last = key === "last_name" ? value : prev.last_name;
+      next.full_name = [first.trim(), last.trim()].filter(Boolean).join(" ");
+      return next;
+    });
+  };
+
   const save = async (e) => {
     if (e) e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await CustomerAPI.updateProfile({
-        full_name: form.full_name,
-        email: form.email,
-        username: form.username,
-        phone: form.phone,
-        address: form.address,
-        alt_phone: form.alt_phone
-      });
+      const payload = {
+        first_name: form.first_name.trim(),
+        last_name: form.last_name.trim(),
+        full_name:
+          form.full_name.trim() ||
+          [form.first_name.trim(), form.last_name.trim()]
+            .filter(Boolean)
+            .join(" "),
+        email: form.email.trim().toLowerCase(),
+        username: form.username.trim(),
+        phone: form.phone.trim(),
+        address: form.address.trim(),
+        alt_phone: form.alt_phone.trim()
+      };
+      const res = await CustomerAPI.updateProfile(payload);
       if (res.data) {
         updateUser(res.data);
       }
       notify("Profile updated successfully!", "success");
     } catch (err) {
-      notify(err.response?.data?.message || "Failed to update profile", "error");
+      const msg =
+        err.response?.data?.errors?.[0] ||
+        err.response?.data?.message ||
+        "Failed to update profile";
+      notify(msg, "error");
     } finally {
       setIsLoading(false);
     }
@@ -127,19 +163,35 @@ export default function CustomerProfile() {
               </div>
 
               <form onSubmit={save} className="p-4 sm:p-5 space-y-3.5">
+                {/* Row 1: First Name & Last Name */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-semibold text-slate-700">
-                      Full Name
+                      First Name
                     </Label>
                     <Input
-                      placeholder="e.g. Jane Doe"
-                      value={form.full_name || ""}
-                      onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                      placeholder="e.g. Jane"
+                      value={form.first_name || ""}
+                      onChange={(e) => handleNameChange("first_name", e.target.value)}
                       className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
 
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Last Name
+                    </Label>
+                    <Input
+                      placeholder="e.g. Doe"
+                      value={form.last_name || ""}
+                      onChange={(e) => handleNameChange("last_name", e.target.value)}
+                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Username & Email Address */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-semibold text-slate-700">
                       Username
@@ -151,9 +203,7 @@ export default function CustomerProfile() {
                       className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-semibold text-slate-700">
                       Email Address
@@ -166,32 +216,36 @@ export default function CustomerProfile() {
                       className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
+                </div>
 
+                {/* Row 3: Primary Phone & Alternative Phone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-[11px] font-semibold text-slate-700">
                       Primary Phone
                     </Label>
                     <Input
-                      placeholder="+63 900 000 0000"
+                      placeholder="09123456789"
                       value={form.phone || ""}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
                     />
                   </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Alternative Phone
+                    </Label>
+                    <Input
+                      placeholder="09123456789 (Optional)"
+                      value={form.alt_phone || ""}
+                      onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
+                      className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Alternative Phone
-                  </Label>
-                  <Input
-                    placeholder="+63 900 111 2222"
-                    value={form.alt_phone || ""}
-                    onChange={(e) => setForm({ ...form, alt_phone: e.target.value })}
-                    className="bg-white border-slate-200 text-xs text-slate-900 rounded-md h-8.5"
-                  />
-                </div>
-
+                {/* Row 4: Default Event & Delivery Address */}
                 <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-slate-700">
                     Default Event &amp; Delivery Address

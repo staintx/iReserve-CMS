@@ -133,17 +133,23 @@ export default function StepMenuSelection({
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
   const [activeGroup, setActiveGroup] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const courses = useMemo(
+    () => (offer ? offerFoodByCategory(offer) : []),
+    [offer],
+  );
+
   /**
    * Seeding single-item combo courses into snapshot.
    */
   useEffect(() => {
-    if (courses.length === 0) return;
+    if (!offer || courses.length === 0) return;
 
     setForm((prev) => {
       const current = Array.isArray(prev.offer_food_snapshot)
         ? prev.offer_food_snapshot
         : [];
       const missing = courses.filter(
+        (course) =>
           course.items.length === 1 &&
           !current.some((entry) => entry.menu_category === course.category),
       );
@@ -160,7 +166,7 @@ export default function StepMenuSelection({
         ],
       };
     });
-  }, [offer, setForm]);
+  }, [offer, courses, setForm]);
 
   const isSelected = (item) =>
     selected.some((chosen) => String(chosen._id) === String(item._id));

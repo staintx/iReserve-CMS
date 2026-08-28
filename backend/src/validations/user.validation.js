@@ -7,6 +7,7 @@ exports.updateUserSchema = Joi.object({
   full_name: Joi.string().trim().allow("").optional(),
   email: Joi.string().trim().email().optional(),
   phone: Joi.string().allow("").optional(),
+  alt_phone: Joi.string().allow("").optional(),
   address: Joi.string().allow("").optional(),
   username: Joi.string().allow("").optional(),
   position: Joi.string().allow("").optional()

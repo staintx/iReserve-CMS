@@ -897,67 +897,13 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
                   </div>
 
                   {/* Course Filter Pills */}
-                  <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-none" role="group" aria-label="Filter dishes by course">
-                    <button
-                      type="button"
-                      onClick={() => setActiveCourseTab("all")}
-                      className={cn(
-                        "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-                        activeCourseTab === "all"
-                          ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
-                      )}
-                    >
-                      <span>All dishes</span>
-                      <span
-                        className={cn(
-                          "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
-                          activeCourseTab === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500",
-                        )}
-                      >
-                        {menuCatalog?.length || 0}
-                      </span>
-                    </button>
-
-                    {groupedDishes.map((group) => {
-                      const count = group.items.length;
-                      const selectedCount = selectedCountsByGroup[group.id] || 0;
-                      const isActive = activeCourseTab === group.id;
-
-                      return (
-                        <button
-                          key={group.id}
-                          type="button"
-                          onClick={() => setActiveCourseTab(group.id)}
-                          className={cn(
-                            "shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
-                            isActive
-                              ? "border-[#4C81E0] bg-[#4C81E0] text-white shadow-2xs"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
-                          )}
-                        >
-                          <span>{group.label}</span>
-                          <span
-                            className={cn(
-                              "text-[10px] px-1 py-0.2 rounded font-mono font-bold",
-                              isActive
-                                ? "bg-white/20 text-white"
-                                : selectedCount > 0
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-slate-100 text-slate-500",
-                            )}
-                          >
-                            {count}
-                          </span>
-                          {selectedCount > 0 && !isActive && (
-                            <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#4C81E0] text-white text-[9px] font-bold">
-                              {selectedCount}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <CourseFilterBar
+                    activeGroup={activeCourseTab}
+                    onSelectGroup={setActiveCourseTab}
+                    totalDishCount={menuCatalog?.length || 0}
+                    groups={groupedDishes}
+                    selectedCountsByGroup={selectedCountsByGroup}
+                  />
 
                   {/* Dishes Grid */}
                   <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-slate-200 p-2 space-y-3">
@@ -975,7 +921,8 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
                             }}
                             className="inline-flex items-center gap-1 text-xs font-semibold text-[#4C81E0] hover:underline cursor-pointer"
                           >
-                            <RotateCcw size={12} /> Reset filters
+                            <RotateCcw size={12} />
+                            Reset search &amp; filters
                           </button>
                         )}
                       </div>

@@ -43,33 +43,34 @@ export default function ZelleFeedbackInsights({ className = "" }) {
   return (
     <div
       className={cn(
-        "rounded-2xl bg-card border border-border/80 shadow-xs overflow-hidden transition-all",
+        "rounded-lg bg-card border border-border/80 shadow-2xs overflow-hidden transition-all",
         className
       )}
     >
       {/* Header */}
-      <div className="p-4 bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-primary text-white flex items-center justify-center shadow-xs shrink-0">
-            <Sparkles className="w-5 h-5 text-amber-200" />
+      <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-md bg-gradient-to-tr from-amber-500 to-primary text-white flex items-center justify-center shadow-2xs shrink-0">
+            <Sparkles className="w-4 h-4 text-amber-200" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-serif font-bold text-base text-foreground">
+              <h3 className="font-bold text-sm text-foreground">
                 Zelle AI Customer Intelligence
               </h3>
               <Badge
                 variant="outline"
                 className="text-[10px] px-1.5 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
               >
-                Sentiment & Insights
+                Sentiment &amp; Insights
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               Automated review analysis and operational quality assessment
             </p>
           </div>
         </div>
+
 
         {/* Time Period Filter & Refresh */}
         <div className="flex items-center gap-1.5 self-end sm:self-auto">
@@ -137,45 +138,45 @@ export default function ZelleFeedbackInsights({ className = "" }) {
         ) : data ? (
           <>
             {/* Top Metrics Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {/* Average Star Score */}
-              <div className="p-3.5 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-between">
+              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
                     Average Score
                   </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="font-serif font-bold text-2xl text-foreground">
+                    <span className="font-bold text-xl sm:text-2xl text-foreground">
                       {data.average_rating || "5.0"}
                     </span>
                     <span className="text-xs text-muted-foreground">/ 5.0</span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                  <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                 </div>
               </div>
 
               {/* Total Reviews */}
-              <div className="p-3.5 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-between">
+              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
                     Total Reviews
                   </span>
                   <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="font-serif font-bold text-2xl text-foreground">
+                    <span className="font-bold text-xl sm:text-2xl text-foreground">
                       {data.total_reviews}
                     </span>
                     <span className="text-xs text-muted-foreground">verified ratings</span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4" />
                 </div>
               </div>
 
               {/* Sentiment Ratio */}
-              <div className="p-3.5 rounded-2xl bg-muted/40 border border-border/60 flex flex-col justify-between">
+              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     Customer Sentiment
@@ -184,7 +185,7 @@ export default function ZelleFeedbackInsights({ className = "" }) {
                     {data.sentiment_distribution?.positive_pct || 95}% Positive
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex mt-2">
+                <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden flex mt-2">
                   <div
                     style={{ width: `${data.sentiment_distribution?.positive_pct || 90}%` }}
                     className="bg-emerald-500 h-full"
@@ -206,7 +207,7 @@ export default function ZelleFeedbackInsights({ className = "" }) {
 
             {/* Executive AI Summary */}
             {data.executive_summary && (
-              <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 leading-relaxed text-xs">
+              <div className="p-3.5 rounded-lg bg-primary/5 border border-primary/20 leading-relaxed text-xs">
                 <div className="flex items-center gap-1.5 font-bold text-primary mb-1 text-xs">
                   <Award className="w-4 h-4" />
                   <span>Executive AI Summary</span>
@@ -216,14 +217,14 @@ export default function ZelleFeedbackInsights({ className = "" }) {
             )}
 
             {/* Two Column: Strengths & Improvements */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {/* Strengths */}
-              <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2.5">
+              <div className="p-3.5 rounded-lg bg-card border border-border/80 shadow-2xs space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Key Strengths & Customer Praise</span>
+                  <span>Key Strengths &amp; Customer Praise</span>
                 </div>
-                <ul className="space-y-2 text-xs">
+                <ul className="space-y-1.5 text-xs">
                   {data.top_strengths?.map((str, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-foreground/90 leading-snug">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
@@ -234,12 +235,12 @@ export default function ZelleFeedbackInsights({ className = "" }) {
               </div>
 
               {/* Opportunities / Action Points */}
-              <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-2xs space-y-2.5">
+              <div className="p-3.5 rounded-lg bg-card border border-border/80 shadow-2xs space-y-2">
                 <div className="flex items-center gap-1.5 font-bold text-xs text-amber-600 dark:text-amber-400">
                   <TrendingUp className="w-4 h-4" />
-                  <span>Action Points & Opportunities</span>
+                  <span>Action Points &amp; Opportunities</span>
                 </div>
-                <ul className="space-y-2 text-xs">
+                <ul className="space-y-1.5 text-xs">
                   {data.areas_for_improvement?.map((area, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-foreground/90 leading-snug">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
@@ -250,12 +251,14 @@ export default function ZelleFeedbackInsights({ className = "" }) {
               </div>
             </div>
 
+
             {/* Featured Customer Quotes */}
             {data.featured_quotes?.length > 0 && (
-              <div className="p-4 rounded-2xl bg-muted/30 border border-border/60 space-y-2">
+              <div className="p-3.5 rounded-lg bg-muted/30 border border-border/60 space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                   <Quote className="w-3.5 h-3.5 text-primary" /> Highlighted Customer Quotes:
                 </span>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {data.featured_quotes.map((q, idx) => (
                     <div

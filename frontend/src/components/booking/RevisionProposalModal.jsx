@@ -80,19 +80,20 @@ export default function RevisionProposalModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl">
-        <DialogHeader className="border-b border-slate-100 pb-4">
+      <DialogContent className="max-w-2xl bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-2xl">
+        <DialogHeader className="border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-              <Sparkles className="w-5 h-5 text-amber-600" />
+            <div className="w-8.5 h-8.5 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+              <Sparkles className="w-4.5 h-4.5 text-amber-600" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-serif font-bold text-slate-900">
+              <DialogTitle className="text-base font-bold text-slate-900">
                 Revised Booking Proposal
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500 mt-0.5">
                 Proposed by {proposal.proposed_by === "admin" ? "Catering Manager / Admin" : "Customer"} on {proposal.requested_at ? new Date(proposal.requested_at).toLocaleDateString() : "Recently"}
               </DialogDescription>
+
             </div>
           </div>
         </DialogHeader>

@@ -210,27 +210,23 @@ export default function AdminPackages() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         {/* ============ HEADER ============ */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2
-              style={{ fontFamily: "Playfair Display, serif" }}
-              className="text-2xl font-bold text-foreground"
-            >
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               {activeTab.title}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">{activeTab.blurb}</p>
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{activeTab.blurb}</p>
           </div>
-          {/* Creating from a tab opens the form already set to that type, so an
-              admin never has to restate what they were just looking at. */}
-          <div className="flex items-center gap-2">
+          {/* Creating from a tab opens the form already set to that type */}
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={() => setShowAIModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
             >
-              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              <Sparkles size={13} className="text-primary" />
               <span>Import with Zelle AI</span>
             </button>
             <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
@@ -241,10 +237,11 @@ export default function AdminPackages() {
 
         {/* ============ TABS ============ */}
         <div
-          className="flex items-center gap-1 border-b border-gray-200"
+          className="flex items-center gap-1 border-b border-border/80"
           role="tablist"
           aria-label="Package type"
         >
+
           {TABS.map((entry) => {
             const selected = entry.id === activeTab.id;
             const isOffer = entry.id === OFFER_TYPES.SPECIAL;
@@ -588,14 +585,15 @@ export default function AdminPackages() {
               })}
             </div>
           ) : (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="text-center py-10 bg-card rounded-lg border border-border/80 p-4">
+              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
                 {isOfferTab ? (
-                  <Sparkles size={24} className="text-amber-500" />
+                  <Sparkles size={20} className="text-amber-500" />
                 ) : (
-                  <Search size={24} className="text-gray-400" />
+                  <Search size={20} className="text-muted-foreground" />
                 )}
               </div>
+
               <h3 className="text-lg font-semibold text-foreground mb-1">
                 {isOfferTab ? "No combos found" : "No packages found"}
               </h3>

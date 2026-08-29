@@ -113,27 +113,28 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
           /* Sits above the "Menu" section as its own global row — see AdminSidebar,
              which renders this before any nav-category label, not nested inside one. */
           <button className={cn(
-            "group relative flex items-center gap-3 rounded-md text-[13.5px] whitespace-nowrap",
+            "group relative flex items-center gap-2.5 rounded-lg text-[13px] whitespace-nowrap",
             "transition-colors duration-150 cursor-pointer outline-none",
             "focus-visible:ring-2 focus-visible:ring-primary/40",
-            isCollapsed ? "h-10 w-10 mx-auto justify-center" : "h-10 w-full px-3",
+            isCollapsed ? "h-8.5 w-8.5 mx-auto justify-center" : "h-8.5 w-full px-2.5",
             open
               ? "bg-muted text-foreground font-semibold"
               : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
           )}>
             <div className="relative flex items-center justify-center">
-              <Bell className={cn("w-[18px] h-[18px] shrink-0", (open || unreadCount > 0) && "text-primary")} />
+              <Bell className={cn("w-4 h-4 shrink-0", (open || unreadCount > 0) && "text-primary")} />
               {unreadCount > 0 && isCollapsed && (
-                <span className="absolute -top-1 -right-1 flex h-2 w-2 items-center justify-center rounded-full bg-destructive" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 items-center justify-center rounded-full bg-rose-600 ring-2 ring-card" />
               )}
             </div>
             {!isCollapsed && <span className="flex-1 text-left">Notifications</span>}
             {!isCollapsed && unreadCount > 0 && (
-              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full">
+              <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[18px] h-4.5 px-1.5 bg-rose-600 text-white text-[10px] font-bold rounded-full">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </button>
+
         ) : (
           <button
             type="button"

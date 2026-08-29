@@ -27,7 +27,9 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
 import DrawerField from "../../components/admin/table/DrawerField";
 import Btn from "../../components/admin/ui/Btn";
+import KPICard from "../../components/admin/ui/KPICard";
 import Pagination from "../../components/admin/table/Pagination";
+
 import usePagination from "../../hooks/usePagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
@@ -396,22 +398,23 @@ export default function AdminOcular() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         
         {/* Page Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Ocular Visit Management
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Schedule site inspection visits, log venue place measurements, and request booking revisions based on ocular findings.
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Schedule site inspection visits, log venue place measurements, and record ocular findings.
             </p>
           </div>
 
           <Btn 
             variant="primary" 
             size="sm"
+            className="self-start sm:self-auto"
             onClick={() => {
               setSelectedBookingId("");
               setScheduleDate("");
@@ -419,65 +422,22 @@ export default function AdminOcular() {
               setShowScheduleModal(true);
             }}
           >
-            <Plus size={14} /> Schedule New Visit
+            <Plus size={13} /> Schedule New Visit
           </Btn>
         </div>
 
         {/* Top KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Pending</span>
-              <h3 className="text-xl font-bold text-amber-900 mt-0.5">{kpiStats.requested}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Scheduled</span>
-              <h3 className="text-xl font-bold text-blue-900 mt-0.5">{kpiStats.scheduled}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0">
-              <Edit3 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Revisions Needed</span>
-              <h3 className="text-xl font-bold text-orange-900 mt-0.5">{kpiStats.revisionNeeded}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Completed</span>
-              <h3 className="text-xl font-bold text-emerald-700 mt-0.5">{kpiStats.completed}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Total Oculars</span>
-              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.total}</h3>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+          <KPICard title="Pending" value={kpiStats.requested} sub="Awaiting schedule" badge={kpiStats.requested > 0 ? "Action Req" : null} icon={Calendar} />
+          <KPICard title="Scheduled" value={kpiStats.scheduled} sub="Upcoming visits" icon={Clock} />
+          <KPICard title="Revisions Needed" value={kpiStats.revisionNeeded} sub="Updates required" badge={kpiStats.revisionNeeded > 0 ? "Review Needed" : null} icon={Edit3} />
+          <KPICard title="Completed" value={kpiStats.completed} sub="Inspections passed" icon={CheckCircle2} />
+          <KPICard title="Total Oculars" value={kpiStats.total} sub="All time visits" icon={MapPin} />
         </div>
 
         {/* Toolbar & Filter Tabs */}
-        <AdminCard className="!p-4 space-y-4">
+        <AdminCard className="!p-3.5 sm:!p-4 space-y-3.5">
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-1.5 overflow-x-auto">
               <button

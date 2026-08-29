@@ -253,16 +253,17 @@ export default function AdminInventory() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Inventory Management</h2>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Inventory Management</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Track current stock on hand, live reservations, and equipment availability.</p>
           </div>
-          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Item</Btn>
+          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()} className="self-start sm:self-auto"><Plus size={13} /> Add Item</Btn>
         </div>
 
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           <TableToolbar
             search={search}
             onSearchChange={setSearch}

@@ -65,13 +65,17 @@ export default function AdminGallery() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Gallery Management</h2>
-          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Gallery Item</Btn>
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Gallery Management</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage portfolio event photos and showcase media.</p>
+          </div>
+          <Btn variant="primary" size="sm" onClick={() => handleOpenModal()} className="self-start sm:self-auto"><Plus size={13} /> Add Gallery Item</Btn>
         </div>
 
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
               <Search size={14} className="text-muted-foreground/70" />

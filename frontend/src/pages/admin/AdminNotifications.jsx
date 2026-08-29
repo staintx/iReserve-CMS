@@ -117,16 +117,17 @@ export default function AdminNotifications() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Notifications</h2>
-            <p className="text-sm text-muted-foreground mt-1">{unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Notifications</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{unreadCount > 0 ? `${unreadCount} unread updates` : "You're all caught up"}</p>
           </div>
-          <Btn variant="secondary" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
+          <Btn variant="secondary" size="sm" onClick={markAllRead} disabled={unreadCount === 0} className="self-start sm:self-auto">
             <Check size={13} /> Mark all read
           </Btn>
         </div>
+
 
         <div className="flex items-center gap-1 border-b border-border">
           {FILTERS.map((f) => (

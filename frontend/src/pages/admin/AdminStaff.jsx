@@ -156,18 +156,19 @@ export default function AdminStaff() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Staff &amp; Managers
-            </h2>
+            </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               Create and manage Event Manager and Staff portal accounts
             </p>
           </div>
 
-          <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex gap-2 flex-wrap items-center self-start sm:self-auto">
+
             <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}>
               <Calendar size={13} /> View Schedule
             </Btn>

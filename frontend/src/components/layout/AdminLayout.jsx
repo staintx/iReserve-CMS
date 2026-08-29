@@ -23,12 +23,13 @@ export default function AdminLayout({ children }) {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
-          <div className="max-w-[1600px] mx-auto space-y-6">
+        <main className="flex-1 p-4 sm:p-6 lg:p-7 overflow-y-auto">
+          <div className="max-w-[1600px] mx-auto space-y-5">
             {children}
           </div>
         </main>
       </div>
+
 
       {/* Global Admin AI Copilot Panel */}
       <AdminCopilotPanel />

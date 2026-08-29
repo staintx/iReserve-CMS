@@ -70,23 +70,27 @@ export default function AdminMenu() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Food Menu Management</h2>
-          <div className="flex items-center gap-2">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Food Menu Management</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage dishes, categories, and catering menu items.</p>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={() => setShowAIModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
             >
-              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              <Sparkles size={13} className="text-primary" />
               <span>Import with Zelle AI</span>
             </button>
-            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Menu Item</Btn>
+            <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}><Plus size={13} /> Add Food Item</Btn>
           </div>
         </div>
 
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
               <Search size={14} className="text-muted-foreground/70" />

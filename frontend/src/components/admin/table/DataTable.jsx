@@ -80,11 +80,11 @@ export default function DataTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full" style={{ minWidth, fontFamily: "Inter, sans-serif" }}>
+      <table className="w-full" style={{ minWidth, fontFamily: "var(--font-sans, Inter), sans-serif" }}>
         <thead className="bg-muted border-b border-border sticky top-0 z-10">
           <tr>
             {selectable && (
-              <th className="w-10 px-4 py-3 bg-muted">
+              <th className="w-9 px-3 py-2 bg-muted">
                 <Checkbox
                   checked={someSelected ? "indeterminate" : allSelected}
                   onCheckedChange={toggleAll}
@@ -97,31 +97,31 @@ export default function DataTable({
               <th
                 key={col.key}
                 style={col.width ? { width: col.width } : undefined}
-                className={`bg-muted px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap ${pinnedClass(index)} ${col.headerClassName || ""}`}
+                className={`bg-muted px-3.5 py-2 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap ${pinnedClass(index)} ${col.headerClassName || ""}`}
               >
                 {col.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody className="divide-y divide-border/70 text-xs">
           {loading ? (
             <tr>
-              <td colSpan={colCount} className="text-center py-10 text-sm text-muted-foreground">
+              <td colSpan={colCount} className="text-center py-8 text-xs text-muted-foreground">
                 Loading…
               </td>
             </tr>
           ) : error ? (
             <tr>
-              <td colSpan={colCount} className="text-center py-10 text-sm text-red-500">
+              <td colSpan={colCount} className="text-center py-8 text-xs text-rose-600">
                 {error}
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={colCount} className="text-center py-10">
-                <p className="text-sm text-muted-foreground">{emptyTitle}</p>
-                {emptyHint && <p className="text-xs text-muted-foreground/70 mt-1">{emptyHint}</p>}
+              <td colSpan={colCount} className="text-center py-8">
+                <p className="text-xs font-medium text-muted-foreground">{emptyTitle}</p>
+                {emptyHint && <p className="text-[11px] text-muted-foreground/70 mt-0.5">{emptyHint}</p>}
               </td>
             </tr>
           ) : (
@@ -136,7 +136,7 @@ export default function DataTable({
                   className={`group transition-colors ${onRowClick ? "cursor-pointer" : ""} ${tone.row}`}
                 >
                   {selectable && (
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selected} onCheckedChange={() => toggleOne(id)} aria-label="Select row" />
                     </td>
                   )}
@@ -145,7 +145,7 @@ export default function DataTable({
                     return (
                       <td
                         key={col.key}
-                        className={`px-4 py-3 transition-colors ${pinned ? `${tone.cell} ${pinnedClass(index)}` : ""} ${col.className || ""}`}
+                        className={`px-3.5 py-2.5 transition-colors ${pinned ? `${tone.cell} ${pinnedClass(index)}` : ""} ${col.className || ""}`}
                         onClick={col.stopRowClick ? (e) => e.stopPropagation() : undefined}
                       >
                         {col.render ? col.render(row) : row[col.key]}
@@ -161,3 +161,4 @@ export default function DataTable({
     </div>
   );
 }
+

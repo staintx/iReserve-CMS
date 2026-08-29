@@ -138,144 +138,148 @@ export default function AdminSystemLogs() {
 
   return (
     <AdminLayout>
-      <div className="admin-page-head">
-        <div className="admin-title">
-          <h1>System Logs</h1>
-          <p>Audit trail for business settings, catalog, inquiries, and bookings</p>
-        </div>
-        <button
-          type="button"
-          className="admin-filter"
-          onClick={loadLogs}
-          style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </button>
-      </div>
-
-      <div className="admin-actions" style={{ marginBottom: "12px", flexWrap: "wrap" }}>
-        <div className="admin-search">
-          <Search className="search-icon" size={16} />
-          <input
-            placeholder="Search logs by details, user name..."
-            value={search}
-            onChange={(e) => updateFilter(setSearch)(e.target.value)}
-          />
-        </div>
-
-        <select
-          className="admin-filter"
-          value={actionFilter}
-          onChange={(e) => updateFilter(setActionFilter)(e.target.value)}
-        >
-          <option value="all">All Actions</option>
-          {ACTION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="admin-filter"
-          value={entityFilter}
-          onChange={(e) => updateFilter(setEntityFilter)(e.target.value)}
-        >
-          <option value="all">All Entities</option>
-          {ENTITY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <input
-            type="date"
-            className="admin-filter"
-            value={dateFrom}
-            onChange={(e) => updateFilter(setDateFrom)(e.target.value)}
-            title="From date"
-          />
-          <span style={{ color: "#6b7280", fontSize: "12px" }}>to</span>
-          <input
-            type="date"
-            className="admin-filter"
-            value={dateTo}
-            onChange={(e) => updateFilter(setDateTo)(e.target.value)}
-            title="To date"
-          />
-        </div>
-
-        {hasActiveFilters && (
+      <div className="space-y-4 bg-background min-h-screen">
+        {/* Header Title & Top Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              System Audit Logs
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Comprehensive audit trail for catalog updates, inquiries, bookings, and system configurations.
+            </p>
+          </div>
           <button
             type="button"
-            className="admin-filter"
-            onClick={resetFilters}
-            style={{
-              backgroundColor: "#1e3a8a",
-              color: "#ffffff",
-              border: "1px solid #1e3a8a",
-              borderRadius: "999px",
-              cursor: "pointer",
-              transition: "background-color 0.2s ease, border-color 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#172554";
-              e.currentTarget.style.borderColor = "#172554";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#1e3a8a";
-              e.currentTarget.style.borderColor = "#1e3a8a";
-            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-card border border-border/80 text-foreground rounded-lg hover:bg-muted shadow-2xs transition-colors w-fit cursor-pointer self-start sm:self-auto"
+            onClick={loadLogs}
           >
-            Clear Filters
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            Refresh
           </button>
-        )}
-      </div>
+        </div>
 
-      <div className="admin-table-wrap">
-        {loading && <p style={{ padding: "20px", color: "#6b7280" }}>Loading logs...</p>}
-        {!loading && logs.length === 0 && (
-          <p style={{ padding: "20px", color: "#6b7280" }}>No logs found.</p>
-        )}
-        {!loading && logs.length > 0 && <AdminSystemLogsTable logs={logs} />}
-
-        {!loading && total > 0 && (
-          <div className="table-footer">
-            <span>
-              Showing {startEntry}–{endEntry} of {total} logs
-            </span>
-            <div className="pager">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={14} />
-              </button>
-              {getPageNumbers().map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={n === page ? "active" : ""}
-                  onClick={() => setPage(n)}
-                >
-                  {n}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={page >= pages}
-                onClick={() => setPage((p) => Math.min(pages, p + 1))}
-              >
-                <ChevronRight size={14} />
-              </button>
+        {/* Toolbar & Filter Options */}
+        <AdminCard className="!p-3.5 sm:!p-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+              <input
+                placeholder="Search logs by details, user name..."
+                value={search}
+                onChange={(e) => updateFilter(setSearch)(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
+
+            {/* Action Filter */}
+            <select
+              className="border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              value={actionFilter}
+              onChange={(e) => updateFilter(setActionFilter)(e.target.value)}
+            >
+              <option value="all">All Actions</option>
+              {ACTION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Entity Filter */}
+            <select
+              className="border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              value={entityFilter}
+              onChange={(e) => updateFilter(setEntityFilter)(e.target.value)}
+            >
+              <option value="all">All Entities</option>
+              {ENTITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Range */}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <input
+                type="date"
+                className="border border-border rounded-lg px-2 py-1 text-xs bg-card text-foreground focus:outline-none cursor-pointer"
+                value={dateFrom}
+                onChange={(e) => updateFilter(setDateFrom)(e.target.value)}
+                title="From date"
+              />
+              <span>to</span>
+              <input
+                type="date"
+                className="border border-border rounded-lg px-2 py-1 text-xs bg-card text-foreground focus:outline-none cursor-pointer"
+                value={dateTo}
+                onChange={(e) => updateFilter(setDateTo)(e.target.value)}
+                title="To date"
+              />
+            </div>
+
+            {/* Reset Filter Button */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
           </div>
-        )}
+        </AdminCard>
+
+        {/* Audit Log Table Container */}
+        <AdminCard className="!p-0 overflow-hidden">
+          {loading && <p className="p-8 text-center text-xs text-muted-foreground animate-pulse">Loading audit logs...</p>}
+          {!loading && logs.length === 0 && (
+            <p className="p-8 text-center text-xs text-muted-foreground">No audit logs matching current filter.</p>
+          )}
+          {!loading && logs.length > 0 && <AdminSystemLogsTable logs={logs} />}
+
+          {!loading && total > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card text-xs text-muted-foreground">
+              <span>
+                Showing {startEntry}–{endEntry} of {total} logs
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="p-1 rounded border border-border disabled:opacity-40 hover:bg-muted cursor-pointer"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                {getPageNumbers().map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`px-2 py-0.5 rounded text-xs font-semibold cursor-pointer ${
+                      n === page ? "bg-primary text-white" : "border border-border hover:bg-muted text-foreground"
+                    }`}
+                    onClick={() => setPage(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={page >= pages}
+                  onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                  className="p-1 rounded border border-border disabled:opacity-40 hover:bg-muted cursor-pointer"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+        </AdminCard>
       </div>
     </AdminLayout>
   );
-}
+}

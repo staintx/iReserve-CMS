@@ -67,22 +67,22 @@ export default function ZelleQuoteDraft({
       {/* Recommendation Modal / Drawer */}
       {isOpen && recommendation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-card w-full max-w-lg rounded-3xl border border-border/80 shadow-2xl p-5 overflow-hidden flex flex-col gap-4 animate-in zoom-in-95 duration-200">
+          <div className="bg-card w-full max-w-lg rounded-xl border border-border/80 shadow-2xl p-5 overflow-hidden flex flex-col gap-4 animate-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-2xs">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-sm text-foreground">AI-Assisted Quotation Draft</h3>
+                  <h3 className="font-bold text-sm text-foreground">AI-Assisted Quotation Draft</h3>
                   <p className="text-[11px] text-muted-foreground">Tailored configuration based on inquiry requirements</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors cursor-pointer"
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>

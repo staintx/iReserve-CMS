@@ -57,19 +57,19 @@ export default function AdminAddons() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 className="text-2xl font-bold text-foreground" style={{ fontFamily: "Playfair Display, serif" }}>Global Addons</h2>
-            <p className="text-sm text-muted-foreground mt-1">Manage add-ons, rentals, and service upgrades available for custom bookings</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Global Addons</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage add-ons, rentals, and service upgrades available for custom bookings</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={() => setShowAIModal(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
             >
-              <Sparkles size={14} className="text-indigo-600 animate-pulse" />
+              <Sparkles size={13} className="text-primary" />
               <span>Import with Zelle AI</span>
             </button>
             <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>
@@ -77,6 +77,7 @@ export default function AdminAddons() {
             </Btn>
           </div>
         </div>
+
 
         <AdminCard className="overflow-hidden">
           {loading ? (

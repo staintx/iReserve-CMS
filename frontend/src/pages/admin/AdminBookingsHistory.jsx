@@ -18,8 +18,10 @@ import {
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
@@ -222,69 +224,35 @@ export default function AdminBookingsHistory() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         
         {/* Page Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Event History Archive
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Historical record of concluded, completed, and archived catering events and past transactions.
             </p>
           </div>
 
-          <Btn variant="secondary" size="sm" onClick={() => window.print()}>
+          <Btn variant="secondary" size="sm" onClick={() => window.print()} className="self-start sm:self-auto">
             <Download size={13} /> Export History
           </Btn>
         </div>
 
         {/* Top KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-              <History className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total History</span>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{kpiStats.totalCount}</h3>
-            </div>
-          </div>
-
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Completed Events</span>
-              <h3 className="text-2xl font-bold text-emerald-700 mt-0.5">{kpiStats.completedCount}</h3>
-            </div>
-          </div>
-
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center shrink-0">
-              <XCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cancelled Events</span>
-              <h3 className="text-2xl font-bold text-rose-700 mt-0.5">{kpiStats.cancelledCount}</h3>
-            </div>
-          </div>
-
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Historic Revenue</span>
-              <h3 className="text-2xl font-bold text-amber-900 mt-0.5">{fmt(kpiStats.totalRevenue)}</h3>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard title="Total History" value={kpiStats.totalCount} sub="All archived records" icon={History} />
+          <KPICard title="Completed Events" value={kpiStats.completedCount} sub="Successfully concluded" icon={CheckCircle2} />
+          <KPICard title="Cancelled Events" value={kpiStats.cancelledCount} sub="Past cancellations" icon={XCircle} />
+          <KPICard title="Historic Revenue" value={fmt(kpiStats.totalRevenue)} sub="Total revenue realized" icon={DollarSign} />
         </div>
 
         {/* Toolbar & Filter Options */}
-        <AdminCard className="!p-4 space-y-4">
+        <AdminCard className="!p-3.5 sm:!p-4 space-y-3.5">
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Status Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto">

@@ -531,14 +531,14 @@ export default function AdminBookingDetails() {
 
         {/* Pending Revision Proposal Banner */}
         {booking.pending_revision && ["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status) && (
-          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-4 text-xs">
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 sm:p-3.5 flex items-center justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
-              <RefreshCw className="w-5 h-5 text-amber-600 mt-0.5 shrink-0 animate-spin-slow" />
+              <RefreshCw className="w-4 h-4 text-amber-600 mt-0.5 shrink-0 animate-spin-slow" />
               <div>
-                <h4 className="font-bold text-amber-950 text-sm">
+                <h4 className="font-bold text-amber-950 text-xs sm:text-sm">
                   {booking.pending_revision.status === "pending_customer_approval" ? "Revised Proposal Sent to Customer (Awaiting Confirmation)" : "Customer Proposed Booking Revision (Action Required)"}
                 </h4>
-                <p className="text-amber-800 mt-0.5 leading-relaxed font-medium">
+                <p className="text-amber-800 mt-0.5 leading-relaxed font-medium text-[11px]">
                   {booking.pending_revision.message || "Proposed changes pending mutual deal confirmation."}
                 </p>
               </div>
@@ -551,14 +551,15 @@ export default function AdminBookingDetails() {
 
         {/* Change Request Alert Banner */}
         {booking.change_request?.status === "pending" && booking.change_request?.message && (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-start justify-between gap-4 text-xs">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 sm:p-3.5 flex items-start justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
-              <Send className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+              <Send className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
               <div>
-                <h4 className="font-bold text-indigo-950 text-sm">Customer Change Request Pending Review</h4>
-                <p className="text-indigo-800 mt-0.5 leading-relaxed">{booking.change_request.message}</p>
+                <h4 className="font-bold text-indigo-950 text-xs sm:text-sm">Customer Change Request Pending Review</h4>
+                <p className="text-indigo-800 mt-0.5 leading-relaxed text-[11px]">{booking.change_request.message}</p>
               </div>
             </div>
+
             <Btn
               size="sm"
               variant="primary"
@@ -610,7 +611,7 @@ export default function AdminBookingDetails() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 font-bold text-base flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-800 font-bold text-sm flex items-center justify-center shrink-0">
                 {customerName.substring(0, 2).toUpperCase()}
               </div>
               <div>
@@ -618,6 +619,7 @@ export default function AdminBookingDetails() {
                 <span className="text-xs text-slate-500">Registered Client</span>
               </div>
             </div>
+
 
             <div className="space-y-3 text-xs pt-2">
               <div className="flex items-center gap-2 text-slate-700">
@@ -974,13 +976,14 @@ export default function AdminBookingDetails() {
           </div>
 
           {/* Financial Calculation Breakdown Summary Box */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mt-4 space-y-3 text-xs">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 mt-4 space-y-2.5 text-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">Independent Price Calculation Breakdown</span>
-              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-200">
-                Package & Add-ons Separated
+              <span className="text-[10.5px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                Package &amp; Add-ons Separated
               </span>
             </div>
+
 
             <div className="space-y-2 text-slate-700 pt-1">
               <div className="flex justify-between items-center">

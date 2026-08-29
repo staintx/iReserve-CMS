@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import { AdminAPI } from "../../api/admin";
+
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { 
@@ -255,109 +258,74 @@ export default function AdminQuotesList() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 bg-background min-h-screen">
         
         {/* Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-slate-900 tracking-tight">Quotations</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              One row per inquiry, showing its current quoted version. Expand a row to see every revision behind it.
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Quotations</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              One row per inquiry, showing its current quoted version.
             </p>
           </div>
           <button
             onClick={loadData}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 shadow-sm transition-colors w-fit"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-card border border-border/80 text-foreground rounded-lg hover:bg-muted shadow-2xs transition-colors w-fit cursor-pointer"
           >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
           </button>
         </div>
 
         {/* KPI Statistics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-              <FileText size={24} />
-            </div>
-            <div>
-              {/* "Issued" was wrong as well as unclear: this counts one row
-                  per inquiry thread, drafts included, and a draft has been
-                  issued to nobody. */}
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">All Quotations</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.totalQuotations}</h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
-              <RefreshCw size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Revisions Requested</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.revisionRequests}</h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-              <CheckCircle size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Accepted Quotes</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.acceptedQuotations}</h3>
-            </div>
-          </div>
-
-          {/* The hand-off point to Reservations: these stay here until paid. */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-              <CreditCard size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Awaiting Deposit</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.awaitingDeposit}</h3>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard title="All Quotations" value={metrics.totalQuotations} sub="Inquiry threads" icon={FileText} />
+          <KPICard title="Revisions Requested" value={metrics.revisionRequests} sub="Customer requested" badge={metrics.revisionRequests > 0 ? "Review Needed" : null} icon={RefreshCw} />
+          <KPICard title="Accepted Quotes" value={metrics.acceptedQuotations} sub="Approved by client" icon={CheckCircle} />
+          <KPICard title="Awaiting Deposit" value={metrics.awaitingDeposit} sub="Pending downpayment" badge={metrics.awaitingDeposit > 0 ? "Deposit Pending" : null} icon={CreditCard} />
         </div>
 
         {/* Toolbar & Filters */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-          
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-            {[
-              { id: "all_quotes", label: `All Quotations (${metrics.totalQuotations})` },
-              { id: "sent", label: `Sent (${metrics.sentQuotations})` },
-              { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
-              { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` },
-              { id: "awaiting_deposit", label: `Awaiting Deposit (${metrics.awaitingDeposit})` }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg whitespace-nowrap transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-primary text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <AdminCard className="!p-3.5 sm:!p-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+              {[
+                { id: "all_quotes", label: `All (${metrics.totalQuotations})` },
+                { id: "sent", label: `Sent (${metrics.sentQuotations})` },
+                { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
+                { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` },
+                { id: "awaiting_deposit", label: `Awaiting Deposit (${metrics.awaitingDeposit})` }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                    activeTab === tab.id
+                      ? "bg-primary text-white shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Search Bar */}
-          <div className="relative w-full md:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search ref, QTN#, customer..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
-            />
+
+            {/* Search Bar */}
+
+            <div className="relative w-full md:w-64">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search ref, QTN#, customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
           </div>
-        </div>
+        </AdminCard>
+
 
         {/* Quotation Records Table */}
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">

@@ -21,8 +21,10 @@ import {
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import Btn from "../../components/admin/ui/Btn";
+
 import { useNavigate } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
@@ -340,18 +342,18 @@ export default function AdminCustomers() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         {/* Header Title & Top Actions */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-gray-900">
-              Customer Management
-            </h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Manage client profiles, event reservation activity, lifetime spending, and account access.
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Customer Directory
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Manage client profiles, event reservation activity, and lifetime spending.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Btn
               variant="secondary"
               size="sm"
@@ -359,7 +361,7 @@ export default function AdminCustomers() {
               disabled={refreshing || loading}
               className="flex items-center gap-1.5"
             >
-              <RefreshCw size={14} className={refreshing ? "animate-spin text-primary" : ""} />
+              <RefreshCw size={13} className={refreshing ? "animate-spin text-primary" : ""} />
               Refresh
             </Btn>
             <Btn
@@ -368,70 +370,22 @@ export default function AdminCustomers() {
               onClick={() => navigate("/admin/bookings/wizard")}
               className="flex items-center gap-1.5"
             >
-              <Plus size={14} /> New Booking
+              <Plus size={13} /> New Booking
             </Btn>
           </div>
         </div>
 
         {/* Metrics Summary Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <AdminCard className="!p-4 border-l-4 border-l-accent">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Customers</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent-foreground flex items-center justify-center">
-                <Users size={20} />
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-2">Registered client accounts</p>
-          </AdminCard>
-
-          <AdminCard className="!p-4 border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Bookers</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{metrics.bookerCount}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CalendarCheck size={20} />
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-2">
-              {metrics.total > 0 ? `${Math.round((metrics.bookerCount / metrics.total) * 100)}% of total clients` : "0%"}
-            </p>
-          </AdminCard>
-
-          <AdminCard className="!p-4 border-l-4 border-l-blue-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Revenue</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{fmt(metrics.totalRevenue)}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <TrendingUp size={20} />
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-2">Cumulative approved spend</p>
-          </AdminCard>
-
-          <AdminCard className="!p-4 border-l-4 border-l-purple-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Avg Spend / Booker</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{fmt(metrics.avgSpend)}</h3>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <Award size={20} />
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-2">Average client lifetime value</p>
-          </AdminCard>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard title="Total Customers" value={metrics.total} sub="Registered client accounts" icon={Users} />
+          <KPICard title="Active Bookers" value={metrics.bookerCount} sub={metrics.total > 0 ? `${Math.round((metrics.bookerCount / metrics.total) * 100)}% of total clients` : "0%"} icon={CalendarCheck} />
+          <KPICard title="Total Revenue" value={fmt(metrics.totalRevenue)} sub="Cumulative approved spend" icon={TrendingUp} />
+          <KPICard title="Avg Spend / Booker" value={fmt(metrics.avgSpend)} sub="Average client lifetime value" icon={Award} />
         </div>
 
         {/* Toolbar & Filters Card */}
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           <TableToolbar
             search={search}
             onSearchChange={setSearch}

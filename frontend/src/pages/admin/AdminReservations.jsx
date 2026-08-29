@@ -18,8 +18,10 @@ import {
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+
 import ConflictModal from "../../components/admin/ui/ConflictModal";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
@@ -355,7 +357,7 @@ export default function AdminReservations() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         {showConflict && (
           <ConflictModal
             onClose={() => setShowConflict(false)}
@@ -389,64 +391,30 @@ export default function AdminReservations() {
         )}
 
         {/* Page Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Reservations Management
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Track customer bookings, process event confirmations, and manage scheduled catering reservations.
             </p>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap self-start sm:self-auto">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
             <Btn variant="primary" size="sm" onClick={() => navigate("/admin/bookings/new")}><Plus size={13} /> New Booking</Btn>
           </div>
         </div>
 
         {/* Top KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Active</span>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{kpiStats.total}</h3>
-            </div>
-          </div>
-
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirmed</span>
-              <h3 className="text-2xl font-bold text-emerald-700 mt-0.5">{kpiStats.confirmed}</h3>
-            </div>
-          </div>
-
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-              <CreditCard className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Deposit Pending</span>
-              <h3 className="text-2xl font-bold text-amber-800 mt-0.5">{kpiStats.depositPending}</h3>
-            </div>
-          </div>
-
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
-              <Send className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Change Requests</span>
-              <h3 className="text-2xl font-bold text-indigo-900 mt-0.5">{kpiStats.changeRequests}</h3>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard title="Total Active" value={kpiStats.total} sub="All active bookings" icon={Calendar} />
+          <KPICard title="Confirmed" value={kpiStats.confirmed} sub="Ready for event" icon={CheckCircle2} />
+          <KPICard title="Deposit Pending" value={kpiStats.depositPending} sub="Awaiting payment" badge={kpiStats.depositPending > 0 ? "Action Req" : null} icon={CreditCard} />
+          <KPICard title="Change Requests" value={kpiStats.changeRequests} sub="Pending updates" icon={Send} />
         </div>
+
 
         {/* Toolbar / bulk action bar */}
         <AdminCard className="!p-4">

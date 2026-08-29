@@ -25,8 +25,10 @@ import {
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+
 import { useNavigate } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
@@ -442,7 +444,7 @@ export default function AdminPayments() {
         const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
         return (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-7 h-7 rounded-md bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold font-mono shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
@@ -457,7 +459,7 @@ export default function AdminPayments() {
       key: "milestone",
       header: "Milestone",
       render: (p) => (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
           <Tag size={10} />
           {getMilestoneLabel(p.payment_type)}
         </span>
@@ -470,7 +472,7 @@ export default function AdminPayments() {
         const mInfo = getMethodBadge(p.method);
         const IconComponent = mInfo.icon;
         return (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${mInfo.cls}`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${mInfo.cls}`}>
             <IconComponent size={11} />
             {mInfo.label}
           </span>
@@ -482,7 +484,7 @@ export default function AdminPayments() {
       header: "Amount",
       render: (p) => {
         const statusLabel = getStatusBadgeLabel(p.status);
-        const colorClass = statusLabel === "Paid" ? "text-emerald-600 font-bold" : statusLabel === "Pending" ? "text-amber-600 font-bold" : "text-gray-400 line-through";
+        const colorClass = statusLabel === "Paid" ? "text-emerald-600 font-bold font-mono" : statusLabel === "Pending" ? "text-amber-600 font-bold font-mono" : "text-gray-400 line-through font-mono";
         return <span className={`text-sm ${colorClass}`}>{fmt(p.amount)}</span>;
       },
     },
@@ -501,14 +503,14 @@ export default function AdminPayments() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setDrawerRow(p)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
               title="View Payment Details"
             >
               <Eye size={15} />
             </button>
             <button
               onClick={() => setReceiptModalRow(p)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors"
+              className="p-1.5 rounded-md text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors cursor-pointer"
               title="Print Receipt"
             >
               <Printer size={15} />
@@ -532,19 +534,19 @@ export default function AdminPayments() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         {/* Page Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              Finance & Payments
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Finance &amp; Payments
             </h1>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Track revenue, verify incoming customer payments, and record manual settlements.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
             <Btn variant="secondary" size="sm" onClick={() => loadData(true)} className="gap-1.5">
               <RefreshCw size={13} className={refreshing ? "animate-spin text-primary" : ""} />
               Refresh
@@ -554,87 +556,45 @@ export default function AdminPayments() {
               Export CSV
             </Btn>
             <Btn variant="primary" size="sm" onClick={() => setRecordModalOpen(true)} className="gap-1.5">
-              <Plus size={14} />
+              <Plus size={13} />
               Record Payment
             </Btn>
           </div>
         </div>
 
         {/* Finance KPI Cards Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* KPI 1: Total Collected */}
-          <AdminCard className="!p-4 border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Revenue Collected</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <DollarSign size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {fmt(stats.totalCollected)}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
-              <span>{stats.paidCount} approved transactions</span>
-              <span className="font-semibold text-emerald-600">Paid</span>
-            </div>
-          </AdminCard>
-
-          {/* KPI 2: Pending Verification */}
-          <AdminCard className="!p-4 border-l-4 border-l-amber-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Verifications</span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Clock size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {fmt(stats.pendingTotal)}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-1 flex items-center justify-between">
-              <span>{stats.pendingCount} payments awaiting review</span>
-              <span className="font-semibold text-amber-600">Action Needed</span>
-            </div>
-          </AdminCard>
-
-          {/* KPI 3: Revenue Breakdown */}
-          <AdminCard className="!p-4 border-l-4 border-l-blue-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Online vs Manual</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <CreditCard size={16} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-600 flex items-center gap-1"><CreditCard size={10} /> Online:</span>
-                <span className="font-semibold text-foreground">{fmt(stats.onlineTotal)}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-600 flex items-center gap-1"><Banknote size={10} /> Manual:</span>
-                <span className="font-semibold text-foreground">{fmt(stats.manualTotal)}</span>
-              </div>
-            </div>
-          </AdminCard>
-
-          {/* KPI 4: Total Receivables */}
-          <AdminCard className="!p-4 border-l-4 border-l-purple-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Outstanding Balances</span>
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <FileText size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {fmt(stats.totalReceivables)}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-1">
-              Uncollected balances across active bookings
-            </div>
-          </AdminCard>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard
+            title="Total Revenue"
+            value={fmt(stats.totalCollected)}
+            sub={`${stats.paidCount} approved transactions`}
+            icon={DollarSign}
+          />
+          <KPICard
+            title="Pending Verification"
+            value={fmt(stats.pendingTotal)}
+            sub={`${stats.pendingCount} awaiting review`}
+            badge={stats.pendingCount > 0 ? "Action Req" : null}
+            icon={Clock}
+          />
+          <KPICard
+            title="Online vs Manual"
+            value={fmt(stats.onlineTotal)}
+            sub={`Manual: ${fmt(stats.manualTotal)}`}
+            icon={CreditCard}
+          />
+          <KPICard
+            title="Outstanding Balance"
+            value={fmt(stats.totalReceivables)}
+            sub="Across all bookings"
+            icon={FileText}
+          />
         </div>
 
+
         {/* Table & Toolbar Container */}
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           <TableToolbar
             search={search}
             onSearchChange={setSearch}
@@ -823,9 +783,10 @@ export default function AdminPayments() {
                   <span className="text-xs font-bold text-accent-foreground uppercase tracking-wide">Transaction Amount</span>
                   <Badge status={getStatusBadgeLabel(drawerRow.status)} />
                 </div>
-                <div style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-foreground">
+                <div className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
                   {fmt(drawerRow.amount)}
                 </div>
+
                 <div className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
                   <span className="font-semibold">{getMilestoneLabel(drawerRow.payment_type)}</span>
                   <span>•</span>
@@ -875,16 +836,12 @@ export default function AdminPayments() {
         {/* Record Manual Payment Modal */}
         {recordModalOpen && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-150">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                {/* Work Sans, not Playfair. This is a modal title on an
-                    operate-mode surface, which the Scanned-Not-Read rule opts
-                    out of the display serif — the same reason .admin-layout
-                    overrides its own headings. The inline style was overriding
-                    that override. */}
-                <h2 className="font-sans text-xl font-semibold tracking-tight text-[#16264A]">
+            <div className="bg-white rounded-lg max-w-lg w-full p-4 sm:p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                <h2 className="font-sans text-base sm:text-lg font-semibold tracking-tight text-[#16264A]">
                   Record Manual Payment
                 </h2>
+
                 <button onClick={() => setRecordModalOpen(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
                   <X size={18} />
                 </button>
@@ -1001,8 +958,9 @@ export default function AdminPayments() {
         {/* Official Printable Receipt Modal */}
         {receiptModalRow && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-xl w-full p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in duration-150 my-8">
+            <div className="bg-white rounded-lg max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 my-6">
               {/* Receipt Action Header */}
+
               <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Official Receipt Preview</span>
                 <div className="flex items-center gap-2">

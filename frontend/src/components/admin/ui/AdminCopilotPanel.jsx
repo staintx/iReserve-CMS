@@ -173,7 +173,7 @@ export default function AdminCopilotPanel() {
         /* FLOATING COPILOT WINDOW (FlowAI Style) */
         <div
           className={cn(
-            "fixed right-4 sm:right-6 z-50 rounded-3xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95",
+            "fixed right-4 sm:right-6 z-50 rounded-xl border border-border/80 shadow-2xl bg-card flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out animate-in fade-in zoom-in-95",
             isExpanded
               ? "w-[94vw] sm:w-[540px] h-[88vh]"
               : "w-[92vw] sm:w-[410px] h-[580px] max-h-[82vh]"
@@ -184,7 +184,7 @@ export default function AdminCopilotPanel() {
           <div className="bg-gradient-to-r from-slate-900 via-primary/95 to-slate-900 text-white p-4 shadow-md flex items-center justify-between relative border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-white/15 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-xs">
                   <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
                 </div>
                 <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full" />

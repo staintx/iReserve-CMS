@@ -25,8 +25,10 @@ import {
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+
 import { AdminAPI } from "../../api/admin";
 import { useNavigate } from "react-router-dom";
 import useToast from "../../hooks/useToast";
@@ -430,23 +432,19 @@ export default function AdminRefunds() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         {/* Top Breadcrumb & Page Title */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <div className="flex items-center text-xs font-medium text-gray-500 mb-1">
-              <span className="cursor-pointer hover:text-gray-800" onClick={() => navigate("/admin/dashboard")}>
-                Finance
-              </span>
-              <ChevronRight size={12} className="mx-1.5 text-gray-400" />
-              <span className="text-foreground font-semibold">Refund Queue</span>
-            </div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              Refund Requests & Cancellation Settlements
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Refunds &amp; Cancellations
             </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Review cancellation requests, calculate settlement disbursements, and process refunds.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
             <Btn variant="secondary" size="sm" onClick={() => loadData(true)} className="gap-1.5">
               <RefreshCw size={13} className={refreshing ? "animate-spin text-primary" : ""} />
               Refresh
@@ -459,75 +457,37 @@ export default function AdminRefunds() {
         </div>
 
         {/* Finance KPI Overview Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* KPI 1: Total Refunded */}
-          <AdminCard className="!p-4 border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Refunded</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <RotateCcw size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {fmt(stats.totalDisbursed)}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-1">
-              {stats.approvedCount} approved refund disbursements
-            </div>
-          </AdminCard>
-
-          {/* KPI 2: Pending Refund Queue */}
-          <AdminCard className="!p-4 border-l-4 border-l-amber-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Action</span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Clock size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {fmt(stats.pendingAmount)}
-            </div>
-            <div className="text-[11px] text-amber-700 font-semibold mt-1 flex items-center gap-1">
-              <ShieldAlert size={12} />
-              {stats.pendingCount} requests awaiting calculation
-            </div>
-          </AdminCard>
-
-          {/* KPI 3: Cancelled Bookings */}
-          <AdminCard className="!p-4 border-l-4 border-l-red-400">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cancelled Bookings</span>
-              <div className="w-8 h-8 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
-                <XCircle size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {stats.totalRequests}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-1">
-              Total cancellation requests recorded
-            </div>
-          </AdminCard>
-
-          {/* KPI 4: Retained Fees / Settled */}
-          <AdminCard className="!p-4 border-l-4 border-l-purple-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">No Refund Needed</span>
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <CheckCircle2 size={16} />
-              </div>
-            </div>
-            <div style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              {stats.noRefundCount}
-            </div>
-            <div className="text-[11px] text-gray-500 mt-1">
-              Cancellations without deposit payments
-            </div>
-          </AdminCard>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard
+            title="Total Refunded"
+            value={fmt(stats.totalDisbursed)}
+            sub={`${stats.approvedCount} approved disbursements`}
+            icon={RotateCcw}
+          />
+          <KPICard
+            title="Pending Action"
+            value={fmt(stats.pendingAmount)}
+            sub={`${stats.pendingCount} awaiting calculation`}
+            badge={stats.pendingCount > 0 ? "Action Req" : null}
+            icon={Clock}
+          />
+          <KPICard
+            title="Cancelled Bookings"
+            value={stats.totalRequests}
+            sub="Total cancellation requests"
+            icon={XCircle}
+          />
+          <KPICard
+            title="No Refund Needed"
+            value={stats.noRefundCount}
+            sub="Zero deposit settlements"
+            icon={CheckCircle2}
+          />
         </div>
 
         {/* Table & Toolbar Container */}
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           <TableToolbar
             search={search}
             onSearchChange={setSearch}
@@ -693,20 +653,21 @@ export default function AdminRefunds() {
         {/* Interactive Refund Calculator Modal */}
         {showCalcModal && activeRefund && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden space-y-5 animate-in fade-in zoom-in duration-150">
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden space-y-4 animate-in fade-in zoom-in duration-150">
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-accent/10">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-accent/15 rounded-xl flex items-center justify-center text-accent-foreground">
-                    <Calculator size={20} />
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-accent/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8.5 h-8.5 bg-accent/15 rounded-lg flex items-center justify-center text-accent-foreground">
+                    <Calculator size={18} />
                   </div>
                   <div>
-                    <h3 style={{ fontFamily: "Playfair Display, serif" }} className="font-bold text-foreground text-lg">
-                      Calculate & Approve Refund
+                    <h3 className="font-bold text-foreground text-sm sm:text-base">
+                      Calculate &amp; Approve Refund
                     </h3>
-                    <p className="text-xs text-gray-500">Booking {activeRefund.bookingRef} • {activeRefund.customerName}</p>
+                    <p className="text-[11px] text-muted-foreground">Booking {activeRefund.bookingRef} • {activeRefund.customerName}</p>
                   </div>
                 </div>
+
                 <button onClick={() => setShowCalcModal(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-700">
                   <X size={18} />
                 </button>
@@ -833,8 +794,9 @@ export default function AdminRefunds() {
         {/* Printable Refund Voucher Modal */}
         {voucherModalRow && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-xl w-full p-8 shadow-2xl space-y-6 animate-in fade-in zoom-in duration-150 my-8">
+            <div className="bg-white rounded-lg max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150 my-6">
               {/* Receipt Action Header */}
+
               <div className="flex items-center justify-between border-b border-gray-200 pb-4 print:hidden">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Refund Voucher Preview</span>
                 <div className="flex items-center gap-2">

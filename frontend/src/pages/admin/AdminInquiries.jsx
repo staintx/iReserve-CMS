@@ -2,8 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Download, Plus, Eye, XCircle, Archive, ArchiveRestore, Inbox, Clock } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
+
 import ConflictModal from "../../components/admin/ui/ConflictModal";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AdminAPI } from "../../api/admin";
@@ -288,7 +290,7 @@ export default function AdminInquiries() {
               {r.booking}
             </span>
             <span
-              className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+              className={`shrink-0 rounded-md font-mono border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                 BOOKING_TYPE_STYLES[r.bookingType] ||
                 BOOKING_TYPE_STYLES[BOOKING_TYPES.CUSTOM]
               }`}
@@ -368,7 +370,7 @@ export default function AdminInquiries() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         {showConflict && (
           <ConflictModal
             onClose={() => setShowConflict(false)}
@@ -412,64 +414,32 @@ export default function AdminInquiries() {
           />
         )}
 
-        <div className="flex items-start justify-between flex-wrap gap-3">
+        {/* Clean Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
-              Inquiries
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Review incoming customer requests and prepare their quotation. Records move to Quotations once a quote is issued.
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Inquiries Queue
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Review incoming customer requests and prepare their quotation.
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap self-start sm:self-auto">
             <Btn variant="secondary" size="sm"><Download size={13} /> Export</Btn>
           </div>
         </div>
 
-        {/* Top KPI Metric Cards — the same card pattern as Reservations and
-            Ocular Visits, so the section reads as part of the set. Four
-            counts that map to a decision, not metrics for their own sake. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <Inbox className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Active Inquiries</span>
-              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.active}</h3>
-            </div>
-          </div>
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Pending Review</span>
-              <h3 className="text-xl font-bold text-amber-900 mt-0.5">{kpiStats.pending}</h3>
-            </div>
-          </div>
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
-              <Eye className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Under Review</span>
-              <h3 className="text-xl font-bold text-indigo-900 mt-0.5">{kpiStats.underReview}</h3>
-            </div>
-          </div>
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center shrink-0">
-              <Archive className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Archived</span>
-              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.archived}</h3>
-            </div>
-          </div>
+        {/* Top KPI Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard title="Active Inquiries" value={kpiStats.active} sub="In queue" icon={Inbox} />
+          <KPICard title="Pending Review" value={kpiStats.pending} sub="Awaiting triage" badge={kpiStats.pending > 0 ? "Action Req" : null} icon={Clock} />
+          <KPICard title="Under Review" value={kpiStats.underReview} sub="In progress" icon={Eye} />
+          <KPICard title="Archived" value={kpiStats.archived} sub="Archived records" icon={Archive} />
         </div>
 
         {/* Toolbar / bulk action bar */}
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5 sm:!p-4">
+
           {selectedIds.length > 0 ? (
             <BulkActionBar
               count={selectedIds.length}

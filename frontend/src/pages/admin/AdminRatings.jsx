@@ -38,26 +38,26 @@ export default function AdminRatings() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center p-1 bg-muted/80 rounded-2xl w-fit border border-border/60">
+        <div className="flex items-center p-0.5 bg-muted/80 rounded-md w-fit border border-border/60">
           <button
             type="button"
             className={cn(
-              "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer",
+              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer",
               tab === "ratings"
-                ? "bg-card text-foreground shadow-xs"
+                ? "bg-card text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setTab("ratings")}
           >
             <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-            Customer Ratings & AI Analysis
+            Customer Ratings &amp; AI Analysis
           </button>
           <button
             type="button"
             className={cn(
-              "flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer",
+              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded transition-all cursor-pointer",
               tab === "info"
-                ? "bg-card text-foreground shadow-xs"
+                ? "bg-card text-foreground shadow-2xs"
                 : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setTab("info")}
@@ -69,20 +69,21 @@ export default function AdminRatings() {
 
         {/* Tab 1: Ratings & AI Intelligence */}
         {tab === "ratings" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* AI Sentiment & Insights Card */}
             <ZelleFeedbackInsights />
 
             {/* Individual Reviews Section */}
-            <div className="bg-card rounded-2xl border border-border/80 p-5 shadow-xs">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/60">
+            <div className="bg-card rounded-lg border border-border/80 p-4 shadow-2xs">
+              <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-border/60">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-primary" />
-                  <h3 className="font-serif font-bold text-sm text-foreground">
+                  <h3 className="font-bold text-sm text-foreground">
                     All Customer Reviews ({ratings.length})
                   </h3>
                 </div>
               </div>
+
 
               {loading ? (
                 <p className="text-xs text-muted-foreground py-8 text-center animate-pulse">

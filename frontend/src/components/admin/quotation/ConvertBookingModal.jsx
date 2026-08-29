@@ -81,23 +81,24 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
   const canSubmit = (depositPaid || bypassDeposit) && Boolean(selectedManagerId);
 
   return (
-    <Modal onClose={onClose} className="max-w-lg w-full p-0 overflow-hidden rounded-2xl shadow-2xl border-0">
-      <div className="p-6 sm:p-8 flex flex-col items-center text-center space-y-5 bg-white relative">
+    <Modal onClose={onClose} className="max-w-lg w-full p-0 overflow-hidden rounded-lg shadow-2xl border-0">
+      <div className="p-5 sm:p-6 flex flex-col items-center text-center space-y-4 bg-white relative">
         
         {/* Close Button */}
         <button 
           onClick={onClose}
           disabled={submitting}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+          className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
           aria-label="Close"
         >
-          <X size={18} />
+          <X size={16} />
         </button>
 
         {/* Header Icon */}
-        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner shrink-0 border-4 border-emerald-50 mt-1">
-          <CheckCircle2 size={36} />
+        <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner shrink-0 border-2 border-emerald-50">
+          <CheckCircle2 size={26} />
         </div>
+
 
         {/* Title & Message */}
         <div className="space-y-2 max-w-md">

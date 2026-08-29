@@ -494,7 +494,7 @@ export default function AdminBookingDetails() {
             <span className="font-mono font-bold text-amber-700">{booking.reference || `BK-${booking._id.substring(0,6).toUpperCase()}`}</span>
             <Badge status={booking.status} />
             {booking.is_revised && (
-              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold font-mono px-2 py-0.5 rounded-md">
                 Revised (v{booking.revision_count || 1})
               </span>
             )}
@@ -531,14 +531,14 @@ export default function AdminBookingDetails() {
 
         {/* Pending Revision Proposal Banner */}
         {booking.pending_revision && ["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status) && (
-          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-center justify-between gap-4 text-xs">
+          <div className="bg-amber-50 border border-amber-300 rounded-md shadow-2xs p-3.5 sm:p-4 flex items-center justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
-              <RefreshCw className="w-5 h-5 text-amber-600 mt-0.5 shrink-0 animate-spin-slow" />
+              <RefreshCw className="w-4 h-4 text-amber-600 mt-0.5 shrink-0 animate-spin-slow" />
               <div>
-                <h4 className="font-bold text-amber-950 text-sm">
+                <h4 className="font-bold text-amber-950 text-xs sm:text-sm">
                   {booking.pending_revision.status === "pending_customer_approval" ? "Revised Proposal Sent to Customer (Awaiting Confirmation)" : "Customer Proposed Booking Revision (Action Required)"}
                 </h4>
-                <p className="text-amber-800 mt-0.5 leading-relaxed font-medium">
+                <p className="text-amber-800 mt-0.5 leading-relaxed font-medium text-[11px]">
                   {booking.pending_revision.message || "Proposed changes pending mutual deal confirmation."}
                 </p>
               </div>
@@ -551,14 +551,15 @@ export default function AdminBookingDetails() {
 
         {/* Change Request Alert Banner */}
         {booking.change_request?.status === "pending" && booking.change_request?.message && (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-start justify-between gap-4 text-xs">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-md shadow-2xs p-3.5 sm:p-4 flex items-start justify-between gap-4 text-xs">
             <div className="flex items-start gap-3">
-              <Send className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+              <Send className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
               <div>
-                <h4 className="font-bold text-indigo-950 text-sm">Customer Change Request Pending Review</h4>
-                <p className="text-indigo-800 mt-0.5 leading-relaxed">{booking.change_request.message}</p>
+                <h4 className="font-bold text-indigo-950 text-xs sm:text-sm">Customer Change Request Pending Review</h4>
+                <p className="text-indigo-800 mt-0.5 leading-relaxed text-[11px]">{booking.change_request.message}</p>
               </div>
             </div>
+
             <Btn
               size="sm"
               variant="primary"
@@ -610,7 +611,7 @@ export default function AdminBookingDetails() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 font-bold text-base flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-md bg-amber-100 text-amber-800 font-bold text-sm flex items-center justify-center shrink-0">
                 {customerName.substring(0, 2).toUpperCase()}
               </div>
               <div>
@@ -618,6 +619,7 @@ export default function AdminBookingDetails() {
                 <span className="text-xs text-slate-500">Registered Client</span>
               </div>
             </div>
+
 
             <div className="space-y-3 text-xs pt-2">
               <div className="flex items-center gap-2 text-slate-700">
@@ -692,15 +694,15 @@ export default function AdminBookingDetails() {
                 </div>
 
                 {booking.event_manager_id ? (
-                  <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-center justify-between gap-2.5">
+                  <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-md shadow-2xs flex items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-amber-200 text-amber-950 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-300">
+                      <div className="w-8 h-8 rounded-md bg-amber-200 text-amber-950 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-300">
                         {(booking.event_manager_id.full_name || "M").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
                           <span>{booking.event_manager_id.full_name}</span>
-                          <span className="text-[10px] text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded font-semibold shrink-0">
+                          <span className="text-[10px] text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded-md font-semibold shrink-0">
                             Manager
                           </span>
                         </div>
@@ -716,7 +718,7 @@ export default function AdminBookingDetails() {
                       setSelectedManagerId("");
                       setShowAssignManagerModal(true);
                     }}
-                    className="p-2.5 border border-dashed border-slate-200 hover:border-amber-400 bg-slate-50/60 hover:bg-amber-50/40 rounded-xl flex items-center justify-between cursor-pointer transition-colors group"
+                    className="p-2.5 border border-dashed border-slate-200 hover:border-amber-400 bg-slate-50/60 hover:bg-amber-50/40 rounded-md flex items-center justify-between cursor-pointer transition-colors group"
                   >
                     <div className="flex items-center gap-2 text-slate-400 group-hover:text-amber-800">
                       <UserPlus size={14} />
@@ -779,29 +781,29 @@ export default function AdminBookingDetails() {
         <AdminCard className="!p-6 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
                 <Eye className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-serif font-bold text-slate-900 text-base flex items-center gap-2">
+                <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
                   Ocular Visit &amp; Venue Inspection
                   {booking.ocular_visit?.status === "completed" && (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    <span className="text-[10px] font-bold font-mono text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200">
                       {booking.ocular_visit.outcome === "proceed" ? "Inspection Passed ✓" : "Completed"}
                     </span>
                   )}
                   {booking.ocular_visit?.status === "scheduled" && (
-                    <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2.5 py-0.5 rounded-full border border-blue-200">
+                    <span className="text-[10px] font-bold font-mono text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
                       Scheduled
                     </span>
                   )}
                   {booking.ocular_visit?.status === "requested" && (
-                    <span className="text-[11px] font-bold text-amber-700 bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-200">
+                    <span className="text-[10px] font-bold font-mono text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
                       Requested by Client
                     </span>
                   )}
                   {(!booking.ocular_visit?.status || booking.ocular_visit?.status === "pending") && (
-                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                    <span className="text-[10px] font-bold font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
                       Pending Schedule
                     </span>
                   )}
@@ -851,7 +853,7 @@ export default function AdminBookingDetails() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs pt-2">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
               <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Visit Date &amp; Time</span>
               <strong className="text-slate-900 font-bold text-sm block">
                 {booking.ocular_visit?.scheduled_date
@@ -863,7 +865,7 @@ export default function AdminBookingDetails() {
               </span>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
               <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Status</span>
               <strong className="text-slate-900 font-bold text-sm block capitalize">
                 {booking.ocular_visit?.status || "Pending"}
@@ -875,7 +877,7 @@ export default function AdminBookingDetails() {
               </span>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
               <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Outcome</span>
               <strong className="text-slate-900 font-bold text-sm block">
                 {booking.ocular_visit?.outcome === "proceed"
@@ -897,7 +899,7 @@ export default function AdminBookingDetails() {
               </span>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
+            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
               <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Assigned Coordinator</span>
               <strong className="text-slate-900 font-bold text-sm block truncate">
                 {booking.event_manager_id?.full_name || "Unassigned"}
@@ -913,7 +915,7 @@ export default function AdminBookingDetails() {
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
               Ocular Notes &amp; Place Measurements
             </span>
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 leading-relaxed whitespace-pre-line shadow-2xs">
               {booking.ocular_visit?.notes || (
                 <span className="text-slate-400 italic">No ocular inspection notes or place measurements recorded yet.</span>
               )}
@@ -923,7 +925,7 @@ export default function AdminBookingDetails() {
 
         {/* Itemized Menu & Service Details */}
         <AdminCard className="!p-6 space-y-4">
-          <h3 className="font-serif font-bold text-slate-900 text-base flex items-center gap-2">
+          <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
             <Utensils className="w-5 h-5 text-amber-600" /> Itemized Menu & Service Breakdown
           </h3>
 
@@ -931,7 +933,7 @@ export default function AdminBookingDetails() {
             {/* Menu Items */}
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Selected Menu Dishes</span>
-              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+              <div className="border border-slate-200 rounded-md overflow-hidden text-xs shadow-2xs">
                 {booking.menu_items && booking.menu_items.length > 0 ? (
                   booking.menu_items.map((item, idx) => (
                     <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
@@ -958,7 +960,7 @@ export default function AdminBookingDetails() {
             {/* Service & Add-ons */}
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Add-ons & Equipment Services</span>
-              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+              <div className="border border-slate-200 rounded-md overflow-hidden text-xs shadow-2xs">
                 {booking.service_items && booking.service_items.length > 0 ? (
                   booking.service_items.map((item, idx) => (
                     <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
@@ -974,13 +976,14 @@ export default function AdminBookingDetails() {
           </div>
 
           {/* Financial Calculation Breakdown Summary Box */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 mt-4 space-y-3 text-xs">
+          <div className="bg-slate-50 border border-slate-200 rounded-md p-3.5 mt-4 space-y-2.5 text-xs shadow-2xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <span className="font-bold text-slate-900 text-xs uppercase tracking-wider">Independent Price Calculation Breakdown</span>
-              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-200">
-                Package & Add-ons Separated
+              <span className="text-[10px] font-bold font-mono text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                Package &amp; Add-ons Separated
               </span>
             </div>
+
 
             <div className="space-y-2 text-slate-700 pt-1">
               <div className="flex justify-between items-center">
@@ -1008,7 +1011,7 @@ export default function AdminBookingDetails() {
 
               <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 text-sm font-bold text-slate-950">
                 <span>Grand Total</span>
-                <span className="text-amber-950 text-base">{fmt(grandTotal)}</span>
+                <span className="text-amber-950 text-base font-mono">{fmt(grandTotal)}</span>
               </div>
             </div>
           </div>
@@ -1018,7 +1021,7 @@ export default function AdminBookingDetails() {
         <AdminCard className="!p-6 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h3 className="font-serif font-bold text-slate-900 text-base flex items-center gap-2">
+              <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
                 <Boxes className="w-5 h-5 text-amber-600" /> Assigned Equipment & Inventory
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -1043,11 +1046,11 @@ export default function AdminBookingDetails() {
                 );
 
                 return (
-                  <div key={idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:border-slate-300 transition-colors flex flex-col justify-between space-y-2">
+                  <div key={idx} className="p-3.5 rounded-md border border-slate-200 bg-slate-50/50 hover:border-slate-300 transition-all shadow-2xs flex flex-col justify-between space-y-2">
                     <div>
                       <div className="flex items-start justify-between gap-1">
                         <span className="font-bold text-xs text-slate-900 leading-snug">{invName}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold shrink-0">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 shrink-0 border border-amber-200/80">
                           x{qty}
                         </span>
                       </div>
@@ -1068,7 +1071,7 @@ export default function AdminBookingDetails() {
               })}
             </div>
           ) : (
-            <div className="py-8 px-4 border border-dashed border-slate-200 rounded-xl text-center space-y-3 bg-slate-50/30">
+            <div className="py-8 px-4 border border-dashed border-slate-200 rounded-md text-center space-y-3 bg-slate-50/30">
               <Boxes className="w-10 h-10 text-slate-300 mx-auto" />
               <div>
                 <h4 className="text-xs font-bold text-slate-800">No Equipment Assigned Yet</h4>

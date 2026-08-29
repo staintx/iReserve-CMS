@@ -22,16 +22,19 @@ export default function AdminAnalytics() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">Analytics & Reports</h2>
-          <div className="flex gap-2">
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Analytics &amp; Reports</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Real-time revenue metrics, event distribution, and package performance.</p>
+          </div>
+          <div className="flex gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-2 bg-card border border-border/80 rounded-lg px-2.5 py-1.5 shadow-2xs">
               <Calendar size={13} className="text-muted-foreground" />
               <select
                 value={range}
                 onChange={(e) => setRange(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none"
+                className="bg-transparent text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
               >
                 <option>This Year</option>
                 <option>Last 6 Months</option>
@@ -41,6 +44,7 @@ export default function AdminAnalytics() {
             <Btn variant="secondary" size="sm"><Download size={13} /> Export Data</Btn>
           </div>
         </div>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Revenue Overview */}

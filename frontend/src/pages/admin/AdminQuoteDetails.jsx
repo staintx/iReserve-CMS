@@ -18,6 +18,7 @@ import { pendingChangeRequestOf } from "../../utils/quotationDiff";
 import { priceLabel, capacityLabel } from "../../lib/packageDisplay";
 import {
   BOOKING_TYPES,
+  OFFER_TYPES,
   bookingIdentity,
   offerFoodByCategory,
   offerFoodForDisplay,
@@ -31,7 +32,7 @@ import { eventSpaceLabel } from "../../lib/packageDisplay";
 
 /* --- Compact Reusable Card Component --- */
 const CompactCard = ({ title, icon: Icon, children, headerRight, className = "" }) => (
-  <div className={`bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden ${className}`}>
+  <div className={`bg-white rounded-md border border-slate-200/80 shadow-2xs overflow-hidden ${className}`}>
     <div className="bg-slate-50/70 px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <div className="p-1.5 bg-white rounded-md shadow-2xs border border-slate-200/80 text-primary shrink-0">
@@ -55,7 +56,7 @@ const CompactCard = ({ title, icon: Icon, children, headerRight, className = "" 
 const CompactField = ({ icon: Icon, label, value, children, span = "col-span-1", hideWhenEmpty = false }) => {
   if (hideWhenEmpty && !children && !value) return null;
   return (
-  <div className={`bg-slate-50/60 rounded-lg p-2 sm:p-2.5 border border-slate-100/90 flex flex-col justify-between ${span}`}>
+  <div className={`bg-slate-50/60 rounded-md p-2 sm:p-2.5 border border-slate-100/90 flex flex-col justify-between ${span}`}>
     <div className="flex items-center gap-1.5 text-slate-400 mb-1">
       {Icon && <Icon size={12} className="shrink-0 text-slate-400" />}
       <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 truncate">{label}</span>
@@ -146,25 +147,25 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
             {quotation.quotation_number || "QTN"}
           </span>
           <span>Issued {formatShortDate(quotation.createdAt)}</span>
-          <span className={`rounded px-1.5 py-0.5 font-semibold ${expiryChipTone}`}>
+          <span className={`rounded-md font-mono text-[10px] px-1.5 py-0.5 font-semibold ${expiryChipTone}`}>
             {expiry
               ? `${expired ? "Expired" : "Valid until"} ${formatShortDate(quotation.expiration_date)}`
               : "No expiry set"}
           </span>
           {isDepositPaid && (
-            <span className="rounded bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 font-bold text-emerald-800 flex items-center gap-1">
+            <span className="rounded-md font-mono text-[10px] bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 font-bold text-emerald-800 flex items-center gap-1">
               <Check size={11} className="text-emerald-600" /> Deposit Paid
             </span>
           )}
           {hasDraft && (
-            <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800">
+            <span className="rounded-md font-mono text-[10px] bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-800">
               Newer draft not sent
             </span>
           )}
         </div>
 
         {/* What is being charged, in the order the builder priced it. */}
-        <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+        <div className="space-y-1.5 rounded-md border border-slate-200 bg-slate-50/70 p-3 shadow-2xs">
           <MoneyLine
             label={quotation.package_name || "Package"}
             detail={
@@ -206,7 +207,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
               <span className="min-w-0 text-slate-600 flex items-center gap-1.5">
                 Deposit to confirm
                 {isDepositPaid && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     <Check size={10} className="text-emerald-700" /> Paid
                   </span>
                 )}
@@ -224,7 +225,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
             <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Inclusion quantity changes ({adjustments.length})
             </span>
-            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+            <ul className="divide-y divide-slate-100 rounded-md border border-slate-100 shadow-2xs">
               {adjustments.map((entry, i) => {
                 const amount = Number(entry.amount) || 0;
                 return (
@@ -258,7 +259,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
             <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Quoted dishes ({dishes.length})
             </span>
-            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+            <ul className="divide-y divide-slate-100 rounded-md border border-slate-100 shadow-2xs">
               {dishes.map((dish, i) => {
                 const byQuantity = dish.pricing_type === "quantity";
                 const units = byQuantity ? Math.max(1, Number(dish.quantity) || 1) : guests;
@@ -271,15 +272,15 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
                       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                         <span className="text-xs font-semibold text-slate-800">{dish.name}</span>
                         {dish.category && (
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                          <span className="rounded-md font-mono bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 border border-slate-200/60">
                             {dish.category}
                           </span>
                         )}
                         <span
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          className={`rounded-md font-mono px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${
                             byQuantity
-                              ? "bg-violet-50 text-violet-700"
-                              : "bg-primary/10 text-primary"
+                              ? "bg-violet-50 text-violet-700 border-violet-200/60"
+                              : "bg-primary/10 text-primary border-primary/20"
                           }`}
                         >
                           {byQuantity ? menuAmountLabel(dish) : "Per guest"}
@@ -307,7 +308,7 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
         )}
 
         {quotation.admin_notes && (
-          <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-2.5">
+          <div className="rounded-md border border-slate-100 bg-slate-50/70 p-2.5 shadow-2xs">
             <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Notes sent to the customer
             </span>
@@ -372,14 +373,14 @@ export default function AdminQuoteDetails() {
   if (!quote) {
     return (
       <AdminLayout>
-        <div className="p-8 max-w-md mx-auto text-center bg-white rounded-xl border border-slate-200 shadow-xs my-12">
+        <div className="p-8 max-w-md mx-auto text-center bg-white rounded-md border border-slate-200 shadow-2xs my-12">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-400 mb-3">
             <Info size={24} />
           </div>
           <h2 className="text-lg font-bold text-slate-800 mb-1">Inquiry Not Found</h2>
           <p className="text-xs text-slate-500 mb-5">The inquiry you are looking for does not exist or has been deleted.</p>
           <button 
-            className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 text-xs font-semibold shadow-xs transition-colors" 
+            className="px-4 py-2 bg-slate-800 text-white rounded-md hover:bg-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer" 
             onClick={() => navigate("/admin/bookings/inquiries")}
           >
             Return to Inquiries
@@ -473,11 +474,11 @@ export default function AdminQuoteDetails() {
       <div className="max-w-6xl mx-auto space-y-4 pb-8">
         
         {/* --- Header Section --- */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-md border border-slate-200/80 shadow-2xs">
           <div>
             <button 
               onClick={() => navigate("/admin/bookings/inquiries")}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 mb-1.5 transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 mb-1.5 transition-colors cursor-pointer"
             >
               <ArrowLeft size={13} />
               Back to Inquiries
@@ -492,7 +493,7 @@ export default function AdminQuoteDetails() {
               </h1>
               <Badge status={quote.status} />
               {isDepositPaid && (
-                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
+                <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
                   <CheckCircle2 size={12} className="text-emerald-700" /> Deposit Paid
                 </span>
               )}
@@ -507,7 +508,7 @@ export default function AdminQuoteDetails() {
                 </span>
               )}
               {quote.service_type && (
-                <span className="font-sans font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 text-[10px]">
                   {quote.service_type}
                 </span>
               )}
@@ -525,7 +526,7 @@ export default function AdminQuoteDetails() {
             )}
             {!isConverted && (
               <button 
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs hover:shadow transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                 onClick={() => setShowConvertModal(true)}
               >
                 <Activity size={14} className="text-primary-400" />
@@ -542,7 +543,7 @@ export default function AdminQuoteDetails() {
             )}
             {quote.converted_booking_id && (
               <button 
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-all"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-md shadow-2xs transition-all cursor-pointer"
                 onClick={() => navigate(`/admin/bookings/${quote.converted_booking_id}/details`)}
               >
                 <CheckCircle2 size={14} />
@@ -554,7 +555,7 @@ export default function AdminQuoteDetails() {
 
         {/* --- Contextual Status Banners (Compact) --- */}
         {hasDraft && (
-          <div className="p-3 sm:p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="p-3.5 sm:p-4 bg-amber-50/90 border border-amber-200/90 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="p-1.5 bg-amber-500 text-white rounded-md shrink-0">
                 <FileText size={15} />
@@ -570,7 +571,7 @@ export default function AdminQuoteDetails() {
         )}
 
         {isQuotationSent && (
-          <div className="p-3 sm:p-3.5 bg-blue-50/90 border border-blue-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="p-3.5 sm:p-4 bg-blue-50/90 border border-blue-200/90 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="p-1.5 bg-blue-600 text-white rounded-md shrink-0">
                 <Send size={15} />
@@ -584,7 +585,7 @@ export default function AdminQuoteDetails() {
         )}
 
         {isPendingReview && (
-          <div className="p-3 sm:p-3.5 bg-amber-50/90 border border-amber-200/90 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="p-3.5 sm:p-4 bg-amber-50/90 border border-amber-200/90 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="p-1.5 bg-amber-500 text-white rounded-md shrink-0">
                 <Clock size={15} />
@@ -604,7 +605,7 @@ export default function AdminQuoteDetails() {
           ) || 1) + 1;
 
           return (
-            <div className="p-3 sm:p-3.5 bg-orange-50/90 border border-orange-200/90 rounded-xl shadow-2xs">
+            <div className="p-3.5 sm:p-4 bg-orange-50/90 border border-orange-200/90 rounded-md shadow-2xs">
               <div className="flex items-center gap-2.5 min-w-0">
                   <div className="p-1.5 bg-orange-500 text-white rounded-md shrink-0">
                     <RefreshCw size={15} />
@@ -634,7 +635,7 @@ export default function AdminQuoteDetails() {
               </div>
 
               {request?.customer_response ? (
-                <blockquote className="mt-2.5 rounded-lg border border-orange-200/80 bg-white/80 px-3 py-2 text-xs text-slate-800 leading-relaxed">
+                <blockquote className="mt-2.5 rounded-md border border-orange-200/80 bg-white/80 px-3 py-2 text-xs text-slate-800 leading-relaxed shadow-2xs">
                   <span className="font-semibold text-orange-900">Customer message: </span>“{request.customer_response}”
                 </blockquote>
               ) : (
@@ -647,7 +648,7 @@ export default function AdminQuoteDetails() {
         })()}
 
         {isAccepted && (
-          <div className={`p-3 sm:p-3.5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs border ${
+          <div className={`p-3.5 sm:p-4 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs border ${
             isDepositPaid ? "bg-emerald-50/90 border-emerald-200/90" : "bg-purple-50/90 border-purple-200/90"
           }`}>
             <div className="flex items-center gap-2.5 min-w-0">
@@ -696,7 +697,7 @@ export default function AdminQuoteDetails() {
                 when a quotation is revised, so the two can be compared —
                 which only works if the reader is told which is which. */}
             {currentQuotation && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5">
+              <div className="flex items-start gap-2.5 rounded-md border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 shadow-2xs">
                 <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
                 <p className="text-[11.5px] leading-relaxed text-slate-600">
                   <span className="font-bold text-slate-800">Original customer request.</span>{" "}
@@ -710,16 +711,16 @@ export default function AdminQuoteDetails() {
             <CompactCard title="Selected Package" icon={PackageIcon}>
               {quote.package_id && typeof quote.package_id === "object" ? (
                 <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-lg border border-slate-200/70">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 p-3 rounded-md border border-slate-200/70 shadow-2xs">
                     <div className="flex items-center gap-3 min-w-0">
                       {quote.package_id.image_url ? (
                         <img
                           src={quote.package_id.image_url}
                           alt={quote.package_id.name}
-                          className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
+                          className="w-12 h-12 rounded-md object-cover border border-slate-200 shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 border border-primary/20">
+                        <div className="w-12 h-12 rounded-md bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 border border-primary/20">
                           <PackageIcon size={22} />
                         </div>
                       )}
@@ -734,26 +735,26 @@ export default function AdminQuoteDetails() {
                               indistinguishable from a regular Food Only
                               package on the one page an admin quotes from. */}
                           {isOffer ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10.5px] font-bold">
+                            <span className="px-2 py-0.5 rounded-md font-mono bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200/80">
                               {identity.label}
                             </span>
                           ) : (
                             quote.package_id.package_type && (
-                              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10.5px] font-semibold">
+                              <span className="px-2 py-0.5 rounded-md font-mono bg-primary/10 text-primary text-[10px] font-semibold border border-primary/20">
                                 {quote.package_id.package_type}
                               </span>
                             )
                           )}
                           {quote.package_id.event_type && (
                             <span
-                              className="px-2 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[10.5px] font-medium"
+                              className="px-2 py-0.5 rounded-md font-mono bg-slate-200/80 text-slate-700 text-[10px] font-medium border border-slate-300/60"
                               title="Catalog preset event type"
                             >
                               Preset: {quote.package_id.event_type}
                             </span>
                           )}
                           {capacityLabel(quote.package_id) && (
-                            <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 font-medium">
                               <Users size={11} className="text-slate-400" />
                               {capacityLabel(quote.package_id)}
                             </span>
@@ -766,7 +767,7 @@ export default function AdminQuoteDetails() {
                       <span className="text-[9.5px] uppercase tracking-wider text-slate-400 font-bold block">
                         Base Pricing
                       </span>
-                      <span className="text-xs sm:text-sm font-bold text-slate-900">
+                      <span className="text-xs sm:text-sm font-bold font-mono text-slate-900">
                         {priceLabel(quote.package_id)}
                       </span>
                     </div>
@@ -836,12 +837,12 @@ export default function AdminQuoteDetails() {
                   )}
                 </div>
               ) : quote.had_package_selection ? (
-                <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-lg flex items-center gap-2.5 text-xs text-amber-900">
+                <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-md shadow-2xs flex items-center gap-2.5 text-xs text-amber-900">
                   <AlertTriangle className="text-amber-600 shrink-0" size={16} />
                   <span>The selected package is no longer active or available in the catalog.</span>
                 </div>
               ) : (
-                <div className="p-2.5 sm:p-3 bg-slate-50/70 border border-slate-200/70 rounded-lg flex items-center gap-2.5 text-slate-600">
+                <div className="p-2.5 sm:p-3 bg-slate-50/70 border border-slate-200/70 rounded-md shadow-2xs flex items-center gap-2.5 text-slate-600">
                   <PackageIcon className="text-slate-400 shrink-0" size={16} />
                   <div className="text-xs leading-tight">
                     <span className="font-bold text-slate-800">Custom Inquiry (No Preset Package Chosen)</span>
@@ -1057,7 +1058,7 @@ export default function AdminQuoteDetails() {
                           <div className="text-right shrink-0">
                             <span className="font-semibold text-slate-700">
                               {svc?.price > 0 ? `₱${svc.price}` : "Selected"} 
-                              {svc?.quantity > 1 && <span className="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-700 text-[10px] font-bold rounded">x{svc.quantity}</span>}
+                              {svc?.quantity > 1 && <span className="ml-1 px-1.5 py-0.2 bg-slate-200 text-slate-700 text-[10px] font-mono font-bold rounded-md">x{svc.quantity}</span>}
                             </span>
                           </div>
                         </div>
@@ -1065,7 +1066,7 @@ export default function AdminQuoteDetails() {
                       {Array.isArray(quote.additional_services) && quote.additional_services.map((svcName, i) => (
                         <div key={`add-${i}`} className="flex justify-between items-center bg-slate-50/80 border border-slate-100 rounded-md px-2.5 py-1.5 text-xs">
                           <span className="font-medium text-slate-800">{svcName}</span>
-                          <span className="text-[10px] font-semibold text-slate-500 px-2 py-0.5 bg-white rounded border border-slate-200">Selected Service</span>
+                          <span className="text-[10px] font-mono font-semibold text-slate-500 px-2 py-0.5 bg-white rounded-md border border-slate-200">Selected Service</span>
                         </div>
                       ))}
                     </div>
@@ -1081,7 +1082,7 @@ export default function AdminQuoteDetails() {
                       {quote.inventory_items.map((inv, i) => (
                         <div key={i} className="flex justify-between items-center bg-slate-50/80 border border-slate-100 rounded-md px-2.5 py-1.5 text-xs">
                           <span className="font-medium text-slate-800 truncate pr-2">{inv?.name || "Inventory Item"}</span>
-                          <span className="font-bold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200 text-[11px]">Qty: {inv?.quantity || 1}</span>
+                          <span className="font-mono font-bold text-slate-600 bg-white px-1.5 py-0.5 rounded-md border border-slate-200 text-[10px]">Qty: {inv?.quantity || 1}</span>
                         </div>
                       ))}
                     </div>
@@ -1095,14 +1096,14 @@ export default function AdminQuoteDetails() {
                  (!Array.isArray(quote.additional_services) || quote.additional_services.length === 0) &&
                  (!Array.isArray(quote.inventory_items) || quote.inventory_items.length === 0) && (
                   quote.package_id?.price_per_guest > 0 || quote.package_id?.package_type === "Food Only" ? (
-                    <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-lg text-xs text-amber-900 space-y-1">
+                    <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-md shadow-2xs text-xs text-amber-900 space-y-1">
                       <div className="flex items-center justify-between font-semibold">
                         <span className="flex items-center gap-1.5">
                           <Utensils size={13} className="text-amber-700" />
                           {quote.package_id.name}
                         </span>
                         {quote.package_id.price_per_guest > 0 && (
-                          <span className="tabular-nums">
+                          <span className="tabular-nums font-mono">
                             ₱{quote.package_id.price_per_guest} / guest
                             {quote.guest_count ? ` · ₱${(quote.package_id.price_per_guest * quote.guest_count).toLocaleString()} est.` : ""}
                           </span>
@@ -1129,7 +1130,7 @@ export default function AdminQuoteDetails() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <CompactField icon={DollarSign} label="Budget Range">
                     {quote.budget_range ? (
-                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 text-xs">
+                      <span className="text-emerald-700 font-mono font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 text-xs">
                         {quote.budget_range}
                       </span>
                     ) : null}
@@ -1137,7 +1138,7 @@ export default function AdminQuoteDetails() {
 
                   <CompactField icon={ShieldAlert} label="Allergies">
                     {quote.allergies ? (
-                      <span className="text-red-700 font-semibold bg-red-50 px-2 py-0.5 rounded border border-red-100 text-xs">
+                      <span className="text-red-700 font-semibold bg-red-50 px-2 py-0.5 rounded-md border border-red-100 text-xs">
                         {quote.allergies}
                       </span>
                     ) : null}
@@ -1145,7 +1146,7 @@ export default function AdminQuoteDetails() {
 
                   <CompactField icon={Info} label="Dietary Restrictions">
                     {(quote.dietary_restrictions || quote.dietary_requirements) ? (
-                      <span className="text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-100 text-xs">
+                      <span className="text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100 text-xs">
                         {quote.dietary_restrictions || quote.dietary_requirements}
                       </span>
                     ) : null}
@@ -1153,7 +1154,7 @@ export default function AdminQuoteDetails() {
                 </div>
 
                 {quote.delivery_instructions && (
-                  <div className="bg-slate-50/70 p-2.5 rounded-lg border border-slate-100 text-xs">
+                  <div className="bg-slate-50/70 p-2.5 rounded-md border border-slate-100 text-xs shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                       Delivery Instructions
                     </span>
@@ -1166,7 +1167,7 @@ export default function AdminQuoteDetails() {
                     Additional Notes &amp; Special Requests
                   </span>
                   {quote.special_requests ? (
-                    <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-100 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                    <div className="bg-slate-50/80 p-3 rounded-md border border-slate-100 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed shadow-2xs">
                       {quote.special_requests}
                     </div>
                   ) : (
@@ -1185,7 +1186,7 @@ export default function AdminQuoteDetails() {
             <CompactCard title="Customer Profile" icon={User}>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 pb-2.5 border-b border-slate-100">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0 border border-primary/20">
+                  <div className="w-10 h-10 rounded-md bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0 border border-primary/20">
                     {(quote.contact_first_name?.[0] || "").toUpperCase()}
                     {(quote.contact_last_name?.[0] || "").toUpperCase()}
                   </div>
@@ -1237,7 +1238,7 @@ export default function AdminQuoteDetails() {
             </CompactCard>
 
             {/* Next Steps & Workflow Sidebar Card */}
-            <div className="bg-slate-900 rounded-xl p-4 text-white shadow-xs border border-slate-800 relative overflow-hidden">
+            <div className="bg-slate-900 rounded-md p-4 text-white shadow-2xs border border-slate-800 relative overflow-hidden">
               <div className="absolute -top-10 -right-10 w-28 h-28 bg-primary/20 rounded-full blur-xl pointer-events-none"></div>
               
               <h3 className="font-bold text-xs uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -1302,7 +1303,7 @@ export default function AdminQuoteDetails() {
               {!isConverted && (
                 <button
                   onClick={() => setShowConvertModal(true)}
-                  className="w-full mt-3.5 py-1.5 px-3 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full mt-3.5 py-2 px-3 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Activity size={13} />
                   {isRevisionRequested ? "Revise Quotation" : "Open Quotation Builder"}

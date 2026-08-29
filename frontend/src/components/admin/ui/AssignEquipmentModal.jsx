@@ -120,26 +120,27 @@ export default function AssignEquipmentModal({ booking, open, onClose, onSave })
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white rounded-2xl border-0 shadow-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card rounded-md border border-border shadow-2xl">
         
         {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-slate-50/50">
+        <DialogHeader className="px-5 pt-5 pb-3.5 border-b border-border bg-muted/30">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                <Boxes size={22} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8.5 h-8.5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                <Boxes size={18} />
               </div>
               <div>
-                <DialogTitle className="text-lg font-serif font-bold text-slate-900">
+                <DialogTitle className="text-base font-bold text-foreground">
                   Assign Inventory Equipment
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500 mt-0.5">
-                  Booking Reference: <strong className="font-mono text-amber-700">{booking?.reference || `BK-${booking?._id?.substring(0,6)}`}</strong> &bull; Event Date: <strong className="text-slate-700">{eventDateFormatted}</strong>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Booking Reference: <strong className="font-mono text-amber-700">{booking?.reference || `BK-${booking?._id?.substring(0,6)}`}</strong> &bull; Event Date: <strong className="text-foreground">{eventDateFormatted}</strong>
                 </DialogDescription>
               </div>
             </div>
           </div>
         </DialogHeader>
+
 
         {/* Search & Category Filter */}
         <div className="p-4 border-b border-slate-100 bg-white space-y-3 shrink-0">
@@ -151,7 +152,7 @@ export default function AssignEquipmentModal({ booking, open, onClose, onSave })
                 placeholder="Search equipment by name or category..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                className="w-full text-xs pl-9 pr-3 py-2 rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
               />
               {search && (
                 <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -175,7 +176,7 @@ export default function AssignEquipmentModal({ booking, open, onClose, onSave })
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors shrink-0 ${
                     categoryFilter === cat
                       ? "bg-slate-900 text-white font-semibold shadow-xs"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -215,12 +216,12 @@ export default function AssignEquipmentModal({ booking, open, onClose, onSave })
                 return (
                   <div
                     key={invId}
-                    className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between space-y-3 ${
+                    className={`p-3.5 rounded-md border transition-all flex flex-col justify-between space-y-3 ${
                       isSelected
-                        ? "border-amber-400 bg-amber-50/40 ring-1 ring-amber-400/30"
+                        ? "border-amber-400 bg-amber-50/40 ring-1 ring-amber-400/30 shadow-2xs"
                         : isOutOfStock
                         ? "border-slate-100 bg-slate-50 opacity-60"
-                        : "border-slate-200 bg-white hover:border-slate-300"
+                        : "border-slate-200 bg-white hover:border-slate-300 shadow-2xs"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">

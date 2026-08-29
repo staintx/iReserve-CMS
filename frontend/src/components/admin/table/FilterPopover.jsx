@@ -16,7 +16,7 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white text-foreground border border-border hover:bg-muted transition-colors"
+          className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-white text-foreground border border-border/80 hover:bg-muted/80 shadow-2xs transition-colors cursor-pointer"
         >
           <Filter size={13} />
           {label}
@@ -27,7 +27,7 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
+      <PopoverContent align="end" className="w-80 rounded-md border border-border/80 shadow-lg">
         <div className="space-y-4">
           {children}
           <div className="flex items-center justify-between pt-3 border-t border-border">
@@ -37,7 +37,7 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
                 onClear?.();
                 setOpen(false);
               }}
-              className="text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
             >
               Clear
             </button>
@@ -47,7 +47,7 @@ export default function FilterPopover({ label = "Filters", activeCount = 0, onAp
                 onApply?.();
                 setOpen(false);
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary-hover transition-colors"
+              className="px-3 py-1.5 rounded-md text-xs font-semibold bg-primary text-white hover:bg-primary-hover shadow-2xs transition-colors cursor-pointer"
             >
               Apply
             </button>

@@ -3,7 +3,8 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import { 
-  Menu, 
+  PanelLeftClose,
+  PanelLeftOpen,
   LayoutDashboard, 
   CreditCard, 
   Users,
@@ -36,18 +37,12 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
 
   // Route ownership for each dropdown — single source of truth for both
   // "which category is the current page in" and "which sub-link is active".
-  // (Quotations lives at /admin/quotes, not /admin/bookings/quotes, and
-  // Addons was previously missing here — both meant their parent category
-  // failed to auto-expand on direct navigation/refresh.)
   const dropdownRoutePrefixes = useMemo(() => ({
     finance: ["/admin/payments", "/admin/refunds"],
     bookings: ["/admin/bookings", "/admin/quotes"],
     service: ["/admin/packages", "/admin/menu", "/admin/gallery", "/admin/addons", "/admin/inventory"],
   }), []);
 
-  // Derived synchronously from the current route on every render, so the
-  // correct category is expanded immediately on mount/refresh/direct link —
-  // no effect-driven lag, no stale state to fall out of sync.
   const activeDropdownKey = useMemo(
     () => Object.keys(dropdownRoutePrefixes).find((key) =>
       dropdownRoutePrefixes[key].some((prefix) => location.pathname.startsWith(prefix))
@@ -55,13 +50,6 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
     [location.pathname, dropdownRoutePrefixes]
   );
 
-  // Explicit user toggles layered on top of the route-derived default, so a
-  // manual expand/collapse still works. Cleared whenever the active category
-  // actually changes, so an unrelated category a user opened earlier doesn't
-  // stay expanded forever after they've navigated away from it. Adjusted
-  // during render (React's sanctioned pattern for resetting state when a
-  // derived value changes) rather than in an effect, so it takes effect in
-  // the same render pass instead of triggering an extra commit.
   const [manualOverrides, setManualOverrides] = useState({});
   const [prevActiveKey, setPrevActiveKey] = useState(activeDropdownKey);
   if (activeDropdownKey !== prevActiveKey) {
@@ -86,21 +74,15 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
   })();
 
   // ── Navigation item system ───────────────────────────────────────────
-  // Every row (leaf link, category button, notification bell) shares one
-  // base so heights, radius, gap and type stay identical. Heights are fixed
-  // (h-10 / h-9) rather than padding-derived, so differing font sizes can't
-  // drift the row rhythm. Padding never changes between active/inactive —
-  // the accent rail is an absolutely-positioned pseudo-element inside the
-  // item box — so labels don't shift horizontally when a route activates.
   const NAV_ROW =
-    "group relative flex items-center gap-3 rounded-md text-[13.5px] whitespace-nowrap " +
+    "group relative flex items-center gap-2.5 rounded-lg text-[13px] whitespace-nowrap " +
     "transition-colors duration-150 cursor-pointer outline-none " +
     "focus-visible:ring-2 focus-visible:ring-primary/40";
 
-  const navRowSize = isCollapsed ? "h-10 w-10 mx-auto justify-center" : "h-10 w-full px-3";
+  const navRowSize = isCollapsed ? "h-8.5 w-8.5 mx-auto justify-center" : "h-8.5 w-full px-2.5";
 
   const ACTIVE_RAIL =
-    "before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] " +
+    "before:absolute before:left-0 before:top-1/2 before:h-4.5 before:w-[2.5px] " +
     "before:-translate-y-1/2 before:rounded-r-full before:bg-primary";
 
   // Selected page: powder fill + royal-blue rail + primary-weight label.
@@ -109,18 +91,13 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
       NAV_ROW,
       navRowSize,
       isActive
-        ? cn("bg-powder text-foreground font-semibold", !isCollapsed && ACTIVE_RAIL)
+        ? cn("bg-powder/80 text-foreground font-semibold", !isCollapsed && ACTIVE_RAIL)
         : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
     );
 
-  const iconClass = (isActive) => cn("w-[18px] h-[18px] shrink-0", isActive && "text-primary");
+  const iconClass = (isActive) => cn("w-4 h-4 shrink-0", isActive && "text-primary");
 
-  // Category button when one of its children is the current page: expanded,
-  // it's emphasised via weight + blue icon only, deliberately WITHOUT the
-  // powder fill/rail so the child below stays the unambiguous "you are here"
-  // marker. Collapsed, the children aren't rendered at all, so the parent
-  // takes the full active treatment — otherwise nothing on the rail would
-  // indicate the current location.
+  // Category button when one of its children is the current page
   const dropdownBtnClass = (key) => {
     const isGroupActive = activeDropdownKey === key;
     return cn(
@@ -128,28 +105,26 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
       navRowSize,
       isGroupActive
         ? isCollapsed
-          ? "bg-powder text-foreground font-semibold"
+        ? "bg-powder/80 text-foreground font-semibold"
           : "text-foreground font-semibold hover:bg-muted"
         : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
     );
   };
 
-  // Children sit against a guide line placed exactly under the parent icon's
-  // centre (nav 12 + item 12 + half of 18px icon = 21px), and their labels
-  // land at the same 54px offset as parent labels for a single text column.
-  const subNavWrapClass = "mt-0.5 mb-1 ml-[21px] border-l border-border pl-3 space-y-0.5";
+  // Sub navigation indent
+  const subNavWrapClass = "mt-0.5 mb-1 ml-4 border-l border-border/80 pl-2.5 space-y-0.5";
 
   const subLinkClass = ({ isActive }) =>
     cn(
-      "flex items-center h-9 w-full rounded-md px-2 text-[13px] truncate",
+      "flex items-center h-7.5 w-full rounded-md px-2 text-[12.5px] truncate",
       "transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
       isActive
-        ? "bg-powder text-primary font-semibold"
+        ? "bg-powder/80 text-primary font-semibold"
         : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
     );
 
   const sectionLabelClass = cn(
-    "px-3 pt-5 pb-1.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground/60 font-semibold",
+    "px-2.5 pt-2.5 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60 font-bold",
     isCollapsed ? "opacity-0 hidden" : "opacity-100 block"
   );
 
@@ -163,58 +138,76 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
       )}
       <aside
         className={cn(
-          "fixed md:sticky top-0 self-start flex flex-col h-screen overflow-y-auto bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0",
-          isCollapsed ? "w-20" : "w-72",
+          "fixed md:sticky top-0 self-start flex flex-col h-screen bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0 select-none",
+          isCollapsed ? "w-16" : "w-60",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-      <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/admin/dashboard")}>
-        {!isCollapsed ? (
-          <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
-            <img src={logo} alt="Caezelle's logo" className="w-10 h-10 rounded-full object-cover border border-border shadow-sm shrink-0" />
-            <div>
-              <div className="font-serif font-bold text-foreground leading-tight">Admin Portal</div>
-              <div className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">Management</div>
+        {/* Brand Header & Toggle */}
+        <div className="px-3 py-3 border-b border-border/60 shrink-0">
+          {!isCollapsed ? (
+            <div className="flex items-center justify-between gap-2">
+              <div 
+                className="flex items-center gap-2.5 overflow-hidden cursor-pointer min-w-0" 
+                onClick={() => navigate("/admin/dashboard")}
+              >
+                <img 
+                  src={logo} 
+                  alt="Caezelle's logo" 
+                  className="w-8 h-8 rounded-full object-cover border border-border shadow-2xs shrink-0" 
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-foreground leading-none tracking-tight truncate">Admin Portal</div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5 truncate">Management</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(true)}
+                className="h-7 w-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center cursor-pointer border border-transparent hover:border-border/60 shrink-0"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
             </div>
-          </div>
-        ) : (
-          <img src={logo} alt="Caezelle's logo" className="w-8 h-8 rounded-full object-cover border border-border shadow-sm mx-auto" />
-        )}
-      </div>
-
-      <div className="px-3 pb-2">
-        <button
-          onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
-          className={cn(
-            "h-10 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-            isCollapsed ? "mx-auto w-10" : "w-full"
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <img 
+                src={logo} 
+                alt="Caezelle's logo" 
+                className="w-7.5 h-7.5 rounded-full object-cover border border-border shadow-2xs cursor-pointer hover:scale-105 transition-transform" 
+                onClick={() => navigate("/admin/dashboard")}
+                title="Caezelle's Admin"
+              />
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(false)}
+                className="h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center cursor-pointer border border-transparent hover:border-border/60"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
-          title="Toggle Sidebar"
-          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <Menu className="w-4 h-4 shrink-0" />
-          {!isCollapsed && <span className="ml-2 text-[11px] font-semibold uppercase tracking-[0.12em]">Collapse Sidebar</span>}
-        </button>
-      </div>
+        </div>
 
-      {/* Global, not a nav category: notifications apply across the whole admin
-          portal, so this sits above "Menu" in its own zone with its own
-          divider rather than reading as just another link inside a category. */}
-      <div className="px-3 pt-1 pb-2 border-b border-border">
-        <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
-      </div>
+        <nav className="flex flex-col flex-1 px-2 py-2 space-y-0.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {/* Notifications item */}
+          <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
 
-      <nav className="flex flex-col flex-1 px-3 pt-1 pb-6 space-y-0.5 overflow-y-auto hide-scrollbar">
-        <div className={sectionLabelClass}>Menu</div>
+          <div className={sectionLabelClass}>Menu</div>
 
-        <NavLink to="/admin/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
-          {({ isActive }) => (
-            <>
-              <LayoutDashboard className={iconClass(isActive)} />
-              {!isCollapsed && <span>Dashboard</span>}
-            </>
-          )}
-        </NavLink>
+          <NavLink to="/admin/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
+            {({ isActive }) => (
+              <>
+                <LayoutDashboard className={iconClass(isActive)} />
+                {!isCollapsed && <span>Dashboard</span>}
+              </>
+            )}
+          </NavLink>
+
         
         {isManager && (
           <div>
@@ -356,26 +349,26 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
         )}
       </nav>
 
-      <div className="p-3 border-t border-border">
+      <div className="p-2.5 border-t border-border/60">
         {!isCollapsed ? (
           <div
             className={cn(
-              "flex items-center gap-3 p-2 rounded-xl transition-all duration-150 w-full group cursor-pointer",
+              "flex items-center gap-2.5 p-1.5 rounded-lg transition-all duration-150 w-full group cursor-pointer",
               location.pathname === "/admin/profile"
-                ? "bg-powder border border-primary/20 text-foreground shadow-xs"
+                ? "bg-powder/80 border border-primary/20 text-foreground shadow-2xs"
                 : "hover:bg-muted/70 text-foreground"
             )}
             onClick={() => navigate("/admin/profile")}
             title="View Profile Settings"
           >
-            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 border border-primary/20 transition-transform group-hover:scale-105">
+            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 border border-primary/20 transition-transform group-hover:scale-105">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+              <div className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors">
                 {user?.full_name || "Admin"}
               </div>
-              <div className="text-xs text-muted-foreground capitalize flex items-center gap-1.5">
+              <div className="text-[10px] text-muted-foreground capitalize flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                 <span className="truncate">{role === "admin" ? "System Admin" : role}</span>
               </div>
@@ -385,20 +378,20 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
                 e.stopPropagation();
                 setShowLogoutConfirm(true);
               }}
-              className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
+              className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0"
               title="Sign Out"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3 w-full">
+          <div className="flex flex-col items-center gap-2 w-full">
             <button
               onClick={() => navigate("/admin/profile")}
               className={cn(
-                "w-10 h-10 rounded-full font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-105",
+                "w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center cursor-pointer transition-all hover:scale-105",
                 location.pathname === "/admin/profile"
-                  ? "bg-primary text-white shadow-xs ring-2 ring-primary/30"
+                  ? "bg-primary text-white shadow-2xs ring-2 ring-primary/30"
                   : "bg-primary/10 text-primary hover:bg-primary/20"
               )}
               title={`${user?.full_name || "Admin"} (Profile)`}
@@ -407,10 +400,10 @@ export default function AdminSidebar({ mobileOpen, setMobileOpen }) {
             </button>
             <button
               onClick={() => setShowLogoutConfirm(true)}
-              className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
               title="Sign Out"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         )}

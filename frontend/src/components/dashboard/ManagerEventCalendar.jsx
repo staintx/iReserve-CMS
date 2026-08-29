@@ -800,15 +800,16 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
       {/* Item Detail Popover / Modal (Logistical Overview) */}
       {activeItem && activeItem.type === "booking" && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                   {activeItem.categoryLabel}
                 </span>
-                <h3 className="text-base font-bold text-slate-900 mt-1">{activeItem.title}</h3>
-                <p className="text-xs text-slate-500">Client: {activeItem.clientName}</p>
+                <h3 className="text-base font-bold text-foreground mt-1">{activeItem.title}</h3>
+                <p className="text-xs text-muted-foreground">Client: {activeItem.clientName}</p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setActiveItem(null)}
@@ -887,19 +888,20 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
       {/* Set Availability Modal */}
       {showAvailabilityModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <CalendarDays size={18} className="text-[#4C81E0]" /> Set My Personal Availability
+          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <CalendarDays size={18} className="text-primary" /> Set My Personal Availability
               </h3>
               <button
                 type="button"
                 onClick={() => setShowAvailabilityModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
               >
                 <X size={18} />
               </button>
             </div>
+
 
             <p className="text-xs text-slate-500">
               Mark dates when you are <strong className="text-red-600">Off-Duty / Unavailable</strong> for new lead coordinator assignments. Click a date to toggle.

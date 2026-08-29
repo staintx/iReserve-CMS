@@ -80,25 +80,26 @@ export default function RevisionProposalModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl">
-        <DialogHeader className="border-b border-slate-100 pb-4">
+      <DialogContent className="max-w-2xl bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-2xl">
+        <DialogHeader className="border-b border-slate-100 pb-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-              <Sparkles className="w-5 h-5 text-amber-600" />
+            <div className="w-8.5 h-8.5 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+              <Sparkles className="w-4.5 h-4.5 text-amber-600" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-serif font-bold text-slate-900">
+              <DialogTitle className="text-base font-bold text-slate-900">
                 Revised Booking Proposal
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500 mt-0.5">
                 Proposed by {proposal.proposed_by === "admin" ? "Catering Manager / Admin" : "Customer"} on {proposal.requested_at ? new Date(proposal.requested_at).toLocaleDateString() : "Recently"}
               </DialogDescription>
+
             </div>
           </div>
         </DialogHeader>
 
         {proposal.message && (
-          <div className="bg-amber-50 border border-amber-200/70 rounded-2xl p-3.5 my-3 flex items-start gap-3">
+          <div className="bg-amber-50 border border-amber-200/70 rounded-md shadow-2xs p-3.5 my-3 flex items-start gap-3">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-900 leading-relaxed font-medium">
               "{proposal.message}"
@@ -115,10 +116,10 @@ export default function RevisionProposalModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
             {/* Current Terms */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3 text-xs">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-md shadow-2xs p-4 space-y-3 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Current Booking</span>
-                <span className="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">Active</span>
+                <span className="bg-slate-200 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-slate-300/60">Active</span>
               </div>
 
               <div className="space-y-2 text-slate-600">
@@ -140,16 +141,16 @@ export default function RevisionProposalModal({
                 </div>
                 <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60 font-medium">
                   <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Total Price: <strong className="text-slate-900">{fmtCurrency(currentPrice)}</strong></span>
+                  <span>Total Price: <strong className="text-slate-900 font-mono">{fmtCurrency(currentPrice)}</strong></span>
                 </div>
               </div>
             </div>
 
             {/* Proposed Terms */}
-            <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-4 space-y-3 text-xs">
+            <div className="bg-amber-50/50 border border-amber-200 rounded-md shadow-2xs p-4 space-y-3 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-amber-200">
                 <span className="font-bold text-amber-900 uppercase tracking-wider text-[10px]">Proposed Revision</span>
-                <span className="bg-amber-200 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full">New Deal</span>
+                <span className="bg-amber-200 text-amber-900 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-amber-300">New Deal</span>
               </div>
 
               <div className="space-y-2 text-slate-700">
@@ -171,7 +172,7 @@ export default function RevisionProposalModal({
                 </div>
                 <div className="flex items-center gap-2 pt-1 border-t border-amber-200/80 font-medium">
                   <DollarSign className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Total Price: <strong className="text-amber-950 font-bold">{fmtCurrency(proposedPrice)}</strong></span>
+                  <span>Total Price: <strong className="text-amber-950 font-bold font-mono">{fmtCurrency(proposedPrice)}</strong></span>
                 </div>
               </div>
             </div>
@@ -179,18 +180,18 @@ export default function RevisionProposalModal({
           </div>
 
           {/* Financial Summary Impact */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div className="bg-white border border-slate-200 rounded-md shadow-2xs p-4 flex items-center justify-between flex-wrap gap-2 text-xs">
             <span className="font-medium text-slate-600">Price Adjustment:</span>
             {priceDiff > 0 ? (
-              <span className="font-bold text-amber-700 bg-amber-100/80 px-2.5 py-1 rounded-full">
+              <span className="font-mono font-bold text-amber-700 bg-amber-100/80 px-2.5 py-1 rounded-md border border-amber-200">
                 + {fmtCurrency(priceDiff)} increase in total balance
               </span>
             ) : priceDiff < 0 ? (
-              <span className="font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full">
+              <span className="font-mono font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-md border border-emerald-200">
                 - {fmtCurrency(Math.abs(priceDiff))} price reduction
               </span>
             ) : (
-              <span className="font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full">
+              <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                 No change in total price
               </span>
             )}

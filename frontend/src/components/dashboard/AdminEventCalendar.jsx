@@ -38,67 +38,44 @@ const formatDisplayDate = (dateObj, includeWeekday = false) => {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
-// Map event type/category to color pill styles
+// Map event type/category to restrained semantic styles
 const getCategoryStyle = (type, status) => {
   const lowerType = String(type || "").toLowerCase();
   const lowerStatus = String(status || "").toLowerCase();
 
   if (lowerStatus === "blocked" || lowerType.includes("blocked") || lowerType.includes("holiday")) {
     return {
-      dotBg: "bg-slate-400",
-      pillBg: "bg-slate-600 text-white",
+      dotBg: "bg-slate-500",
+      pillBg: "bg-slate-100 text-slate-700 border border-slate-200",
       cardBg: "bg-slate-50 border-slate-200 text-slate-800",
       label: "Blocked / Holiday"
     };
   }
-  if (lowerType.includes("ocular")) {
-    return {
-      dotBg: "bg-cyan-400",
-      pillBg: "bg-cyan-600 text-white",
-      cardBg: "bg-cyan-50 border-cyan-200 text-cyan-900",
-      label: "Ocular Visit"
-    };
-  }
-  if (lowerType.includes("corporate")) {
+  if (lowerType.includes("ocular") || lowerStatus.includes("scheduled")) {
     return {
       dotBg: "bg-blue-500",
-      pillBg: "bg-blue-600 text-white",
-      cardBg: "bg-blue-50 border-blue-200 text-blue-900",
-      label: "Corporate"
+      pillBg: "bg-blue-50 text-blue-700 border border-blue-200",
+      cardBg: "bg-blue-50/60 border-blue-200/70 text-blue-900",
+      label: "Ocular / Scheduled"
     };
   }
-  if (lowerType.includes("birthday") || lowerType.includes("debut") || lowerType.includes("party")) {
+  if (lowerStatus === "pending deposit" || lowerStatus === "pending" || lowerStatus.includes("review")) {
     return {
-      dotBg: "bg-purple-500",
-      pillBg: "bg-purple-600 text-white",
-      cardBg: "bg-purple-50 border-purple-200 text-purple-900",
-      label: "Birthday/Debut"
+      dotBg: "bg-amber-500",
+      pillBg: "bg-amber-50 text-amber-800 border border-amber-200",
+      cardBg: "bg-amber-50/60 border-amber-200/70 text-amber-900",
+      label: "Pending Deposit / Review"
     };
   }
-  if (lowerType.includes("launch") || lowerType.includes("other") || lowerType.includes("anniversary")) {
-    return {
-      dotBg: "bg-rose-500",
-      pillBg: "bg-rose-600 text-white",
-      cardBg: "bg-rose-50 border-rose-200 text-rose-900",
-      label: "Launch/Other"
-    };
-  }
-  if (lowerStatus === "pending deposit" || lowerStatus === "pending") {
-    return {
-      dotBg: "bg-amber-400",
-      pillBg: "bg-amber-500 text-white",
-      cardBg: "bg-amber-50 border-amber-200 text-amber-900",
-      label: "Pending Deposit"
-    };
-  }
-  // Default confirmed events
+  // Confirmed & regular bookings
   return {
     dotBg: "bg-emerald-500",
-    pillBg: "bg-emerald-600 text-white",
-    cardBg: "bg-emerald-50 border-emerald-200 text-emerald-900",
-    label: "Confirmed Events"
+    pillBg: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+    cardBg: "bg-emerald-50/60 border-emerald-200/70 text-emerald-900",
+    label: "Confirmed Event"
   };
 };
+
 
 export default function AdminEventCalendar({ bookingsProp = null }) {
   const toast = useToast();
@@ -357,31 +334,28 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card rounded-md border border-border/80 p-3.5 sm:p-4 shadow-2xs">
         <div>
-          <h1
-            style={{ fontFamily: "Playfair Display, serif" }}
-            className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight"
-          >
+          <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
             Availability Calendar
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Manage scheduled events, ocular visits, and blocked dates
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {/* View Switcher Pills */}
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 text-xs">
+          <div className="bg-muted p-0.5 rounded-md flex items-center gap-0.5 border border-border/60 text-xs">
             <button
               type="button"
               onClick={() => setViewMode("month")}
-              className={`px-3 py-1 rounded-lg font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 viewMode === "month"
-                  ? "bg-white text-slate-900 shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-card text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Month
@@ -389,10 +363,10 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <button
               type="button"
               onClick={() => setViewMode("week")}
-              className={`px-3 py-1 rounded-lg font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 viewMode === "week"
-                  ? "bg-white text-slate-900 shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-card text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Week
@@ -400,10 +374,10 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <button
               type="button"
               onClick={() => setViewMode("agenda")}
-              className={`px-3 py-1 rounded-lg font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 viewMode === "agenda"
-                  ? "bg-white text-slate-900 shadow-2xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-card text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Agenda
@@ -414,36 +388,37 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           <button
             type="button"
             onClick={() => openBlockModalForDate(selectedDate)}
-            className="flex items-center gap-1.5 bg-[#4C81E0] hover:bg-[#3b6bc4] text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-md shadow-2xs hover:bg-primary/90 transition-all cursor-pointer"
           >
-            <Plus size={14} />
+            <Lock size={12} />
             <span>Block Date</span>
           </button>
         </div>
       </div>
 
-      {/* Main Grid: Calendar Area + Selected Date Panel */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_290px] gap-4 items-start">
+      {/* Main Grid: Calendar on Left, Schedule Feed on Right */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_290px] gap-3.5 items-start">
         {/* Calendar View Card */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3">
+        <div className="bg-card rounded-md border border-border/80 p-3.5 sm:p-4 shadow-2xs space-y-2.5">
+
           {/* Calendar Month Navigation Header */}
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between pb-2 border-b border-border/60">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={prevPeriod}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+                className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
                 title="Previous"
               >
                 <ChevronLeft size={16} />
               </button>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 min-w-[140px] text-center">
+              <h3 className="text-sm sm:text-base font-bold text-foreground min-w-[130px] text-center">
                 {currentDate.toLocaleString("default", { month: "long", year: "numeric" })}
-              </h2>
+              </h3>
               <button
                 type="button"
                 onClick={nextPeriod}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+                className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors"
                 title="Next"
               >
                 <ChevronRight size={16} />
@@ -453,7 +428,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <button
               type="button"
               onClick={goToToday}
-              className="text-xs font-semibold text-slate-700 hover:text-slate-900 border border-slate-200/90 px-2.5 py-1 rounded-lg hover:bg-slate-50 transition-colors"
+              className="text-xs font-semibold text-foreground border border-border/80 px-2.5 py-1 rounded-md hover:bg-muted transition-colors"
             >
               Today
             </button>
@@ -461,11 +436,11 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
           {/* MONTH VIEW */}
           {viewMode === "month" && (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {/* Days of Week Row */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }} className="gap-1 text-center">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="py-1 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div key={day} className="py-1 text-[10px] sm:text-[11px] font-bold text-muted-foreground/70 uppercase tracking-wider">
                     {day}
                   </div>
                 ))}
@@ -483,31 +458,31 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                     <div
                       key={idx}
                       onClick={() => setSelectedDate(date)}
-                      className={`h-[56px] sm:h-[62px] lg:h-[68px] rounded-xl p-1 sm:p-1.5 border transition-all flex flex-col justify-between cursor-pointer overflow-hidden ${
+                      className={`min-h-[50px] sm:min-h-[56px] lg:min-h-[60px] rounded-lg p-1 border transition-all flex flex-col justify-between cursor-pointer overflow-hidden ${
                         isSelected
-                          ? "border-amber-400 ring-2 ring-amber-400/40 bg-amber-50/20 shadow-2xs"
+                          ? "border-primary ring-1.5 ring-primary/40 bg-primary/5 shadow-2xs"
                           : isToday
-                          ? "border-blue-400 bg-blue-50/30"
+                          ? "border-blue-400/80 bg-blue-50/20"
                           : isCurrentMonth
-                          ? "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-2xs"
-                          : "border-slate-100 bg-slate-50/40 opacity-40"
+                          ? "border-border/70 bg-card hover:border-slate-300 hover:shadow-2xs"
+                          : "border-border/30 bg-muted/30 opacity-40"
                       }`}
                     >
                       {/* Top Row: Date Badge */}
                       <div className="flex items-center justify-between shrink-0">
                         <span
-                          className={`text-[10px] sm:text-[11px] font-semibold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center ${
+                          className={`text-[10px] sm:text-[11px] font-semibold rounded-full w-4.5 h-4.5 flex items-center justify-center ${
                             isToday
-                              ? "bg-blue-600 text-white font-bold shadow-2xs"
+                              ? "bg-primary text-white font-bold shadow-2xs"
                               : isSelected
-                              ? "bg-amber-100 text-amber-900 font-bold"
-                              : "text-slate-700"
+                              ? "bg-powder text-primary font-bold"
+                              : "text-foreground"
                           }`}
                         >
                           {date.getDate()}
                         </span>
                         {dayEvents.length > 0 && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 sm:hidden shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary sm:hidden shrink-0" />
                         )}
                       </div>
 
@@ -523,7 +498,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                                 e.stopPropagation();
                                 setActiveItem(ev);
                               }}
-                              className={`text-[9px] sm:text-[10px] leading-tight font-medium px-1.5 py-[2px] rounded-md truncate flex items-center gap-1 ${catStyle.pillBg} transition-transform hover:scale-[1.01]`}
+                              className={`text-[9.5px] leading-tight font-medium px-1.5 py-[1.5px] rounded border truncate flex items-center gap-1 ${catStyle.pillBg} transition-transform hover:scale-[1.01]`}
                               title={`${ev.title} (${ev.clientName || ev.time})`}
                             >
                               <span className="truncate">{ev.title}</span>
@@ -543,7 +518,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                                     e.stopPropagation();
                                     setActiveItem(ev);
                                   }}
-                                  className={`text-[9px] sm:text-[10px] leading-tight font-medium px-1.5 py-[2px] rounded-md truncate flex items-center gap-1 ${catStyle.pillBg} transition-transform hover:scale-[1.01]`}
+                                  className={`text-[9.5px] leading-tight font-medium px-1.5 py-[1.5px] rounded border truncate flex items-center gap-1 ${catStyle.pillBg} transition-transform hover:scale-[1.01]`}
                                   title={`${ev.title} (${ev.clientName || ev.time})`}
                                 >
                                   <span className="truncate">{ev.title}</span>
@@ -555,12 +530,12 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
 
                         {/* Overflow Counter */}
                         {dayEvents.length > 2 && (
-                          <div className="hidden sm:block text-[9px] font-bold text-slate-500 pl-1 leading-none">
+                          <div className="hidden sm:block text-[9px] font-semibold text-muted-foreground pl-0.5 leading-none">
                             +{dayEvents.length - 2} more
                           </div>
                         )}
                         {dayEvents.length > 1 && (
-                          <div className="sm:hidden text-[9px] font-bold text-slate-500 pl-1 leading-none">
+                          <div className="sm:hidden text-[9px] font-semibold text-muted-foreground pl-0.5 leading-none">
                             +{dayEvents.length - 1} more
                           </div>
                         )}
@@ -570,39 +545,28 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 })}
               </div>
 
-              {/* Inline Legend Footer */}
-              <div className="pt-3 mt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] text-slate-600 font-medium">
+              {/* Restrained Inline Legend Footer */}
+              <div className="pt-2.5 mt-2.5 border-t border-border/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground font-medium">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Confirmed</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span>Confirmed Event</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-                  <span>Pending Deposit</span>
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                  <span>Pending Deposit / Review</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-                  <span>Corporate</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <span>Ocular / Scheduled</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
-                  <span>Birthday/Debut</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0" />
-                  <span>Ocular Visit</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                  <span>Launch/Other</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0" />
                   <span>Blocked / Holiday</span>
                 </div>
               </div>
             </div>
           )}
+
 
           {/* WEEK VIEW */}
           {viewMode === "week" && (
@@ -619,8 +583,8 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                     <div
                       key={i}
                       onClick={() => setSelectedDate(d)}
-                      className={`p-2 rounded-xl border text-left cursor-pointer min-h-[150px] flex flex-col ${
-                        isSelected ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40" : "border-slate-100 bg-white"
+                      className={`p-2 rounded-md border text-left cursor-pointer min-h-[150px] flex flex-col shadow-2xs ${
+                        isSelected ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40" : "border-slate-100 bg-white hover:border-slate-200"
                       }`}
                     >
                       <div className="text-[10px] font-bold text-slate-400 uppercase">
@@ -638,7 +602,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                                 e.stopPropagation();
                                 setActiveItem(ev);
                               }}
-                              className={`p-1.5 rounded-lg text-[10px] font-medium ${catStyle.cardBg} border shadow-2xs cursor-pointer hover:opacity-90 leading-tight`}
+                              className={`p-1.5 rounded-md text-[10px] font-medium ${catStyle.cardBg} border shadow-2xs cursor-pointer hover:opacity-90 leading-tight`}
                             >
                               <p className="font-bold truncate">{ev.title}</p>
                               {ev.clientName && <p className="text-[9px] opacity-80 truncate mt-0.5">{ev.clientName}</p>}
@@ -673,7 +637,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                             <div
                               key={ev.id}
                               onClick={() => setActiveItem(ev)}
-                              className={`p-2.5 rounded-xl border flex items-center justify-between ${catStyle.cardBg} cursor-pointer hover:shadow-2xs`}
+                              className={`p-2.5 rounded-md border flex items-center justify-between ${catStyle.cardBg} cursor-pointer hover:shadow-2xs shadow-2xs`}
                             >
                               <div className="flex items-center gap-2.5">
                                 <span className={`w-2.5 h-2.5 rounded-full ${catStyle.dotBg}`} />
@@ -699,15 +663,16 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
         </div>
 
         {/* Right Sidebar: Selected Date Card */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3">
+        <div className="bg-card rounded-md border border-border/80 p-3.5 sm:p-4 shadow-2xs space-y-2.5">
+
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               Selected Date
             </p>
-            <h3 className="text-sm font-bold text-slate-900 mt-0.5 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground mt-0.5 flex items-center justify-between">
               <span>{formatDisplayDate(selectedDate)}</span>
               {selectedDateKey === formatDateKey(new Date()) && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-powder text-primary">
                   Today
                 </span>
               )}
@@ -715,53 +680,53 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           </div>
 
           {selectedDayEvents.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2">
-              <CalendarIcon size={20} className="mx-auto text-slate-400" />
-              <p className="text-xs text-slate-500 font-medium">No events or blocks for this date.</p>
+            <div className="text-center py-6 border border-dashed border-border rounded-md p-3 bg-muted/20 space-y-2">
+              <CalendarIcon size={18} className="mx-auto text-muted-foreground" />
+              <p className="text-xs text-muted-foreground font-medium">No events or blocks for this date.</p>
               <button
                 type="button"
                 onClick={() => openBlockModalForDate(selectedDate)}
-                className="inline-block text-xs font-semibold text-[#4C81E0] hover:text-[#3b6bc4] underline"
+                className="inline-block text-xs font-semibold text-primary hover:underline cursor-pointer"
               >
                 + Block this date
               </button>
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5">
+            <div className="space-y-2 max-h-[380px] overflow-y-auto pr-0.5">
               {selectedDayEvents.map((ev) => {
                 const catStyle = getCategoryStyle(ev.categoryLabel || ev.title, ev.status);
                 return (
                   <div
                     key={ev.id}
-                    className={`p-3 rounded-xl border ${catStyle.cardBg} space-y-2 transition-all`}
+                    className={`p-2.5 rounded-md border ${catStyle.cardBg} space-y-1.5 transition-all shadow-2xs`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-bold text-xs text-slate-900 leading-snug">{ev.title}</p>
+                        <p className="font-bold text-xs text-foreground leading-snug">{ev.title}</p>
                         {ev.clientName && (
-                          <p className="text-[11px] font-medium text-slate-600 mt-0.5">
+                          <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
                             {ev.clientName}
                           </p>
                         )}
                       </div>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${catStyle.pillBg}`}>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${catStyle.pillBg}`}>
                         {ev.time}
                       </span>
                     </div>
 
                     {ev.venue && (
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
                         <MapPin size={11} className="shrink-0" /> <span className="truncate">{ev.venue}</span>
                       </p>
                     )}
 
                     {/* Action buttons */}
-                    <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
+                    <div className="pt-1.5 border-t border-border/40 flex items-center justify-between">
                       {ev.type === "blocked" ? (
                         <button
                           type="button"
                           onClick={() => handleUnblock(ev.rawId)}
-                          className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
+                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
                         >
                           <Unlock size={12} /> Unblock
                         </button>
@@ -772,7 +737,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                             if (ev.type === "booking") navigate(`/admin/bookings/${ev.rawId}/details`);
                             else if (ev.type === "inquiry") navigate(`/admin/quotes/${ev.rawId}/details`);
                           }}
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                          className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                         >
                           <Info size={12} /> View Details
                         </button>
@@ -789,28 +754,29 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
       {/* Block Date Modal */}
       {showBlockModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-xl space-y-5 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Lock size={18} className="text-[#4C81E0]" /> Block Calendar Date(s)
+          <div className="bg-card rounded-md border border-border max-w-md w-full p-4 sm:p-4.5 shadow-xl space-y-3.5 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Lock size={16} className="text-primary" /> Block Calendar Date(s)
               </h3>
               <button
                 type="button"
                 onClick={() => setShowBlockModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleBlockSubmit} className="space-y-4">
+            <form onSubmit={handleBlockSubmit} className="space-y-3.5">
               {/* Range Toggle */}
-              <div className="flex items-center justify-between bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+              <div className="flex items-center justify-between bg-muted p-0.5 rounded-lg text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setBlockForm({ ...blockForm, isRange: false })}
-                  className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
-                    !blockForm.isRange ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                  className={`flex-1 py-1 rounded-md text-center transition-all ${
+                    !blockForm.isRange ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
                   }`}
                 >
                   Single Day
@@ -818,8 +784,8 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 <button
                   type="button"
                   onClick={() => setBlockForm({ ...blockForm, isRange: true })}
-                  className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
-                    blockForm.isRange ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                  className={`flex-1 py-1 rounded-md text-center transition-all ${
+                    blockForm.isRange ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground"
                   }`}
                 >
                   Date Range
@@ -829,49 +795,50 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               {/* Date Inputs */}
               {!blockForm.isRange ? (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-foreground mb-1">
                     Select Date
                   </label>
                   <input
                     type="date"
                     value={blockForm.startDate}
                     onChange={(e) => setBlockForm({ ...blockForm, startDate: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
                     required
                   />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-foreground mb-1">
                       Start Date
                     </label>
                     <input
                       type="date"
                       value={blockForm.startDate}
                       onChange={(e) => setBlockForm({ ...blockForm, startDate: e.target.value })}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-foreground mb-1">
                       End Date
                     </label>
                     <input
                       type="date"
                       value={blockForm.endDate}
                       onChange={(e) => setBlockForm({ ...blockForm, endDate: e.target.value })}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
                       required
                     />
                   </div>
                 </div>
               )}
 
+
               {/* Reason Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-foreground mb-1">
                   Reason / Notes (Optional)
                 </label>
                 <input
@@ -879,13 +846,13 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                   placeholder="e.g. Maintenance, Public Holiday, Staff Retreat"
                   value={blockForm.reason}
                   onChange={(e) => setBlockForm({ ...blockForm, reason: e.target.value })}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
               {/* Quick Presets */}
               <div>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                   Quick Reason Presets
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -895,7 +862,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                         key={preset}
                         type="button"
                         onClick={() => setBlockForm({ ...blockForm, reason: preset })}
-                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full transition-colors"
+                        className="text-[11px] bg-muted hover:bg-muted/80 text-foreground px-2 py-0.5 rounded-md border border-border/60 transition-colors"
                       >
                         {preset}
                       </button>
@@ -905,18 +872,18 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
               </div>
 
               {/* Form Buttons */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-border flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowBlockModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingBlock}
-                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#4C81E0] hover:bg-[#3b6bc4] text-white transition-all shadow-xs disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary-hover text-white transition-all shadow-2xs disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmittingBlock ? "Blocking..." : "Confirm Block"}
                 </button>
@@ -929,51 +896,55 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
       {/* Item Details Popup Modal */}
       {activeItem && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">{activeItem.title}</h3>
+          <div className="bg-card rounded-lg border border-border max-w-md w-full p-4 sm:p-4.5 shadow-xl space-y-3 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+
+              <h3 className="text-base font-bold text-foreground">{activeItem.title}</h3>
               <button
                 type="button"
                 onClick={() => setActiveItem(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="space-y-2 text-xs text-slate-700">
+            <div className="space-y-2.5 text-xs text-muted-foreground">
               {activeItem.clientName && (
-                <p className="flex items-center gap-2">
-                  <User size={14} className="text-slate-400 shrink-0" />
-                  <span>Customer: <strong>{activeItem.clientName}</strong></span>
-                </p>
+                <div className="flex justify-between items-center py-1 border-b border-border/40">
+                  <span className="font-semibold text-foreground">Client</span>
+                  <span>{activeItem.clientName}</span>
+                </div>
               )}
-              <p className="flex items-center gap-2">
-                <Clock size={14} className="text-slate-400 shrink-0" />
-                <span>Time: <strong>{activeItem.time}</strong></span>
-              </p>
+              {activeItem.time && (
+                <div className="flex justify-between items-center py-1 border-b border-border/40">
+                  <span className="font-semibold text-foreground">Time</span>
+                  <span>{activeItem.time}</span>
+                </div>
+              )}
               {activeItem.venue && (
-                <p className="flex items-center gap-2">
-                  <MapPin size={14} className="text-slate-400 shrink-0" />
-                  <span>Location: {activeItem.venue}</span>
-                </p>
+                <div className="flex justify-between items-center py-1 border-b border-border/40">
+                  <span className="font-semibold text-foreground">Venue</span>
+                  <span>{activeItem.venue}</span>
+                </div>
               )}
-              <p className="flex items-center gap-2">
-                <Tag size={14} className="text-slate-400 shrink-0" />
-                <span>Category: {activeItem.categoryLabel || activeItem.type}</span>
-              </p>
+              {activeItem.categoryLabel && (
+                <div className="flex justify-between items-center py-1 border-b border-border/40">
+                  <span className="font-semibold text-foreground">Category</span>
+                  <span className="font-medium text-foreground">{activeItem.categoryLabel}</span>
+                </div>
+              )}
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-              {activeItem.type === "blocked" ? (
-                <button
-                  type="button"
-                  onClick={() => handleUnblock(activeItem.rawId)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors flex items-center gap-1.5"
-                >
-                  <Unlock size={13} /> Unblock Date
-                </button>
-              ) : (
+            <div className="pt-3 border-t border-border flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveItem(null)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+              {activeItem.rawId && (
                 <button
                   type="button"
                   onClick={() => {

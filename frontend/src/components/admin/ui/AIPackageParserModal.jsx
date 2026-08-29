@@ -334,9 +334,10 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200">
       <div
-        className={`relative w-full flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden animate-in zoom-in-95 duration-200 ${
+        className={`relative w-full flex flex-col rounded-lg bg-white shadow-2xl border border-slate-200/80 overflow-hidden animate-in zoom-in-95 duration-200 ${
           step === "review" ? "max-w-3xl max-h-[90vh]" : "max-w-xl"
         }`}
+
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Decorative Ambient Glow */}

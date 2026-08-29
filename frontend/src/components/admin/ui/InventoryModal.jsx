@@ -96,7 +96,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <input 
                 type="text" 
                 required
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
                 placeholder="e.g. Round Table" 
                 value={formData.item_name} 
                 onChange={e => setFormData({ ...formData, item_name: e.target.value })} 
@@ -109,7 +109,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
                 Category <span className="text-red-500">*</span>
               </label>
               <select 
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-white text-foreground" 
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-white text-foreground" 
                 value={formData.category} 
                 onChange={e => setFormData({ ...formData, category: e.target.value })}
               >
@@ -129,7 +129,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
                 type="number" 
                 min="0"
                 required
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
+                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
                 placeholder="0" 
                 value={formData.quantity} 
                 onChange={e => setFormData({ ...formData, quantity: e.target.value })} 
@@ -145,7 +145,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
                 </label>
                 <textarea
                   rows={2}
-                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none transition-all text-foreground"
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none transition-all text-foreground"
                   placeholder="e.g. Restocked units, repaired, damaged items retired..."
                   value={formData.reason}
                   onChange={e => setFormData({ ...formData, reason: e.target.value })}
@@ -154,7 +154,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
             )}
 
             {/* Status Toggle Button */}
-            <div className="p-4 rounded-xl border border-gray-100 bg-slate-50/70 flex items-center justify-between">
+            <div className="p-3.5 rounded-md border border-gray-200 bg-slate-50/70 flex items-center justify-between">
               <div>
                 <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Item Status

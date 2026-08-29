@@ -112,7 +112,7 @@ export default function AdminStaff() {
       header: "Staff / Manager Member",
       render: (s) => (
         <div className="flex items-center gap-2.5">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+          <div className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold shrink-0 ${
             s.role === "manager" ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-muted text-foreground"
           }`}>
             {initials(s.full_name)}
@@ -121,11 +121,11 @@ export default function AdminStaff() {
             <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
               <span>{s.full_name}</span>
               {s.role === "manager" ? (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold rounded">
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-mono font-bold rounded-md">
                   <ShieldCheck size={11} className="text-amber-600" /> Manager
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-medium rounded">
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-mono font-medium rounded-md">
                   Staff
                 </span>
               )}
@@ -156,18 +156,19 @@ export default function AdminStaff() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-5 bg-background min-h-screen">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="space-y-4 bg-background min-h-screen">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Staff &amp; Managers
-            </h2>
+            </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               Create and manage Event Manager and Staff portal accounts
             </p>
           </div>
 
-          <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex gap-2 flex-wrap items-center self-start sm:self-auto">
+
             <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}>
               <Calendar size={13} /> View Schedule
             </Btn>
@@ -182,7 +183,7 @@ export default function AdminStaff() {
         </div>
 
         {/* Role Tabs */}
-        <div className="flex items-center gap-2 p-1 bg-muted/60 border border-border rounded-xl w-fit">
+        <div className="flex items-center gap-1.5 p-1 bg-muted/60 border border-border rounded-md shadow-2xs w-fit">
           {[
             { id: "all", label: "All Accounts", count: counts.all },
             { id: "manager", label: "Managers", count: counts.manager },
@@ -194,15 +195,15 @@ export default function AdminStaff() {
                 setRoleTab(tab.id);
                 setPositionFilter("all");
               }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 roleTab === tab.id 
                   ? "bg-card text-foreground shadow-2xs border border-border" 
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                roleTab === tab.id ? "bg-primary-100 text-primary-900" : "bg-muted text-muted-foreground"
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-bold ${
+                roleTab === tab.id ? "bg-primary-100 text-primary-900 border border-primary-200" : "bg-muted text-muted-foreground border border-border/60"
               }`}>
                 {tab.count}
               </span>

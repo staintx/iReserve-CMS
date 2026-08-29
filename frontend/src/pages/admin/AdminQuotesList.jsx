@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import AdminCard from "../../components/admin/ui/AdminCard";
+import KPICard from "../../components/admin/ui/KPICard";
 import { AdminAPI } from "../../api/admin";
+
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { 
@@ -205,49 +208,49 @@ export default function AdminQuotesList() {
   const getStatusBadge = (status) => {
     switch (status) {
       case "Pending Review":
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200/60 flex items-center gap-1.5 w-fit"><Clock size={12} /> Pending Review</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0" /> Pending Review</span>;
       case "Under Review":
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200/60 flex items-center gap-1.5 w-fit"><Clock size={12} /> Under Review</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-blue-50 text-blue-800 border border-blue-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" /> Under Review</span>;
       case "Revision Requested":
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800 border border-orange-200/60 flex items-center gap-1.5 w-fit"><RefreshCw size={12} /> Revision Requested</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-orange-50 text-orange-800 border border-orange-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" /> Revision Requested</span>;
       case "Sent":
       case "Quotation Sent":
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200/60 flex items-center gap-1.5 w-fit"><Send size={12} /> Quotation Sent</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-blue-50 text-blue-800 border border-blue-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" /> Quotation Sent</span>;
       case "Awaiting Final Confirmation":
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-200/60 flex items-center gap-1.5 w-fit"><Clock size={12} /> Awaiting Final Confirmation</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-purple-50 text-purple-800 border border-purple-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0" /> Awaiting Final Confirmation</span>;
       case "Accepted":
       case "Quote Accepted":
       case "Converted to Booking":
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center gap-1.5 w-fit"><CheckCircle size={12} /> Accepted</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" /> Accepted</span>;
       default:
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 w-fit">{status}</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" /> {status}</span>;
     }
   };
 
   const getPaymentBadge = (status, isPaid) => {
     if (isPaid || status === "deposit_paid") {
       return (
-        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center gap-1 w-fit">
+        <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1 w-fit">
           <Check size={11} className="text-emerald-700" /> Deposit Paid
         </span>
       );
     }
     if (status === "fully_paid") {
       return (
-        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200/60 flex items-center gap-1 w-fit">
+        <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1 w-fit">
           <CheckCircle size={11} className="text-emerald-700" /> Fully Paid
         </span>
       );
     }
     if (status === "pending") {
       return (
-        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200/60 flex items-center gap-1 w-fit">
+        <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-1 w-fit">
           <Clock size={11} /> Pending
         </span>
       );
     }
     return (
-      <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 w-fit">
+      <span className="px-2 py-0.5 text-[11px] font-medium font-mono rounded-md bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 w-fit">
         Unpaid
       </span>
     );
@@ -255,109 +258,74 @@ export default function AdminQuotesList() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 bg-background min-h-screen">
         
         {/* Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-slate-900 tracking-tight">Quotations</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              One row per inquiry, showing its current quoted version. Expand a row to see every revision behind it.
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Quotations</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              One row per inquiry, showing its current quoted version.
             </p>
           </div>
           <button
             onClick={loadData}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 shadow-sm transition-colors w-fit"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-card border border-border/80 text-foreground rounded-md hover:bg-muted shadow-2xs transition-colors w-fit cursor-pointer"
           >
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
           </button>
         </div>
 
         {/* KPI Statistics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-              <FileText size={24} />
-            </div>
-            <div>
-              {/* "Issued" was wrong as well as unclear: this counts one row
-                  per inquiry thread, drafts included, and a draft has been
-                  issued to nobody. */}
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">All Quotations</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.totalQuotations}</h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-orange-50 text-orange-600 rounded-lg">
-              <RefreshCw size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Revisions Requested</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.revisionRequests}</h3>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-              <CheckCircle size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Accepted Quotes</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.acceptedQuotations}</h3>
-            </div>
-          </div>
-
-          {/* The hand-off point to Reservations: these stay here until paid. */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-              <CreditCard size={24} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Awaiting Deposit</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-0.5">{metrics.awaitingDeposit}</h3>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <KPICard title="All Quotations" value={metrics.totalQuotations} sub="Inquiry threads" icon={FileText} />
+          <KPICard title="Revisions Requested" value={metrics.revisionRequests} sub="Customer requested" badge={metrics.revisionRequests > 0 ? "Review Needed" : null} icon={RefreshCw} />
+          <KPICard title="Accepted Quotes" value={metrics.acceptedQuotations} sub="Approved by client" icon={CheckCircle} />
+          <KPICard title="Awaiting Deposit" value={metrics.awaitingDeposit} sub="Pending downpayment" badge={metrics.awaitingDeposit > 0 ? "Deposit Pending" : null} icon={CreditCard} />
         </div>
 
         {/* Toolbar & Filters */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-          
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-            {[
-              { id: "all_quotes", label: `All Quotations (${metrics.totalQuotations})` },
-              { id: "sent", label: `Sent (${metrics.sentQuotations})` },
-              { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
-              { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` },
-              { id: "awaiting_deposit", label: `Awaiting Deposit (${metrics.awaitingDeposit})` }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-semibold rounded-lg whitespace-nowrap transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-primary text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <AdminCard className="!p-3.5 sm:!p-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+              {[
+                { id: "all_quotes", label: `All (${metrics.totalQuotations})` },
+                { id: "sent", label: `Sent (${metrics.sentQuotations})` },
+                { id: "revision", label: `Revisions (${metrics.revisionRequests})` },
+                { id: "accepted", label: `Accepted (${metrics.acceptedQuotations})` },
+                { id: "awaiting_deposit", label: `Awaiting Deposit (${metrics.awaitingDeposit})` }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap transition-colors cursor-pointer ${
+                    activeTab === tab.id
+                      ? "bg-primary text-white shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Search Bar */}
-          <div className="relative w-full md:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search ref, QTN#, customer..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
-            />
+
+            {/* Search Bar */}
+
+            <div className="relative w-full md:w-64">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search ref, QTN#, customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
           </div>
-        </div>
+        </AdminCard>
+
 
         {/* Quotation Records Table */}
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -396,14 +364,14 @@ export default function AdminQuotesList() {
                         <tr className={`transition-colors ${isExpanded ? "bg-amber-50/30" : "hover:bg-slate-50/80"}`}>
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-powder text-primary rounded-lg border border-primary/20">
+                              <div className="p-2 bg-powder text-primary rounded-md border border-primary/20">
                                 <Utensils size={18} />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-bold text-slate-900">{item.quotationNumber || item.reference}</span>
                                   {item.version && (
-                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded border border-slate-200">
+                                    <span className="px-2 py-0.5 text-[10px] font-bold font-mono bg-slate-100 text-slate-700 rounded border border-slate-200">
                                       v{item.version}
                                     </span>
                                   )}
@@ -411,7 +379,7 @@ export default function AdminQuotesList() {
                                     <button
                                       type="button"
                                       onClick={() => toggleExpand(item.id)}
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 rounded transition-colors shadow-2xs"
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold font-mono bg-amber-100 hover:bg-amber-200 text-amber-900 rounded transition-colors shadow-2xs cursor-pointer"
                                     >
                                       <History size={10} />
                                       <span>{item.history.length} Revisions</span>
@@ -435,7 +403,7 @@ export default function AdminQuotesList() {
                           </td>
                           <td className="py-4 px-6">
                             {item.totalCost !== null ? (
-                              <span className="font-bold text-emerald-600">₱{Number(item.totalCost).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+                              <span className="font-bold font-mono text-emerald-600">₱{Number(item.totalCost).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
                             ) : (
                               <span className="text-xs text-slate-400 italic">Not Quoted Yet</span>
                             )}
@@ -444,7 +412,7 @@ export default function AdminQuotesList() {
                             <div className="flex flex-col items-start gap-1.5">
                               {getStatusBadge(item.status)}
                               {item.hasDraft && item.status !== "Draft" && (
-                                <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                                <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-amber-50 text-amber-800 border border-amber-200">
                                   Draft in progress
                                 </span>
                               )}
@@ -457,7 +425,7 @@ export default function AdminQuotesList() {
                             <button
                               type="button"
                               onClick={() => navigate(`/admin/quotes/${item.inquiryId}/details`)}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors shadow-sm"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-hover rounded-md transition-colors shadow-2xs cursor-pointer"
                             >
                               <Eye size={14} />
                               <span>View & Edit</span>
@@ -469,7 +437,7 @@ export default function AdminQuotesList() {
                         {isExpanded && hasHistory && (
                           <tr className="bg-slate-50/90 border-t border-b border-amber-200/60">
                             <td colSpan={7} className="p-4 pl-14">
-                              <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 space-y-3">
+                              <div className="bg-white rounded-md border border-slate-200 shadow-2xs p-4 space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                                     <History size={14} className="text-primary" /> Revision History for Inquiry {item.reference}

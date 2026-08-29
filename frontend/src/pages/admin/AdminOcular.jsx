@@ -27,7 +27,9 @@ import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
 import DrawerField from "../../components/admin/table/DrawerField";
 import Btn from "../../components/admin/ui/Btn";
+import KPICard from "../../components/admin/ui/KPICard";
 import Pagination from "../../components/admin/table/Pagination";
+
 import usePagination from "../../hooks/usePagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
@@ -396,22 +398,23 @@ export default function AdminOcular() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="space-y-4 bg-background min-h-screen">
         
         {/* Page Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h2 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Ocular Visit Management
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Schedule site inspection visits, log venue place measurements, and request booking revisions based on ocular findings.
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Schedule site inspection visits, log venue place measurements, and record ocular findings.
             </p>
           </div>
 
           <Btn 
             variant="primary" 
             size="sm"
+            className="self-start sm:self-auto"
             onClick={() => {
               setSelectedBookingId("");
               setScheduleDate("");
@@ -419,103 +422,60 @@ export default function AdminOcular() {
               setShowScheduleModal(true);
             }}
           >
-            <Plus size={14} /> Schedule New Visit
+            <Plus size={13} /> Schedule New Visit
           </Btn>
         </div>
 
         {/* Top KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Pending</span>
-              <h3 className="text-xl font-bold text-amber-900 mt-0.5">{kpiStats.requested}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Scheduled</span>
-              <h3 className="text-xl font-bold text-blue-900 mt-0.5">{kpiStats.scheduled}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0">
-              <Edit3 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Revisions Needed</span>
-              <h3 className="text-xl font-bold text-orange-900 mt-0.5">{kpiStats.revisionNeeded}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Completed</span>
-              <h3 className="text-xl font-bold text-emerald-700 mt-0.5">{kpiStats.completed}</h3>
-            </div>
-          </div>
-
-          <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Total Oculars</span>
-              <h3 className="text-xl font-bold text-slate-900 mt-0.5">{kpiStats.total}</h3>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+          <KPICard title="Pending" value={kpiStats.requested} sub="Awaiting schedule" badge={kpiStats.requested > 0 ? "Action Req" : null} icon={Calendar} />
+          <KPICard title="Scheduled" value={kpiStats.scheduled} sub="Upcoming visits" icon={Clock} />
+          <KPICard title="Revisions Needed" value={kpiStats.revisionNeeded} sub="Updates required" badge={kpiStats.revisionNeeded > 0 ? "Review Needed" : null} icon={Edit3} />
+          <KPICard title="Completed" value={kpiStats.completed} sub="Inspections passed" icon={CheckCircle2} />
+          <KPICard title="Total Oculars" value={kpiStats.total} sub="All time visits" icon={MapPin} />
         </div>
 
         {/* Toolbar & Filter Tabs */}
-        <AdminCard className="!p-4 space-y-4">
+        <AdminCard className="!p-3.5 sm:!p-4 space-y-3.5">
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-1.5 overflow-x-auto">
               <button
                 onClick={() => setFilterTab("all")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "all" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "all" ? "bg-slate-900 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 All Active ({kpiStats.total})
               </button>
               <button
                 onClick={() => setFilterTab("requested")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "requested" ? "bg-amber-500 text-slate-950 shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "requested" ? "bg-amber-500 text-slate-950 shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Pending Requests ({kpiStats.requested})
               </button>
               <button
                 onClick={() => setFilterTab("scheduled")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "scheduled" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "scheduled" ? "bg-blue-600 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Scheduled ({kpiStats.scheduled})
               </button>
               <button
                 onClick={() => setFilterTab("revise")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "revise" ? "bg-orange-500 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "revise" ? "bg-orange-500 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Revision Needed ({kpiStats.revisionNeeded})
               </button>
               <button
                 onClick={() => setFilterTab("completed")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "completed" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "completed" ? "bg-emerald-600 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Completed ({kpiStats.completed})
@@ -529,7 +489,7 @@ export default function AdminOcular() {
                 placeholder="Search customer, booking ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 text-xs rounded-xl border-slate-200"
+                className="pl-9 text-xs rounded-md border-slate-200 shadow-2xs"
               />
             </div>
           </div>
@@ -635,7 +595,7 @@ export default function AdminOcular() {
                     value={selectedBookingId}
                     onChange={(e) => setSelectedBookingId(e.target.value)}
                     required
-                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                   >
                     <option value="">-- Select Booking --</option>
                     {bookings.filter(b => b.service_type !== "Food Only").map(b => (
@@ -694,7 +654,7 @@ export default function AdminOcular() {
 
             <div className="space-y-4 py-3">
               {revisionBooking && (
-                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1">
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-md shadow-2xs text-xs space-y-1">
                   <div className="flex justify-between font-bold text-amber-900">
                     <span>Booking: {revisionBooking.id} ({revisionBooking.customer})</span>
                     <span>{revisionBooking.eventType}</span>
@@ -706,14 +666,14 @@ export default function AdminOcular() {
               )}
 
               {/* Preset Helper Button */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-md border border-slate-200 shadow-2xs gap-2">
                 <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
                   <Sparkles size={13} className="text-amber-500 shrink-0" /> Fast preset helper for site measurements:
                 </span>
                 <button
                   type="button"
                   onClick={applyScaffoldPreset}
-                  className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 shrink-0"
+                  className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors border border-amber-300 shrink-0 cursor-pointer shadow-2xs"
                 >
                   ⚡ Scaffold Resize Example (20x20 → 30x40)
                 </button>
@@ -728,7 +688,7 @@ export default function AdminOcular() {
                   value={ocularNotes}
                   onChange={(e) => setOcularNotes(e.target.value)}
                   placeholder="Record venue dimensions, terrain checks, scaffold size requirements (e.g. 20x20 needs to be 30x40)..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                   required
                 />
               </div>
@@ -762,7 +722,7 @@ export default function AdminOcular() {
                   value={revisedSetupNotes}
                   onChange={(e) => setRevisedSetupNotes(e.target.value)}
                   placeholder="e.g. Upgraded scaffold structure size from 20x20 to 30x40 to fit venue area"
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                 />
               </div>
 
@@ -775,7 +735,7 @@ export default function AdminOcular() {
                   value={revisionMessage}
                   onChange={(e) => setRevisionMessage(e.target.value)}
                   placeholder="Explain why this revision is required based on the ocular site inspection..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                   required
                 />
               </div>

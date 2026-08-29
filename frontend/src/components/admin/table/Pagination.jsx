@@ -33,7 +33,7 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
             type="button"
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
-            className="p-1.5 rounded-lg text-muted-foreground hover:bg-border disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:bg-border/80 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
             aria-label="Previous page"
           >
             <ChevronLeft size={14} />
@@ -43,8 +43,8 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
               key={n}
               type="button"
               onClick={() => onPageChange(n)}
-              className={`min-w-[26px] h-[26px] px-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                n === page ? "bg-primary text-white" : "text-muted-foreground hover:bg-border"
+              className={`min-w-[26px] h-[26px] px-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                n === page ? "bg-primary text-white shadow-2xs" : "text-muted-foreground hover:bg-border/80"
               }`}
             >
               {n}
@@ -54,7 +54,7 @@ export default function Pagination({ page, totalPages, total, pageSize, shownCou
             type="button"
             onClick={() => onPageChange(page + 1)}
             disabled={page === totalPages}
-            className="p-1.5 rounded-lg text-muted-foreground hover:bg-border disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:bg-border/80 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
             aria-label="Next page"
           >
             <ChevronRight size={14} />

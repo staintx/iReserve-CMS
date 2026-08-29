@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import { 
-  Menu, 
+  PanelLeftClose,
+  PanelLeftOpen,
   LayoutDashboard, 
   Calendar, 
   Users, 
@@ -32,14 +33,14 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
   })();
 
   const NAV_ROW =
-    "group relative flex items-center gap-3 rounded-md text-[13.5px] whitespace-nowrap " +
+    "group relative flex items-center gap-2.5 rounded-lg text-[13px] whitespace-nowrap " +
     "transition-colors duration-150 cursor-pointer outline-none " +
     "focus-visible:ring-2 focus-visible:ring-primary/40";
 
-  const navRowSize = isCollapsed ? "h-10 w-10 mx-auto justify-center" : "h-10 w-full px-3";
+  const navRowSize = isCollapsed ? "h-8.5 w-8.5 mx-auto justify-center" : "h-8.5 w-full px-2.5";
 
   const ACTIVE_RAIL =
-    "before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] " +
+    "before:absolute before:left-0 before:top-1/2 before:h-4.5 before:w-[2.5px] " +
     "before:-translate-y-1/2 before:rounded-r-full before:bg-primary";
 
   const linkClass = ({ isActive }) =>
@@ -47,14 +48,14 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
       NAV_ROW,
       navRowSize,
       isActive
-        ? cn("bg-powder text-foreground font-semibold", !isCollapsed && ACTIVE_RAIL)
+        ? cn("bg-powder/80 text-foreground font-semibold", !isCollapsed && ACTIVE_RAIL)
         : "text-muted-foreground font-medium hover:bg-muted hover:text-foreground"
     );
 
-  const iconClass = (isActive) => cn("w-[18px] h-[18px] shrink-0", isActive && "text-primary");
+  const iconClass = (isActive) => cn("w-4 h-4 shrink-0", isActive && "text-primary");
 
   const sectionLabelClass = cn(
-    "px-3 pt-5 pb-1.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground/60 font-semibold",
+    "px-2.5 pt-2.5 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60 font-bold",
     isCollapsed ? "opacity-0 hidden" : "opacity-100 block"
   );
 
@@ -68,51 +69,68 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
       )}
       <aside
         className={cn(
-          "fixed md:sticky top-0 self-start flex flex-col h-screen overflow-y-auto bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0",
-          isCollapsed ? "w-20" : "w-72",
+          "fixed md:sticky top-0 self-start flex flex-col h-screen bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0 select-none",
+          isCollapsed ? "w-16" : "w-60",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
-        {/* Brand Header */}
-        <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate("/manager/dashboard")}>
+        {/* Brand Header & Toggle */}
+        <div className="px-3 py-3 border-b border-border/60 shrink-0">
           {!isCollapsed ? (
-            <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
-              <img src={logo} alt="Caezelle's logo" className="w-10 h-10 rounded-full object-cover border border-border shadow-sm shrink-0" />
-              <div>
-                <div className="font-serif font-bold text-foreground leading-tight">Manager Portal</div>
-                <div className="text-xs text-amber-700 font-semibold uppercase tracking-wider mt-0.5 flex items-center gap-1">
-                  <ShieldCheck size={12} className="text-amber-600" /> Event Lead
+            <div className="flex items-center justify-between gap-2">
+              <div 
+                className="flex items-center gap-2.5 overflow-hidden cursor-pointer min-w-0" 
+                onClick={() => navigate("/manager/dashboard")}
+              >
+                <img 
+                  src={logo} 
+                  alt="Caezelle's logo" 
+                  className="w-8 h-8 rounded-full object-cover border border-border shadow-2xs shrink-0" 
+                />
+                <div className="min-w-0">
+                  <div className="font-bold text-sm text-foreground leading-none tracking-tight truncate">Manager Portal</div>
+                  <div className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mt-0.5 truncate flex items-center gap-1">
+                    <ShieldCheck size={11} className="text-amber-600 shrink-0" /> Event Lead
+                  </div>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(true)}
+                className="h-7 w-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center cursor-pointer border border-transparent hover:border-border/60 shrink-0"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
             </div>
           ) : (
-            <img src={logo} alt="Caezelle's logo" className="w-8 h-8 rounded-full object-cover border border-border shadow-sm mx-auto" />
+            <div className="flex flex-col items-center gap-2">
+              <img 
+                src={logo} 
+                alt="Caezelle's logo" 
+                className="w-7.5 h-7.5 rounded-full object-cover border border-border shadow-2xs cursor-pointer hover:scale-105 transition-transform" 
+                onClick={() => navigate("/manager/dashboard")}
+                title="Caezelle's Manager"
+              />
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(false)}
+                className="h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center cursor-pointer border border-transparent hover:border-border/60"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Collapse button */}
-        <div className="px-3 pb-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}
-            className={cn(
-              "h-10 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-              isCollapsed ? "mx-auto w-10" : "w-full"
-            )}
-            title="Toggle Sidebar"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <Menu className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="ml-2 text-[11px] font-semibold uppercase tracking-[0.12em]">Collapse Sidebar</span>}
-          </button>
-        </div>
-
-        {/* Notification Bell */}
-        <div className="px-3 pt-1 pb-2 border-b border-border">
-          <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
-        </div>
-
         {/* Nav Links */}
-        <nav className="flex flex-col flex-1 px-3 pt-1 pb-6 space-y-0.5 overflow-y-auto hide-scrollbar">
+        <nav className="flex flex-col flex-1 px-2 py-2 space-y-0.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {/* Notifications Item */}
+          <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
+
           <div className={sectionLabelClass}>Operations</div>
 
           <NavLink to="/manager/dashboard" className={linkClass} title={isCollapsed ? "Dashboard" : undefined}>
@@ -144,38 +162,48 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
         </nav>
 
 
+
         {/* User Card & Logout */}
-        <div className="p-3 border-t border-border mt-auto">
+        <div className="p-2.5 border-t border-border/60 mt-auto shrink-0">
           {!isCollapsed ? (
-            <div className="flex items-center justify-between p-2 rounded-xl bg-muted/60 border border-border">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+            <div className="flex items-center justify-between p-1.5 rounded-lg bg-muted/40 border border-border/60">
+              <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                <div className="w-7.5 h-7.5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 border border-primary/20">
                   {initials}
                 </div>
-                <div className="overflow-hidden">
-                  <div className="text-xs font-bold text-foreground truncate">{user?.full_name || "Event Manager"}</div>
+                <div className="overflow-hidden min-w-0">
+                  <div className="text-xs font-semibold text-foreground truncate">{user?.full_name || "Event Manager"}</div>
                   <div className="text-[10px] text-muted-foreground truncate">{user?.email || "Manager"}</div>
                 </div>
               </div>
               <button
                 onClick={() => setShowLogoutConfirm(true)}
-                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 cursor-pointer"
                 title="Sign Out"
               >
-                <LogOut size={16} />
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              className="w-10 h-10 mx-auto flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut size={18} />
-            </button>
+            <div className="flex flex-col items-center gap-1.5 w-full">
+              <div
+                className="w-7.5 h-7.5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center border border-primary/20"
+                title={user?.full_name || "Manager"}
+              >
+                {initials}
+              </div>
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </aside>
+
 
       {showLogoutConfirm && (
         <ConfirmDialog

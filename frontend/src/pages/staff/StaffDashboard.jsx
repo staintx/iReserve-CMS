@@ -169,56 +169,23 @@ export default function StaffDashboard() {
     return bookings.filter((b) => getEventTimingStatus(b).isStarted).length;
   }, [bookings]);
 
-  const KPIS = [
-    { 
-      title: "Active Assigned Events", 
-      value: bookings.length || "0", 
-      sub: "Shifts scheduled for you", 
-      trend: "", 
-      up: true, 
-      color: "#4C81E0" 
-    },
-    { 
-      title: "Next Scheduled Shift", 
-      value: nextUpcomingBooking?.event_date ? new Date(nextUpcomingBooking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "None", 
-      sub: nextUpcomingBooking?.start_time || "No immediate shifts", 
-      trend: "", 
-      up: true, 
-      color: "#F59E0B" 
-    },
-    { 
-      title: "My Assigned Position", 
-      value: user?.position || "Staff Crew", 
-      sub: "Active Operations Roster", 
-      trend: "", 
-      up: true, 
-      color: "#8B5CF6" 
-    },
-    { 
-      title: "Equipment Verification", 
-      value: verifiableEventsCount > 0 ? `${verifiableEventsCount} Active` : "Locked", 
-      sub: verifiableEventsCount > 0 ? "Ready for live/return count" : "Opens at event start", 
-      trend: "", 
-      up: verifiableEventsCount > 0, 
-      color: verifiableEventsCount > 0 ? "#22C55E" : "#94A3B8" 
-    },
-  ];
-
   return (
     <StaffLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
+
+
         {/* Header Bar */}
-        <div className="flex items-center justify-between flex-wrap gap-4 pb-2 border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               My Assigned Events &amp; Shifts
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Review your assigned event schedules, view instructions, and verify catering equipment
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Btn 
               variant="secondary" 
               size="sm" 
@@ -231,22 +198,47 @@ export default function StaffDashboard() {
           </div>
         </div>
 
-        {/* Top KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {KPIS.map((k) => (
-            <KPICard key={k.title} {...k} />
-          ))}
+        {/* Top KPI Cards (2x2 on mobile, 4-col on desktop) */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-3">
+          <KPICard
+            label="Active Shifts"
+            value={loading ? "..." : bookings.length || 0}
+            sub="Assigned to you"
+            icon={ClipboardList}
+            tone="info"
+          />
+          <KPICard
+            label="Next Shift"
+            value={nextUpcomingBooking?.event_date ? new Date(nextUpcomingBooking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "None"}
+            sub={nextUpcomingBooking?.start_time || "No immediate shifts"}
+            icon={CalendarIcon}
+            tone={nextUpcomingBooking ? "warning" : "neutral"}
+          />
+          <KPICard
+            label="My Position"
+            value={user?.position || "Staff Crew"}
+            sub="Active Roster"
+            icon={UserCheck}
+            tone="neutral"
+          />
+          <KPICard
+            label="Gear Check"
+            value={verifiableEventsCount > 0 ? `${verifiableEventsCount} Active` : "Locked"}
+            sub={verifiableEventsCount > 0 ? "Ready for return" : "Opens at start"}
+            icon={PackageCheck}
+            tone={verifiableEventsCount > 0 ? "success" : "neutral"}
+          />
         </div>
 
         {/* Assigned Events Section */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ClipboardList className="text-primary" size={18} />
-              <h2 className="text-base font-bold text-foreground">Assigned Event List</h2>
+              <ClipboardList className="text-primary" size={16} />
+              <h2 className="text-sm font-bold text-foreground">Assigned Event List</h2>
             </div>
             <span className="text-xs text-muted-foreground font-semibold">
-              {bookings.length} upcoming event(s)
+              {bookings.length} shift(s)
             </span>
           </div>
 
@@ -255,45 +247,47 @@ export default function StaffDashboard() {
               Loading your assigned shifts...
             </div>
           ) : bookings.length === 0 ? (
-            <AdminCard className="!p-12 text-center space-y-3">
-              <CalendarIcon size={32} className="mx-auto text-muted-foreground" />
-              <h3 className="text-base font-bold text-foreground">No Active Event Assignments</h3>
+            <AdminCard className="!p-10 text-center space-y-2.5">
+              <CalendarIcon size={28} className="mx-auto text-muted-foreground" />
+              <h3 className="text-sm font-bold text-foreground">No Active Event Assignments</h3>
               <p className="text-xs text-muted-foreground max-w-md mx-auto">
                 You currently do not have any catering events assigned by your Event Manager. Once a manager assigns you to a booking team, it will appear here.
               </p>
             </AdminCard>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-4">
               {bookings.map((booking) => {
                 const role = getMyAssignedRole(booking);
                 const equipmentCount = (booking.equipment_returns || booking.inventory_items || []).length;
                 const managerName = booking.event_manager_id?.full_name || "Assigned Manager";
+                const managerPhone = booking.event_manager_id?.phone;
                 const timing = getEventTimingStatus(booking);
+                const locationAddress = [booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Location TBA";
 
                 return (
-                  <AdminCard key={booking._id} className="!p-5 space-y-4 hover:border-primary/50 transition-all">
+                  <AdminCard key={booking._id} className="space-y-3 hover:border-primary/50 transition-all shadow-2xs">
                     {/* Top Row: Role, Event Phase & Status */}
-                    <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-border">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-100/90 text-amber-950 border border-amber-300 font-bold text-xs flex items-center gap-1">
-                          <UserCheck size={13} className="text-amber-700" />
+                    <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-border/60">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 font-bold text-[11px] flex items-center gap-1">
+                          <UserCheck size={12} className="text-amber-700" />
                           <span>Role: {role}</span>
                         </span>
 
                         {timing.isUpcoming && (
-                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold text-[11px] flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold text-[10.5px] flex items-center gap-1">
                             <Lock size={11} className="text-slate-500" />
                             <span>Upcoming Shift</span>
                           </span>
                         )}
                         {timing.isStarted && !timing.isFinished && (
-                          <span className="px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 font-bold text-[11px] flex items-center gap-1 animate-pulse">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 font-bold text-[10.5px] flex items-center gap-1 animate-pulse">
                             <Sparkles size={11} className="text-emerald-600" />
                             <span>In Progress</span>
                           </span>
                         )}
                         {timing.isFinished && (
-                          <span className="px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-300 font-bold text-[11px] flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-300 font-bold text-[10.5px] flex items-center gap-1">
                             <CheckCircle2 size={11} className="text-blue-600" />
                             <span>Ready for Return Check</span>
                           </span>
@@ -304,7 +298,7 @@ export default function StaffDashboard() {
 
                     {/* Event Title & Schedule Info */}
                     <div>
-                      <h3 className="text-base font-bold text-foreground">
+                      <h3 className="text-sm font-bold text-foreground">
                         {booking.event_type || "Catering Event"}
                       </h3>
                       <div className="text-xs text-muted-foreground mt-0.5">
@@ -313,7 +307,7 @@ export default function StaffDashboard() {
                     </div>
 
                     {/* Quick Specs Box */}
-                    <div className="grid grid-cols-2 gap-2 p-3 bg-muted/40 rounded-xl border border-border text-xs">
+                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-muted/20 rounded-lg border border-border/80 text-xs shadow-2xs">
                       <div className="space-y-0.5">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                           <CalendarIcon size={11} /> Date &amp; Time
@@ -329,28 +323,37 @@ export default function StaffDashboard() {
                           <MapPin size={11} /> Venue
                         </span>
                         <div className="font-bold text-foreground truncate">{booking.venue_type || "Venue TBA"}</div>
-                        <div className="text-[11px] text-muted-foreground truncate">{[booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Location TBA"}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">{locationAddress}</div>
                       </div>
                     </div>
 
                     {/* Coordinator & Equipment Summary */}
-                    <div className="flex items-center justify-between text-xs pt-1">
+                    <div className="flex items-center justify-between text-xs pt-0.5 flex-wrap gap-2">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <ShieldCheck size={14} className="text-amber-600" />
-                        <span>Lead: <strong className="text-foreground">{managerName}</strong></span>
+                        <ShieldCheck size={13} className="text-amber-600 shrink-0" />
+                        <span className="truncate">Lead: <strong className="text-foreground">{managerName}</strong></span>
+                        {managerPhone && (
+                          <a 
+                            href={`tel:${managerPhone}`}
+                            className="p-1 rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-1 text-[10.5px] font-bold"
+                            title={`Call Lead Manager: ${managerPhone}`}
+                          >
+                            📞 Call
+                          </a>
+                        )}
                       </div>
-                      <div className={`flex items-center gap-1.5 font-semibold ${timing.isStarted ? "text-primary" : "text-muted-foreground"}`}>
-                        <PackageCheck size={14} />
-                        <span>{equipmentCount} {timing.isStarted ? "Equipment Items" : "Dispatched Items"}</span>
+                      <div className={`flex items-center gap-1 font-semibold text-[11.5px] ${timing.isStarted ? "text-primary" : "text-muted-foreground"}`}>
+                        <PackageCheck size={13} />
+                        <span>{equipmentCount} Items</span>
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-border">
+                    {/* Action Buttons (Full width on mobile, 42px min height) */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
                       <button
                         type="button"
                         onClick={() => navigate(`/staff/events/${booking._id}`)}
-                        className="w-full py-2 px-3 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2 sm:py-1.5 px-3 min-h-[42px] sm:min-h-0 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
                       >
                         <span>View Briefing &amp; Crew</span>
                       </button>
@@ -359,7 +362,7 @@ export default function StaffDashboard() {
                         <button
                           type="button"
                           onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
-                          className="w-full py-2 px-3 bg-[#4C81E0] hover:bg-[#3b6bc4] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full py-2 sm:py-1.5 px-3 min-h-[42px] sm:min-h-0 bg-[#4C81E0] hover:bg-[#3b6bc4] text-white text-xs font-bold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
                         >
                           <PackageCheck size={13} />
                           <span>Count &amp; Verify Gear</span>
@@ -368,7 +371,7 @@ export default function StaffDashboard() {
                         <button
                           type="button"
                           onClick={() => navigate(`/staff/events/${booking._id}?tab=equipment`)}
-                          className="w-full py-2 px-3 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-border text-xs font-semibold rounded-lg shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full py-2 sm:py-1.5 px-3 min-h-[42px] sm:min-h-0 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                           title="Equipment returns can be verified once the event starts"
                         >
                           <Lock size={13} className="text-muted-foreground" />
@@ -386,46 +389,46 @@ export default function StaffDashboard() {
         {/* Set Availability Modal */}
         {showCalendar && (
           <Modal title="My Availability Schedule" onClose={() => setShowCalendar(false)} className="max-w-xl">
-            <div className="space-y-5 text-sm">
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
+            <div className="space-y-4 text-sm">
+              <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-lg text-xs text-blue-950 shadow-2xs">
                 <div className="font-bold mb-1">How Staff Availability Works:</div>
                 <p>Click on any date to mark yourself <strong>Unavailable</strong> for catering assignments. Click again to set available. Dates with confirmed assignments cannot be disabled.</p>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-bold text-foreground">{monthLabel}</div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="text-xs font-bold text-foreground">{monthLabel}</div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted"
+                      className="p-1 rounded-md border border-border bg-card hover:bg-muted cursor-pointer"
                       onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
                     >
-                      <ChevronLeft size={14} />
+                      <ChevronLeft size={13} />
                     </button>
                     <button
                       type="button"
-                      className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted"
+                      className="p-1 rounded-md border border-border bg-card hover:bg-muted cursor-pointer"
                       onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
                     >
-                      <ChevronRight size={14} />
+                      <ChevronRight size={13} />
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-bold text-muted-foreground pb-2">
+                <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-muted-foreground pb-1.5">
                   {"Sun Mon Tue Wed Thu Fri Sat".split(" ").map((label) => (
                     <div key={label}>{label}</div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-1.5">
+                <div className="grid grid-cols-7 gap-1">
                   {calendarDays.map((day, index) => {
                     const dateKey = day.date ? toDateKey(day.date) : null;
                     const entry = day.date ? assignmentsByDate[dateKey] : null;
                     const isUnavailable = dateKey ? selectedDates.has(dateKey) : false;
 
-                    let cellBg = "bg-card border-border hover:border-primary text-foreground";
+                    let cellBg = "bg-card border-border/80 hover:border-primary text-foreground";
                     if (entry) {
                       cellBg = "bg-amber-100 border-amber-300 text-amber-950 font-bold cursor-not-allowed";
                     } else if (isUnavailable) {
@@ -438,24 +441,24 @@ export default function StaffDashboard() {
                         type="button"
                         onClick={() => toggleDate(day.date)}
                         disabled={!day.date || !!entry}
-                        className={`min-h-[50px] rounded-lg border p-1 text-left transition-all ${
+                        className={`min-h-[44px] rounded-lg border p-1 text-left transition-all ${
                           !day.date ? "border-transparent bg-muted/10 opacity-0" : cellBg
                         }`}
                       >
-                        {day.date && <div className="text-xs font-semibold">{day.label}</div>}
-                        {entry && <div className="text-[9px] text-amber-900 truncate mt-0.5">Assigned</div>}
-                        {!entry && isUnavailable && <div className="text-[9px] text-red-700 truncate mt-0.5">Off</div>}
+                        {day.date && <div className="text-[11px] font-semibold">{day.label}</div>}
+                        {entry && <div className="text-[8.5px] text-amber-900 truncate mt-0.5">Assigned</div>}
+                        {!entry && isUnavailable && <div className="text-[8.5px] text-red-700 truncate mt-0.5">Off</div>}
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
-                <Btn variant="secondary" onClick={() => setShowCalendar(false)} disabled={savingAvailability}>
+              <div className="flex justify-end gap-2 pt-2.5 border-t border-border/60">
+                <Btn variant="secondary" size="xs" onClick={() => setShowCalendar(false)} disabled={savingAvailability}>
                   Cancel
                 </Btn>
-                <Btn variant="primary" onClick={saveAvailability} disabled={savingAvailability}>
+                <Btn variant="primary" size="xs" onClick={saveAvailability} disabled={savingAvailability}>
                   {savingAvailability ? "Saving..." : "Save Availability"}
                 </Btn>
               </div>
@@ -464,5 +467,6 @@ export default function StaffDashboard() {
         )}
       </div>
     </StaffLayout>
+
   );
 }

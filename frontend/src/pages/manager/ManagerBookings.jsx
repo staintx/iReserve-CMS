@@ -466,27 +466,27 @@ export default function ManagerBookings() {
 
   return (
     <ManagerLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4 pb-2 border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Assigned Bookings
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Review event specifications, build staff teams, and monitor execution
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/staff")}>
-              <Users size={14} /> Staff Availability
+              <Users size={14} /> Staff Roster
             </Btn>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 p-1 bg-muted/60 border border-border rounded-xl w-fit">
+        <div className="flex items-center gap-1 p-0.5 bg-muted/80 border border-border/80 rounded-md w-full sm:w-fit overflow-x-auto no-scrollbar scroll-smooth flex-nowrap">
           {[
             { id: "pending", label: "Pending Staffing", icon: Clock },
             { id: "upcoming", label: "Upcoming Events", icon: Calendar },
@@ -497,9 +497,9 @@ export default function ManagerBookings() {
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 sm:py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   tab === item.id 
-                    ? "bg-card text-foreground shadow-2xs border border-border" 
+                    ? "bg-card text-foreground shadow-2xs border border-border/80 font-bold" 
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -511,7 +511,7 @@ export default function ManagerBookings() {
         </div>
 
         {/* Filter / Search toolbar */}
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5">
           <TableToolbar
             search={search}
             onSearchChange={setSearch}
@@ -519,8 +519,106 @@ export default function ManagerBookings() {
           />
         </AdminCard>
 
-        {/* Data Table */}
-        <AdminCard className="!p-0 overflow-hidden">
+        {/* Mobile View: Responsive Booking Cards (block md:hidden) */}
+        <div className="block md:hidden space-y-3">
+          {loading ? (
+            <div className="p-8 text-center text-xs text-muted-foreground">
+              Loading assigned bookings...
+            </div>
+          ) : pageRows.length === 0 ? (
+            <AdminCard className="!p-8 text-center text-xs text-muted-foreground">
+              No {tab} bookings found.
+            </AdminCard>
+          ) : (
+            <div className="space-y-3">
+              {pageRows.map((b) => {
+                const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
+                const clientName = b.customer_id?.full_name || "Valued Client";
+                const eventDate = b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA";
+                const locationStr = [b.venue_type, b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
+
+                return (
+                  <AdminCard key={b._id} className="space-y-2.5 shadow-2xs">
+                    {/* Top Row: Event type, Reference & Status */}
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+                      <div>
+                        <div className="font-bold text-xs text-foreground">{b.event_type || "Catering Event"}</div>
+                        <div className="text-[10.5px] text-muted-foreground font-mono">REF: {b.reference || b._id?.slice(-6).toUpperCase()}</div>
+                      </div>
+                      <Badge status={b.status || "confirmed"} />
+                    </div>
+
+                    {/* Middle: Client & Specs */}
+                    <div className="grid grid-cols-2 gap-2 p-2 bg-muted/30 rounded-lg border border-border/80 text-[11px]">
+                      <div>
+                        <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Client</span>
+                        <div className="font-bold text-foreground truncate">{clientName}</div>
+                        <div className="text-muted-foreground">{b.guest_count || 0} Guests</div>
+                      </div>
+                      <div>
+                        <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Date &amp; Time</span>
+                        <div className="font-bold text-foreground">{eventDate}</div>
+                        <div className="text-muted-foreground truncate">{b.start_time || "Time TBA"}</div>
+                      </div>
+                    </div>
+
+                    {/* Venue & Assigned Crew Indicator */}
+                    <div className="flex items-center justify-between text-[11px] pt-0.5">
+                      <span className="text-muted-foreground truncate max-w-[60%]">
+                        📍 {locationStr}
+                      </span>
+                      {hasStaff ? (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10.5px]">
+                          ✓ {b.staff_assignments.length} Crew Dispatched
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 font-bold text-[10.5px]">
+                          ⚠️ Needs Staffing
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                      <button
+                        type="button"
+                        onClick={() => openDetails(b)}
+                        className="py-1.5 px-2.5 min-h-[38px] bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Eye size={13} className="text-muted-foreground" />
+                        <span>View Details</span>
+                      </button>
+
+                      {hasStaff ? (
+                        <button
+                          type="button"
+                          onClick={() => openAssign(b)}
+                          className="py-1.5 px-2.5 min-h-[38px] bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <UserCheck size={13} className="text-primary" />
+                          <span>Edit Staff</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openAssign(b)}
+                          className="py-1.5 px-2.5 min-h-[38px] bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <UserPlus size={13} />
+                          <span>Dispatch Staff</span>
+                        </button>
+                      )}
+                    </div>
+                  </AdminCard>
+                );
+              })}
+            </div>
+          )}
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+        </div>
+
+        {/* Desktop Data Table (hidden md:block) */}
+        <AdminCard className="hidden md:block !p-0 overflow-hidden">
           <DataTable
             columns={columns}
             rows={pageRows}
@@ -541,8 +639,8 @@ export default function ManagerBookings() {
             onClose={() => setAssignTarget(null)}
             className="max-w-2xl"
           >
-            <div className="space-y-5 text-xs sm:text-sm">
-              <div className="p-3 bg-muted/60 border border-border rounded-xl flex items-center justify-between text-xs">
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div className="p-3 bg-muted/40 border border-border/80 rounded-lg flex items-center justify-between text-xs">
                 <div>
                   <div className="font-bold text-foreground">{assignTarget.customer_id?.full_name || "Customer"}</div>
                   <div className="text-muted-foreground">
@@ -563,7 +661,7 @@ export default function ManagerBookings() {
                 <select
                   value={assignment.headCook}
                   onChange={(e) => setAssignment({ ...assignment, headCook: e.target.value })}
-                  className="w-full p-2.5 rounded-lg border border-border bg-card text-xs font-semibold focus:ring-2 focus:ring-primary text-foreground"
+                  className="w-full p-2 rounded-lg border border-border bg-card text-xs font-semibold focus:ring-2 focus:ring-primary text-foreground"
                 >
                   <option value="">-- Select Head Cook --</option>
                   {staff.map((person) => (
@@ -575,13 +673,13 @@ export default function ManagerBookings() {
               </div>
 
               {/* Servers */}
-              <div className="space-y-2 p-3 bg-muted/30 border border-border rounded-xl">
+              <div className="space-y-2 p-3 bg-muted/20 border border-border/80 rounded-lg">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-foreground uppercase tracking-wider">Servers / Waitstaff</label>
                   <button
                     type="button"
                     onClick={() => addAssignmentSlot("servers")}
-                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus size={12} /> Add Server Slot
                   </button>
@@ -606,7 +704,7 @@ export default function ManagerBookings() {
                         <button
                           type="button"
                           onClick={() => removeAssignmentSlot("servers", idx)}
-                          className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"
+                          className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted cursor-pointer"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -617,17 +715,18 @@ export default function ManagerBookings() {
               </div>
 
               {/* Setup Crew */}
-              <div className="space-y-2 p-3 bg-muted/30 border border-border rounded-xl">
+              <div className="space-y-2 p-3 bg-muted/20 border border-border/80 rounded-lg">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-foreground uppercase tracking-wider">Setup &amp; Logistics Crew</label>
                   <button
                     type="button"
                     onClick={() => addAssignmentSlot("setupCrew")}
-                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <Plus size={12} /> Add Crew Slot
                   </button>
                 </div>
+
 
                 <div className="space-y-2">
                   {assignment.setupCrew.map((val, idx) => (
@@ -659,14 +758,14 @@ export default function ManagerBookings() {
               </div>
 
               {/* Assistants & Extra Crew */}
-              <div className="space-y-2 p-3 bg-muted/30 border border-border rounded-xl">
+              <div className="space-y-2 p-3 bg-muted/20 border border-border/80 rounded-lg">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-foreground uppercase tracking-wider">Extra Support / Assistants</label>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => addAssignmentSlot("assistants")}
-                      className="text-[11px] font-bold text-primary hover:underline"
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
                     >
                       + System Staff
                     </button>
@@ -674,7 +773,7 @@ export default function ManagerBookings() {
                     <button
                       type="button"
                       onClick={addExtraAssistant}
-                      className="text-[11px] font-bold text-primary hover:underline"
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
                     >
                       + On-Call / External
                     </button>
@@ -698,7 +797,7 @@ export default function ManagerBookings() {
                     <button
                       type="button"
                       onClick={() => removeAssignmentSlot("assistants", idx)}
-                      className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"
+                      className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted cursor-pointer"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -723,7 +822,7 @@ export default function ManagerBookings() {
                       <button
                         type="button"
                         onClick={() => removeExtraAssistant(idx)}
-                        className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"
+                        className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted cursor-pointer"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -756,9 +855,9 @@ export default function ManagerBookings() {
             onClose={() => setDetail(null)} 
             className="max-w-3xl"
           >
-            <div className="space-y-5 text-xs sm:text-sm max-h-[75vh] overflow-y-auto pr-1">
+            <div className="space-y-4 text-xs sm:text-sm max-h-[75vh] overflow-y-auto pr-1">
               {/* Header Status & Reference Bar */}
-              <div className="p-3 bg-muted/60 border border-border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="p-3 bg-muted/40 border border-border/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-foreground">
                     REF: <span className="font-mono text-primary font-bold">{detail.reference || detail._id?.slice(-6).toUpperCase()}</span>
@@ -778,7 +877,7 @@ export default function ManagerBookings() {
               </div>
 
               {/* Client & Contact Information */}
-              <div className="p-4 bg-muted/40 border border-border rounded-xl space-y-2">
+              <div className="p-3.5 bg-card border border-border/80 rounded-lg space-y-2 shadow-2xs">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Client Information</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                   <div>
@@ -802,8 +901,8 @@ export default function ManagerBookings() {
 
               {/* Event Schedule & Location */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3.5 bg-card border border-border rounded-xl space-y-1">
-                  <div className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                <div className="p-3 bg-card border border-border/80 rounded-lg space-y-1 shadow-2xs">
+                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                     <Calendar size={13} className="text-primary" /> Date &amp; Time
                   </div>
                   <div className="text-sm font-bold text-foreground">
@@ -812,16 +911,16 @@ export default function ManagerBookings() {
                   <div className="text-xs text-muted-foreground">{detail.start_time || "Time TBA"} ({detail.duration_hours || 4} hrs)</div>
                 </div>
 
-                <div className="p-3.5 bg-card border border-border rounded-xl space-y-1">
-                  <div className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                <div className="p-3 bg-card border border-border/80 rounded-lg space-y-1 shadow-2xs">
+                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                     <Users size={13} className="text-primary" /> Guests &amp; Package
                   </div>
                   <div className="text-sm font-bold text-foreground">{detail.guest_count || 0} Guests</div>
                   <div className="text-xs text-muted-foreground truncate">{detail.package_id?.name || detail.package_name_snapshot || "Custom Catering Package"}</div>
                 </div>
 
-                <div className="p-3.5 bg-card border border-border rounded-xl space-y-1">
-                  <div className="text-[11px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                <div className="p-3 bg-card border border-border/80 rounded-lg space-y-1 shadow-2xs">
+                  <div className="text-[10.5px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                     <MapPin size={13} className="text-primary" /> Venue Location
                   </div>
                   <div className="text-sm font-bold text-foreground">{detail.venue_type || "Venue"}</div>
@@ -832,7 +931,7 @@ export default function ManagerBookings() {
               </div>
 
               {/* Menu & Selected Dishes */}
-              <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
+              <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Utensils size={14} className="text-primary" /> Catering Menu &amp; Selected Dishes
@@ -849,13 +948,13 @@ export default function ManagerBookings() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                     {detail.menu_items.map((item, idx) => (
-                      <div key={idx} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-start justify-between gap-2">
+                      <div key={idx} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg flex items-start justify-between gap-2">
                         <div>
                           <div className="font-bold text-foreground text-xs">{item.name}</div>
                           {item.note && <div className="text-[11px] text-muted-foreground">{item.note}</div>}
                         </div>
                         {item.category && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card border border-border text-muted-foreground shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card border border-border/80 text-muted-foreground shrink-0">
                             {item.category}
                           </span>
                         )}
@@ -867,13 +966,13 @@ export default function ManagerBookings() {
 
               {/* Add-ons & Service Items */}
               {((detail.service_items && detail.service_items.length > 0) || (detail.additional_charges && detail.additional_charges.length > 0)) && (
-                <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
+                <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Layers size={14} className="text-primary" /> Add-on Services &amp; Event Styling
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                     {(detail.service_items || []).map((srv, idx) => (
-                      <div key={`srv-${idx}`} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
+                      <div key={`srv-${idx}`} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs">
                         <div>
                           <div className="font-bold text-foreground">{srv.name}</div>
                           {srv.note && <div className="text-[11px] text-muted-foreground">{srv.note}</div>}
@@ -886,7 +985,7 @@ export default function ManagerBookings() {
                       </div>
                     ))}
                     {(detail.additional_charges || []).map((chg, idx) => (
-                      <div key={`chg-${idx}`} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
+                      <div key={`chg-${idx}`} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs">
                         <div>
                           <div className="font-bold text-foreground">{chg.label}</div>
                           {chg.reason && <div className="text-[11px] text-muted-foreground">{chg.reason}</div>}
@@ -902,8 +1001,8 @@ export default function ManagerBookings() {
 
               {/* Dispatched Equipment & Verification */}
               {mergedEquipmentList.length > 0 && (
-                <div className="space-y-3.5 p-4 bg-card border border-border rounded-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border">
+                <div className="space-y-3 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                       <PackageCheck size={14} className="text-primary" /> Dispatched Equipment &amp; Staff Count Verification
                     </h4>
@@ -916,12 +1015,12 @@ export default function ManagerBookings() {
                     {mergedEquipmentList.map((eq, idx) => (
                       <div 
                         key={idx} 
-                        className={`p-3 rounded-lg border flex flex-col justify-between gap-2 text-xs transition-colors ${
+                        className={`p-2.5 rounded-lg border flex flex-col justify-between gap-2 text-xs transition-colors shadow-2xs ${
                           eq.missing > 0 
                             ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800" 
                             : eq.damaged > 0 
                               ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" 
-                              : "bg-muted/40 border-border"
+                              : "bg-muted/30 border-border/80"
                         }`}
                       >
                         <div>
@@ -929,7 +1028,7 @@ export default function ManagerBookings() {
                             <span className="font-bold text-foreground truncate" title={eq.name}>
                               {eq.name}
                             </span>
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-card border border-border text-foreground shrink-0">
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-card border border-border/80 text-foreground shrink-0">
                               {eq.booked} units
                             </span>
                           </div>
@@ -966,25 +1065,25 @@ export default function ManagerBookings() {
                         </div>
 
                         {/* Status & Notes row */}
-                        <div className="pt-2 border-t border-border/60 flex items-center justify-between flex-wrap gap-1.5">
+                        <div className="pt-1.5 border-t border-border/60 flex items-center justify-between flex-wrap gap-1.5">
                           <div>
                             {eq.missing > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.5 rounded border border-rose-200 dark:border-rose-800">
                                 <AlertTriangle size={11} className="text-rose-600 dark:text-rose-400" />
                                 Missing
                               </span>
                             ) : eq.damaged > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
                                 <AlertTriangle size={11} className="text-amber-600 dark:text-amber-400" />
                                 Damaged
                               </span>
                             ) : eq.hasVerified ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                                 <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
                                 Returned Complete
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/80 px-2 py-0.5 rounded border border-border">
+                              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border">
                                 <Clock size={11} />
                                 Pending Count
                               </span>
@@ -1000,7 +1099,7 @@ export default function ManagerBookings() {
                                 staffName: eq.verifiedBy,
                                 verifiedAt: eq.verifiedAt
                               })}
-                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-2 py-0.5 rounded border border-primary/20 transition-colors"
+                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 transition-colors"
                               title="View staff notes for this item"
                             >
                               <FileText size={11} />
@@ -1017,7 +1116,7 @@ export default function ManagerBookings() {
                   </div>
 
                   {/* Manager Confirmation Checkbox & Additional Notes */}
-                  <div className="p-3.5 bg-muted/40 border border-border rounded-xl space-y-3 mt-2">
+                  <div className="p-3 bg-muted/20 border border-border/80 rounded-lg space-y-2.5 mt-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <label className="flex items-center gap-2.5 cursor-pointer select-none">
                         <input
@@ -1027,22 +1126,22 @@ export default function ManagerBookings() {
                           onChange={(e) => setManagerConfirmed(e.target.checked)}
                           className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
                         />
-                        <span className="text-xs sm:text-sm font-bold text-foreground">
+                        <span className="text-xs font-bold text-foreground">
                           Double-check and confirm equipment counted by staff
                         </span>
                       </label>
 
                       {detail.equipment_manager_verified?.confirmed && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 shrink-0">
-                          <CheckCircle2 size={12} />
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 shrink-0">
+                          <CheckCircle2 size={11} />
                           Confirmed by {detail.equipment_manager_verified.confirmed_by?.full_name || "Manager"}{" "}
                           {detail.equipment_manager_verified.confirmed_at ? `on ${new Date(detail.equipment_manager_verified.confirmed_at).toLocaleDateString()}` : ""}
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-1.5 pt-1">
-                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                    <div className="space-y-1 pt-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                         Additional Notes
                       </label>
                       <textarea
@@ -1050,7 +1149,7 @@ export default function ManagerBookings() {
                         placeholder="Add manager verification remarks, supplier loss claims, or missing equipment follow-ups..."
                         value={managerEquipmentNotes}
                         onChange={(e) => setManagerEquipmentNotes(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-lg border border-border bg-card text-foreground focus:ring-1 focus:ring-primary resize-y"
+                        className="w-full p-2 text-xs rounded-md border border-border bg-card text-foreground focus:ring-1 focus:ring-primary resize-y"
                       />
                     </div>
 
@@ -1060,7 +1159,7 @@ export default function ManagerBookings() {
                         size="xs"
                         onClick={handleSaveEquipmentVerification}
                         disabled={submittingVerifyEquipment}
-                        className="flex items-center gap-1.5 font-bold cursor-pointer"
+                        className="flex items-center gap-1.5 font-semibold cursor-pointer"
                       >
                         <PackageCheck size={13} />
                         <span>{submittingVerifyEquipment ? "Saving Verification..." : "Save Equipment Verification"}</span>
@@ -1072,11 +1171,11 @@ export default function ManagerBookings() {
 
               {/* Dietary Requirements & Special Requests */}
               {(detail.dietary_restrictions || detail.allergies || detail.special_requests || detail.notes) && (
-                <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2 text-xs">
+                <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-lg space-y-1.5 text-xs shadow-2xs">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
                     <AlertCircle size={14} className="text-amber-600" /> Dietary Restrictions &amp; Client Requests
                   </h4>
-                  <div className="space-y-1.5 text-amber-950">
+                  <div className="space-y-1 text-amber-950">
                     {detail.dietary_restrictions && (
                       <div><strong>Dietary Needs:</strong> {detail.dietary_restrictions}</div>
                     )}
@@ -1094,7 +1193,7 @@ export default function ManagerBookings() {
               )}
 
               {/* Staff Team */}
-              <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
+              <div className="space-y-2 p-3.5 bg-card border border-border/80 rounded-lg shadow-2xs">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <Users size={14} className="text-primary" /> Assigned Staff Team
@@ -1113,7 +1212,7 @@ export default function ManagerBookings() {
                 </div>
 
                 {(!detail.staff_assignments || detail.staff_assignments.length === 0) ? (
-                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center justify-between gap-2">
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center justify-between gap-2">
                     <span>No staff assigned yet. Click Edit Assignments to dispatch your team.</span>
                     <button
                       type="button"
@@ -1122,7 +1221,7 @@ export default function ManagerBookings() {
                         setDetail(null);
                         openAssign(target);
                       }}
-                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-xs shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-md text-xs shrink-0 cursor-pointer"
                     >
                       Assign Now
                     </button>
@@ -1130,7 +1229,7 @@ export default function ManagerBookings() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                     {detail.staff_assignments.map((assignment, idx) => (
-                      <div key={idx} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
+                      <div key={idx} className="p-2 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs">
                         <div>
                           <div className="font-bold text-foreground">{assignment.name || assignment.user_id?.full_name || "Staff Member"}</div>
                           <div className="text-[11px] text-muted-foreground">{assignment.role || "Staff"}</div>
@@ -1145,7 +1244,7 @@ export default function ManagerBookings() {
               </div>
 
               {/* Event Notes */}
-              <div className="space-y-2 pt-2 border-t border-border">
+              <div className="space-y-2 pt-2 border-t border-border/60">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <FileText size={14} className="text-primary" /> Coordinator Operations Briefing Notes
                 </h4>
@@ -1155,7 +1254,7 @@ export default function ManagerBookings() {
                     placeholder="Log an event briefing note or update..."
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    className="w-full p-2.5 text-xs rounded-lg border border-border bg-card text-foreground focus:ring-1 focus:ring-primary"
+                    className="w-full p-2 text-xs rounded-md border border-border bg-card text-foreground focus:ring-1 focus:ring-primary"
                   />
                   <div className="flex justify-end">
                     <Btn variant="primary" size="xs" onClick={submitNote} disabled={!note.trim()}>
@@ -1164,7 +1263,7 @@ export default function ManagerBookings() {
                   </div>
 
                   {(detail.event_manager_notes || []).map((entry, idx) => (
-                    <div key={idx} className="p-2.5 bg-muted/40 border border-border rounded-lg text-xs">
+                    <div key={idx} className="p-2.5 bg-muted/30 border border-border/80 rounded-lg text-xs">
                       <div className="text-[10px] text-muted-foreground">{new Date(entry.created_at).toLocaleString()}</div>
                       <div className="mt-0.5 text-foreground">{entry.note}</div>
                     </div>
@@ -1172,8 +1271,8 @@ export default function ManagerBookings() {
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-border">
-                <Btn variant="secondary" onClick={() => setDetail(null)}>Close</Btn>
+              <div className="flex justify-end pt-2 border-t border-border/60">
+                <Btn variant="secondary" size="xs" onClick={() => setDetail(null)}>Close</Btn>
               </div>
             </div>
           </Modal>
@@ -1186,8 +1285,8 @@ export default function ManagerBookings() {
             onClose={() => setStaffNoteModal(null)}
             className="max-w-md"
           >
-            <div className="space-y-4 text-xs sm:text-sm">
-              <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+            <div className="space-y-3 text-xs sm:text-sm">
+              <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg space-y-1.5 shadow-2xs">
                 <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 dark:text-amber-200 pb-1.5 border-b border-amber-200/60 dark:border-amber-800/60">
                   <span>Logged by: {staffNoteModal.staffName || "Staff Member"}</span>
                   {staffNoteModal.verifiedAt && (
@@ -1208,5 +1307,6 @@ export default function ManagerBookings() {
         )}
       </div>
     </ManagerLayout>
+
   );
 }

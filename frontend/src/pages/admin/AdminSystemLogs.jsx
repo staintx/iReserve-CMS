@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Search, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { AdminAPI } from "../../api/admin";
 import AdminLayout from "../../components/layout/AdminLayout";
+import AdminCard from "../../components/admin/ui/AdminCard";
 import AdminSystemLogsTable from "../../components/tables/AdminSystemLogsTable";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
@@ -151,7 +152,7 @@ export default function AdminSystemLogs() {
           </div>
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-card border border-border/80 text-foreground rounded-lg hover:bg-muted shadow-2xs transition-colors w-fit cursor-pointer self-start sm:self-auto"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-card border border-border/80 text-foreground rounded-md hover:bg-muted shadow-2xs transition-colors w-fit cursor-pointer self-start sm:self-auto"
             onClick={loadLogs}
           >
             <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
@@ -169,13 +170,13 @@ export default function AdminSystemLogs() {
                 placeholder="Search logs by details, user name..."
                 value={search}
                 onChange={(e) => updateFilter(setSearch)(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 border border-border rounded-lg text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full pl-8 pr-3 py-1.5 border border-border rounded-md text-xs bg-card focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
               />
             </div>
 
             {/* Action Filter */}
             <select
-              className="border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="border border-border rounded-md px-2.5 py-1.5 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
               value={actionFilter}
               onChange={(e) => updateFilter(setActionFilter)(e.target.value)}
             >
@@ -189,7 +190,7 @@ export default function AdminSystemLogs() {
 
             {/* Entity Filter */}
             <select
-              className="border border-border rounded-lg px-2.5 py-1.5 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="border border-border rounded-md px-2.5 py-1.5 text-xs bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs"
               value={entityFilter}
               onChange={(e) => updateFilter(setEntityFilter)(e.target.value)}
             >
@@ -205,7 +206,7 @@ export default function AdminSystemLogs() {
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <input
                 type="date"
-                className="border border-border rounded-lg px-2 py-1 text-xs bg-card text-foreground focus:outline-none cursor-pointer"
+                className="border border-border rounded-md px-2 py-1 text-xs bg-card text-foreground focus:outline-none cursor-pointer shadow-2xs font-mono"
                 value={dateFrom}
                 onChange={(e) => updateFilter(setDateFrom)(e.target.value)}
                 title="From date"
@@ -213,7 +214,7 @@ export default function AdminSystemLogs() {
               <span>to</span>
               <input
                 type="date"
-                className="border border-border rounded-lg px-2 py-1 text-xs bg-card text-foreground focus:outline-none cursor-pointer"
+                className="border border-border rounded-md px-2 py-1 text-xs bg-card text-foreground focus:outline-none cursor-pointer shadow-2xs font-mono"
                 value={dateTo}
                 onChange={(e) => updateFilter(setDateTo)(e.target.value)}
                 title="To date"
@@ -225,7 +226,7 @@ export default function AdminSystemLogs() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-xs font-semibold rounded-md bg-muted hover:bg-muted/80 text-foreground transition-colors cursor-pointer shadow-2xs"
               >
                 Reset
               </button>
@@ -251,7 +252,7 @@ export default function AdminSystemLogs() {
                   type="button"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="p-1 rounded border border-border disabled:opacity-40 hover:bg-muted cursor-pointer"
+                  className="p-1 rounded-md border border-border disabled:opacity-40 hover:bg-muted cursor-pointer"
                 >
                   <ChevronLeft size={13} />
                 </button>
@@ -259,7 +260,7 @@ export default function AdminSystemLogs() {
                   <button
                     key={n}
                     type="button"
-                    className={`px-2 py-0.5 rounded text-xs font-semibold cursor-pointer ${
+                    className={`px-2 py-0.5 rounded-md text-xs font-semibold cursor-pointer ${
                       n === page ? "bg-primary text-white" : "border border-border hover:bg-muted text-foreground"
                     }`}
                     onClick={() => setPage(n)}
@@ -271,7 +272,7 @@ export default function AdminSystemLogs() {
                   type="button"
                   disabled={page >= pages}
                   onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                  className="p-1 rounded border border-border disabled:opacity-40 hover:bg-muted cursor-pointer"
+                  className="p-1 rounded-md border border-border disabled:opacity-40 hover:bg-muted cursor-pointer"
                 >
                   <ChevronRight size={13} />
                 </button>

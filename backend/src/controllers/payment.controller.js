@@ -24,6 +24,82 @@ const { sendPaymentReceiptEmail, sendBookingConfirmationEmail } = require("../ut
 const isSuccessfulPaymentStatus = (status) =>
 	["paid", "succeeded"].includes(String(status || "").toLowerCase());
 
+exports.cleanupStalePendingPayments = async function (bookingId, inquiryId) {
+	try {
+		if (bookingId) {
+			const booking = await Booking.findById(bookingId);
+			if (!booking) return;
+
+			// If booking is fully paid, cancel or remove all pending payments for this booking
+			if (booking.payment_status === "fully_paid") {
+				await Payment.deleteMany({
+					booking_id: bookingId,
+					status: "pending"
+				});
+				return;
+			}
+
+			// If booking has an approved deposit, cancel or remove any duplicate pending deposit payments
+			const hasApprovedDeposit = await Payment.exists({
+				booking_id: bookingId,
+				payment_type: "deposit",
+				status: "approved"
+			});
+			if (hasApprovedDeposit) {
+				await Payment.deleteMany({
+					booking_id: bookingId,
+					payment_type: "deposit",
+					status: "pending"
+				});
+			}
+
+			// If booking has an approved balance, cancel or remove any duplicate pending balance payments
+			const hasApprovedBalance = await Payment.exists({
+				booking_id: bookingId,
+				payment_type: "balance",
+				status: "approved"
+			});
+			if (hasApprovedBalance) {
+				await Payment.deleteMany({
+					booking_id: bookingId,
+					payment_type: "balance",
+					status: "pending"
+				});
+			}
+
+			// Deduplicate multiple pending payments of the same payment_type for this booking (keep most recently updated)
+			for (const pType of ["deposit", "balance", "full", "upgrade"]) {
+				const pendingForType = await Payment.find({
+					booking_id: bookingId,
+					payment_type: pType,
+					status: "pending"
+				}).sort({ updatedAt: -1 });
+
+				if (pendingForType.length > 1) {
+					const [, ...remove] = pendingForType;
+					const removeIds = remove.map((p) => p._id);
+					await Payment.deleteMany({ _id: { $in: removeIds } });
+				}
+			}
+		}
+
+		if (inquiryId) {
+			const inquiry = await Inquiry.findById(inquiryId);
+			if (!inquiry) return;
+
+			if (inquiry.payment_status === "fully_paid" || inquiry.payment_status === "deposit_paid" || inquiry.converted_booking_id) {
+				await Payment.deleteMany({
+					inquiry_id: inquiryId,
+					payment_type: "deposit",
+					status: "pending"
+				});
+			}
+		}
+	} catch (err) {
+		console.error("Error in cleanupStalePendingPayments:", err);
+	}
+};
+
 async function convertInquiryToBooking(inquiryId, payment, io = null) {
 	const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
 	if (!inquiry) return null;
@@ -45,6 +121,7 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 				await payment.save();
 				await exports.syncBookingStatus(existingBooking._id);
 			}
+			await exports.cleanupStalePendingPayments(existingBooking._id, inquiryId);
 			return existingBooking;
 		}
 	}
@@ -60,6 +137,7 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 				io,
 			});
 			if (newBooking) {
+				await exports.cleanupStalePendingPayments(newBooking._id, inquiryId);
 				if (io) {
 					io.emit("system:refresh", { type: "inquiry", action: "converted", inquiry_id: inquiryId });
 					io.emit("system:refresh", { type: "quotation", action: "converted" });
@@ -76,6 +154,7 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 	inquiry.status = "Awaiting Final Confirmation";
 	inquiry.payment_status = (payment && payment.status === "approved") ? "deposit_paid" : inquiry.payment_status;
 	await inquiry.save();
+	await exports.cleanupStalePendingPayments(null, inquiryId);
 
 	const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
 	if (quotation && quotation.status !== "Converted to Booking") {
@@ -123,9 +202,13 @@ exports.syncPaymentFromGateway = async (payment, io = null) => {
 
 	if (payment.status === "approved") {
 		await payment.save();
-		if (payment.booking_id) await exports.syncBookingStatus(payment.booking_id);
+		if (payment.booking_id) {
+			await exports.syncBookingStatus(payment.booking_id);
+			await exports.cleanupStalePendingPayments(payment.booking_id);
+		}
 		if (payment.inquiry_id) { 
 			await convertInquiryToBooking(payment.inquiry_id, payment, io);
+			await exports.cleanupStalePendingPayments(null, payment.inquiry_id);
 		}
 		if (io) {
 			io.emit("system:refresh", { type: "payment", action: "approved", payment_id: payment._id });
@@ -165,6 +248,8 @@ exports.syncBookingStatus = async function (bookingId) {
 		status: newBookingStatus
 	});
 
+	await exports.cleanupStalePendingPayments(bookingId);
+
 	if (booking.status !== "confirmed" && newBookingStatus === "confirmed") {
 		if (booking.inventory_items && booking.inventory_items.length > 0) {
 			const reservations = booking.inventory_items
@@ -203,7 +288,19 @@ exports.create = asyncHandler(async (req, res) => {
 	
 	res.status(201).json(payment);
 });
-exports.getAll = asyncHandler(async (req, res) => res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id").lean()));
+exports.getAll = asyncHandler(async (req, res) => {
+	const pendingGatewayPayments = await Payment.find({
+		gateway: "paymongo",
+		status: "pending",
+	}).limit(20);
+
+	await Promise.allSettled(
+		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
+	);
+
+	res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id").lean());
+});
+
 exports.getMine = asyncHandler(async (req, res) => {
 	const pendingGatewayPayments = await Payment.find({
 		customer_id: req.user._id,
@@ -215,10 +312,16 @@ exports.getMine = asyncHandler(async (req, res) => {
 		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
 	);
 
+	// Perform stale pending cleanup for customer bookings
+	const customerBookings = await Booking.find({ customer_id: req.user._id }).select("_id payment_status").lean();
+	for (const b of customerBookings) {
+		await exports.cleanupStalePendingPayments(b._id);
+	}
+
 	res.json(
 		await Payment.find({ customer_id: req.user._id })
 			.sort({ createdAt: -1 })
-			.populate("booking_id customer_id")
+			.populate("booking_id customer_id inquiry_id")
 			.lean(),
 	);
 });
@@ -240,9 +343,13 @@ exports.update = asyncHandler(async (req, res) => {
 	if (req.body.status && payment) {
 		if (payment.booking_id) {
 			await exports.syncBookingStatus(payment.booking_id);
+			if (payment.status === "approved") {
+				await exports.cleanupStalePendingPayments(payment.booking_id);
+			}
 		}
 		if (payment.status === "approved" && payment.inquiry_id) {
 			await convertInquiryToBooking(payment.inquiry_id, payment, io);
+			await exports.cleanupStalePendingPayments(null, payment.inquiry_id);
 		}
 		
 		if (payment.customer_id && io) {
@@ -380,18 +487,26 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		? `${appBaseUrl}/customer/inquiries?payment=cancelled` 
 		: `${appBaseUrl}/customer/bookings/${booking_id || ''}?payment=cancelled`);
 
-	let payment = await Payment.findOne({
-		booking_id: booking_id ? targetDoc._id : undefined,
-		inquiry_id: inquiry_id ? targetDoc._id : undefined,
+	const pendingQuery = {
 		payment_type,
 		status: "pending",
 		gateway: "paymongo"
-	});
+	};
+	if (booking_id) pendingQuery.booking_id = targetDoc._id;
+	if (inquiry_id) pendingQuery.inquiry_id = targetDoc._id;
+
+	let payment = await Payment.findOne(pendingQuery).sort({ updatedAt: -1 });
 
 	if (payment) {
 		payment.amount = payableAmount;
 		payment.customer_id = customerId || req.user._id;
 		await payment.save();
+
+		// Clean up any other duplicate pending payments for this same target and payment type
+		await Payment.deleteMany({
+			_id: { $ne: payment._id },
+			...pendingQuery
+		});
 	} else {
 		payment = await Payment.create({
 			booking_id: booking_id ? targetDoc._id : undefined,
@@ -500,18 +615,25 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	const payableAmount = Number(amount || targetDoc.total_price || 0);
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
-	let payment = await Payment.findOne({
-		booking_id: booking_id ? targetDoc._id : undefined,
-		inquiry_id: inquiry_id ? targetDoc._id : undefined,
+	const pendingQuery = {
 		payment_type,
 		status: "pending",
 		gateway: "paymongo"
-	});
+	};
+	if (booking_id) pendingQuery.booking_id = targetDoc._id;
+	if (inquiry_id) pendingQuery.inquiry_id = targetDoc._id;
+
+	let payment = await Payment.findOne(pendingQuery).sort({ updatedAt: -1 });
 
 	if (payment) {
 		payment.amount = payableAmount;
 		payment.customer_id = customerId || req.user._id;
 		await payment.save();
+
+		await Payment.deleteMany({
+			_id: { $ne: payment._id },
+			...pendingQuery
+		});
 	} else {
 		payment = await Payment.create({
 			booking_id: booking_id ? targetDoc._id : undefined,

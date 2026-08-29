@@ -80,7 +80,8 @@ export default function CustomerPayments() {
   const paymentStatus = searchParams.get("status");
 
   const startPayment = async (payment) => {
-    if (!payment?._id || !payment.booking_id?._id) return;
+    const bookingId = payment.booking_id?._id || payment.booking_id;
+    if (!bookingId) return;
 
     const amount = Number(payment.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -89,13 +90,24 @@ export default function CustomerPayments() {
     }
 
     setPayingPaymentId(payment._id);
-    navigate("/customer/checkout", {
-      state: {
-        bookingId: payment.booking_id._id,
+    try {
+      notify("Opening secure PayMongo checkout...", "info");
+      const res = await CustomerAPI.createPaymentCheckout({
+        booking_id: bookingId,
         amount,
-        paymentType: payment.payment_type || "deposit"
+        payment_type: payment.payment_type || "balance"
+      });
+
+      if (res.data?.checkout_url) {
+        window.location.assign(res.data.checkout_url);
+      } else {
+        notify("Could not generate checkout session.", "error");
+        setPayingPaymentId(null);
       }
-    });
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to start payment checkout.", "error");
+      setPayingPaymentId(null);
+    }
   };
 
   const totalPaid = useMemo(

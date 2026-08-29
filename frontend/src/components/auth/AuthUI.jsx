@@ -17,12 +17,12 @@ import { cn } from "@/lib/utils";
 // -----------------------------------------------------------------------------
 
 export const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4C81E0] focus-visible:ring-offset-2 focus-visible:ring-offset-white";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A] focus-visible:ring-offset-2 focus-visible:ring-offset-white";
 
 const controlBase =
   "w-full rounded-xl text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:outline-none focus:ring-2";
 const controlIdle =
-  "border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#CBD5E1] focus:border-[#4C81E0] focus:ring-[#4C81E0]/30 focus:bg-white";
+  "border border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#CBD5E1] focus:border-[#2C4B8A] focus:ring-[#2C4B8A]/25 focus:bg-white";
 const controlError =
   "border border-[#DC2626]/40 bg-[#FEF2F2] focus:border-[#DC2626] focus:ring-[#DC2626]/20";
 const controlDisabled =
@@ -228,9 +228,9 @@ export function AuthButton({
   };
   const variants = {
     primary:
-      "bg-[#4C81E0] text-white shadow-sm hover:bg-[#3D6BC4] hover:shadow-md active:scale-[0.99]",
+      "bg-[#2C4B8A] text-white shadow-sm hover:bg-[#1E3563] hover:shadow-md active:scale-[0.99]",
     outline:
-      "border border-[#4C81E0] bg-white text-[#4C81E0] hover:bg-[#D6E4F7]/60 active:scale-[0.99]",
+      "border border-[#2C4B8A] bg-white text-[#2C4B8A] hover:bg-[#2C4B8A]/10 active:scale-[0.99]",
     subtle:
       "border border-[#E2E8F0] bg-white text-[#1E293B] hover:border-[#CBD5E1] hover:bg-[#F8FAFC]",
     ghost: "bg-transparent text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#1E293B]",
@@ -269,7 +269,7 @@ export function AuthTextButton({ children, className = "", ...rest }) {
     <button
       type="button"
       className={cn(
-        "rounded-md font-semibold text-[#4C81E0] underline-offset-4 transition-colors hover:text-[#3D6BC4] hover:underline disabled:cursor-not-allowed disabled:text-[#94A3B8] disabled:no-underline",
+        "rounded-md font-semibold text-[#2C4B8A] underline-offset-4 transition-colors hover:text-[#1E3563] hover:underline disabled:cursor-not-allowed disabled:text-[#94A3B8] disabled:no-underline",
         focusRing,
         className
       )}
@@ -285,7 +285,7 @@ export function AuthLink({ to, children, className = "", ...rest }) {
     <Link
       to={to}
       className={cn(
-        "rounded-md font-semibold text-[#4C81E0] underline-offset-4 transition-colors hover:text-[#3D6BC4] hover:underline",
+        "rounded-md font-semibold text-[#2C4B8A] underline-offset-4 transition-colors hover:text-[#1E3563] hover:underline",
         focusRing,
         className
       )}
@@ -300,8 +300,8 @@ export function AuthLink({ to, children, className = "", ...rest }) {
 
 const alertTones = {
   info: {
-    wrap: "border-[#4C81E0]/25 bg-[#4C81E0]/[0.06] text-[#334155]",
-    icon: "text-[#4C81E0]",
+    wrap: "border-[#2C4B8A]/25 bg-[#2C4B8A]/[0.06] text-[#1E293B]",
+    icon: "text-[#2C4B8A]",
     Icon: Info,
   },
   success: {
@@ -354,7 +354,7 @@ const statusTones = {
   success: "bg-emerald-50 text-emerald-600 ring-emerald-100",
   error: "bg-[#FEF2F2] text-[#DC2626] ring-[#FEE2E2]",
   warning: "bg-amber-50 text-amber-600 ring-amber-100",
-  info: "bg-[#D6E4F7]/60 text-[#4C81E0] ring-[#D6E4F7]",
+  info: "bg-[#2C4B8A]/10 text-[#2C4B8A] ring-[#2C4B8A]/20",
 };
 
 /**
@@ -404,7 +404,7 @@ export function AuthStatus({
 export function AuthPending({ title, description }) {
   return (
     <div className="py-6 text-center" role="status" aria-live="polite">
-      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#D6E4F7]/60 text-[#4C81E0] ring-8 ring-[#D6E4F7]">
+      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2C4B8A]/10 text-[#2C4B8A] ring-8 ring-[#2C4B8A]/20">
         <Loader2 size={26} className="animate-spin" aria-hidden="true" />
       </div>
       <h1

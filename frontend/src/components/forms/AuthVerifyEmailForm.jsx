@@ -114,7 +114,7 @@ export default function AuthVerifyEmailForm({
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5">
             <span className="flex min-w-0 items-center gap-2.5 text-[13px] text-[#64748B]">
-              <MailCheck size={16} className="shrink-0 text-[#4C81E0]" aria-hidden="true" />
+              <MailCheck size={16} className="shrink-0 text-[#2C4B8A]" aria-hidden="true" />
               <EmailChip email={email} />
             </span>
             <AuthTextButton

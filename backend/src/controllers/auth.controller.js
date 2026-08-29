@@ -2,7 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { sendEmail } = require("../utils/email");
+const { sendEmail, wrapHtml } = require("../utils/email");
 
 const buildVerifyLink = (req, token) => {
   const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
@@ -66,11 +66,31 @@ exports.register = async (req, res, next) => {
     let emailSent = true;
 
     try {
+      const bodyContent = `
+        <h2>Welcome to Caezelle's! 🎉</h2>
+        <p style="text-align: center; color: #475569;">Thank you for creating an account with us. Please use the verification code below to activate your account:</p>
+        
+        <div class="otp-card">
+          <div class="otp-label">Your Verification Code</div>
+          <div class="otp-code">${otp}</div>
+          <div class="otp-note">Valid for 10 minutes &bull; Enter this in the verification screen</div>
+        </div>
+
+        <p style="text-align: center; color: #64748B; font-size: 13.5px; margin-top: 20px;">You can also verify instantly by clicking the button below:</p>
+        <div class="btn-container">
+          <a href="${verifyLink}" class="btn">Verify Email Address</a>
+        </div>
+
+        <p style="text-align: center; color: #94A3B8; font-size: 12px; margin-top: 15px;">
+          If you didn't create an account with Caezelle's Catering, you can safely ignore this email.
+        </p>
+      `;
+
       await sendEmail({
         to: email,
-        subject: "Verify your email",
+        subject: "Verify your email | Caezelle's Catering",
         text: `Your verification code is ${otp}. You can also verify here: ${verifyLink}`,
-        html: `<p>Your verification code is <strong>${otp}</strong>.</p><p>You can also verify here:</p><p><a href="${verifyLink}">${verifyLink}</a></p>`
+        html: wrapHtml("Email Verification", bodyContent)
       });
     } catch (emailErr) {
       emailSent = false;
@@ -218,11 +238,26 @@ exports.resendOtp = async (req, res, next) => {
 
     let emailSent = true;
     try {
+      const bodyContent = `
+        <h2>Your Verification Code 🔐</h2>
+        <p style="text-align: center; color: #475569;">You requested a new verification code for your Caezelle's Catering account:</p>
+        
+        <div class="otp-card">
+          <div class="otp-label">New Verification Code</div>
+          <div class="otp-code">${otp}</div>
+          <div class="otp-note">Valid for 10 minutes &bull; Enter this in the verification screen</div>
+        </div>
+
+        <p style="text-align: center; color: #94A3B8; font-size: 12px; margin-top: 20px;">
+          If you did not request this code, please secure your account or contact our support.
+        </p>
+      `;
+
       await sendEmail({
         to: email,
-        subject: "Your verification code",
+        subject: "Your verification code | Caezelle's Catering",
         text: `Your verification code is ${otp}.`,
-        html: `<p>Your verification code is <strong>${otp}</strong>.</p>`
+        html: wrapHtml("Verification Code", bodyContent)
       });
     } catch (emailErr) {
       emailSent = false;
@@ -274,11 +309,25 @@ exports.forgotPassword = async (req, res, next) => {
     const resetLink = buildResetLink(req, rawToken);
 
     try {
+      const bodyContent = `
+        <h2>Reset Your Password 🔑</h2>
+        <p style="text-align: center; color: #475569;">We received a request to reset the password associated with your Caezelle's Catering account.</p>
+        
+        <div class="btn-container">
+          <a href="${resetLink}" class="btn">Reset My Password</a>
+        </div>
+
+        <div class="warning">
+          <strong>Security Notice:</strong>
+          <p style="margin: 4px 0 0; font-size: 13px;">This link will expire in 1 hour and can only be used once. If you did not request a password reset, no changes have been made and you can safely ignore this email.</p>
+        </div>
+      `;
+
       await sendEmail({
         to: email,
-        subject: "Reset your password",
+        subject: "Reset your password | Caezelle's Catering",
         text: `You requested a password reset. Please click the link to reset your password: ${resetLink}`,
-        html: `<p>You requested a password reset. Please click the link to reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p>`
+        html: wrapHtml("Reset Password", bodyContent)
       });
     } catch (emailErr) {
       console.error("Email send failed:", emailErr.message);

@@ -8,7 +8,7 @@ import {
   FileCheck2,
   Utensils,
   Layers,
-  Sparkles,
+  PartyPopper,
 } from "lucide-react";
 
 /**
@@ -32,7 +32,7 @@ export const resolveServiceType = (record) =>
 export const serviceIcon = (serviceType) => {
   if (serviceType === "Food Only") return Utensils;
   if (serviceType === "Event Setup Only") return Layers;
-  return Sparkles;
+  return PartyPopper;
 };
 
 /** Friendly label for the event itself, e.g. "Glenn's Wedding". */
@@ -45,7 +45,7 @@ export const recordTitle = (record) => {
 /* ── Bookings ─────────────────────────────────────────────────── */
 
 export const BOOKING_STATUS_GROUPS = {
-  confirmed: ["confirmed", "converted to booking", "preparing", "ongoing", "ocular scheduled"],
+  confirmed: ["confirmed", "converted to booking", "preparing", "ongoing", "ocular scheduled", "ready for event"],
   deposit_needed: ["deposit pending", "pending deposit", "customer_accepted"],
   completed: ["completed"],
   cancelled: ["cancelled"],
@@ -115,6 +115,15 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
 
   if (raw === "ongoing") {
     return { tone: "info", label: "Happening Now", icon: ChefHat, notice: null };
+  }
+
+  if (raw === "ready for event") {
+    return {
+      tone: "success",
+      label: "Ready For Event",
+      icon: CheckCircle2,
+      notice: { tone: "success", title: "You're all set.", text: "Everything is prepared and ready for your event." },
+    };
   }
 
   if (raw === "completed") {

@@ -270,6 +270,8 @@ const BookingSchema = new mongoose.Schema(
         name: String,
         quantity_booked: Number,
         quantity_returned: { type: Number, default: 0 },
+        quantity_damaged: { type: Number, default: 0 },
+        notes: String,
         verified_at: Date,
         verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },

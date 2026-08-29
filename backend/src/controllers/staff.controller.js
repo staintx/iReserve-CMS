@@ -250,12 +250,30 @@ exports.submitEquipmentReturns = asyncHandler(async (req, res) => {
   }
 
   if (Array.isArray(returns)) {
+    // Validation pass
+    for (const ret of returns) {
+      const item = booking.equipment_returns.find(
+        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
+      );
+      if (item) {
+        const returnedVal = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0);
+        const damagedVal = Number(ret.quantity_damaged || 0);
+        if (returnedVal + damagedVal > item.quantity_booked) {
+          return res.status(400).json({ 
+            message: `Invalid return amount for ${item.name || 'equipment'}. Returned (${returnedVal}) + Damaged (${damagedVal}) cannot exceed dispatched amount (${item.quantity_booked}).` 
+          });
+        }
+      }
+    }
+
+    // Update pass
     returns.forEach((ret) => {
       const item = booking.equipment_returns.find(
         (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
       );
       if (item) {
         item.quantity_returned = Math.max(0, Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0));
+        item.quantity_damaged = Math.max(0, Number(ret.quantity_damaged || 0));
         item.notes = ret.notes || "";
         item.verified_at = new Date();
         item.verified_by = req.user._id;
@@ -318,12 +336,30 @@ exports.completeEvent = asyncHandler(async (req, res) => {
       }));
     }
 
+    // Validation pass
+    for (const ret of returns) {
+      const item = booking.equipment_returns.find(
+        (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
+      );
+      if (item) {
+        const returnedVal = Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0);
+        const damagedVal = Number(ret.quantity_damaged || 0);
+        if (returnedVal + damagedVal > item.quantity_booked) {
+          return res.status(400).json({ 
+            message: `Invalid return amount for ${item.name || 'equipment'}. Returned (${returnedVal}) + Damaged (${damagedVal}) cannot exceed dispatched amount (${item.quantity_booked}).` 
+          });
+        }
+      }
+    }
+
+    // Update pass
     returns.forEach((ret) => {
       const item = booking.equipment_returns.find(
         (eq) => String(eq.inventory_id) === String(ret.inventory_id) || String(eq._id) === String(ret._id)
       );
       if (item) {
         item.quantity_returned = Math.max(0, Number(ret.quantity_returned !== undefined ? ret.quantity_returned : ret.quantity_booked || 0));
+        item.quantity_damaged = Math.max(0, Number(ret.quantity_damaged || 0));
         item.notes = ret.notes || "";
         item.verified_at = new Date();
         item.verified_by = req.user._id;

@@ -12,6 +12,7 @@ router.get("/bookings/:id", protect, authorize("manager", "admin"), ctrl.getBook
 router.put("/bookings/:id/assign-staff", protect, authorize("manager", "admin"), ctrl.assignStaff);
 router.put("/bookings/:id/notes", protect, authorize("manager", "admin"), ctrl.addNote);
 router.put("/bookings/:id/equipment", protect, authorize("manager", "admin"), ctrl.updateEquipment);
+router.put("/bookings/:id/verify-equipment", protect, authorize("manager", "admin"), ctrl.verifyEquipment);
 router.put("/bookings/:id/complete", protect, authorize("manager", "admin"), ctrl.markCompleted);
 
 router.get("/staff", protect, authorize("manager", "admin"), ctrl.getStaff);

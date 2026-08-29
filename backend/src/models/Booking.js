@@ -276,6 +276,12 @@ const BookingSchema = new mongoose.Schema(
         verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },
     ],
+    equipment_manager_verified: {
+      confirmed: { type: Boolean, default: false },
+      confirmed_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      confirmed_at: Date,
+      additional_notes: String,
+    },
 
     ocular_visit: {
       scheduled_date: Date,

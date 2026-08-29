@@ -822,38 +822,52 @@ export default function PackageModal({
     setLoading(true);
     try {
       const data = new FormData();
+      const isFoodOnly = formData.package_type === "Food Only";
+      const normalizedInclusions = (formData.inclusions || [])
+        .map((inc) => (isOffer ? String(inc).replace(/^\s*\[[^\]]*\]\s*/, "").trim() : inc))
+        .filter((inc) => {
+          if (!isOffer && !isFoodOnly) return true;
+          // For Special Offers or Food Only, filter out setup equipment keywords
+          const lower = String(inc).toLowerCase();
+          return (
+            !lower.includes("backdrop") &&
+            !lower.includes("stage setup") &&
+            !lower.includes("scaffold") &&
+            !lower.includes("tent") &&
+            !lower.includes("couch") &&
+            !lower.includes("grass carpet") &&
+            !lower.includes("chandelier") &&
+            !lower.includes("dove") &&
+            !lower.includes("red carpet") &&
+            !lower.includes("monoblock chairs") &&
+            !lower.includes("tiffany chairs") &&
+            !lower.includes("round tables") &&
+            !lower.includes("industrial fan") &&
+            !lower.includes("[event setup & furniture]")
+          );
+        });
+
       const normalizedFormData = {
         ...formData,
         event_type:
           formData.event_type === "Other"
             ? String(formData.event_type_other || "").trim() || "Other"
             : formData.event_type,
-        // The event-space build, which only a regular package has. The
-        // per-size price used to be dropped here, which meant every save wiped
-        // the setup prices the backend actually charges from
-        // (booking.controller#calculateBookingPrice reads `opt.price`). It is
-        // now a field on this form, so it is kept.
-        //
-        // A combo sends empty: it sells no event space, so it has no sizes, no
-        // equipment to reserve and no extras sold alongside. The server clears
-        // these for an offer too — this is the client half of the same rule, so
-        // a package converted to a combo does not carry its old build across.
-        scaffold_size_options: isOffer
+        // The event-space build, which only a regular package has.
+        scaffold_size_options: isOffer || isFoodOnly
           ? []
           : (formData.scaffold_size_options || []).map((option) => ({
               ...option,
               price: option.free_setup ? 0 : Number(option.price) || 0,
               free_setup: Boolean(option.free_setup),
             })),
-        default_scaffold_option_id: isOffer
+        default_scaffold_option_id: isOffer || isFoodOnly
           ? ""
           : formData.default_scaffold_option_id || "",
-        setup_equipment: isOffer ? [] : formData.setup_equipment || [],
-        add_ons: isOffer ? [] : formData.add_ons || [],
-        // Only a Special Offer carries these. Sending them on a regular
-        // package would leave a guest count or a dish list sitting on a record
-        // that does not use them. Only the type that uses it sends it, so
-        // switching type cannot leave a stale figure behind on the saved record.
+        setup_equipment: isOffer || isFoodOnly ? [] : formData.setup_equipment || [],
+        add_ons: isOffer || isFoodOnly ? [] : formData.add_ons || [],
+        inclusions: normalizedInclusions,
+        // Only a Special Offer carries these.
         setup_price: isOffer ? "" : formData.setup_price || "",
         guest_count: isOffer ? formData.guest_count || "" : "",
         price_per_guest: isOffer ? formData.price_per_guest || "" : "",

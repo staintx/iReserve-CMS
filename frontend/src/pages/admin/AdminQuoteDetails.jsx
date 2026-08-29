@@ -430,7 +430,12 @@ export default function AdminQuoteDetails() {
    * with, so both surfaces name a request the same way.
    */
   const identity = bookingIdentity(quote);
-  const isOffer = identity.type === BOOKING_TYPES.SPECIAL;
+  const isOffer =
+    identity.type === BOOKING_TYPES.SPECIAL ||
+    quote.package_id?.offer_type === OFFER_TYPES.SPECIAL ||
+    (Array.isArray(quote.package_id?.offer_food_items) && quote.package_id.offer_food_items.length > 0) ||
+    (Array.isArray(quote.offer_food_snapshot) && quote.offer_food_snapshot.length > 0);
+  const isFoodOnly = quote.service_type === "Food Only";
   const offerPackage =
     quote.package_id && typeof quote.package_id === "object" ? quote.package_id : null;
   const offerCourses = isOffer
@@ -441,6 +446,27 @@ export default function AdminQuoteDetails() {
   const offerBase =
     Number(quote.offer_base_price) ||
     (isOffer ? offerBaseFoodPrice(offerPackage, Number(quote.guest_count)) : 0);
+
+  const isSetupInclusion = (str) => {
+    const raw = String(str || "").toLowerCase();
+    return (
+      raw.includes("backdrop") ||
+      raw.includes("stage setup") ||
+      raw.includes("scaffold") ||
+      raw.includes("tent") ||
+      raw.includes("couch") ||
+      raw.includes("grass carpet") ||
+      raw.includes("chandelier") ||
+      raw.includes("dove") ||
+      raw.includes("red carpet") ||
+      raw.includes("monoblock chairs") ||
+      raw.includes("tiffany chairs") ||
+      raw.includes("round tables") ||
+      raw.includes("industrial fan") ||
+      raw.includes("event setup") ||
+      raw.includes("set up / backdrop")
+    );
+  };
 
   return (
     <AdminLayout>
@@ -719,8 +745,11 @@ export default function AdminQuoteDetails() {
                             )
                           )}
                           {quote.package_id.event_type && (
-                            <span className="px-2 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[10.5px] font-medium">
-                              {quote.package_id.event_type}
+                            <span
+                              className="px-2 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[10.5px] font-medium"
+                              title="Catalog preset event type"
+                            >
+                              Preset: {quote.package_id.event_type}
                             </span>
                           )}
                           {capacityLabel(quote.package_id) && (
@@ -751,17 +780,58 @@ export default function AdminQuoteDetails() {
 
                   {Array.isArray(quote.package_id.inclusions) && quote.package_id.inclusions.length > 0 && (
                     <div className="pt-1">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1.5">
-                        Inclusions ({quote.package_id.inclusions.length})
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {quote.package_id.inclusions.map((inc, i) => (
-                          <span key={i} className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md text-slate-700 border border-slate-200/60 text-xs font-medium">
-                            <Check size={11} className="text-emerald-600 shrink-0" />
-                            <span>{inc}</span>
+                      {isFoodOnly ? (
+                        <div className="space-y-2">
+                          {quote.package_id.inclusions.filter((inc) => !isSetupInclusion(inc)).length > 0 && (
+                            <div>
+                              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1.5">
+                                Catering &amp; Dining Inclusions
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {quote.package_id.inclusions
+                                  .filter((inc) => !isSetupInclusion(inc))
+                                  .map((inc, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1.5 bg-emerald-50/80 px-2.5 py-1 rounded-md text-emerald-800 border border-emerald-200/60 text-xs font-medium">
+                                      <Check size={11} className="text-emerald-600 shrink-0" />
+                                      <span>{inc}</span>
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {quote.package_id.inclusions.filter(isSetupInclusion).length > 0 && (
+                            <div>
+                              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1.5">
+                                Template Setup Items (Excluded for Food Only)
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {quote.package_id.inclusions
+                                  .filter(isSetupInclusion)
+                                  .map((inc, i) => (
+                                    <span key={i} className="inline-flex items-center gap-1 bg-slate-100/90 px-2.5 py-1 rounded-md text-slate-400 line-through border border-slate-200/60 text-xs font-normal" title="This setup item is excluded because this is a Food Only request.">
+                                      <span>{inc}</span>
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1.5">
+                            Inclusions ({quote.package_id.inclusions.length})
                           </span>
-                        ))}
-                      </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {quote.package_id.inclusions.map((inc, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md text-slate-700 border border-slate-200/60 text-xs font-medium">
+                                <Check size={11} className="text-emerald-600 shrink-0" />
+                                <span>{inc}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1018,19 +1088,37 @@ export default function AdminQuoteDetails() {
                   </div>
                 )}
 
-                {/* Empty State. A combo whose courses rendered above has had
-                    its food answered, even though it carries no `selected_menu`
-                    — the server stores a combo's dishes on the snapshot. */}
+                {/* Empty State / Food Catering Package Banner */}
                 {offerCourses.length === 0 &&
                  (!Array.isArray(quote.selected_menu) || quote.selected_menu.length === 0) &&
                  (!Array.isArray(quote.service_items) || quote.service_items.length === 0) &&
                  (!Array.isArray(quote.additional_services) || quote.additional_services.length === 0) &&
                  (!Array.isArray(quote.inventory_items) || quote.inventory_items.length === 0) && (
-                  <p className="text-xs text-slate-400 italic">
-                    {quote.service_type === "Event Setup Only"
-                      ? "No custom add-ons requested beyond package setup inclusions."
-                      : "No specific menu items or add-ons selected."}
-                  </p>
+                  quote.package_id?.price_per_guest > 0 || quote.package_id?.package_type === "Food Only" ? (
+                    <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-lg text-xs text-amber-900 space-y-1">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span className="flex items-center gap-1.5">
+                          <Utensils size={13} className="text-amber-700" />
+                          {quote.package_id.name}
+                        </span>
+                        {quote.package_id.price_per_guest > 0 && (
+                          <span className="tabular-nums">
+                            ₱{quote.package_id.price_per_guest} / guest
+                            {quote.guest_count ? ` · ₱${(quote.package_id.price_per_guest * quote.guest_count).toLocaleString()} est.` : ""}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                        {quote.package_id.description || "Food catering service requested. Dishes and final headcount are settled on the quotation."}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">
+                      {quote.service_type === "Event Setup Only"
+                        ? "No custom add-ons requested beyond package setup inclusions."
+                        : "No specific menu items or add-ons selected."}
+                    </p>
+                  )
                 )}
               </div>
             </CompactCard>

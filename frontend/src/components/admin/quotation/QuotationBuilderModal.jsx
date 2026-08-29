@@ -815,10 +815,31 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setStartingPrice("");
         } else {
           setPackageName(packageRecord?.name || "Custom Package");
+          const isFoodOnlyInquiry = inquiry?.service_type === SERVICE_TYPES.FOOD_ONLY;
+          const rawInclusions = Array.isArray(packageRecord?.inclusions) ? packageRecord.inclusions : [];
           setInclusions(
-            (Array.isArray(packageRecord?.inclusions) ? packageRecord.inclusions : []).map(
-              (entry) => inclusionRow(entry)
-            )
+            rawInclusions
+              .filter((entry) => {
+                if (!isFoodOnlyInquiry) return true;
+                const lower = String(entry || "").toLowerCase();
+                return (
+                  !lower.includes("backdrop") &&
+                  !lower.includes("stage setup") &&
+                  !lower.includes("scaffold") &&
+                  !lower.includes("tent") &&
+                  !lower.includes("couch") &&
+                  !lower.includes("grass carpet") &&
+                  !lower.includes("chandelier") &&
+                  !lower.includes("dove") &&
+                  !lower.includes("red carpet") &&
+                  !lower.includes("monoblock chairs") &&
+                  !lower.includes("tiffany chairs") &&
+                  !lower.includes("round tables") &&
+                  !lower.includes("industrial fan") &&
+                  !lower.includes("[event setup & furniture]")
+                );
+              })
+              .map((entry) => inclusionRow(entry))
           );
           const derived = derivePackageStartingPrice(inquiry, guests);
           setStartingPrice(derived ? String(derived) : "");

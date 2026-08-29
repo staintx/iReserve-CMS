@@ -88,7 +88,7 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
   const fieldError = (field) => (touched[field] ? errors[field] : "");
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AuthHeading
         title="Welcome back"
         subtitle="Sign in to manage your reservations, quotes, and messages."
@@ -96,7 +96,7 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
 
       {banner}
 
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      <form className="space-y-3 sm:space-y-3.5" onSubmit={handleSubmit} noValidate>
         <AuthField id="login-identifier" label="Email or username" error={fieldError("identifier")}>
           <AuthInput
             id="login-identifier"
@@ -149,7 +149,7 @@ export default function AuthLoginForm({ onSubmit, loading = false, formError = n
         )}
 
         {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
-          <div className="flex justify-center my-4">
+          <div className="flex justify-center my-2">
             <Turnstile
               ref={turnstileRef}
               siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}

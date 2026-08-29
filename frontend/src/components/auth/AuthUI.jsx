@@ -42,7 +42,7 @@ export function AuthHeading({ title, subtitle, step, align = "left", className =
       {step ? (
         <p
           className={cn(
-            "mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#64748B]",
+            "mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-[#64748B]",
             align === "center" && "justify-center"
           )}
         >
@@ -52,7 +52,7 @@ export function AuthHeading({ title, subtitle, step, align = "left", className =
       ) : (
         <span
           className={cn(
-            "mb-3 block h-[3px] w-8 rounded-full bg-[#C5A059]",
+            "mb-2.5 block h-[3px] w-8 rounded-full bg-[#C5A059]",
             align === "center" && "mx-auto"
           )}
           aria-hidden="true"
@@ -60,12 +60,12 @@ export function AuthHeading({ title, subtitle, step, align = "left", className =
       )}
       <h1
         style={{ fontFamily: "Playfair Display, serif" }}
-        className="text-[26px] font-semibold leading-tight tracking-tight text-[#1E293B] sm:text-[28px]"
+        className="text-[22px] font-semibold leading-tight tracking-tight text-[#1E293B] sm:text-[25px]"
       >
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-1.5 text-[13px] leading-relaxed text-[#64748B]">{subtitle}</p>
+        <p className="mt-1 text-xs sm:text-[13px] leading-relaxed text-[#64748B]">{subtitle}</p>
       )}
     </div>
   );
@@ -81,7 +81,7 @@ export function AuthHeading({ title, subtitle, step, align = "left", className =
 export function AuthField({ id, label, hint, error, optionalLabel, children, className = "" }) {
   return (
     <div className={className}>
-      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
         <label
           htmlFor={id}
           className="block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]"
@@ -97,13 +97,13 @@ export function AuthField({ id, label, hint, error, optionalLabel, children, cla
         <p
           id={`${id}-error`}
           role="alert"
-          className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-[#DC2626]"
+          className="mt-1 flex items-start gap-1.5 text-xs font-medium text-[#DC2626]"
         >
           <AlertCircle size={13} className="mt-px shrink-0" aria-hidden="true" />
           <span>{error}</span>
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="mt-1.5 text-xs text-[#64748B]">
+        <p id={`${id}-hint`} className="mt-1 text-xs text-[#64748B]">
           {hint}
         </p>
       ) : null}
@@ -136,8 +136,8 @@ export const AuthInput = forwardRef(function AuthInput(
         aria-describedby={describedBy}
         className={cn(
           controlBase,
-          "h-11 pr-3.5",
-          Icon ? "pl-10" : "pl-3.5",
+          "h-10 sm:h-[42px] pr-3.5",
+          Icon ? "pl-9 sm:pl-10" : "pl-3.5",
           hasError ? controlError : controlIdle,
           controlDisabled,
           className
@@ -178,8 +178,8 @@ export const AuthPasswordInput = forwardRef(function AuthPasswordInput(
         aria-describedby={describedBy}
         className={cn(
           controlBase,
-          "h-11 pr-11",
-          Icon ? "pl-10" : "pl-3.5",
+          "h-10 sm:h-[42px] pr-10 sm:pr-11",
+          Icon ? "pl-9 sm:pl-10" : "pl-3.5",
           hasError ? controlError : controlIdle,
           controlDisabled,
           className
@@ -224,7 +224,7 @@ export function AuthButton({
 }) {
   const sizes = {
     sm: "h-9 px-4 text-[13px]",
-    md: "h-11 px-6 text-sm",
+    md: "h-10 sm:h-[42px] px-6 text-sm",
   };
   const variants = {
     primary:

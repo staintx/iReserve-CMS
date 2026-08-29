@@ -76,7 +76,7 @@ export default function AuthVerifyEmailForm({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AuthHeading
         step="Step 2 of 2 · Verify email"
         title="Verify your email"
@@ -91,7 +91,7 @@ export default function AuthVerifyEmailForm({
 
       {notice}
 
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      <form className="space-y-3 sm:space-y-3.5" onSubmit={handleSubmit} noValidate>
         {editingEmail ? (
           <AuthField id="verify-email" label="Email address" error={emailError}>
             <AuthInput
@@ -112,7 +112,7 @@ export default function AuthVerifyEmailForm({
             />
           </AuthField>
         ) : (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2">
             <span className="flex min-w-0 items-center gap-2.5 text-[13px] text-[#64748B]">
               <MailCheck size={16} className="shrink-0 text-[#2C4B8A]" aria-hidden="true" />
               <EmailChip email={email} />
@@ -130,7 +130,7 @@ export default function AuthVerifyEmailForm({
         <div>
           <span
             id="verify-code-label"
-            className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]"
+            className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#64748B]"
           >
             Verification code
           </span>
@@ -150,12 +150,12 @@ export default function AuthVerifyEmailForm({
             <p
               id="verify-code-error"
               role="alert"
-              className="mt-1.5 text-xs font-medium text-[#DC2626]"
+              className="mt-1 flex items-start gap-1.5 text-xs font-medium text-[#DC2626]"
             >
               {codeError}
             </p>
           ) : (
-            <p id="verify-code-help" className="mt-1.5 text-xs text-[#64748B]">
+            <p id="verify-code-help" className="mt-1 text-xs text-[#64748B]">
               The code expires 10 minutes after it is sent. Check your spam folder if it
               hasn&rsquo;t arrived.
             </p>

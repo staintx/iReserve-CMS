@@ -225,6 +225,40 @@ export default function StaffEventDetails() {
     notify("Matched all items to booked quantity.", "success");
   };
 
+  const stepReturnedQty = (index, delta) => {
+    setEquipmentList((prev) => {
+      const copy = [...prev];
+      const maxAllowed = (copy[index].quantity_booked || 0) - (copy[index].quantity_damaged || 0);
+      const current = Number(copy[index].quantity_returned || 0);
+      const next = Math.max(0, Math.min(maxAllowed, current + delta));
+      const isMatch = (next + (copy[index].quantity_damaged || 0)) === copy[index].quantity_booked;
+      copy[index] = { 
+        ...copy[index], 
+        quantity_returned: next, 
+        _verified: true, 
+        _markedMissing: !isMatch 
+      };
+      return copy;
+    });
+  };
+
+  const stepDamagedQty = (index, delta) => {
+    setEquipmentList((prev) => {
+      const copy = [...prev];
+      const maxAllowed = (copy[index].quantity_booked || 0) - (copy[index].quantity_returned || 0);
+      const current = Number(copy[index].quantity_damaged || 0);
+      const next = Math.max(0, Math.min(maxAllowed, current + delta));
+      const isMatch = (next + (copy[index].quantity_returned || 0)) === copy[index].quantity_booked;
+      copy[index] = { 
+        ...copy[index], 
+        quantity_damaged: next, 
+        _verified: true,
+        _markedMissing: !isMatch
+      };
+      return copy;
+    });
+  };
+
   const handleSubmitEquipmentReturns = async () => {
     setSubmittingEquipment(true);
     try {
@@ -354,66 +388,66 @@ export default function StaffEventDetails() {
 
   return (
     <StaffLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Navigation & Header */}
         <div>
           <button
             type="button"
             onClick={() => navigate("/staff/dashboard")}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1.5 mb-3 transition-colors cursor-pointer"
+            className="text-xs text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1.5 mb-2 transition-colors cursor-pointer"
           >
-            <ArrowLeft size={14} /> Back to Assigned Events
+            <ArrowLeft size={13} /> Back to Assigned Events
           </button>
 
-          <div className="flex items-center justify-between flex-wrap gap-4 pb-2 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                   {booking.event_type || "Catering Event"}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300 font-bold text-xs">
-                  My Role: {myRole}
+                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 border border-amber-300 font-bold text-xs">
+                  Role: {myRole}
                 </span>
 
                 {timing.isUpcoming && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold text-xs flex items-center gap-1">
-                    <Lock size={12} className="text-slate-500" />
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold text-[10.5px] flex items-center gap-1">
+                    <Lock size={11} className="text-slate-500" />
                     <span>Upcoming Shift</span>
                   </span>
                 )}
                 {timing.isStarted && !timing.isFinished && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 font-bold text-xs flex items-center gap-1">
-                    <Sparkles size={12} className="text-emerald-600" />
-                    <span>Event In Progress</span>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 font-bold text-[10.5px] flex items-center gap-1 animate-pulse">
+                    <Sparkles size={11} className="text-emerald-600" />
+                    <span>In Progress</span>
                   </span>
                 )}
                 {timing.isFinished && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-300 font-bold text-xs flex items-center gap-1">
-                    <CheckCircle2 size={12} className="text-blue-600" />
+                  <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-300 font-bold text-[10.5px] flex items-center gap-1">
+                    <CheckCircle2 size={11} className="text-blue-600" />
                     <span>Ready for Return Check</span>
                   </span>
                 )}
               </div>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Client: <strong className="text-foreground">{booking.customer_id?.full_name || "Valued Client"}</strong> • REF: <span className="font-mono">{booking.reference || booking._id?.slice(-6).toUpperCase()}</span>
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-start sm:self-auto">
               <Badge status={booking.status || "confirmed"} />
             </div>
           </div>
         </div>
 
         {/* Tab Navigation Controls */}
-        <div className="flex items-center gap-2 p-1 bg-muted/60 border border-border rounded-xl w-fit flex-wrap">
+        <div className="flex items-center gap-1 p-0.5 bg-muted/80 border border-border/80 rounded-md w-full sm:w-fit overflow-x-auto no-scrollbar scroll-smooth flex-nowrap shrink-0">
           {[
             { id: "briefing", label: "Event Briefing & Team", icon: ClipboardList },
             { 
               id: "equipment", 
               label: timing.isUpcoming 
                 ? `Dispatched Gear (${equipmentList.length})` 
-                : `Equipment Verification (${equipmentList.length})`, 
+                : `Equipment Check (${equipmentList.length})`, 
               icon: timing.isUpcoming ? Lock : PackageCheck,
               isLocked: timing.isUpcoming
             },
@@ -424,17 +458,14 @@ export default function StaffEventDetails() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 sm:py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                   activeTab === tab.id
-                    ? "bg-card text-foreground shadow-2xs border border-border"
+                    ? "bg-card text-foreground shadow-2xs border border-border/80 font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Icon size={14} className={activeTab === tab.id ? "text-primary" : "text-muted-foreground"} />
+                <Icon size={13} className={activeTab === tab.id ? "text-primary" : "text-muted-foreground"} />
                 <span>{tab.label}</span>
-                {tab.isLocked && activeTab !== tab.id && (
-                  <span className="text-[10px] text-muted-foreground font-mono">(Locked)</span>
-                )}
               </button>
             );
           })}
@@ -442,20 +473,20 @@ export default function StaffEventDetails() {
 
         {/* TAB 1: BRIEFING & TEAM */}
         {activeTab === "briefing" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Top Important Instructions / Briefing Alert */}
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
-              <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-bold text-sm">
-                <AlertTriangle size={17} className="text-amber-600 shrink-0" />
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2 shadow-2xs">
+              <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300 font-bold text-xs">
+                <AlertTriangle size={15} className="text-amber-600 shrink-0" />
                 <span>Shift Briefing &amp; Key Requirements</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-amber-950 dark:text-amber-200">
-                <div className="bg-card p-3 rounded-xl border border-amber-200/60 dark:border-amber-800">
-                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-1">Dress Code &amp; Arrival:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-amber-950 dark:text-amber-200">
+                <div className="bg-card p-2.5 rounded-md border border-amber-200/60 dark:border-amber-800 shadow-2xs">
+                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-0.5">Dress Code &amp; Arrival:</span>
                   <span>Standard black catering uniform with apron. Arrive at least <strong>1 hour before</strong> start time.</span>
                 </div>
-                <div className="bg-card p-3 rounded-xl border border-amber-200/60 dark:border-amber-800">
-                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-1">Dietary &amp; Special Requests:</span>
+                <div className="bg-card p-2.5 rounded-md border border-amber-200/60 dark:border-amber-800 shadow-2xs">
+                  <span className="font-bold block text-amber-900 dark:text-amber-300 mb-0.5">Dietary &amp; Special Requests:</span>
                   <span>
                     {booking.dietary_restrictions ? `Dietary: ${booking.dietary_restrictions}. ` : ""}
                     {booking.allergies ? `Allergies: ${booking.allergies}. ` : ""}
@@ -467,32 +498,47 @@ export default function StaffEventDetails() {
             </div>
 
             {/* Event Specs & Lead Coordinator */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4">
               {/* Event Schedule & Location */}
-              <AdminCard className="!p-5 space-y-3.5 lg:col-span-2">
+              <AdminCard className="space-y-3 lg:col-span-2 shadow-2xs">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Calendar size={14} className="text-primary" /> Event Schedule &amp; Venue
+                  <Calendar size={13} className="text-primary" /> Event Schedule &amp; Venue
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div className="p-3 bg-muted/40 rounded-xl border border-border space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-2.5 bg-muted/30 rounded-lg border border-border/80 space-y-0.5 shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground">Date &amp; Duration</span>
-                    <div className="text-sm font-bold text-foreground">
-                      {booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "TBA"}
+                    <div className="text-xs font-bold text-foreground">
+                      {booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : "TBD"}
                     </div>
-                    <div className="text-xs text-muted-foreground">{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} Hours)</div>
+                    <div className="text-[11px] text-muted-foreground">{booking.start_time || "Time TBA"} ({booking.duration_hours || 4} Hours)</div>
                   </div>
 
-                  <div className="p-3 bg-muted/40 rounded-xl border border-border space-y-1">
+                  <div className="p-2.5 bg-muted/30 rounded-lg border border-border/80 space-y-0.5 shadow-2xs">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground">Guest Count</span>
-                    <div className="text-sm font-bold text-foreground">{booking.guest_count || 0} Guests</div>
-                    <div className="text-xs text-muted-foreground">Package: {booking.package_id?.name || booking.package_name_snapshot || "Custom Catering Package"}</div>
+                    <div className="text-xs font-bold text-foreground">{booking.guest_count || 0} Guests</div>
+                    <div className="text-[11px] text-muted-foreground truncate">Package: {booking.package_id?.name || booking.package_name_snapshot || "Custom Package"}</div>
                   </div>
 
-                  <div className="p-3 bg-muted/40 rounded-xl border border-border sm:col-span-2 space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Venue Location</span>
-                    <div className="text-sm font-bold text-foreground">{booking.venue_type || "Venue Location"}</div>
-                    <div className="text-xs text-muted-foreground">
+                  <div className="p-2.5 bg-muted/30 rounded-lg border border-border/80 sm:col-span-2 space-y-1 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">Venue Location</span>
+                      {(() => {
+                        const locQuery = [booking.street, booking.barangay, booking.municipality, booking.venue_type].filter(Boolean).join(", ");
+                        return locQuery ? (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locQuery)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10.5px] font-bold text-primary hover:underline flex items-center gap-1"
+                          >
+                            🗺️ Open in Google Maps
+                          </a>
+                        ) : null;
+                      })()}
+                    </div>
+                    <div className="text-xs font-bold text-foreground">{booking.venue_type || "Venue Location"}</div>
+                    <div className="text-[11px] text-muted-foreground">
                       {[booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Address details will be confirmed by lead."}
                     </div>
                   </div>
@@ -500,35 +546,43 @@ export default function StaffEventDetails() {
               </AdminCard>
 
               {/* Lead Coordinator Card */}
-              <AdminCard className="!p-5 space-y-3.5">
+              <AdminCard className="space-y-3 shadow-2xs">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <ShieldCheck size={14} className="text-amber-600" /> Lead Event Manager
                 </h3>
 
                 {manager ? (
-                  <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-3 text-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-200 font-bold flex items-center justify-center text-sm shrink-0 shadow-2xs">
+                  <div className="p-3 bg-amber-50/60 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg space-y-2.5 text-xs shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-200 font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
                         {manager.full_name?.slice(0, 2).toUpperCase() || "MG"}
                       </div>
                       <div>
-                        <div className="font-bold text-foreground text-sm">{manager.full_name}</div>
-                        <div className="text-[11px] text-amber-800 dark:text-amber-300 font-semibold">Lead Coordinator</div>
+                        <div className="font-bold text-foreground text-xs">{manager.full_name}</div>
+                        <div className="text-[10.5px] text-amber-800 dark:text-amber-300 font-semibold">Lead Coordinator</div>
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-amber-200/80 dark:border-amber-800 text-xs">
+                    <div className="space-y-1.5 pt-1.5 border-t border-amber-200/80 dark:border-amber-800 text-xs">
                       {manager.phone && (
-                        <div className="flex items-center gap-2 text-foreground font-semibold">
-                          <Phone size={13} className="text-amber-700 dark:text-amber-400" />
+                        <a 
+                          href={`tel:${manager.phone}`} 
+                          className="flex items-center gap-1.5 text-foreground font-semibold hover:text-primary transition-colors"
+                          title="Tap to call lead manager"
+                        >
+                          <Phone size={12} className="text-amber-700 dark:text-amber-400 shrink-0" />
                           <span>{manager.phone}</span>
-                        </div>
+                          <span className="text-[10px] text-primary font-bold ml-auto bg-card px-1.5 py-0.5 rounded border border-border">📞 Call</span>
+                        </a>
                       )}
                       {manager.email && (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Mail size={13} className="text-amber-700 dark:text-amber-400" />
+                        <a 
+                          href={`mailto:${manager.email}`}
+                          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Mail size={12} className="text-amber-700 dark:text-amber-400 shrink-0" />
                           <span className="truncate">{manager.email}</span>
-                        </div>
+                        </a>
                       )}
                     </div>
                   </div>
@@ -541,33 +595,31 @@ export default function StaffEventDetails() {
             </div>
 
             {/* Catering Menu & Selected Dishes */}
-            <AdminCard className="!p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
+            <AdminCard className="space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between pb-2 border-b border-border/60">
                 <div className="flex items-center gap-2">
-                  <Utensils size={16} className="text-primary" />
+                  <Utensils size={15} className="text-primary" />
                   <h3 className="text-sm font-bold text-foreground">
                     Catering Menu &amp; Kitchen Specifications ({(booking.menu_items || []).length} Dishes)
                   </h3>
                 </div>
-                <span className="text-xs text-muted-foreground">Food preparation &amp; buffet layout guide</span>
+                <span className="text-[11px] text-muted-foreground">Kitchen Prep Specs</span>
               </div>
 
-              {(!booking.menu_items || booking.menu_items.length === 0) ? (
-                <p className="text-xs text-muted-foreground italic py-2">
-                  Standard package catering selections apply for this event. Consult the Lead Coordinator for recipe specifics.
-                </p>
+              {(booking.menu_items || []).length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-2">No menu dishes attached yet.</p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {booking.menu_items.map((item, idx) => (
-                    <div key={idx} className="p-3 bg-muted/40 rounded-xl border border-border flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-bold text-xs text-foreground truncate">{item.name}</div>
-                        {item.note && <div className="text-[11px] text-muted-foreground mt-0.5">{item.note}</div>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {booking.menu_items.map((dish, idx) => (
+                    <div key={idx} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 text-xs space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground">{dish.name || dish.dish_id?.name || "Catering Dish"}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold">{dish.category || dish.dish_id?.category || "Main"}</span>
                       </div>
-                      {item.category && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-card border border-border text-muted-foreground shrink-0">
-                          {item.category}
-                        </span>
+                      {dish.special_instructions && (
+                        <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-1 rounded border border-amber-200 dark:border-amber-800">
+                          {dish.special_instructions}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -577,33 +629,33 @@ export default function StaffEventDetails() {
 
             {/* Add-on Services & Event Setup */}
             {((booking.service_items && booking.service_items.length > 0) || (booking.additional_charges && booking.additional_charges.length > 0)) && (
-              <AdminCard className="!p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-border">
+              <AdminCard className="space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between pb-2 border-b border-border/60">
                   <div className="flex items-center gap-2">
-                    <Layers size={16} className="text-primary" />
+                    <Layers size={15} className="text-primary" />
                     <h3 className="text-sm font-bold text-foreground">Add-on Services &amp; Event Styling</h3>
                   </div>
-                  <span className="text-xs text-muted-foreground">Special service setup &amp; operational items</span>
+                  <span className="text-[11px] text-muted-foreground">Special service setup</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {(booking.service_items || []).map((srv, idx) => (
-                    <div key={`srv-${idx}`} className="p-3 bg-muted/40 rounded-xl border border-border flex items-center justify-between text-xs">
+                    <div key={`srv-${idx}`} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 flex items-center justify-between text-xs shadow-2xs">
                       <div>
                         <div className="font-bold text-foreground">{srv.name}</div>
-                        {srv.note && <div className="text-[11px] text-muted-foreground">{srv.note}</div>}
+                        {srv.note && <div className="text-[10.5px] text-muted-foreground">{srv.note}</div>}
                       </div>
                       {srv.quantity > 1 && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                           Qty: {srv.quantity}
                         </span>
                       )}
                     </div>
                   ))}
                   {(booking.additional_charges || []).map((chg, idx) => (
-                    <div key={`chg-${idx}`} className="p-3 bg-muted/40 rounded-xl border border-border text-xs">
+                    <div key={`chg-${idx}`} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 text-xs shadow-2xs">
                       <div className="font-bold text-foreground">{chg.label}</div>
-                      {chg.reason && <div className="text-[11px] text-muted-foreground">{chg.reason}</div>}
+                      {chg.reason && <div className="text-[10.5px] text-muted-foreground">{chg.reason}</div>}
                     </div>
                   ))}
                 </div>
@@ -611,27 +663,32 @@ export default function StaffEventDetails() {
             )}
 
             {/* Coworker Crew List */}
-            <AdminCard className="!p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
+            <AdminCard className="space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between pb-2 border-b border-border/60">
                 <div className="flex items-center gap-2">
-                  <Users size={16} className="text-primary" />
+                  <Users size={15} className="text-primary" />
                   <h3 className="text-sm font-bold text-foreground">Assigned Catering Crew ({(booking.staff_assignments || []).length})</h3>
                 </div>
-                <span className="text-xs text-muted-foreground">Working alongside you on this shift</span>
+                <span className="text-[11px] text-muted-foreground">On duty this shift</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {Object.entries(teamByRole).map(([roleName, members]) => (
-                  <div key={roleName} className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-2">
+                  <div key={roleName} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 space-y-1.5 shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
                       {roleName} ({members.length})
                     </span>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       {members.map((member, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs font-semibold text-foreground">
+                        <div key={idx} className="flex items-center justify-between text-xs font-semibold text-foreground py-0.5">
                           <span className="truncate">{member.name || member.user_id?.full_name || "Crew Member"}</span>
                           {member.phone && (
-                            <span className="text-[10px] text-muted-foreground font-mono">{member.phone}</span>
+                            <a 
+                              href={`tel:${member.phone}`}
+                              className="text-[10px] text-primary font-bold hover:underline flex items-center gap-0.5 shrink-0"
+                            >
+                              📞 {member.phone}
+                            </a>
                           )}
                         </div>
                       ))}
@@ -643,20 +700,21 @@ export default function StaffEventDetails() {
           </div>
         )}
 
+
         {/* TAB 2: EQUIPMENT COUNTING & RETURN VERIFICATION */}
         {activeTab === "equipment" && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* If event is upcoming (not yet started): Show locked info banner & read-only manifest */}
             {timing.isUpcoming ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* Informative Lock Notice Banner */}
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/70 rounded-2xl space-y-2 shadow-2xs">
+                <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/70 rounded-lg space-y-1.5 shadow-2xs">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-sm">
-                      <Lock size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
+                      <Lock size={15} className="text-amber-600 dark:text-amber-400 shrink-0" />
                       <span>Equipment Return Verification is Locked</span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200 font-bold text-[11px]">
+                    <span className="px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-200 font-bold text-[10.5px]">
                       Opens at Event Start
                     </span>
                   </div>
@@ -668,11 +726,11 @@ export default function StaffEventDetails() {
                 </div>
 
                 {/* Read-Only Dispatched Gear Manifest Card */}
-                <AdminCard className="!p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border">
+                <AdminCard className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-border/60">
                     <div>
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                        <PackageCheck size={16} className="text-primary" />
+                        <PackageCheck size={15} className="text-primary" />
                         <span>Dispatched Catering Gear Manifest</span>
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -680,17 +738,17 @@ export default function StaffEventDetails() {
                       </p>
                     </div>
 
-                    <span className="px-2.5 py-1 rounded-lg bg-muted text-muted-foreground border border-border text-xs font-semibold self-start sm:self-auto flex items-center gap-1.5">
+                    <span className="px-2.5 py-1 rounded-md bg-muted text-muted-foreground border border-border text-xs font-semibold self-start sm:self-auto flex items-center gap-1.5">
                       <Lock size={12} />
                       <span>{equipmentList.length} Items Dispatched</span>
                     </span>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {equipmentList.map((item, idx) => (
                       <div 
                         key={idx} 
-                        className="p-3.5 rounded-xl border border-border bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="p-2.5 rounded-lg border border-border/80 bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs"
                       >
                         <div>
                           <div className="font-bold text-xs text-foreground">{item.name}</div>
@@ -700,10 +758,10 @@ export default function StaffEventDetails() {
                         </div>
 
                         <div className="flex items-center gap-2 self-start sm:self-auto">
-                          <span className="px-2.5 py-1 rounded-lg bg-muted text-muted-foreground border border-border text-[11px] font-semibold flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border text-[11px] font-semibold flex items-center gap-1">
                             <span>Dispatched: {item.quantity_booked}</span>
                           </span>
-                          <span className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-semibold flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-semibold flex items-center gap-1">
                             <Lock size={11} /> Return Pending
                           </span>
                         </div>
@@ -711,53 +769,53 @@ export default function StaffEventDetails() {
                     ))}
                   </div>
 
-                  <div className="p-3 bg-muted/40 rounded-xl border border-border text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
-                    <Lock size={13} className="text-muted-foreground" />
+                  <div className="p-2.5 bg-muted/20 rounded-lg border border-border/80 text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 shadow-2xs">
+                    <Lock size={12} className="text-muted-foreground" />
                     <span>Return counting and checklist submission will be enabled during the event.</span>
                   </div>
                 </AdminCard>
               </div>
             ) : (
               /* If event has started or concluded: Show interactive verification UI */
-              <div className="space-y-6">
-                {/* Equipment Summary KPI Banner */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <AdminCard className="!p-4 bg-card border-border">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Gear Booked</span>
-                    <div className="text-2xl font-bold text-foreground mt-1">{equipmentStats.totalBooked} Units</div>
-                    <p className="text-[11px] text-muted-foreground">Dispatched</p>
+              <div className="space-y-4">
+                {/* Equipment Summary KPI Banner (2x2 on mobile, 4-col on desktop) */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+                  <AdminCard className="!p-2.5 sm:!p-3 bg-card border-border/80 shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Booked Gear</span>
+                    <div className="text-lg sm:text-xl font-bold text-foreground mt-0.5">{equipmentStats.totalBooked} Units</div>
+                    <p className="text-[10.5px] text-muted-foreground">Dispatched</p>
                   </AdminCard>
 
-                  <AdminCard className="!p-4 bg-card border-border">
+                  <AdminCard className="!p-2.5 sm:!p-3 bg-card border-border/80 shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Returned Safe</span>
-                    <div className="text-2xl font-bold text-emerald-700 mt-1">{equipmentStats.totalReturned} Units</div>
-                    <p className="text-[11px] text-emerald-600 font-semibold">Accounted &amp; checked</p>
+                    <div className="text-lg sm:text-xl font-bold text-emerald-700 mt-0.5">{equipmentStats.totalReturned} Units</div>
+                    <p className="text-[10.5px] text-emerald-600 font-semibold">Accounted</p>
                   </AdminCard>
 
-                  <AdminCard className={`!p-4 ${equipmentStats.totalDamaged > 0 ? "bg-rose-50 border-rose-200" : "bg-card border-border"}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Damaged Items</span>
-                    <div className={`text-2xl font-bold mt-1 ${equipmentStats.totalDamaged > 0 ? "text-rose-800" : "text-slate-600"}`}>
-                      {equipmentStats.totalDamaged > 0 ? `⚠️ ${equipmentStats.totalDamaged} Damaged` : "0 Damaged"}
+                  <AdminCard className={`!p-2.5 sm:!p-3 shadow-2xs ${equipmentStats.totalDamaged > 0 ? "bg-rose-50/60 border-rose-200" : "bg-card border-border/80"}`}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Damaged</span>
+                    <div className={`text-lg sm:text-xl font-bold mt-0.5 ${equipmentStats.totalDamaged > 0 ? "text-rose-800" : "text-slate-600"}`}>
+                      {equipmentStats.totalDamaged > 0 ? `⚠️ ${equipmentStats.totalDamaged}` : "0"}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Returned broken</p>
+                    <p className="text-[10.5px] text-muted-foreground">Broken</p>
                   </AdminCard>
 
-                  <AdminCard className={`!p-4 ${equipmentStats.discrepancy !== 0 ? "bg-amber-50 border-amber-200" : "bg-card border-border"}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discrepancy / Loss</span>
-                    <div className={`text-2xl font-bold mt-1 ${equipmentStats.discrepancy !== 0 ? "text-amber-800" : "text-slate-600"}`}>
+                  <AdminCard className={`!p-2.5 sm:!p-3 shadow-2xs ${equipmentStats.discrepancy !== 0 ? "bg-amber-50/60 border-amber-200" : "bg-card border-border/80"}`}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discrepancy</span>
+                    <div className={`text-lg sm:text-xl font-bold mt-0.5 ${equipmentStats.discrepancy !== 0 ? "text-amber-800" : "text-slate-600"}`}>
                       {equipmentStats.discrepancy > 0 
-                        ? `⚠️ ${equipmentStats.discrepancy} Missing` 
+                        ? `⚠️ ${equipmentStats.discrepancy} Short` 
                         : equipmentStats.discrepancy < 0 
-                          ? `⚠️ ${Math.abs(equipmentStats.discrepancy)} Overage` 
-                          : "0 (All Accounted)"}
+                          ? `⚠️ ${Math.abs(equipmentStats.discrepancy)} Extra` 
+                          : "0 All In"}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Missing items</p>
+                    <p className="text-[10.5px] text-muted-foreground">Missing items</p>
                   </AdminCard>
                 </div>
 
                 {/* Checklist Table */}
-                <AdminCard className="!p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                <AdminCard className="space-y-3 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-border/60">
                     <div>
                       <h3 className="text-sm font-bold text-foreground">Equipment Counting &amp; Return Verification Checklist</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -765,18 +823,17 @@ export default function StaffEventDetails() {
                       </p>
                     </div>
 
-                    <Btn 
-                      variant="secondary" 
-                      size="sm" 
+                    <button 
+                      type="button"
                       onClick={handleMatchAllQuantities}
-                      className="self-start sm:self-auto border-border flex items-center gap-1 text-xs cursor-pointer"
+                      className="self-start sm:self-auto py-1.5 px-3 min-h-[38px] sm:min-h-0 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <Check size={13} className="text-emerald-600" />
                       <span>Match All Dispatched</span>
-                    </Btn>
+                    </button>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {equipmentList.map((item, idx) => {
                       const isMissing = item._verified && item._markedMissing;
                       const isMatch = item._verified && !item._markedMissing && ((item.quantity_returned || 0) + (item.quantity_damaged || 0)) === item.quantity_booked;
@@ -784,13 +841,13 @@ export default function StaffEventDetails() {
                       return (
                         <div 
                           key={idx} 
-                          className={`p-3.5 rounded-xl border transition-all ${
-                            isMissing ? "border-amber-300 bg-amber-50/40" : (isMatch ? "border-emerald-200 bg-emerald-50/30" : "border-border bg-card")
+                          className={`p-3 rounded-lg border transition-all shadow-2xs space-y-2 ${
+                            isMissing ? "border-amber-300 bg-amber-50/40" : (isMatch ? "border-emerald-200 bg-emerald-50/30" : "border-border/80 bg-card")
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-xs text-foreground">{item.name}</span>
                                 {isMatch && (
                                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5">
@@ -814,89 +871,121 @@ export default function StaffEventDetails() {
                             </div>
 
                             {/* Input Controls */}
-                            <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-1.5 self-start sm:self-auto">
                               {isMatch ? (
-                                <div className="flex items-center gap-2 justify-end">
-                                  <button onClick={() => handleMarkMissing(idx)} className="p-1.5 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer" title="Edit or mark missing/damaged">
-                                    <AlertTriangle size={14} />
+                                <div className="flex items-center gap-1.5">
+                                  <button onClick={() => handleMarkMissing(idx)} className="p-1.5 min-h-[38px] rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold" title="Edit counts">
+                                    <AlertTriangle size={13} />
+                                    <span>Edit</span>
                                   </button>
-                                  <div className="px-3 py-1.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1">
-                                    <CheckCircle2 size={14} /> Complete
+                                  <div className="px-2.5 py-1.5 min-h-[38px] rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1">
+                                    <CheckCircle2 size={13} /> Complete
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2 justify-end">
-                                  <button onClick={() => handleMarkComplete(idx)} className="px-3 py-1.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer" title="Mark complete">
-                                    <Check size={14} /> All Complete
+                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                  <button onClick={() => handleMarkComplete(idx)} className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[38px] rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer" title="Mark complete">
+                                    <Check size={13} /> All Complete
                                   </button>
-                                  <button onClick={() => handleMarkMissing(idx)} className="px-3 py-1.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer" title="Mark missing or damaged">
-                                    <X size={14} /> Missing/Damaged
+                                  <button onClick={() => handleMarkMissing(idx)} className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[38px] rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer" title="Adjust count">
+                                    <X size={13} /> Custom Count
                                   </button>
-                                </div>
-                              )}
-                              
-                              {item._markedMissing && (
-                                <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-amber-200/50">
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <label className="text-[11px] font-bold text-amber-800">Safe:</label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={item.quantity_booked}
-                                      value={item.quantity_returned}
-                                      onChange={(e) => handleUpdateReturnedQuantity(idx, e.target.value)}
-                                      className="w-16 p-1.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-center text-amber-900 focus:ring-1 focus:ring-amber-500"
-                                      title="Quantity returned safely"
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <label className="text-[11px] font-bold text-rose-800">Damaged:</label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max={item.quantity_booked}
-                                      value={item.quantity_damaged || 0}
-                                      onChange={(e) => handleUpdateDamagedQuantity(idx, e.target.value)}
-                                      className="w-16 p-1.5 rounded-lg border border-rose-300 bg-white text-xs font-bold text-center text-rose-900 focus:ring-1 focus:ring-rose-500"
-                                      title="Quantity returned but damaged"
-                                    />
-                                  </div>
-                                  <input
-                                    type="text"
-                                    placeholder="Indicate details for missing or damaged..."
-                                    value={item.notes || ""}
-                                    onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
-                                    className="flex-1 min-w-[200px] p-1.5 rounded-lg border border-amber-300 bg-white text-xs text-amber-950 placeholder:text-amber-700/50"
-                                  />
                                 </div>
                               )}
                             </div>
                           </div>
+
+                          {/* Stepper Count Area */}
+                          {item._markedMissing && (
+                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/60">
+                              {/* Safe Return Stepper */}
+                              <div className="flex items-center gap-1 bg-card p-1 rounded-md border border-border shadow-2xs">
+                                <label className="text-[10px] font-bold text-muted-foreground uppercase px-1">Safe:</label>
+                                <button
+                                  type="button"
+                                  onClick={() => stepReturnedQty(idx, -1)}
+                                  className="w-7 h-7 rounded bg-muted hover:bg-muted/80 text-foreground font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={item.quantity_booked}
+                                  value={item.quantity_returned}
+                                  onChange={(e) => handleUpdateReturnedQuantity(idx, e.target.value)}
+                                  className="w-10 text-center font-bold text-xs p-0.5 bg-transparent border-0 focus:ring-0 text-foreground"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => stepReturnedQty(idx, 1)}
+                                  className="w-7 h-7 rounded bg-muted hover:bg-muted/80 text-foreground font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              {/* Damaged Stepper */}
+                              <div className="flex items-center gap-1 bg-rose-50/60 p-1 rounded-md border border-rose-200 shadow-2xs">
+                                <label className="text-[10px] font-bold text-rose-800 uppercase px-1">Broken:</label>
+                                <button
+                                  type="button"
+                                  onClick={() => stepDamagedQty(idx, -1)}
+                                  className="w-7 h-7 rounded bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={item.quantity_booked}
+                                  value={item.quantity_damaged || 0}
+                                  onChange={(e) => handleUpdateDamagedQuantity(idx, e.target.value)}
+                                  className="w-10 text-center font-bold text-xs p-0.5 bg-transparent border-0 focus:ring-0 text-rose-900"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => stepDamagedQty(idx, 1)}
+                                  className="w-7 h-7 rounded bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              <input
+                                type="text"
+                                placeholder="Notes for missing/damaged..."
+                                value={item.notes || ""}
+                                onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
+                                className="flex-1 min-w-[140px] p-1.5 rounded-md border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground"
+                              />
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="space-y-3 pt-3 border-t border-border">
+                  <div className="space-y-2 pt-2.5 border-t border-border/60">
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Additional Equipment Notes</label>
                     <textarea
                       placeholder="Any overall observations regarding the equipment..."
                       value={equipmentNotes}
                       onChange={(e) => setEquipmentNotes(e.target.value)}
-                      className="w-full min-h-[80px] p-3 rounded-xl border border-border bg-background text-sm text-foreground focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y"
+                      className="w-full min-h-[70px] p-2.5 rounded-lg border border-border bg-background text-xs text-foreground focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y"
                     />
                   </div>
 
-                  <div className="flex justify-end pt-3">
-                    <Btn 
-                      variant="primary" 
+                  <div className="flex justify-end pt-2">
+                    <button 
+                      type="button"
                       onClick={handleSubmitEquipmentReturns} 
                       disabled={submittingEquipment}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="w-full sm:w-auto py-2 px-4 min-h-[42px] sm:min-h-0 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <PackageCheck size={14} />
                       <span>{submittingEquipment ? "Saving Verification..." : "Save Equipment Verification"}</span>
-                    </Btn>
+                    </button>
                   </div>
                 </AdminCard>
               </div>
@@ -906,8 +995,8 @@ export default function StaffEventDetails() {
 
         {/* TAB 3: INCIDENT & COMPLETION */}
         {activeTab === "report" && (
-          <div className="space-y-6">
-            <AdminCard className="!p-5 space-y-4">
+          <div className="space-y-4">
+            <AdminCard className="space-y-3">
               <div>
                 <h3 className="text-sm font-bold text-foreground">Shift Incident &amp; Handover Reporting</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -916,9 +1005,9 @@ export default function StaffEventDetails() {
               </div>
 
               {/* Quick Tags */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Quick Incident / Status Tags</label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {TAG_OPTIONS.map((tag) => {
                     const isSelected = quickTags.includes(tag.label);
                     return (
@@ -926,8 +1015,8 @@ export default function StaffEventDetails() {
                         key={tag.value}
                         type="button"
                         onClick={() => toggleQuickTag(tag.label)}
-                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                          isSelected ? `${tag.color} ring-2 ring-primary/30 shadow-2xs` : "bg-card border-border text-muted-foreground hover:text-foreground"
+                        className={`px-3 py-2 sm:py-1 min-h-[38px] sm:min-h-0 rounded-md border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center ${
+                          isSelected ? `${tag.color} ring-2 ring-primary/30 shadow-2xs font-bold` : "bg-card border-border text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         {tag.label}
@@ -938,62 +1027,63 @@ export default function StaffEventDetails() {
               </div>
 
               {/* Note Textarea */}
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Shift Report Details</label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   placeholder="Describe catering execution, leftover food disposition, staff performance, or client feedback..."
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  className="w-full p-3 text-xs rounded-xl border border-border bg-background text-foreground focus:ring-1 focus:ring-primary"
+                  className="w-full p-2.5 text-xs rounded-lg border border-border bg-background text-foreground focus:ring-1 focus:ring-primary"
                 />
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
-                <Btn 
-                  variant="secondary" 
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2.5 border-t border-border/60">
+                <button 
+                  type="button"
                   onClick={handleSubmitReport} 
                   disabled={submittingReport || (!note.trim() && quickTags.length === 0)}
+                  className="w-full sm:w-auto py-2 px-3.5 min-h-[42px] sm:min-h-0 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {submittingReport ? "Submitting Log..." : "Submit Incident Report"}
-                </Btn>
+                </button>
 
                 {timing.isUpcoming ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 font-medium">
                       <Lock size={12} className="text-muted-foreground" /> Shift completion opens at event start
                     </span>
-                    <Btn 
-                      variant="secondary" 
+                    <button 
+                      type="button"
                       disabled={true}
-                      className="opacity-50 cursor-not-allowed border-border text-muted-foreground font-semibold flex items-center gap-1.5"
+                      className="w-full sm:w-auto py-2 px-4 min-h-[42px] sm:min-h-0 opacity-50 cursor-not-allowed border border-border bg-muted text-muted-foreground font-semibold text-xs rounded-md flex items-center justify-center gap-1.5"
                       title="Shift cannot be marked completed before the event starts"
                     >
                       <CheckCircle2 size={14} />
                       <span>Mark Shift Completed</span>
-                    </Btn>
+                    </button>
                   </div>
                 ) : (
-                  <Btn 
-                    variant="primary" 
+                  <button 
+                    type="button"
                     onClick={handleCompleteEvent} 
                     disabled={completingEvent}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 cursor-pointer"
+                    className="w-full sm:w-auto py-2 px-4 min-h-[42px] sm:min-h-0 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <CheckCircle2 size={14} />
                     <span>{completingEvent ? "Completing..." : "Mark Shift Completed"}</span>
-                  </Btn>
+                  </button>
                 )}
               </div>
             </AdminCard>
 
             {/* Previously Logged Staff Reports */}
             {booking.staff_reports && booking.staff_reports.length > 0 && (
-              <AdminCard className="!p-5 space-y-3">
+              <AdminCard className="space-y-2.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Logged Shift Reports</h4>
                 <div className="space-y-2">
                   {booking.staff_reports.map((report, idx) => (
-                    <div key={idx} className="p-3 bg-muted/40 rounded-xl border border-border text-xs space-y-1">
+                    <div key={idx} className="p-2.5 bg-muted/30 rounded-lg border border-border/80 text-xs space-y-0.5 shadow-2xs">
                       <div className="flex items-center justify-between text-muted-foreground text-[10px]">
                         <span className="font-bold text-foreground">{report.role || "Staff Member"}</span>
                         <span>{new Date(report.created_at || Date.now()).toLocaleString()}</span>
@@ -1010,3 +1100,4 @@ export default function StaffEventDetails() {
     </StaffLayout>
   );
 }
+

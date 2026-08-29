@@ -12,6 +12,7 @@ import TableToolbar from "../../components/admin/table/TableToolbar";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 import { 
+  Calendar,
   Calendar as CalendarIcon, 
   Users, 
   Search, 
@@ -173,19 +174,19 @@ export default function ManagerStaff() {
 
   return (
     <ManagerLayout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4 pb-2 border-b border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
           <div>
-            <h1 style={{ fontFamily: "Playfair Display, serif" }} className="text-2xl sm:text-3xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Staff Roster &amp; Availability
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               View team availability schedules and event workloads before dispatching
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
             <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/dashboard")}>
               My Dashboard
             </Btn>
@@ -193,7 +194,7 @@ export default function ManagerStaff() {
         </div>
 
         {/* Toolbar */}
-        <AdminCard className="!p-4">
+        <AdminCard className="!p-3.5">
           <TableToolbar
             search={search}
             onSearchChange={setSearch}
@@ -204,8 +205,61 @@ export default function ManagerStaff() {
           />
         </AdminCard>
 
-        {/* Data Table */}
-        <AdminCard className="!p-0 overflow-hidden">
+        {/* Mobile View: Responsive Staff Cards (block md:hidden) */}
+        <div className="block md:hidden space-y-3">
+          {loading ? (
+            <div className="p-8 text-center text-xs text-muted-foreground">
+              Loading staff roster...
+            </div>
+          ) : pageRows.length === 0 ? (
+            <AdminCard className="!p-8 text-center text-xs text-muted-foreground">
+              No staff members found.
+            </AdminCard>
+          ) : (
+            <div className="space-y-2.5">
+              {pageRows.map((s) => {
+                const upcoming = s.upcoming_count || 0;
+                return (
+                  <AdminCard key={s._id} className="space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
+                          {initials(s.full_name)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs text-foreground truncate">{s.full_name}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">{s.phone || s.email}</div>
+                        </div>
+                      </div>
+
+                      <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border text-[10.5px] font-semibold shrink-0">
+                        {s.position || "Staff"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
+                      <div className="text-[11px] text-muted-foreground">
+                        Upcoming Shifts: <strong className="text-foreground">{upcoming}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openCalendar(s)}
+                        className="py-1.5 px-3 min-h-[38px] bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Calendar size={13} className="text-primary" />
+                        <span>View Schedule</span>
+                      </button>
+                    </div>
+                  </AdminCard>
+                );
+              })}
+            </div>
+          )}
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+        </div>
+
+        {/* Desktop Data Table (hidden md:block) */}
+        <AdminCard className="hidden md:block !p-0 overflow-hidden">
           <DataTable
             columns={columns}
             rows={pageRows}
@@ -222,59 +276,59 @@ export default function ManagerStaff() {
         {/* Staff Availability Calendar Modal */}
         {selectedStaff && (
           <Modal title={`Staff Schedule — ${selectedStaff.full_name}`} onClose={() => setSelectedStaff(null)} className="max-w-xl">
-            <div className="space-y-5 text-sm max-h-[80vh] overflow-y-auto pr-1">
+            <div className="space-y-3.5 text-sm max-h-[80vh] overflow-y-auto pr-1">
               {/* Member Card */}
-              <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs">
+              <div className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 p-2.5 sm:p-3 shadow-2xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
                     {initials(selectedStaff.full_name)}
                   </div>
-                  <div>
-                    <div className="font-bold text-foreground text-sm">{selectedStaff.full_name}</div>
-                    <div className="text-xs text-muted-foreground">{selectedStaff.position || "Staff Member"} • {selectedStaff.phone || selectedStaff.email}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-foreground text-xs truncate">{selectedStaff.full_name}</div>
+                    <div className="text-[10.5px] text-muted-foreground truncate">{selectedStaff.position || "Staff"} • {selectedStaff.phone || selectedStaff.email}</div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xl font-bold text-foreground">{selectedStaff.upcoming_count || 0}</div>
-                  <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Upcoming</div>
+                <div className="text-right shrink-0">
+                  <div className="text-base sm:text-lg font-bold text-foreground">{selectedStaff.upcoming_count || 0}</div>
+                  <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Upcoming</div>
                 </div>
               </div>
 
               {/* Calendar with Legend */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-bold text-foreground">{monthLabel}</div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
+                  <div className="text-xs font-bold text-foreground">{monthLabel}</div>
                   
                   {/* Legend */}
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded bg-amber-200 border border-amber-300 inline-block"></span>
-                      <span className="text-muted-foreground text-[11px]">Assigned</span>
+                  <div className="flex items-center gap-2 text-xs flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded bg-amber-200 border border-amber-300 inline-block"></span>
+                      <span className="text-muted-foreground text-[10px]">Assigned</span>
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded bg-card border border-border inline-block"></span>
-                      <span className="text-muted-foreground text-[11px]">Available</span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded bg-card border border-border inline-block"></span>
+                      <span className="text-muted-foreground text-[10px]">Available</span>
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded bg-red-200 border border-red-300 inline-block"></span>
-                      <span className="text-muted-foreground text-[11px]">Unavailable</span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded bg-red-200 border border-red-300 inline-block"></span>
+                      <span className="text-muted-foreground text-[10px]">Unavailable</span>
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-bold text-muted-foreground pb-2">
+                <div className="grid grid-cols-7 gap-1 text-center text-[10.5px] font-bold text-muted-foreground pb-1">
                   {"Sun Mon Tue Wed Thu Fri Sat".split(" ").map((label) => (
-                    <div key={label}>{label}</div>
+                    <div key={label}>{label.slice(0, 1)}<span className="hidden sm:inline">{label.slice(1)}</span></div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-1.5">
+                <div className="grid grid-cols-7 gap-1">
                   {calendarDays.map((day, index) => {
                     const dateKey = day.date ? day.date.toLocaleDateString("en-CA") : null;
                     const entry = day.date ? assignmentsByDate[day.date.toDateString()] : null;
                     const isUnavailable = dateKey ? (calendar.unavailable || []).includes(dateKey) : false;
 
-                    let cellBg = "border-border bg-card text-foreground";
+                    let cellBg = "border-border/80 bg-card text-foreground";
                     if (entry) {
                       cellBg = "border-amber-300 bg-amber-100/90 text-amber-950 font-bold";
                     } else if (isUnavailable) {
@@ -284,13 +338,13 @@ export default function ManagerStaff() {
                     return (
                       <div 
                         key={`${day.label}-${index}`} 
-                        className={`min-h-[55px] rounded-lg border p-1 text-left transition-all ${
+                        className={`min-h-[40px] sm:min-h-[46px] rounded-lg border p-1 text-left transition-all ${
                           !day.date ? "border-transparent bg-muted/10 opacity-0" : cellBg
                         }`}
                       >
-                        {day.date && <div className="text-xs font-semibold">{day.label}</div>}
-                        {entry && <div className="text-[9px] font-bold text-amber-900 truncate mt-0.5">Assigned</div>}
-                        {!entry && isUnavailable && <div className="text-[9px] font-bold text-red-700 truncate mt-0.5">Unavailable</div>}
+                        {day.date && <div className="text-[10.5px] font-semibold leading-tight">{day.label}</div>}
+                        {entry && <div className="text-[7.5px] sm:text-[8.5px] font-bold text-amber-900 truncate mt-0.5">Assigned</div>}
+                        {!entry && isUnavailable && <div className="text-[7.5px] sm:text-[8.5px] font-bold text-red-700 truncate mt-0.5">Off</div>}
                       </div>
                     );
                   })}
@@ -298,19 +352,19 @@ export default function ManagerStaff() {
               </div>
 
               {/* Upcoming Assignments list */}
-              <div className="pt-3 border-t border-border space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Assigned Events for this Month</h4>
+              <div className="pt-2 border-t border-border/60 space-y-1.5">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Assigned Events for this Month</h4>
                 {(!calendar.assignments || calendar.assignments.length === 0) ? (
                   <p className="text-xs text-muted-foreground italic py-1">No assigned events on schedule for this month.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
                     {calendar.assignments.map((item, idx) => (
-                      <div key={idx} className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between text-xs">
-                        <div>
-                          <div className="font-bold text-foreground">{item.event_type || "Event"} ({item.customer_name})</div>
-                          <div className="text-[11px] text-muted-foreground">REF: {item.reference} • {new Date(item.date).toLocaleDateString()}</div>
+                      <div key={idx} className="p-2 bg-muted/30 border border-border/80 rounded-lg flex items-center justify-between text-xs shadow-2xs">
+                        <div className="min-w-0 pr-2">
+                          <div className="font-bold text-foreground truncate">{item.event_type || "Event"} ({item.customer_name})</div>
+                          <div className="text-[10.5px] text-muted-foreground truncate">REF: {item.reference} • {new Date(item.date).toLocaleDateString()}</div>
                         </div>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        <span className="text-[9.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
                           {item.status}
                         </span>
                       </div>
@@ -319,13 +373,14 @@ export default function ManagerStaff() {
                 )}
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-border">
-                <Btn variant="secondary" onClick={() => setSelectedStaff(null)}>Close</Btn>
+              <div className="flex justify-end pt-2 border-t border-border/60">
+                <Btn variant="secondary" size="sm" onClick={() => setSelectedStaff(null)} className="w-full sm:w-auto min-h-[38px] sm:min-h-0">Close</Btn>
               </div>
             </div>
           </Modal>
         )}
       </div>
     </ManagerLayout>
+
   );
 }

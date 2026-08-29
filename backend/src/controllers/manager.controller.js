@@ -196,7 +196,8 @@ exports.getBooking = asyncHandler(async (req, res) => {
     .populate("staff_assignments.user_id", "full_name email phone position role")
     .populate("inventory_items.inventory_id")
     .populate("equipment_returns.inventory_id")
-    .populate("equipment_returns.verified_by", "full_name role");
+    .populate("equipment_returns.verified_by", "full_name role")
+    .populate("equipment_manager_verified.confirmed_by", "full_name role");
 
   if (!booking) {
     return res.status(404).json({ message: "Booking not found or not assigned to you" });
@@ -281,6 +282,37 @@ exports.updateEquipment = asyncHandler(async (req, res) => {
   }
 
   res.json({ message: "Equipment updated", inventory_items: booking.inventory_items });
+});
+
+exports.verifyEquipment = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({
+    _id: req.params.id,
+    ...(req.user.role === "admin" ? {} : { event_manager_id: req.user._id })
+  });
+
+  if (!booking) {
+    return res.status(404).json({ message: "Booking not found or not assigned to you" });
+  }
+
+  const { confirmed, additional_notes } = req.body;
+  const isConfirmed = Boolean(confirmed);
+
+  booking.equipment_manager_verified = {
+    confirmed: isConfirmed,
+    confirmed_by: req.user._id,
+    confirmed_at: isConfirmed ? new Date() : null,
+    additional_notes: typeof additional_notes === "string" ? additional_notes.trim() : ""
+  };
+
+  await booking.save();
+
+  const populated = await Booking.findById(booking._id)
+    .populate("equipment_manager_verified.confirmed_by", "full_name role");
+
+  res.json({
+    message: isConfirmed ? "Equipment confirmed and verified by manager" : "Equipment verification updated",
+    equipment_manager_verified: populated.equipment_manager_verified
+  });
 });
 
 exports.markCompleted = asyncHandler(async (req, res) => {

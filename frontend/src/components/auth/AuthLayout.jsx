@@ -71,10 +71,10 @@ export default function AuthLayout({
   backLabel = "Back to homepage",
 }) {
   return (
-    <div className="auth-shell flex min-h-screen flex-col bg-[#F8FAFC] lg:flex-row">
+    <div className="auth-shell flex min-h-screen flex-col bg-[#F8FAFC] lg:h-screen lg:overflow-hidden lg:flex-row">
       {/* ── Brand panel ───────────────────────────────────────────────── */}
       <aside
-        className="relative hidden shrink-0 overflow-hidden lg:flex lg:w-[44%] lg:max-w-[620px] lg:flex-col lg:justify-between lg:p-12 xl:p-14"
+        className="relative hidden shrink-0 overflow-hidden lg:flex lg:w-[42%] lg:max-w-[580px] lg:h-full lg:flex-col lg:justify-between lg:p-8 xl:p-12"
         style={{
           backgroundImage: `url(${backdrop})`,
           backgroundSize: "cover",
@@ -99,23 +99,23 @@ export default function AuthLayout({
         </div>
 
         <div className="auth-rise relative z-10 max-w-md">
-          <span className="mb-5 block h-[3px] w-10 rounded-full bg-[#C5A059]" aria-hidden="true" />
+          <span className="mb-4 block h-[3px] w-10 rounded-full bg-[#C5A059]" aria-hidden="true" />
           <h2
             style={{ fontFamily: "Playfair Display, serif" }}
-            className="text-[32px] font-semibold leading-[1.15] tracking-tight text-white xl:text-[36px]"
+            className="text-[28px] font-semibold leading-[1.15] tracking-tight text-white xl:text-[34px]"
           >
             {title}
           </h2>
-          {body && <p className="mt-3.5 text-sm leading-relaxed text-white/70">{body}</p>}
+          {body && <p className="mt-3 text-sm leading-relaxed text-white/70">{body}</p>}
         </div>
 
-        <ul className="auth-fade relative z-10 space-y-2.5">
+        <ul className="auth-fade relative z-10 space-y-2">
           {MARKERS.map((marker) => {
             const Icon = marker.icon;
             return (
               <li
                 key={marker.label}
-                className="flex items-center gap-3 text-[13px] text-white/75"
+                className="flex items-center gap-2.5 text-[13px] text-white/75"
               >
                 <Icon size={15} className="shrink-0 text-[#C5A059]" aria-hidden="true" />
                 {marker.label}
@@ -126,20 +126,20 @@ export default function AuthLayout({
       </aside>
 
       {/* ── Working column ────────────────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col lg:h-full lg:overflow-y-auto">
         <header className="flex items-center border-b border-[#E2E8F0] bg-white px-5 py-3 lg:hidden">
           <Link to="/" className={cn("rounded-lg", focusRing)} aria-label="Caezelle's home">
             <BrandMark tone="dark" />
           </Link>
         </header>
 
-        <main className="flex flex-1 flex-col justify-center px-4 py-7 sm:px-8 sm:py-10">
+        <main className="flex flex-1 flex-col justify-center px-4 py-4 sm:px-8 sm:py-6 lg:py-3 xl:py-6">
           <div className={cn("auth-rise mx-auto w-full", WIDTHS[width] || WIDTHS.default)}>
             {backTo && (
               <Link
                 to={backTo}
                 className={cn(
-                  "mb-4 inline-flex items-center gap-1.5 rounded-lg text-[13px] font-medium text-[#64748B] transition-colors hover:text-[#1E293B]",
+                  "mb-2.5 inline-flex items-center gap-1.5 rounded-lg text-[13px] font-medium text-[#64748B] transition-colors hover:text-[#1E293B]",
                   focusRing
                 )}
               >
@@ -148,13 +148,13 @@ export default function AuthLayout({
               </Link>
             )}
 
-            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
+            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm sm:px-6 sm:py-5 xl:px-7 xl:py-6">
               {children}
             </div>
           </div>
         </main>
 
-        <footer className="px-4 pb-5 text-center text-xs text-[#64748B] sm:px-8">
+        <footer className="px-4 pb-3 pt-1 text-center text-xs text-[#64748B] sm:px-8">
           &copy; {YEAR} Caezelle&rsquo;s Food, Catering &amp; Services. All rights reserved.
         </footer>
       </div>

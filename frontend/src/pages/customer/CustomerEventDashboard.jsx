@@ -155,7 +155,21 @@ export default function CustomerEventDashboard() {
     fetchPayments();
     fetchSourceQuotation();
     CustomerAPI.getPackages().then((res) => setPackages(res.data)).catch(() => setPackages([]));
-  }, [id]);
+
+    const paymentStatus = searchParams.get("payment");
+    const paymentId = searchParams.get("payment_id");
+    if (paymentStatus === "success") {
+      notify("Payment completed successfully! Updating booking status...", "success");
+      if (paymentId) {
+        CustomerAPI.verifyPayment(paymentId).then(() => {
+          fetchBooking();
+          fetchPayments();
+        }).catch(() => {});
+      }
+    } else if (paymentStatus === "cancelled") {
+      notify("Payment was cancelled. You can retry paying the balance anytime.", "info");
+    }
+  }, [id, searchParams]);
 
   useRealTimeRefresh(() => {
     fetchBooking();
@@ -238,24 +252,28 @@ export default function CustomerEventDashboard() {
     }
   };
 
-  const startPayment = async (payment) => {
-    if (!payment?._id) return;
-    setPayingPaymentId(payment._id);
+  const handlePayRemainingBalance = async () => {
+    if (!booking?._id || outstandingAmount <= 0) return;
+    setPayingPaymentId("balance");
 
-    const amount = Number(payment.amount || 0);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      notify("This payment does not have a valid amount.", "error");
-      setPayingPaymentId(null);
-      return;
-    }
+    try {
+      notify("Generating secure PayMongo checkout session...", "info");
+      const res = await CustomerAPI.createPaymentCheckout({
+        booking_id: booking._id,
+        amount: outstandingAmount,
+        payment_type: "balance"
+      });
 
-    navigate("/customer/checkout", {
-      state: {
-        bookingId: booking._id,
-        amount,
-        paymentType: payment.payment_type || "deposit"
+      if (res.data?.checkout_url) {
+        window.location.assign(res.data.checkout_url);
+      } else {
+        notify("Could not generate checkout session.", "error");
+        setPayingPaymentId(null);
       }
-    });
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to start checkout.", "error");
+      setPayingPaymentId(null);
+    }
   };
 
   const fetchBooking = () => {
@@ -537,6 +555,19 @@ export default function CustomerEventDashboard() {
           </Button>
         </div>
 
+        {/* Cancelled Payment Notification Banner */}
+        {searchParams.get("payment") === "cancelled" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex items-start gap-2.5 shadow-2xs">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-amber-950 text-xs">Payment Cancelled</h4>
+              <p className="text-amber-800 text-xs mt-0.5">
+                Your checkout session was cancelled. No charges were made, and you can complete your payment whenever you are ready.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header — what this booking is, when, and what it costs */}
         <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -611,10 +642,7 @@ export default function CustomerEventDashboard() {
 
               {outstandingAmount > 0 && (
                 <Button
-                  onClick={() => {
-                    const activePayment = pendingPayments[0] || { amount: outstandingAmount, payment_type: "balance" };
-                    startPayment({ ...activePayment, amount: Math.min(activePayment.amount || outstandingAmount, outstandingAmount) });
-                  }}
+                  onClick={handlePayRemainingBalance}
                   disabled={payingPaymentId !== null}
                   className={cn("mt-2.5 w-full h-8 text-xs font-semibold rounded-md", ACTION_PAY)}
                 >
@@ -1095,10 +1123,7 @@ export default function CustomerEventDashboard() {
 
                   {outstandingAmount > 0 && (
                     <Button
-                      onClick={() => {
-                        const activePayment = pendingPayments[0] || { amount: outstandingAmount, payment_type: "balance" };
-                        startPayment({ ...activePayment, amount: Math.min(activePayment.amount || outstandingAmount, outstandingAmount) });
-                      }}
+                      onClick={handlePayRemainingBalance}
                       disabled={payingPaymentId !== null}
                       className={cn("mt-2 w-full h-8 text-xs font-semibold rounded-md", ACTION_PAY)}
                     >

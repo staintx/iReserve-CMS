@@ -1,4 +1,4 @@
-const { sendEmail } = require("./email");
+const { sendEmail, wrapHtml } = require("./email");
 
 const formatCurrency = (value) => {
 	const num = Number(value);
@@ -11,48 +11,6 @@ const formatDate = (value) => {
 	const d = new Date(value);
 	return Number.isNaN(d.getTime()) ? "TBD" : d.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
 };
-
-const wrapHtml = (title, bodyContent) => `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${title}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
-  .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-  .header { background: linear-gradient(135deg, #1a1a2e, #16213e); color: #fff; padding: 32px 24px; text-align: center; }
-  .header h1 { margin: 0 0 4px; font-size: 1.5rem; }
-  .header p { margin: 0; opacity: 0.8; font-size: 0.9rem; }
-  .body { padding: 24px; }
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
-  .info-item { background: #f8fafc; padding: 12px; border-radius: 8px; }
-  .info-item label { display: block; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
-  .info-item span { font-size: 0.95rem; color: #0f172a; font-weight: 500; }
-  .highlight { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; margin: 16px 0; text-align: center; }
-  .highlight .amount { font-size: 1.5rem; font-weight: 700; color: #16a34a; }
-  .warning { background: #fff7ed; border: 1px solid #fed7aa; padding: 16px; border-radius: 8px; margin: 16px 0; }
-  .btn { display: inline-block; background: #1a1a2e; color: #fff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 16px 0; }
-  .footer { padding: 20px 24px; text-align: center; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid #f1f5f9; }
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="header">
-    <h1>Caezelle's Catering</h1>
-    <p>${title}</p>
-  </div>
-  <div class="body">
-    ${bodyContent}
-  </div>
-  <div class="footer">
-    <p>This is an automated email from iReserve by Caezelle's Catering.</p>
-    <p>If you have questions, reply to this email or message us through the app.</p>
-  </div>
-</div>
-</body>
-</html>`;
 
 const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
 	if (!customerEmail) return;
@@ -100,9 +58,9 @@ const sendBookingConfirmationEmail = async ({ booking, customerEmail }) => {
       <li>Remaining balance is due 3 days before the event</li>
     </ol>
 
-    <p style="text-align:center;">
+    <div class="btn-container">
       <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/bookings" class="btn">View My Bookings</a>
-    </p>
+    </div>
   `;
 
 	try {
@@ -148,9 +106,9 @@ const sendPaymentReceiptEmail = async ({ payment, booking, customerEmail }) => {
       <div class="amount">${formatCurrency(payment.amount)}</div>
     </div>
 
-    <p style="text-align:center;">
+    <div class="btn-container">
       <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/payments" class="btn">View Payment History</a>
-    </p>
+    </div>
   `;
 
 	try {
@@ -195,9 +153,9 @@ const sendFinalInvoiceEmail = async ({ booking, balance, checkoutUrl, customerEm
       </div>
     </div>
 
-    <p style="text-align:center;">
+    <div class="btn-container">
       <a href="${checkoutUrl || `${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/payments`}" class="btn">Pay Now — ${formatCurrency(balance)}</a>
-    </p>
+    </div>
 
     <p style="font-size:0.85rem; color:#64748b; text-align:center;">
       Failure to pay on time may affect your booking status.
@@ -250,9 +208,9 @@ const sendBookingStatusEmail = async ({ booking, newStatus, customerEmail }) => 
       </div>
     </div>
 
-    <p style="text-align:center;">
+    <div class="btn-container">
       <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/bookings" class="btn">View My Bookings</a>
-    </p>
+    </div>
   `;
 
 	try {
@@ -291,9 +249,9 @@ const sendAutoCancelEmail = async ({ booking, customerEmail }) => {
 
     <p>If this was a mistake and you still want to proceed, please create a new booking or contact us as soon as possible.</p>
 
-    <p style="text-align:center;">
+    <div class="btn-container">
       <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/customer/book" class="btn">Create New Booking</a>
-    </p>
+    </div>
   `;
 
 	try {

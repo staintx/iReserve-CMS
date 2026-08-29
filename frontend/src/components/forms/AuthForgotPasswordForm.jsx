@@ -59,14 +59,14 @@ export default function AuthForgotPasswordForm({
   const visibleError = touched ? error : "";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AuthHeading
         step="Step 1 of 2 · Request a link"
         title="Forgot your password?"
         subtitle="Enter the email address on your account and we'll send you a secure link to choose a new password."
       />
 
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      <form className="space-y-3 sm:space-y-3.5" onSubmit={handleSubmit} noValidate>
         <AuthField
           id="forgot-email"
           label="Email address"
@@ -95,7 +95,7 @@ export default function AuthForgotPasswordForm({
         {formError && <AuthAlert tone={formError.tone}>{formError.message}</AuthAlert>}
 
         {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
-          <div className="flex justify-center my-4">
+          <div className="flex justify-center my-2">
             <Turnstile
               ref={turnstileRef}
               siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}

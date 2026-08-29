@@ -55,13 +55,12 @@ const startCronJobs = (io) => {
                             payment_type: "balance",
                             status: "pending",
                             gateway: "paymongo"
-                        });
-
+                        }).sort({ updatedAt: -1 });
                         if (payment) {
                             payment.amount = balance;
                             payment.customer_id = booking.customer_id?._id || booking.customer_id;
                             await payment.save();
-                        } else {
+
                             payment = await Payment.create({
                                 booking_id: booking._id,
                                 customer_id: booking.customer_id?._id || booking.customer_id,

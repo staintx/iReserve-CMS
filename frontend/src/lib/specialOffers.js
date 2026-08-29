@@ -52,7 +52,11 @@ const positive = (value) => {
 
 const money = (value) => Math.round(positive(value) * 100) / 100;
 
-export const isSpecialOffer = (pkg) => pkg?.offer_type === OFFER_TYPES.SPECIAL;
+export const isSpecialOffer = (pkg) =>
+  pkg?.offer_type === OFFER_TYPES.SPECIAL ||
+  pkg?.booking_type === BOOKING_TYPES.SPECIAL ||
+  Boolean(pkg?.is_special_offer) ||
+  (Array.isArray(pkg?.offer_food_items) && pkg.offer_food_items.length > 0);
 
 /** The booking type of a request, read from its package — never from a name. */
 export function bookingTypeForPackage(pkg) {
@@ -74,9 +78,15 @@ export function bookingIdentity(record) {
       ? record.package_id
       : null;
 
-  const type =
-    record?.booking_type ||
-    (record?.package_id ? bookingTypeForPackage(pkg) : BOOKING_TYPES.CUSTOM);
+  const isSpecial =
+    record?.booking_type === BOOKING_TYPES.SPECIAL ||
+    isSpecialOffer(pkg) ||
+    (Array.isArray(record?.offer_food_snapshot) && record.offer_food_snapshot.length > 0);
+
+  const type = isSpecial
+    ? BOOKING_TYPES.SPECIAL
+    : record?.booking_type ||
+      (record?.package_id ? bookingTypeForPackage(pkg) : BOOKING_TYPES.CUSTOM);
 
   const name =
     type === BOOKING_TYPES.CUSTOM

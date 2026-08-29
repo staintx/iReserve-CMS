@@ -21,6 +21,7 @@ import {
   Users, 
   CheckCircle2, 
   AlertCircle, 
+  AlertTriangle,
   Package, 
   FileText,
   Plus,
@@ -60,6 +61,12 @@ export default function ManagerBookings() {
   });
   const [note, setNote] = useState("");
   const [submittingAssign, setSubmittingAssign] = useState(false);
+
+  // Manager Equipment Verification States
+  const [managerConfirmed, setManagerConfirmed] = useState(false);
+  const [managerEquipmentNotes, setManagerEquipmentNotes] = useState("");
+  const [submittingVerifyEquipment, setSubmittingVerifyEquipment] = useState(false);
+  const [staffNoteModal, setStaffNoteModal] = useState(null);
 
   const loadBookings = () => {
     setLoading(true);
@@ -103,6 +110,8 @@ export default function ManagerBookings() {
               openAssign(b);
             } else {
               setDetail(b);
+              setManagerConfirmed(Boolean(b.equipment_manager_verified?.confirmed));
+              setManagerEquipmentNotes(b.equipment_manager_verified?.additional_notes || "");
             }
           }
         })
@@ -133,8 +142,82 @@ export default function ManagerBookings() {
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
 
   const openDetails = (booking) => {
-    ManagerAPI.getBooking(booking._id).then((res) => setDetail(res.data));
+    ManagerAPI.getBooking(booking._id).then((res) => {
+      const b = res.data;
+      setDetail(b);
+      setManagerConfirmed(Boolean(b?.equipment_manager_verified?.confirmed));
+      setManagerEquipmentNotes(b?.equipment_manager_verified?.additional_notes || "");
+    });
   };
+
+  const handleSaveEquipmentVerification = () => {
+    if (!detail) return;
+    setSubmittingVerifyEquipment(true);
+    ManagerAPI.verifyEquipment(detail._id, {
+      confirmed: managerConfirmed,
+      additional_notes: managerEquipmentNotes
+    })
+      .then((res) => {
+        notify(res.data?.message || "Equipment verification saved successfully.", "success");
+        setDetail((prev) => ({
+          ...prev,
+          equipment_manager_verified: res.data?.equipment_manager_verified
+        }));
+      })
+      .catch((err) => {
+        notify(err.response?.data?.message || "Could not save equipment verification.", "error");
+      })
+      .finally(() => setSubmittingVerifyEquipment(false));
+  };
+
+  const mergedEquipmentList = useMemo(() => {
+    if (!detail) return [];
+    const returns = Array.isArray(detail.equipment_returns) ? detail.equipment_returns : [];
+    const inventory = Array.isArray(detail.inventory_items) ? detail.inventory_items : [];
+
+    if (returns.length > 0) {
+      return returns.map((ret) => {
+        const invItem = inventory.find(
+          (inv) => String(inv.inventory_id?._id || inv.inventory_id) === String(ret.inventory_id?._id || ret.inventory_id)
+        );
+        const booked = Number(ret.quantity_booked ?? invItem?.quantity ?? 1);
+        const returned = Number(ret.quantity_returned ?? 0);
+        const damaged = Number(ret.quantity_damaged ?? 0);
+        const hasVerified = Boolean(ret.verified_at);
+        const missing = hasVerified ? Math.max(0, booked - (returned + damaged)) : 0;
+
+        return {
+          _id: ret._id,
+          inventory_id: ret.inventory_id,
+          name: ret.name || ret.inventory_id?.item_name || ret.inventory_id?.name || invItem?.name || "Equipment Item",
+          category: ret.inventory_id?.category || invItem?.inventory_id?.category || invItem?.category || "",
+          booked,
+          returned,
+          damaged,
+          missing,
+          hasVerified,
+          notes: ret.notes || "",
+          verifiedBy: ret.verified_by?.full_name || "Staff",
+          verifiedAt: ret.verified_at
+        };
+      });
+    }
+
+    return inventory.map((inv) => ({
+      _id: inv._id,
+      inventory_id: inv.inventory_id,
+      name: inv.name || inv.inventory_id?.item_name || inv.inventory_id?.name || "Equipment Item",
+      category: inv.inventory_id?.category || inv.category || "",
+      booked: Number(inv.quantity ?? 1),
+      returned: 0,
+      damaged: 0,
+      missing: 0,
+      hasVerified: false,
+      notes: "",
+      verifiedBy: "",
+      verifiedAt: null
+    }));
+  }, [detail]);
 
   const openAssign = (booking) => {
     setAssignTarget(booking);
@@ -817,24 +900,172 @@ export default function ManagerBookings() {
                 </div>
               )}
 
-              {/* Dispatched Equipment & Inventory */}
-              {detail.inventory_items && detail.inventory_items.length > 0 && (
-                <div className="space-y-2 p-4 bg-card border border-border rounded-xl">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <PackageCheck size={14} className="text-primary" /> Dispatched Equipment &amp; Logistics
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                    {detail.inventory_items.map((eq, idx) => (
-                      <div key={`eq-${idx}`} className="p-2.5 bg-muted/40 border border-border rounded-lg flex items-center justify-between text-xs">
-                        <div className="truncate">
-                          <div className="font-bold text-foreground truncate">{eq.name || eq.inventory_id?.item_name || "Equipment Item"}</div>
-                          {eq.category && <div className="text-[10px] text-muted-foreground truncate">{eq.category}</div>}
+              {/* Dispatched Equipment & Verification */}
+              {mergedEquipmentList.length > 0 && (
+                <div className="space-y-3.5 p-4 bg-card border border-border rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <PackageCheck size={14} className="text-primary" /> Dispatched Equipment &amp; Staff Count Verification
+                    </h4>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {mergedEquipmentList.length} Total Gear Types
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {mergedEquipmentList.map((eq, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`p-3 rounded-lg border flex flex-col justify-between gap-2 text-xs transition-colors ${
+                          eq.missing > 0 
+                            ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800" 
+                            : eq.damaged > 0 
+                              ? "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800" 
+                              : "bg-muted/40 border-border"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-1.5">
+                            <span className="font-bold text-foreground truncate" title={eq.name}>
+                              {eq.name}
+                            </span>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-card border border-border text-foreground shrink-0">
+                              {eq.booked} units
+                            </span>
+                          </div>
+                          {eq.category && (
+                            <span className="text-[10px] text-muted-foreground block truncate mt-0.5">
+                              {eq.category}
+                            </span>
+                          )}
+
+                          {eq.hasVerified ? (
+                            <div className="mt-2 text-[11px] space-y-0.5">
+                              <div className="flex items-center justify-between text-muted-foreground">
+                                <span>Returned Safe:</span>
+                                <span className="font-bold text-emerald-700 dark:text-emerald-400">{eq.returned} units</span>
+                              </div>
+                              {eq.damaged > 0 && (
+                                <div className="flex items-center justify-between text-rose-700 dark:text-rose-400">
+                                  <span>Damaged:</span>
+                                  <span className="font-bold">{eq.damaged} units</span>
+                                </div>
+                              )}
+                              {eq.missing > 0 && (
+                                <div className="flex items-center justify-between text-rose-700 dark:text-rose-400">
+                                  <span>Missing Count:</span>
+                                  <span className="font-bold">{eq.missing} units</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-2 text-[11px] text-muted-foreground italic">
+                              Staff return count not yet logged.
+                            </div>
+                          )}
                         </div>
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-card border border-border text-foreground shrink-0 ml-1.5">
-                          {eq.quantity} units
-                        </span>
+
+                        {/* Status & Notes row */}
+                        <div className="pt-2 border-t border-border/60 flex items-center justify-between flex-wrap gap-1.5">
+                          <div>
+                            {eq.missing > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">
+                                <AlertTriangle size={11} className="text-rose-600 dark:text-rose-400" />
+                                Missing
+                              </span>
+                            ) : eq.damaged > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                <AlertTriangle size={11} className="text-amber-600 dark:text-amber-400" />
+                                Damaged
+                              </span>
+                            ) : eq.hasVerified ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                                Returned Complete
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted/80 px-2 py-0.5 rounded border border-border">
+                                <Clock size={11} />
+                                Pending Count
+                              </span>
+                            )}
+                          </div>
+
+                          {eq.notes ? (
+                            <button
+                              type="button"
+                              onClick={() => setStaffNoteModal({
+                                itemName: eq.name,
+                                notes: eq.notes,
+                                staffName: eq.verifiedBy,
+                                verifiedAt: eq.verifiedAt
+                              })}
+                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer bg-primary/10 px-2 py-0.5 rounded border border-primary/20 transition-colors"
+                              title="View staff notes for this item"
+                            >
+                              <FileText size={11} />
+                              <span>View Notes</span>
+                            </button>
+                          ) : (
+                            eq.missing > 0 && (
+                              <span className="text-[10px] text-muted-foreground italic">No staff note</span>
+                            )
+                          )}
+                        </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Manager Confirmation Checkbox & Additional Notes */}
+                  <div className="p-3.5 bg-muted/40 border border-border rounded-xl space-y-3 mt-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          id="managerEquipmentConfirm"
+                          checked={managerConfirmed}
+                          onChange={(e) => setManagerConfirmed(e.target.checked)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
+                        />
+                        <span className="text-xs sm:text-sm font-bold text-foreground">
+                          Double-check and confirm equipment counted by staff
+                        </span>
+                      </label>
+
+                      {detail.equipment_manager_verified?.confirmed && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 shrink-0">
+                          <CheckCircle2 size={12} />
+                          Confirmed by {detail.equipment_manager_verified.confirmed_by?.full_name || "Manager"}{" "}
+                          {detail.equipment_manager_verified.confirmed_at ? `on ${new Date(detail.equipment_manager_verified.confirmed_at).toLocaleDateString()}` : ""}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                        Additional Notes
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Add manager verification remarks, supplier loss claims, or missing equipment follow-ups..."
+                        value={managerEquipmentNotes}
+                        onChange={(e) => setManagerEquipmentNotes(e.target.value)}
+                        className="w-full p-2.5 text-xs rounded-lg border border-border bg-card text-foreground focus:ring-1 focus:ring-primary resize-y"
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-1">
+                      <Btn
+                        variant="primary"
+                        size="xs"
+                        onClick={handleSaveEquipmentVerification}
+                        disabled={submittingVerifyEquipment}
+                        className="flex items-center gap-1.5 font-bold cursor-pointer"
+                      >
+                        <PackageCheck size={13} />
+                        <span>{submittingVerifyEquipment ? "Saving Verification..." : "Save Equipment Verification"}</span>
+                      </Btn>
+                    </div>
                   </div>
                 </div>
               )}
@@ -943,6 +1174,34 @@ export default function ManagerBookings() {
 
               <div className="flex justify-end pt-2 border-t border-border">
                 <Btn variant="secondary" onClick={() => setDetail(null)}>Close</Btn>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Staff Item Note Modal */}
+        {staffNoteModal && (
+          <Modal
+            title={`Staff Item Notes — ${staffNoteModal.itemName}`}
+            onClose={() => setStaffNoteModal(null)}
+            className="max-w-md"
+          >
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 dark:text-amber-200 pb-1.5 border-b border-amber-200/60 dark:border-amber-800/60">
+                  <span>Logged by: {staffNoteModal.staffName || "Staff Member"}</span>
+                  {staffNoteModal.verifiedAt && (
+                    <span>{new Date(staffNoteModal.verifiedAt).toLocaleString()}</span>
+                  )}
+                </div>
+                <p className="text-xs text-amber-950 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
+                  {staffNoteModal.notes}
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <Btn variant="secondary" size="xs" onClick={() => setStaffNoteModal(null)}>
+                  Close
+                </Btn>
               </div>
             </div>
           </Modal>

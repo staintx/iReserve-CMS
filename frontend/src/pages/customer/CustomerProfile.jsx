@@ -20,7 +20,6 @@ export default function CustomerProfile() {
     email: "",
     username: "",
     phone: "",
-    address: "",
     alt_phone: ""
   });
   const [security, setSecurity] = useState({ current: "", next: "", confirm: "" });
@@ -50,7 +49,6 @@ export default function CustomerProfile() {
           email: data.email || "",
           username: data.username || "",
           phone: data.phone || "",
-          address: data.address || "",
           alt_phone: data.alt_phone || ""
         });
         updateUser(res.data);
@@ -83,7 +81,6 @@ export default function CustomerProfile() {
         email: form.email.trim().toLowerCase(),
         username: form.username.trim(),
         phone: form.phone.trim(),
-        address: form.address.trim(),
         alt_phone: form.alt_phone.trim()
       };
       const res = await CustomerAPI.updateProfile(payload);
@@ -245,18 +242,6 @@ export default function CustomerProfile() {
                   </div>
                 </div>
 
-                {/* Row 4: Default Event & Delivery Address */}
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Default Event &amp; Delivery Address
-                  </Label>
-                  <textarea
-                    className="flex min-h-[64px] h-[64px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#2C4B8A] focus-visible:border-[#2C4B8A] resize-none"
-                    placeholder="Street, Barangay, City, Province, Zip Code"
-                    value={form.address || ""}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  />
-                </div>
 
                 <div className="pt-2 border-t border-slate-100 flex justify-end">
                   <Button

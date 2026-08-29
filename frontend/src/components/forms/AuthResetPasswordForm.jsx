@@ -90,14 +90,14 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
   const confirmMatches = confirmFilled && values.confirm === values.password;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AuthHeading
         step="Step 2 of 2 · Set a new password"
         title="Choose a new password"
         subtitle="Pick a password you haven't used here before. Once it's saved you can sign in right away."
       />
 
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      <form className="space-y-3 sm:space-y-3.5" onSubmit={handleSubmit} noValidate>
         <AuthField id="reset-password" label="New password" error={fieldError("password")}>
           <AuthPasswordInput
             id="reset-password"
@@ -124,7 +124,7 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
           <PasswordRequirements
             id="reset-password-requirements"
             value={values.password}
-            className="-mt-1"
+            className="-mt-0.5"
           />
         )}
 
@@ -147,7 +147,7 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
             <p
               id="reset-confirm-status"
               aria-live="polite"
-              className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${
+              className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${
                 confirmMatches ? "text-emerald-600" : "text-[#64748B]"
               }`}
             >
@@ -168,7 +168,7 @@ export default function AuthResetPasswordForm({ onSubmit, loading = false, formE
         )}
 
         {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
-          <div className="flex justify-center my-4">
+          <div className="flex justify-center my-2">
             <Turnstile
               ref={turnstileRef}
               siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}

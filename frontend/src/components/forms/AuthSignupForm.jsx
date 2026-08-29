@@ -134,16 +134,16 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
   const confirmMatches = confirmFilled && values.confirm === values.password;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AuthHeading
         step="Step 1 of 2 · Create account"
         title="Create your account"
         subtitle="Request quotes, confirm reservations, and follow every event in one place."
       />
 
-      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+      <form className="space-y-3 sm:space-y-3.5" onSubmit={handleSubmit} noValidate>
         <AuthSection label="Your details">
-          <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+          <div className="grid gap-x-3.5 gap-y-2.5 sm:gap-y-3 sm:grid-cols-2">
             <AuthField id="signup-first-name" label="First name" error={fieldError("first_name")}>
               <AuthInput
                 id="signup-first-name"
@@ -174,7 +174,12 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
               />
             </AuthField>
 
-            <AuthField id="signup-email" label="Email address" error={fieldError("email")}>
+            <AuthField
+              id="signup-email"
+              label="Email address"
+              error={fieldError("email")}
+              className="sm:col-span-2"
+            >
               <AuthInput
                 id="signup-email"
                 type="email"
@@ -193,7 +198,7 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
         </AuthSection>
 
         <AuthSection label="Security">
-          <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+          <div className="grid gap-x-3.5 gap-y-2.5 sm:gap-y-3 sm:grid-cols-2">
             <AuthField id="signup-password" label="Password" error={fieldError("password")}>
               <AuthPasswordInput
                 id="signup-password"
@@ -234,7 +239,7 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
                 <p
                   id="signup-confirm-status"
                   aria-live="polite"
-                  className={`mt-1.5 flex items-center gap-1.5 text-xs font-medium ${
+                  className={`mt-1 flex items-center gap-1.5 text-xs font-medium ${
                     confirmMatches ? "text-emerald-600" : "text-[#64748B]"
                   }`}
                 >
@@ -252,7 +257,7 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
               <PasswordRequirements
                 id="signup-password-requirements"
                 value={values.password}
-                className="sm:col-span-2"
+                className="sm:col-span-2 -mt-0.5"
               />
             )}
           </div>
@@ -265,7 +270,7 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
         )}
 
         {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
-          <div className="flex justify-center my-4">
+          <div className="flex justify-center my-2">
             <Turnstile
               ref={turnstileRef}
               siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
@@ -276,7 +281,7 @@ export default function AuthSignupForm({ onSubmit, loading = false, formError = 
           </div>
         )}
 
-        <div className="space-y-2.5">
+        <div className="space-y-1.5 sm:space-y-2">
           <AuthButton
             type="submit"
             className="w-full"

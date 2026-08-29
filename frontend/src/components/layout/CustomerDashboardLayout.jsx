@@ -161,68 +161,23 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
 
   const profileChip = (
     <div className="p-3 border-t border-slate-200 bg-white">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <div
-            className="flex items-center gap-2.5 p-2 rounded-md hover:bg-slate-50 transition-colors cursor-pointer group"
-            role="button"
-            tabIndex={0}
-          >
-            <div className="w-8 h-8 rounded-full bg-[#2C4B8A]/10 text-[#2C4B8A] border border-slate-200 font-bold flex items-center justify-center shrink-0 text-xs">
-              {initials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-xs text-slate-900 truncate">{user?.full_name || "Customer Account"}</div>
-              <div className="text-[11px] text-slate-400 truncate">{user?.email || "customer@ireserve.com"}</div>
-            </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLogoutConfirm(true);
-              }}
-              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-              title="Sign out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-56 bg-white border border-slate-200 shadow-lg p-1 z-50">
-          <div className="px-2.5 py-2 border-b border-slate-100 mb-1">
-            <p className="text-xs font-bold text-slate-900 truncate">{user?.full_name || "Customer"}</p>
-            <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
-          </div>
-          <DropdownMenuItem
-            onClick={() => {
-              setMobileOpen(false);
-              navigate("/customer/profile");
-            }}
-            className="text-xs text-slate-700 hover:text-slate-900 cursor-pointer"
-          >
-            <UserRound className="w-3.5 h-3.5 mr-2 text-slate-400" />
-            Profile & Security
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              setMobileOpen(false);
-              navigate("/customer/bookings");
-            }}
-            className="text-xs text-slate-700 hover:text-slate-900 cursor-pointer"
-          >
-            <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
-            My Bookings
-          </DropdownMenuItem>
-          <div className="h-px bg-slate-100 my-1" />
-          <DropdownMenuItem
-            onClick={() => setShowLogoutConfirm(true)}
-            className="text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 cursor-pointer font-semibold"
-          >
-            <LogOut className="w-3.5 h-3.5 mr-2" />
-            Sign Out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-slate-50 transition-colors">
+        <div className="w-8 h-8 rounded-full bg-[#2C4B8A]/10 text-[#2C4B8A] border border-slate-200 font-bold flex items-center justify-center shrink-0 text-xs">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-xs text-slate-900 truncate">{user?.full_name || "Customer Account"}</div>
+          <div className="text-[11px] text-slate-400 truncate">{user?.email || "customer@ireserve.com"}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowLogoutConfirm(true)}
+          className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group"
+          title="Sign out"
+        >
+          <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+        </button>
+      </div>
     </div>
   );
 

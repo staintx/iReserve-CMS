@@ -270,10 +270,18 @@ const BookingSchema = new mongoose.Schema(
         name: String,
         quantity_booked: Number,
         quantity_returned: { type: Number, default: 0 },
+        quantity_damaged: { type: Number, default: 0 },
+        notes: String,
         verified_at: Date,
         verified_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       },
     ],
+    equipment_manager_verified: {
+      confirmed: { type: Boolean, default: false },
+      confirmed_by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      confirmed_at: Date,
+      additional_notes: String,
+    },
 
     ocular_visit: {
       scheduled_date: Date,

@@ -174,27 +174,34 @@ export function derivePackageStartingPrice(inquiry, guestCount) {
   };
 
   const pkg = inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+  const isFoodOnly = inquiry?.service_type === "Food Only";
 
   // A combo's starting price is its base FOOD price — its own guest count
   // times its own rate per pax. The figure stored on the request wins, because
   // it is what the customer was quoted at the time; the combo is recomputed
-  // from only when a request predates that field. The setup for their chosen
-  // size is a separate line the builder seeds beside it, so the two never
-  // collapse into one figure the admin cannot unpick.
+  // from only when a request predates that field.
   if (isSpecialOffer(pkg)) {
     const stored = positive(inquiry?.offer_base_price);
     if (stored) return money(stored);
-    return money(offerBaseFoodPrice(pkg));
+    return money(offerBaseFoodPrice(pkg, guestCount));
+  }
+
+  // For Food Only bookings, prioritize per-guest catering price
+  if (isFoodOnly) {
+    const perGuest = positive(pkg?.price_per_guest);
+    if (perGuest) return money(perGuest * (count(guestCount, 1) || 1));
   }
 
   const scaffold = positive(inquiry?.scaffold_price);
   if (scaffold) return money(scaffold);
 
   const setup = positive(pkg?.setup_price);
-  if (setup) return money(setup);
+  if (setup && !isFoodOnly) return money(setup);
 
   const perGuest = positive(pkg?.price_per_guest);
   if (perGuest) return money(perGuest * (count(guestCount, 1) || 1));
+
+  if (setup) return money(setup);
 
   return 0;
 }

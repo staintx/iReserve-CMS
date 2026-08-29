@@ -29,7 +29,8 @@ import {
   ClipboardList,
   Lock,
   Utensils,
-  Layers
+  Layers,
+  X
 } from "lucide-react";
 import { getEventTimingStatus } from "../../utils/format";
 
@@ -48,6 +49,7 @@ export default function StaffEventDetails() {
 
   // Equipment Return State
   const [equipmentList, setEquipmentList] = useState([]);
+  const [equipmentNotes, setEquipmentNotes] = useState("");
   const [submittingEquipment, setSubmittingEquipment] = useState(false);
 
   // Incident & Notes State
@@ -79,12 +81,15 @@ export default function StaffEventDetails() {
 
       if (returns.length > 0) {
         returns.forEach((ret) => {
+          const qtyRet = ret.quantity_returned !== undefined ? ret.quantity_returned : (ret.quantity_booked || 1);
           initialReturns.push({
             inventory_id: ret.inventory_id?._id || ret.inventory_id || null,
             name: ret.name || ret.inventory_id?.item_name || "Equipment Item",
             quantity_booked: ret.quantity_booked || 1,
-            quantity_returned: ret.quantity_returned !== undefined ? ret.quantity_returned : (ret.quantity_booked || 1),
-            notes: ret.notes || ""
+            quantity_returned: qtyRet,
+            notes: ret.notes || "",
+            _verified: true,
+            _markedMissing: qtyRet < (ret.quantity_booked || 1)
           });
         });
       } else if (assignedItems.length > 0) {
@@ -94,7 +99,9 @@ export default function StaffEventDetails() {
             name: item.name || item.inventory_id?.item_name || "Equipment Item",
             quantity_booked: item.quantity || 1,
             quantity_returned: item.quantity || 1,
-            notes: ""
+            notes: "",
+            _verified: false,
+            _markedMissing: false
           });
         });
       } else {
@@ -110,13 +117,17 @@ export default function StaffEventDetails() {
             name: item.name,
             quantity_booked: item.quantity,
             quantity_returned: item.quantity,
-            notes: ""
+            notes: "",
+            _verified: false,
+            _markedMissing: false
           });
         });
       }
 
       setEquipmentList(initialReturns);
+      setEquipmentNotes(data.equipment_notes || "");
     } catch (err) {
+      console.error(err);
       notify("Failed to load event details.", "error");
     } finally {
       setLoading(false);
@@ -134,10 +145,41 @@ export default function StaffEventDetails() {
   };
 
   const handleUpdateReturnedQuantity = (index, value) => {
-    const val = Math.max(0, parseInt(value, 10) || 0);
     setEquipmentList((prev) => {
       const next = [...prev];
+      const maxAllowed = next[index].quantity_booked - (next[index].quantity_damaged || 0);
+      let val = parseInt(value, 10);
+      if (isNaN(val)) val = 0;
+      if (val < 0) val = 0;
+      if (val > maxAllowed) val = maxAllowed;
+      
       next[index] = { ...next[index], quantity_returned: val };
+      
+      // Auto-complete if everything is accounted for
+      if (val + (next[index].quantity_damaged || 0) === next[index].quantity_booked) {
+        next[index]._markedMissing = false;
+        next[index]._verified = true;
+      }
+      return next;
+    });
+  };
+
+  const handleUpdateDamagedQuantity = (index, value) => {
+    setEquipmentList((prev) => {
+      const next = [...prev];
+      const maxAllowed = next[index].quantity_booked - (next[index].quantity_returned || 0);
+      let val = parseInt(value, 10);
+      if (isNaN(val)) val = 0;
+      if (val < 0) val = 0;
+      if (val > maxAllowed) val = maxAllowed;
+      
+      next[index] = { ...next[index], quantity_damaged: val };
+      
+      // Auto-complete if everything is accounted for
+      if (val + (next[index].quantity_returned || 0) === next[index].quantity_booked) {
+        next[index]._markedMissing = false;
+        next[index]._verified = true;
+      }
       return next;
     });
   };
@@ -150,9 +192,35 @@ export default function StaffEventDetails() {
     });
   };
 
+  const handleMarkComplete = (index) => {
+    setEquipmentList((prev) => {
+      const next = [...prev];
+      next[index] = { 
+        ...next[index], 
+        quantity_returned: next[index].quantity_booked, 
+        quantity_damaged: 0,
+        _verified: true, 
+        _markedMissing: false 
+      };
+      return next;
+    });
+  };
+
+  const handleMarkMissing = (index) => {
+    setEquipmentList((prev) => {
+      const next = [...prev];
+      if (next[index].quantity_returned === next[index].quantity_booked) {
+        next[index].quantity_returned = 0; 
+      }
+      next[index]._verified = true;
+      next[index]._markedMissing = true;
+      return next;
+    });
+  };
+
   const handleMatchAllQuantities = () => {
     setEquipmentList((prev) =>
-      prev.map((item) => ({ ...item, quantity_returned: item.quantity_booked }))
+      prev.map((item) => ({ ...item, quantity_returned: item.quantity_booked, quantity_damaged: 0, _verified: true, _markedMissing: false }))
     );
     notify("Matched all items to booked quantity.", "success");
   };
@@ -161,7 +229,8 @@ export default function StaffEventDetails() {
     setSubmittingEquipment(true);
     try {
       await StaffAPI.submitEquipmentReturns(id, {
-        equipment_returns: equipmentList
+        equipment_returns: equipmentList,
+        equipment_notes: equipmentNotes
       });
       notify("Equipment return checklist submitted & logged!", "success");
       loadEvent();
@@ -246,12 +315,14 @@ export default function StaffEventDetails() {
   const equipmentStats = useMemo(() => {
     let totalBooked = 0;
     let totalReturned = 0;
+    let totalDamaged = 0;
     equipmentList.forEach((item) => {
       totalBooked += Number(item.quantity_booked || 0);
       totalReturned += Number(item.quantity_returned || 0);
+      totalDamaged += Number(item.quantity_damaged || 0);
     });
-    const discrepancy = totalBooked - totalReturned;
-    return { totalBooked, totalReturned, discrepancy };
+    const discrepancy = totalBooked - totalReturned - totalDamaged;
+    return { totalBooked, totalReturned, totalDamaged, discrepancy };
   }, [equipmentList]);
 
   if (loading) {
@@ -650,25 +721,37 @@ export default function StaffEventDetails() {
               /* If event has started or concluded: Show interactive verification UI */
               <div className="space-y-6">
                 {/* Equipment Summary KPI Banner */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <AdminCard className="!p-4 bg-card border-border">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Gear Booked</span>
                     <div className="text-2xl font-bold text-foreground mt-1">{equipmentStats.totalBooked} Units</div>
-                    <p className="text-[11px] text-muted-foreground">Dispatched for this event</p>
+                    <p className="text-[11px] text-muted-foreground">Dispatched</p>
                   </AdminCard>
 
                   <AdminCard className="!p-4 bg-card border-border">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Items Verified Returned</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Returned Safe</span>
                     <div className="text-2xl font-bold text-emerald-700 mt-1">{equipmentStats.totalReturned} Units</div>
                     <p className="text-[11px] text-emerald-600 font-semibold">Accounted &amp; checked</p>
                   </AdminCard>
 
-                  <AdminCard className={`!p-4 ${equipmentStats.discrepancy > 0 ? "bg-amber-50 border-amber-200" : "bg-card border-border"}`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discrepancy / Loss</span>
-                    <div className={`text-2xl font-bold mt-1 ${equipmentStats.discrepancy > 0 ? "text-amber-800" : "text-slate-600"}`}>
-                      {equipmentStats.discrepancy > 0 ? `⚠️ ${equipmentStats.discrepancy} Missing` : "0 (All Accounted)"}
+                  <AdminCard className={`!p-4 ${equipmentStats.totalDamaged > 0 ? "bg-rose-50 border-rose-200" : "bg-card border-border"}`}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Damaged Items</span>
+                    <div className={`text-2xl font-bold mt-1 ${equipmentStats.totalDamaged > 0 ? "text-rose-800" : "text-slate-600"}`}>
+                      {equipmentStats.totalDamaged > 0 ? `⚠️ ${equipmentStats.totalDamaged} Damaged` : "0 Damaged"}
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Difference from dispatch</p>
+                    <p className="text-[11px] text-muted-foreground">Returned broken</p>
+                  </AdminCard>
+
+                  <AdminCard className={`!p-4 ${equipmentStats.discrepancy !== 0 ? "bg-amber-50 border-amber-200" : "bg-card border-border"}`}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Discrepancy / Loss</span>
+                    <div className={`text-2xl font-bold mt-1 ${equipmentStats.discrepancy !== 0 ? "text-amber-800" : "text-slate-600"}`}>
+                      {equipmentStats.discrepancy > 0 
+                        ? `⚠️ ${equipmentStats.discrepancy} Missing` 
+                        : equipmentStats.discrepancy < 0 
+                          ? `⚠️ ${Math.abs(equipmentStats.discrepancy)} Overage` 
+                          : "0 (All Accounted)"}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Missing items</p>
                   </AdminCard>
                 </div>
 
@@ -695,14 +778,14 @@ export default function StaffEventDetails() {
 
                   <div className="space-y-3">
                     {equipmentList.map((item, idx) => {
-                      const isMissing = (item.quantity_returned || 0) < item.quantity_booked;
-                      const isMatch = (item.quantity_returned || 0) === item.quantity_booked;
+                      const isMissing = item._verified && item._markedMissing;
+                      const isMatch = item._verified && !item._markedMissing && ((item.quantity_returned || 0) + (item.quantity_damaged || 0)) === item.quantity_booked;
 
                       return (
                         <div 
                           key={idx} 
                           className={`p-3.5 rounded-xl border transition-all ${
-                            isMissing ? "border-amber-300 bg-amber-50/40" : "border-border bg-card"
+                            isMissing ? "border-amber-300 bg-amber-50/40" : (isMatch ? "border-emerald-200 bg-emerald-50/30" : "border-border bg-card")
                           }`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -714,9 +797,14 @@ export default function StaffEventDetails() {
                                     <CheckCircle2 size={10} /> Verified
                                   </span>
                                 )}
+                                {item.quantity_damaged > 0 && (
+                                  <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-1.5 py-0.2 rounded border border-rose-300 flex items-center gap-0.5">
+                                    <AlertTriangle size={10} /> {item.quantity_damaged} Damaged
+                                  </span>
+                                )}
                                 {isMissing && (
                                   <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300 flex items-center gap-0.5">
-                                    <AlertTriangle size={10} /> {item.quantity_booked - item.quantity_returned} Short
+                                    <AlertTriangle size={10} /> {item.quantity_booked - (item.quantity_returned || 0) - (item.quantity_damaged || 0)} Short
                                   </span>
                                 )}
                               </div>
@@ -726,26 +814,62 @@ export default function StaffEventDetails() {
                             </div>
 
                             {/* Input Controls */}
-                            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                              <div className="flex items-center gap-1.5">
-                                <label className="text-[11px] font-bold text-muted-foreground">Returned Qty:</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={item.quantity_booked * 2}
-                                  value={item.quantity_returned}
-                                  onChange={(e) => handleUpdateReturnedQuantity(idx, e.target.value)}
-                                  className="w-20 p-1.5 rounded-lg border border-border bg-background text-xs font-bold text-center text-foreground focus:ring-1 focus:ring-primary"
-                                />
-                              </div>
-
-                              <input
-                                type="text"
-                                placeholder="Condition notes / damages..."
-                                value={item.notes || ""}
-                                onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
-                                className="p-1.5 rounded-lg border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground w-44 sm:w-56"
-                              />
+                            <div className="flex flex-col gap-2">
+                              {isMatch ? (
+                                <div className="flex items-center gap-2 justify-end">
+                                  <button onClick={() => handleMarkMissing(idx)} className="p-1.5 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer" title="Edit or mark missing/damaged">
+                                    <AlertTriangle size={14} />
+                                  </button>
+                                  <div className="px-3 py-1.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1">
+                                    <CheckCircle2 size={14} /> Complete
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 justify-end">
+                                  <button onClick={() => handleMarkComplete(idx)} className="px-3 py-1.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer" title="Mark complete">
+                                    <Check size={14} /> All Complete
+                                  </button>
+                                  <button onClick={() => handleMarkMissing(idx)} className="px-3 py-1.5 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer" title="Mark missing or damaged">
+                                    <X size={14} /> Missing/Damaged
+                                  </button>
+                                </div>
+                              )}
+                              
+                              {item._markedMissing && (
+                                <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-amber-200/50">
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <label className="text-[11px] font-bold text-amber-800">Safe:</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={item.quantity_booked}
+                                      value={item.quantity_returned}
+                                      onChange={(e) => handleUpdateReturnedQuantity(idx, e.target.value)}
+                                      className="w-16 p-1.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-center text-amber-900 focus:ring-1 focus:ring-amber-500"
+                                      title="Quantity returned safely"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <label className="text-[11px] font-bold text-rose-800">Damaged:</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max={item.quantity_booked}
+                                      value={item.quantity_damaged || 0}
+                                      onChange={(e) => handleUpdateDamagedQuantity(idx, e.target.value)}
+                                      className="w-16 p-1.5 rounded-lg border border-rose-300 bg-white text-xs font-bold text-center text-rose-900 focus:ring-1 focus:ring-rose-500"
+                                      title="Quantity returned but damaged"
+                                    />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    placeholder="Indicate details for missing or damaged..."
+                                    value={item.notes || ""}
+                                    onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
+                                    className="flex-1 min-w-[200px] p-1.5 rounded-lg border border-amber-300 bg-white text-xs text-amber-950 placeholder:text-amber-700/50"
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -753,7 +877,17 @@ export default function StaffEventDetails() {
                     })}
                   </div>
 
-                  <div className="flex justify-end pt-3 border-t border-border">
+                  <div className="space-y-3 pt-3 border-t border-border">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Additional Equipment Notes</label>
+                    <textarea
+                      placeholder="Any overall observations regarding the equipment..."
+                      value={equipmentNotes}
+                      onChange={(e) => setEquipmentNotes(e.target.value)}
+                      className="w-full min-h-[80px] p-3 rounded-xl border border-border bg-background text-sm text-foreground focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-3">
                     <Btn 
                       variant="primary" 
                       onClick={handleSubmitEquipmentReturns} 

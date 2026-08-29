@@ -193,13 +193,14 @@ exports.create = async (req, res) => {
       : [],
     // A combo's inclusions are plain lines the admin typed; a package's carry
     // the inventory class they came from, which normalizeList keeps intact.
-    inclusions: isOffer
-      ? normalizeOfferInclusions(req.body.inclusions)
-      : normalizeList(req.body.inclusions),
-    add_ons,
+    inclusions:
+      isOffer || req.body.package_type === "Food Only"
+        ? normalizeOfferInclusions(req.body.inclusions)
+        : normalizeList(req.body.inclusions),
+    add_ons: isOffer || req.body.package_type === "Food Only" ? [] : add_ons,
     features,
-    setup_equipment,
-    scaffold_size_options,
+    setup_equipment: isOffer || req.body.package_type === "Food Only" ? [] : setup_equipment,
+    scaffold_size_options: isOffer || req.body.package_type === "Food Only" ? [] : scaffold_size_options,
     menu_items,
     image_url,
     gallery,
@@ -210,7 +211,7 @@ exports.create = async (req, res) => {
   // an offer however it was sent.
   const payload = isOffer ? comboPayload(basePayload) : basePayload;
 
-  if (!isOffer) {
+  if (!isOffer && payload.package_type !== "Food Only") {
     // Normalize empty default scaffold option id
     if (
       payload.default_scaffold_option_id === "" ||
@@ -224,6 +225,8 @@ exports.create = async (req, res) => {
       payload.default_scaffold_option_id =
         scaffold_size_options[0]._id || scaffold_size_options[0].id || "0";
     }
+  } else {
+    delete payload.default_scaffold_option_id;
   }
 
   const pkg = await Package.create(payload);
@@ -278,13 +281,12 @@ exports.update = async (req, res) => {
   const current = await Package.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Package not found" });
 
-  const offerType = normalizeOfferType(req.body.offer_type ?? current.offer_type);
-  const isOffer = offerType === OFFER_TYPES.SPECIAL;
+  const isFoodOnly = (req.body.package_type ?? current.package_type) === "Food Only";
 
   let data = {
     ...req.body,
     inclusions: req.body.inclusions
-      ? isOffer
+      ? isOffer || isFoodOnly
         ? normalizeOfferInclusions(req.body.inclusions)
         : normalizeList(req.body.inclusions)
       : undefined,
@@ -309,7 +311,7 @@ exports.update = async (req, res) => {
     }
   }
 
-  if (req.body.scaffold_size_options && !isOffer) {
+  if (req.body.scaffold_size_options && !isOffer && !isFoodOnly) {
     try {
       data.scaffold_size_options = normalizeScaffoldOptions(
         JSON.parse(req.body.scaffold_size_options),
@@ -377,7 +379,14 @@ exports.update = async (req, res) => {
 
   // The same boundary as on create, and the reason a regular package converted
   // to a combo does not keep the scaffold sizes it used to be sold in.
-  if (isOffer) data = comboPayload(data);
+  if (isOffer) {
+    data = comboPayload(data);
+  } else if (isFoodOnly) {
+    data.scaffold_size_options = [];
+    data.setup_equipment = [];
+    data.add_ons = [];
+    data.default_scaffold_option_id = null;
+  }
 
   if (req.files) {
     const uploadTasks = [];

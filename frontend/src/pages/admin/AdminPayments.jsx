@@ -444,7 +444,7 @@ export default function AdminPayments() {
         const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
         return (
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-7 h-7 rounded-md bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold font-mono shrink-0">
               {initials}
             </div>
             <div className="min-w-0">
@@ -459,7 +459,7 @@ export default function AdminPayments() {
       key: "milestone",
       header: "Milestone",
       render: (p) => (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
           <Tag size={10} />
           {getMilestoneLabel(p.payment_type)}
         </span>
@@ -472,7 +472,7 @@ export default function AdminPayments() {
         const mInfo = getMethodBadge(p.method);
         const IconComponent = mInfo.icon;
         return (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${mInfo.cls}`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${mInfo.cls}`}>
             <IconComponent size={11} />
             {mInfo.label}
           </span>
@@ -484,7 +484,7 @@ export default function AdminPayments() {
       header: "Amount",
       render: (p) => {
         const statusLabel = getStatusBadgeLabel(p.status);
-        const colorClass = statusLabel === "Paid" ? "text-emerald-600 font-bold" : statusLabel === "Pending" ? "text-amber-600 font-bold" : "text-gray-400 line-through";
+        const colorClass = statusLabel === "Paid" ? "text-emerald-600 font-bold font-mono" : statusLabel === "Pending" ? "text-amber-600 font-bold font-mono" : "text-gray-400 line-through font-mono";
         return <span className={`text-sm ${colorClass}`}>{fmt(p.amount)}</span>;
       },
     },
@@ -503,14 +503,14 @@ export default function AdminPayments() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setDrawerRow(p)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
               title="View Payment Details"
             >
               <Eye size={15} />
             </button>
             <button
               onClick={() => setReceiptModalRow(p)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors"
+              className="p-1.5 rounded-md text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors cursor-pointer"
               title="Print Receipt"
             >
               <Printer size={15} />

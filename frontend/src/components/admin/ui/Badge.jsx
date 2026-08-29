@@ -69,7 +69,7 @@ export default function Badge({ status, dot = true, className = "" }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border ${toneClass} ${className} whitespace-nowrap`}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${toneClass} ${className} whitespace-nowrap`}
     >
       {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />}
       <span className="capitalize">{status}</span>

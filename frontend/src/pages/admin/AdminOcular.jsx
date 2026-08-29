@@ -442,40 +442,40 @@ export default function AdminOcular() {
             <div className="flex items-center gap-1.5 overflow-x-auto">
               <button
                 onClick={() => setFilterTab("all")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "all" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "all" ? "bg-slate-900 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 All Active ({kpiStats.total})
               </button>
               <button
                 onClick={() => setFilterTab("requested")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "requested" ? "bg-amber-500 text-slate-950 shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "requested" ? "bg-amber-500 text-slate-950 shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Pending Requests ({kpiStats.requested})
               </button>
               <button
                 onClick={() => setFilterTab("scheduled")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "scheduled" ? "bg-blue-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "scheduled" ? "bg-blue-600 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Scheduled ({kpiStats.scheduled})
               </button>
               <button
                 onClick={() => setFilterTab("revise")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "revise" ? "bg-orange-500 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "revise" ? "bg-orange-500 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Revision Needed ({kpiStats.revisionNeeded})
               </button>
               <button
                 onClick={() => setFilterTab("completed")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  filterTab === "completed" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  filterTab === "completed" ? "bg-emerald-600 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 Completed ({kpiStats.completed})
@@ -489,7 +489,7 @@ export default function AdminOcular() {
                 placeholder="Search customer, booking ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 text-xs rounded-xl border-slate-200"
+                className="pl-9 text-xs rounded-md border-slate-200 shadow-2xs"
               />
             </div>
           </div>
@@ -595,7 +595,7 @@ export default function AdminOcular() {
                     value={selectedBookingId}
                     onChange={(e) => setSelectedBookingId(e.target.value)}
                     required
-                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                   >
                     <option value="">-- Select Booking --</option>
                     {bookings.filter(b => b.service_type !== "Food Only").map(b => (
@@ -654,7 +654,7 @@ export default function AdminOcular() {
 
             <div className="space-y-4 py-3">
               {revisionBooking && (
-                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1">
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-md shadow-2xs text-xs space-y-1">
                   <div className="flex justify-between font-bold text-amber-900">
                     <span>Booking: {revisionBooking.id} ({revisionBooking.customer})</span>
                     <span>{revisionBooking.eventType}</span>
@@ -666,14 +666,14 @@ export default function AdminOcular() {
               )}
 
               {/* Preset Helper Button */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-md border border-slate-200 shadow-2xs gap-2">
                 <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
                   <Sparkles size={13} className="text-amber-500 shrink-0" /> Fast preset helper for site measurements:
                 </span>
                 <button
                   type="button"
                   onClick={applyScaffoldPreset}
-                  className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors border border-amber-300 shrink-0"
+                  className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors border border-amber-300 shrink-0 cursor-pointer shadow-2xs"
                 >
                   ⚡ Scaffold Resize Example (20x20 → 30x40)
                 </button>
@@ -688,7 +688,7 @@ export default function AdminOcular() {
                   value={ocularNotes}
                   onChange={(e) => setOcularNotes(e.target.value)}
                   placeholder="Record venue dimensions, terrain checks, scaffold size requirements (e.g. 20x20 needs to be 30x40)..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                   required
                 />
               </div>
@@ -722,7 +722,7 @@ export default function AdminOcular() {
                   value={revisedSetupNotes}
                   onChange={(e) => setRevisedSetupNotes(e.target.value)}
                   placeholder="e.g. Upgraded scaffold structure size from 20x20 to 30x40 to fit venue area"
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                 />
               </div>
 
@@ -735,7 +735,7 @@ export default function AdminOcular() {
                   value={revisionMessage}
                   onChange={(e) => setRevisionMessage(e.target.value)}
                   placeholder="Explain why this revision is required based on the ocular site inspection..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                   required
                 />
               </div>

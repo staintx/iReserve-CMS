@@ -286,7 +286,7 @@ export default function AdminPackages() {
           {/* Search & Filters Bar */}
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Search */}
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 flex-1 max-w-md">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 flex-1 max-w-md shadow-2xs">
               <Search size={14} className="text-muted-foreground/70 flex-shrink-0" />
               <input
                 value={search}
@@ -296,12 +296,12 @@ export default function AdminPackages() {
                     ? "Search combos by name..."
                     : "Search packages by name..."
                 }
-                className="bg-transparent text-sm focus:outline-none flex-1"
+                className="bg-transparent text-xs sm:text-sm focus:outline-none flex-1 text-foreground"
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -311,10 +311,10 @@ export default function AdminPackages() {
             {/* Filter Toggle Button */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors border ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs sm:text-sm font-semibold transition-colors border cursor-pointer shadow-2xs ${
                 hasActiveFilters || showFilters
                   ? "bg-primary/10 border-primary text-primary"
-                  : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
               }`}
             >
               <Filter size={14} />
@@ -330,7 +330,7 @@ export default function AdminPackages() {
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-red-500 hover:text-red-600 font-medium"
+                className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm text-red-500 hover:text-red-600 font-semibold cursor-pointer"
               >
                 <X size={14} />
                 Clear filters
@@ -340,7 +340,7 @@ export default function AdminPackages() {
 
           {/* Filter Panel */}
           {showFilters && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+            <div className="bg-white border border-slate-200 rounded-md p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl shadow-lg">
               {/* Event Type Filter */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
@@ -437,7 +437,7 @@ export default function AdminPackages() {
                             #{pkg._id.substring(pkg._id.length - 6).toUpperCase()}
                           </p>
                           {pkg.event_type && (
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                            <span className="text-[10px] font-bold font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
                               {pkg.event_type}
                             </span>
                           )}
@@ -448,7 +448,7 @@ export default function AdminPackages() {
 
                     {/* Package Image */}
                     {pkg.image_url && (
-                      <div className="w-full h-36 mb-3 rounded-lg overflow-hidden bg-gray-100">
+                      <div className="w-full h-36 mb-3 rounded-md overflow-hidden bg-gray-100 border border-slate-200/60">
                         <img
                           src={pkg.image_url}
                           alt={pkg.name}

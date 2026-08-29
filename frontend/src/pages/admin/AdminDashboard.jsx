@@ -143,8 +143,8 @@ export default function AdminDashboard() {
                 const isUnavailable = item.available === false;
                 const status = isUnavailable ? "unavailable" : "critical";
                 return (
-                  <div key={item._id} className={`p-2.5 rounded-lg border text-xs ${isUnavailable ? "border-slate-200 bg-slate-50/60" : "border-rose-200/80 bg-rose-50/40"}`}>
-                    <div className="flex items-center justify-between gap-2 mb-1">
+                  <div key={item._id} className={`p-3 rounded-md border text-xs shadow-2xs ${isUnavailable ? "border-slate-200 bg-slate-50/60" : "border-rose-200/80 bg-rose-50/40"}`}>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="font-bold text-foreground truncate">{item.item_name}</span>
                       <Badge status={status} />
                     </div>

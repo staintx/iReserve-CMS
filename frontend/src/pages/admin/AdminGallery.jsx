@@ -77,14 +77,14 @@ export default function AdminGallery() {
         <AdminCard className="!p-3.5 sm:!p-4">
 
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 min-w-48">
+            <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 min-w-48 shadow-2xs">
               <Search size={14} className="text-muted-foreground/70" />
               <input 
                 value={search} 
                 onChange={e => setSearch(e.target.value)} 
                 placeholder="Search gallery items..." 
-                className="bg-transparent text-sm focus:outline-none flex-1" 
-                style={{ fontFamily: "Inter, sans-serif" }} 
+                className="bg-transparent text-xs sm:text-sm focus:outline-none flex-1 text-foreground" 
+                style={{ fontFamily: "var(--font-sans, Inter), sans-serif" }} 
               />
             </div>
             <div className="flex gap-1 flex-wrap">
@@ -92,7 +92,7 @@ export default function AdminGallery() {
                 <button 
                   key={c} 
                   onClick={() => setFilter(c)} 
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${filter === c ? "bg-primary text-white" : "bg-gray-100 text-muted-foreground hover:bg-gray-200"}`}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all cursor-pointer ${filter === c ? "bg-primary text-white shadow-2xs" : "bg-muted text-muted-foreground hover:bg-border/80 hover:text-foreground"}`}
                 >
                   {c}
                 </button>
@@ -106,7 +106,7 @@ export default function AdminGallery() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filtered.map(item => (
-              <AdminCard key={item._id} className="!p-0 hover:shadow-md transition-shadow overflow-hidden flex flex-col">
+              <AdminCard key={item._id} className="!p-0 hover:shadow-md transition-all overflow-hidden flex flex-col hover:border-slate-300">
                 {item.image_url ? (
                   <div className="w-full h-48 bg-gray-100 overflow-hidden">
                     <img src={item.image_url} alt={item.title} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
@@ -120,7 +120,9 @@ export default function AdminGallery() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h3 className="font-bold text-foreground leading-tight mb-1">{item.title}</h3>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{item.category}</p>
+                      <span className="text-[10px] font-bold font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80 uppercase tracking-wider inline-block">
+                        {item.category}
+                      </span>
                     </div>
                   </div>
                   

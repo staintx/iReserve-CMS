@@ -24,7 +24,7 @@ export default function RowActionsMenu({ actions = [] }) {
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
-          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           aria-label="Row actions"
         >
           <MoreHorizontal size={16} />

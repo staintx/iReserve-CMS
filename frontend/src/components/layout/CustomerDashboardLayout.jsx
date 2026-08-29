@@ -258,7 +258,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
 
         {/* Scrollable Page Body */}
         {fullBleed ? (
-          <main className="flex-1 overflow-hidden bg-white">
+          <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
             {children}
           </main>
         ) : (

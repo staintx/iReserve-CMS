@@ -16,14 +16,14 @@ export default function TableToolbar({
 }) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2 flex-1 min-w-48">
+      <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 min-w-48 shadow-2xs">
         <Search size={14} className="text-muted-foreground/70" />
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="bg-transparent text-sm focus:outline-none flex-1"
-          style={{ fontFamily: "Inter, sans-serif" }}
+          className="bg-transparent text-xs sm:text-sm focus:outline-none flex-1 text-foreground"
+          style={{ fontFamily: "var(--font-sans, Inter), sans-serif" }}
         />
       </div>
       {quickFilters && quickFilters.length > 0 && (
@@ -33,10 +33,10 @@ export default function TableToolbar({
               key={qf.value}
               type="button"
               onClick={() => onQuickFilterChange(qf.value)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all cursor-pointer ${
                 activeQuickFilter === qf.value
-                  ? "bg-primary text-white"
-                  : "bg-muted text-muted-foreground hover:bg-border"
+                  ? "bg-primary text-white shadow-2xs"
+                  : "bg-muted text-muted-foreground hover:bg-border/80 hover:text-foreground"
               }`}
             >
               {qf.label}

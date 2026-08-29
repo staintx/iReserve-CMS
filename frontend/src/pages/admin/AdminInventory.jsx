@@ -176,23 +176,23 @@ export default function AdminInventory() {
         
         if (!isAvailable) {
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500" title="Item is marked Unavailable">
-              0 <span className="text-[10px] font-normal text-slate-400">(Unavailable)</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="Item is marked Unavailable">
+              0 <span className="text-[9px] font-normal text-slate-400">(Unavailable)</span>
             </span>
           );
         }
 
         if (stockOnHand <= 0) {
           return (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200" title="Fully reserved/in use">
-              0 <span className="text-[10px] font-normal text-rose-500 ml-1">(Out of stock)</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200" title="Fully reserved/in use">
+              0 <span className="text-[9px] font-normal text-rose-500 ml-1">(Out of stock)</span>
             </span>
           );
         }
 
         return (
           <span 
-            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+            className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
             title={`${i.quantity || 0} Total - ${i.reserved_quantity || 0} In Use = ${stockOnHand} Stock on Hand`}
           >
             {stockOnHand}
@@ -274,9 +274,9 @@ export default function AdminInventory() {
             right={
               <div className="flex items-center gap-2">
                 {/* Optional Date Selector for checking stock for a specific date */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs shadow-2xs">
                   <Calendar size={13} className="text-slate-400 shrink-0" />
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Date:</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Date:</span>
                   <input
                     type="date"
                     value={selectedDate}
@@ -287,7 +287,7 @@ export default function AdminInventory() {
                   {selectedDate && (
                     <button
                       onClick={() => setSelectedDate("")}
-                      className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold ml-1"
+                      className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold ml-1 cursor-pointer"
                       title="Reset to Today"
                     >
                       Today
@@ -410,7 +410,7 @@ export default function AdminInventory() {
             </div>
 
             {/* Formula explanation box */}
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
+            <div className="p-3 bg-slate-50 rounded-md border border-slate-100 text-xs text-slate-600 space-y-1 shadow-2xs">
               <span className="font-semibold text-slate-700 block">Stock Calculation:</span>
               <p>
                 <strong>{drawerRow.quantity || 0}</strong> (Total Quantity) − <strong>{drawerRow.reserved_quantity || 0}</strong> (In-Use Today) = <strong className="text-emerald-700">{drawerRow.available_quantity || 0}</strong> (Stock on Hand).

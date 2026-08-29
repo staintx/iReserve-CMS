@@ -67,7 +67,7 @@ export default function AdminAddons() {
             <button
               type="button"
               onClick={() => setShowAIModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-primary bg-powder border border-primary/20 shadow-2xs hover:bg-powder/80 transition-all cursor-pointer active:scale-95"
             >
               <Sparkles size={13} className="text-primary" />
               <span>Import with Zelle AI</span>
@@ -115,14 +115,14 @@ export default function AdminAddons() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleOpenModal(addon)}
-                            className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer"
                             title="Edit"
                           >
                             <Edit3 size={16} />
                           </button>
                           <button
                             onClick={() => setCancelTarget(addon._id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 size={16} />

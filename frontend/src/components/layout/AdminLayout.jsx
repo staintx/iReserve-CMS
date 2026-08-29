@@ -4,7 +4,7 @@ import AdminCopilotPanel from "../admin/ui/AdminCopilotPanel";
 import { Menu } from "lucide-react";
 import { Button } from "../ui/button";
 
-export default function AdminLayout({ children }) {
+export default function AdminLayout({ children, fullBleed = false }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -22,12 +22,18 @@ export default function AdminLayout({ children }) {
         </button>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-4 sm:p-6 lg:p-7 overflow-y-auto">
-          <div className="max-w-[1600px] mx-auto space-y-5">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {fullBleed ? (
+          <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden p-3 sm:p-4 lg:p-5">
             {children}
-          </div>
-        </main>
+          </main>
+        ) : (
+          <main className="flex-1 p-4 sm:p-6 lg:p-7 overflow-y-auto">
+            <div className="max-w-[1600px] mx-auto space-y-5">
+              {children}
+            </div>
+          </main>
+        )}
       </div>
 
 

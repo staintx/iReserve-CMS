@@ -290,7 +290,7 @@ export default function AdminInquiries() {
               {r.booking}
             </span>
             <span
-              className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+              className={`shrink-0 rounded-md font-mono border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                 BOOKING_TYPE_STYLES[r.bookingType] ||
                 BOOKING_TYPE_STYLES[BOOKING_TYPES.CUSTOM]
               }`}

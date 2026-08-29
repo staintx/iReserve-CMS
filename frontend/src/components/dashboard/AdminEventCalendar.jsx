@@ -336,7 +336,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
   return (
     <div className="space-y-3.5">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card rounded-lg border border-border/80 p-3 sm:p-3.5 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card rounded-md border border-border/80 p-3.5 sm:p-4 shadow-2xs">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
             Availability Calendar
@@ -352,7 +352,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <button
               type="button"
               onClick={() => setViewMode("month")}
-              className={`px-2.5 py-0.5 rounded font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 viewMode === "month"
                   ? "bg-card text-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -363,7 +363,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <button
               type="button"
               onClick={() => setViewMode("week")}
-              className={`px-2.5 py-0.5 rounded font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 viewMode === "week"
                   ? "bg-card text-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -374,7 +374,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
             <button
               type="button"
               onClick={() => setViewMode("agenda")}
-              className={`px-2.5 py-0.5 rounded font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 viewMode === "agenda"
                   ? "bg-card text-foreground shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -388,7 +388,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           <button
             type="button"
             onClick={() => openBlockModalForDate(selectedDate)}
-            className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs font-semibold rounded-md shadow-2xs hover:bg-primary/90 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-md shadow-2xs hover:bg-primary/90 transition-all cursor-pointer"
           >
             <Lock size={12} />
             <span>Block Date</span>
@@ -399,7 +399,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
       {/* Main Grid: Calendar on Left, Schedule Feed on Right */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_290px] gap-3.5 items-start">
         {/* Calendar View Card */}
-        <div className="bg-card rounded-lg border border-border/80 p-3 sm:p-3.5 shadow-2xs space-y-2.5">
+        <div className="bg-card rounded-md border border-border/80 p-3.5 sm:p-4 shadow-2xs space-y-2.5">
 
           {/* Calendar Month Navigation Header */}
           <div className="flex items-center justify-between pb-2 border-b border-border/60">
@@ -583,8 +583,8 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                     <div
                       key={i}
                       onClick={() => setSelectedDate(d)}
-                      className={`p-2 rounded-xl border text-left cursor-pointer min-h-[150px] flex flex-col ${
-                        isSelected ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40" : "border-slate-100 bg-white"
+                      className={`p-2 rounded-md border text-left cursor-pointer min-h-[150px] flex flex-col shadow-2xs ${
+                        isSelected ? "border-amber-400 bg-amber-50/20 ring-2 ring-amber-400/40" : "border-slate-100 bg-white hover:border-slate-200"
                       }`}
                     >
                       <div className="text-[10px] font-bold text-slate-400 uppercase">
@@ -602,7 +602,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                                 e.stopPropagation();
                                 setActiveItem(ev);
                               }}
-                              className={`p-1.5 rounded-lg text-[10px] font-medium ${catStyle.cardBg} border shadow-2xs cursor-pointer hover:opacity-90 leading-tight`}
+                              className={`p-1.5 rounded-md text-[10px] font-medium ${catStyle.cardBg} border shadow-2xs cursor-pointer hover:opacity-90 leading-tight`}
                             >
                               <p className="font-bold truncate">{ev.title}</p>
                               {ev.clientName && <p className="text-[9px] opacity-80 truncate mt-0.5">{ev.clientName}</p>}
@@ -637,7 +637,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                             <div
                               key={ev.id}
                               onClick={() => setActiveItem(ev)}
-                              className={`p-2.5 rounded-xl border flex items-center justify-between ${catStyle.cardBg} cursor-pointer hover:shadow-2xs`}
+                              className={`p-2.5 rounded-md border flex items-center justify-between ${catStyle.cardBg} cursor-pointer hover:shadow-2xs shadow-2xs`}
                             >
                               <div className="flex items-center gap-2.5">
                                 <span className={`w-2.5 h-2.5 rounded-full ${catStyle.dotBg}`} />
@@ -663,7 +663,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
         </div>
 
         {/* Right Sidebar: Selected Date Card */}
-        <div className="bg-card rounded-lg border border-border/80 p-3 sm:p-3.5 shadow-2xs space-y-2.5">
+        <div className="bg-card rounded-md border border-border/80 p-3.5 sm:p-4 shadow-2xs space-y-2.5">
 
           <div>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -680,7 +680,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
           </div>
 
           {selectedDayEvents.length === 0 ? (
-            <div className="text-center py-6 border border-dashed border-border rounded-lg p-3 bg-muted/20 space-y-2">
+            <div className="text-center py-6 border border-dashed border-border rounded-md p-3 bg-muted/20 space-y-2">
               <CalendarIcon size={18} className="mx-auto text-muted-foreground" />
               <p className="text-xs text-muted-foreground font-medium">No events or blocks for this date.</p>
               <button
@@ -698,7 +698,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
                 return (
                   <div
                     key={ev.id}
-                    className={`p-2.5 rounded-lg border ${catStyle.cardBg} space-y-1.5 transition-all`}
+                    className={`p-2.5 rounded-md border ${catStyle.cardBg} space-y-1.5 transition-all shadow-2xs`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -754,7 +754,7 @@ export default function AdminEventCalendar({ bookingsProp = null }) {
       {/* Block Date Modal */}
       {showBlockModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg border border-border max-w-md w-full p-4 sm:p-4.5 shadow-xl space-y-3.5 animate-in fade-in zoom-in duration-150">
+          <div className="bg-card rounded-md border border-border max-w-md w-full p-4 sm:p-4.5 shadow-xl space-y-3.5 animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between border-b border-border pb-2.5">
 
               <h3 className="text-base font-bold text-foreground flex items-center gap-2">

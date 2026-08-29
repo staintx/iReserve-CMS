@@ -143,7 +143,7 @@ export default function AdminNotifications() {
             >
               {f.label}
               {f.key === "unread" && unreadCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold align-middle">
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-md bg-destructive text-destructive-foreground text-[10px] font-mono font-bold align-middle">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -151,7 +151,7 @@ export default function AdminNotifications() {
           ))}
         </div>
 
-        <AdminCard className="!p-0 overflow-hidden">
+        <AdminCard className="!p-0 overflow-hidden shadow-2xs border border-slate-200">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground text-sm">Loading notifications...</div>
           ) : items.length === 0 ? (
@@ -175,11 +175,11 @@ export default function AdminNotifications() {
                         key={item._id}
                         onClick={() => handleItemClick(item)}
                         className={cn(
-                          "w-full text-left px-5 py-4 flex gap-3 hover:bg-muted transition-colors border-b border-border last:border-b-0",
+                          "w-full text-left px-5 py-4 flex gap-3 hover:bg-muted transition-colors border-b border-border last:border-b-0 cursor-pointer",
                           !item.is_read && "bg-powder/40"
                         )}
                       >
-                        <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full", meta.chipClass)}>
+                        <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md shadow-2xs", meta.chipClass)}>
                           <Icon className={cn("w-4 h-4", meta.iconClass)} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -209,15 +209,15 @@ export default function AdminNotifications() {
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="p-1.5 rounded-md hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer"
                 >
                   <ChevronLeft size={14} />
                 </button>
-                <span className="px-2 font-semibold text-foreground">{page} / {pages}</span>
+                <span className="px-2 font-semibold text-foreground font-mono">{page} / {pages}</span>
                 <button
                   disabled={page >= pages}
                   onClick={() => setPage((p) => Math.min(pages, p + 1))}
-                  className="p-1.5 rounded-lg hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
+                  className="p-1.5 rounded-md hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer"
                 >
                   <ChevronRight size={14} />
                 </button>

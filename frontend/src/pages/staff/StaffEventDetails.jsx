@@ -4,6 +4,8 @@ import { StaffAPI } from "../../api/staff";
 import StaffLayout from "../../components/layout/StaffLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
+import PageHeader from "../../components/admin/ui/PageHeader";
+import SegmentedTabs from "../../components/admin/ui/SegmentedTabs";
 import Badge from "../../components/admin/ui/Badge";
 import useToast from "../../hooks/useToast";
 import { useConfirm } from "../../components/feedback/confirmContext";
@@ -34,6 +36,78 @@ import {
 } from "lucide-react";
 import { getEventTimingStatus } from "../../utils/format";
 
+
+/**
+ * The count control for one number on the equipment checklist.
+ *
+ * The previous version packed a label, two 28px buttons and a 40px borderless
+ * number field into a row shared with the item's action buttons. It is the
+ * control this whole screen exists for and it was the smallest thing on it.
+ *
+ * Now: a full-width row, 44px targets, the value in a bordered field so it
+ * reads as editable, `inputMode="numeric"` so a phone opens the number pad
+ * rather than the full keyboard, and `tabular-nums` so the digit does not
+ * shift the buttons as it changes.
+ */
+function QtyStepper({ label, value, max, tone = "neutral", onStep, onChange }) {
+  const danger = tone === "danger";
+  return (
+    <div
+      className={`flex items-center justify-between gap-2 rounded-md border p-1.5 shadow-2xs ${
+        danger ? "border-rose-200 bg-rose-50/60" : "border-border bg-card"
+      }`}
+    >
+      <span
+        className={`pl-1.5 text-[11px] font-bold uppercase tracking-wider ${
+          danger ? "text-rose-800" : "text-muted-foreground"
+        }`}
+      >
+        {label}
+      </span>
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onStep(-1)}
+          disabled={Number(value) <= 0}
+          aria-label={`Decrease ${label.toLowerCase()}`}
+          className={`grid h-11 w-11 place-items-center rounded-md text-lg font-bold transition-colors disabled:opacity-40 cursor-pointer portal-press sm:h-9 sm:w-9 ${
+            danger
+              ? "bg-rose-100 text-rose-900 hover:bg-rose-200"
+              : "bg-muted text-foreground hover:bg-border/80"
+          }`}
+        >
+          −
+        </button>
+        <input
+          type="number"
+          inputMode="numeric"
+          min="0"
+          max={max}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={label}
+          className={`h-11 w-14 rounded-md border bg-card text-center text-sm font-bold tabular-nums outline-none focus:ring-2 focus:ring-primary/40 sm:h-9 sm:w-12 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${
+            danger ? "border-rose-200 text-rose-900" : "border-border text-foreground"
+          }`}
+        />
+        <button
+          type="button"
+          onClick={() => onStep(1)}
+          disabled={Number(value) >= max}
+          aria-label={`Increase ${label.toLowerCase()}`}
+          className={`grid h-11 w-11 place-items-center rounded-md text-lg font-bold transition-colors disabled:opacity-40 cursor-pointer portal-press sm:h-9 sm:w-9 ${
+            danger
+              ? "bg-rose-100 text-rose-900 hover:bg-rose-200"
+              : "bg-muted text-foreground hover:bg-border/80"
+          }`}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function StaffEventDetails() {
   const { id } = useParams();
@@ -359,6 +433,14 @@ export default function StaffEventDetails() {
     return { totalBooked, totalReturned, totalDamaged, discrepancy };
   }, [equipmentList]);
 
+  // How many manifest lines the crew has actually accounted for. Drives the
+  // pinned save bar, which is the only place on a phone where the progress
+  // through a long checklist stays visible.
+  const countedItems = useMemo(
+    () => equipmentList.filter((item) => item._verified).length,
+    [equipmentList]
+  );
+
   if (loading) {
     return (
       <StaffLayout>
@@ -389,86 +471,80 @@ export default function StaffEventDetails() {
   return (
     <StaffLayout>
       <div className="space-y-4">
-        {/* Navigation & Header */}
-        <div>
-          <button
-            type="button"
-            onClick={() => navigate("/staff/dashboard")}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1.5 mb-2 transition-colors cursor-pointer"
-          >
-            <ArrowLeft size={13} /> Back to Assigned Events
-          </button>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                  {booking.event_type || "Catering Event"}
-                </h1>
-                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-950 border border-amber-300 font-bold text-xs">
-                  Role: {myRole}
+        <PageHeader
+          back={
+            <button
+              type="button"
+              onClick={() => navigate("/staff/dashboard")}
+              className="-ml-1 flex min-h-[38px] items-center gap-1.5 rounded-md px-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+            >
+              <ArrowLeft size={14} /> Back to my shifts
+            </button>
+          }
+          title={booking.event_type || "Catering Event"}
+          description={
+            (booking.customer_id?.full_name || 'Valued Client') +
+            ' · REF ' +
+            (booking.reference || booking._id?.slice(-6).toUpperCase() || '')
+          }
+          meta={
+            <>
+              <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-950">
+                {myRole}
+              </span>
+              {timing.isUpcoming && (
+                <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <Lock size={11} className="text-slate-500" />
+                  Upcoming shift
                 </span>
-
-                {timing.isUpcoming && (
-                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 font-bold text-[10.5px] flex items-center gap-1">
-                    <Lock size={11} className="text-slate-500" />
-                    <span>Upcoming Shift</span>
-                  </span>
-                )}
-                {timing.isStarted && !timing.isFinished && (
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 font-bold text-[10.5px] flex items-center gap-1 animate-pulse">
-                    <Sparkles size={11} className="text-emerald-600" />
-                    <span>In Progress</span>
-                  </span>
-                )}
-                {timing.isFinished && (
-                  <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200 border border-blue-300 font-bold text-[10.5px] flex items-center gap-1">
-                    <CheckCircle2 size={11} className="text-blue-600" />
-                    <span>Ready for Return Check</span>
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Client: <strong className="text-foreground">{booking.customer_id?.full_name || "Valued Client"}</strong> • REF: <span className="font-mono">{booking.reference || booking._id?.slice(-6).toUpperCase()}</span>
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+              )}
+              {timing.isStarted && !timing.isFinished && (
+                <span className="flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10.5px] font-bold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+                  <Sparkles size={11} className="text-emerald-600" />
+                  In progress
+                </span>
+              )}
+              {timing.isFinished && (
+                <span className="flex items-center gap-1 rounded-md border border-blue-300 bg-blue-100 px-2 py-0.5 text-[10.5px] font-bold text-blue-900 dark:bg-blue-950 dark:text-blue-200">
+                  <CheckCircle2 size={11} className="text-blue-600" />
+                  Ready for return check
+                </span>
+              )}
               <Badge status={booking.status || "confirmed"} />
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
 
-        {/* Tab Navigation Controls */}
-        <div className="flex items-center gap-1 p-0.5 bg-muted/80 border border-border/80 rounded-md w-full sm:w-fit overflow-x-auto no-scrollbar scroll-smooth flex-nowrap shrink-0">
-          {[
-            { id: "briefing", label: "Event Briefing & Team", icon: ClipboardList },
-            { 
-              id: "equipment", 
-              label: timing.isUpcoming 
-                ? `Dispatched Gear (${equipmentList.length})` 
-                : `Equipment Check (${equipmentList.length})`, 
-              icon: timing.isUpcoming ? Lock : PackageCheck,
-              isLocked: timing.isUpcoming
-            },
-            { id: "report", label: "Incident & Completion", icon: FileText }
-          ].map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 sm:py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                  activeTab === tab.id
-                    ? "bg-card text-foreground shadow-2xs border border-border/80 font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon size={13} className={activeTab === tab.id ? "text-primary" : "text-muted-foreground"} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        {/* The three views of a shift. Sticky on a phone: the equipment tab is
+            a long checklist and losing the way back to the briefing halfway
+            down it means scrolling to the top to find it again. */}
+        <div className="portal-sticky -mx-3 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+          <SegmentedTabs
+            ariaLabel="Shift views"
+            value={activeTab}
+            onChange={setActiveTab}
+            tabs={[
+              {
+                id: "briefing",
+                label: "Event Briefing & Team",
+                shortLabel: "Briefing",
+                icon: ClipboardList,
+              },
+              {
+                id: "equipment",
+                label: timing.isUpcoming ? "Dispatched Gear" : "Equipment Check",
+                shortLabel: timing.isUpcoming ? "Gear" : "Gear",
+                icon: timing.isUpcoming ? Lock : PackageCheck,
+                count: equipmentList.length,
+              },
+              {
+                id: "report",
+                label: "Incident & Completion",
+                shortLabel: "Report",
+                icon: FileText,
+              },
+            ]}
+          />
         </div>
 
         {/* TAB 1: BRIEFING & TEAM */}
@@ -646,7 +722,7 @@ export default function StaffEventDetails() {
                         {srv.note && <div className="text-[10.5px] text-muted-foreground">{srv.note}</div>}
                       </div>
                       {srv.quantity > 1 && (
-                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        <span className="text-[10.5px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                           Qty: {srv.quantity}
                         </span>
                       )}
@@ -813,181 +889,218 @@ export default function StaffEventDetails() {
                   </AdminCard>
                 </div>
 
-                {/* Checklist Table */}
-                <AdminCard className="space-y-3 shadow-2xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-border/60">
+                {/* The return checklist.
+                    This is the one screen the crew uses standing up, in a
+                    venue, at the end of a shift — so it is the one that most
+                    needed rebuilding rather than shrinking. What changed:
+
+                    - The count steppers were 28px squares with a 40px number
+                      between them, tapped repeatedly with one hand. They are
+                      now 44px, the number is a 44px-tall field with a numeric
+                      keypad, and the pair sits on its own full-width row
+                      instead of being wedged beside the item name.
+                    - Every item's controls were visible at once, so a
+                      fifteen-item manifest was a wall of steppers. An item
+                      that is simply all-present is now one tap and collapses
+                      to a confirmed row; the steppers appear only for the
+                      items that actually need a count.
+                    - Save was at the bottom of that wall. It is now a bar
+                      pinned above the tab bar as soon as anything is
+                      unsaved, and it says how many items are still uncounted. */}
+                <AdminCard className="space-y-3 shadow-2xs !p-3 sm:!p-4.5">
+                  <div className="flex flex-col gap-2.5 border-b border-border/60 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="text-sm font-bold text-foreground">Equipment Counting &amp; Return Verification Checklist</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Count and record all catering equipment upon event wrap-up before returning to inventory
+                      <h3 className="text-sm font-bold text-foreground">Equipment return check</h3>
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                        Count every item before it goes back to inventory.
+                        {countedItems < equipmentList.length && (
+                          <>
+                            {" "}
+                            <span className="font-semibold text-foreground tabular-nums">
+                              {equipmentList.length - countedItems} of {equipmentList.length}
+                            </span>{" "}
+                            still to count.
+                          </>
+                        )}
                       </p>
                     </div>
 
-                    <button 
+                    <button
                       type="button"
                       onClick={handleMatchAllQuantities}
-                      className="self-start sm:self-auto py-1.5 px-3 min-h-[38px] sm:min-h-0 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      className="flex min-h-[44px] items-center justify-center gap-1.5 self-stretch rounded-md border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press sm:min-h-9 sm:self-auto"
                     >
-                      <Check size={13} className="text-emerald-600" />
-                      <span>Match All Dispatched</span>
+                      <Check size={14} className="text-emerald-600" />
+                      <span>All present</span>
                     </button>
                   </div>
 
-                  <div className="space-y-2.5">
+                  <ul className="space-y-2">
                     {equipmentList.map((item, idx) => {
                       const isMissing = item._verified && item._markedMissing;
-                      const isMatch = item._verified && !item._markedMissing && ((item.quantity_returned || 0) + (item.quantity_damaged || 0)) === item.quantity_booked;
+                      const isMatch =
+                        item._verified &&
+                        !item._markedMissing &&
+                        (item.quantity_returned || 0) + (item.quantity_damaged || 0) === item.quantity_booked;
+                      const shortfall =
+                        item.quantity_booked - (item.quantity_returned || 0) - (item.quantity_damaged || 0);
 
                       return (
-                        <div 
-                          key={idx} 
-                          className={`p-3 rounded-lg border transition-all shadow-2xs space-y-2 ${
-                            isMissing ? "border-amber-300 bg-amber-50/40" : (isMatch ? "border-emerald-200 bg-emerald-50/30" : "border-border/80 bg-card")
+                        <li
+                          key={idx}
+                          className={`space-y-2.5 rounded-lg border p-2.5 shadow-2xs transition-all sm:p-3 ${
+                            isMissing
+                              ? "border-amber-300 bg-amber-50/40"
+                              : isMatch
+                                ? "border-emerald-200 bg-emerald-50/30"
+                                : "border-border/80 bg-card"
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-xs text-foreground">{item.name}</span>
-                                {isMatch && (
-                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5">
-                                    <CheckCircle2 size={10} /> Verified
-                                  </span>
-                                )}
-                                {item.quantity_damaged > 0 && (
-                                  <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-1.5 py-0.2 rounded border border-rose-300 flex items-center gap-0.5">
-                                    <AlertTriangle size={10} /> {item.quantity_damaged} Damaged
-                                  </span>
-                                )}
-                                {isMissing && (
-                                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300 flex items-center gap-0.5">
-                                    <AlertTriangle size={10} /> {item.quantity_booked - (item.quantity_returned || 0) - (item.quantity_damaged || 0)} Short
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-muted-foreground mt-0.5">
-                                Booked / Dispatched: <strong className="text-foreground">{item.quantity_booked}</strong>
-                              </div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-bold leading-snug text-foreground">{item.name}</p>
+                              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                                Dispatched:{" "}
+                                <strong className="text-foreground tabular-nums">{item.quantity_booked}</strong>
+                              </p>
                             </div>
 
-                            {/* Input Controls */}
-                            <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                              {isMatch ? (
-                                <div className="flex items-center gap-1.5">
-                                  <button onClick={() => handleMarkMissing(idx)} className="p-1.5 min-h-[38px] rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold" title="Edit counts">
-                                    <AlertTriangle size={13} />
-                                    <span>Edit</span>
-                                  </button>
-                                  <div className="px-2.5 py-1.5 min-h-[38px] rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1">
-                                    <CheckCircle2 size={13} /> Complete
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                                  <button onClick={() => handleMarkComplete(idx)} className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[38px] rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer" title="Mark complete">
-                                    <Check size={13} /> All Complete
-                                  </button>
-                                  <button onClick={() => handleMarkMissing(idx)} className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[38px] rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer" title="Adjust count">
-                                    <X size={13} /> Custom Count
-                                  </button>
-                                </div>
+                            <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                              {isMatch && (
+                                <span className="flex items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                                  <CheckCircle2 size={11} /> All in
+                                </span>
+                              )}
+                              {item.quantity_damaged > 0 && (
+                                <span className="flex items-center gap-0.5 rounded border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800 tabular-nums">
+                                  <AlertTriangle size={11} /> {item.quantity_damaged} broken
+                                </span>
+                              )}
+                              {isMissing && shortfall > 0 && (
+                                <span className="flex items-center gap-0.5 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 tabular-nums">
+                                  <AlertTriangle size={11} /> {shortfall} short
+                                </span>
                               )}
                             </div>
                           </div>
 
-                          {/* Stepper Count Area */}
+                          {/* The two-choice row. "All present" is the common
+                              case and gets the affirmative colour; "count"
+                              opens the steppers for the exception. */}
+                          {isMatch ? (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkMissing(idx)}
+                              className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground cursor-pointer sm:min-h-9"
+                            >
+                              <AlertTriangle size={14} className="text-amber-600" />
+                              Change count
+                            </button>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleMarkComplete(idx)}
+                                className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer portal-press sm:min-h-9"
+                              >
+                                <Check size={14} /> All present
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkMissing(idx)}
+                                className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border text-xs font-bold transition-colors cursor-pointer portal-press sm:min-h-9 ${
+                                  isMissing
+                                    ? "border-amber-300 bg-amber-100 text-amber-900"
+                                    : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                }`}
+                              >
+                                <X size={14} /> Count it
+                              </button>
+                            </div>
+                          )}
+
                           {item._markedMissing && (
-                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/60">
-                              {/* Safe Return Stepper */}
-                              <div className="flex items-center gap-1 bg-card p-1 rounded-md border border-border shadow-2xs">
-                                <label className="text-[10px] font-bold text-muted-foreground uppercase px-1">Safe:</label>
-                                <button
-                                  type="button"
-                                  onClick={() => stepReturnedQty(idx, -1)}
-                                  className="w-7 h-7 rounded bg-muted hover:bg-muted/80 text-foreground font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={item.quantity_booked}
-                                  value={item.quantity_returned}
-                                  onChange={(e) => handleUpdateReturnedQuantity(idx, e.target.value)}
-                                  className="w-10 text-center font-bold text-xs p-0.5 bg-transparent border-0 focus:ring-0 text-foreground"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => stepReturnedQty(idx, 1)}
-                                  className="w-7 h-7 rounded bg-muted hover:bg-muted/80 text-foreground font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
-                                >
-                                  +
-                                </button>
-                              </div>
-
-                              {/* Damaged Stepper */}
-                              <div className="flex items-center gap-1 bg-rose-50/60 p-1 rounded-md border border-rose-200 shadow-2xs">
-                                <label className="text-[10px] font-bold text-rose-800 uppercase px-1">Broken:</label>
-                                <button
-                                  type="button"
-                                  onClick={() => stepDamagedQty(idx, -1)}
-                                  className="w-7 h-7 rounded bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={item.quantity_booked}
-                                  value={item.quantity_damaged || 0}
-                                  onChange={(e) => handleUpdateDamagedQuantity(idx, e.target.value)}
-                                  className="w-10 text-center font-bold text-xs p-0.5 bg-transparent border-0 focus:ring-0 text-rose-900"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => stepDamagedQty(idx, 1)}
-                                  className="w-7 h-7 rounded bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold text-sm flex items-center justify-center cursor-pointer active:scale-95"
-                                >
-                                  +
-                                </button>
-                              </div>
-
+                            <div className="space-y-2 border-t border-amber-200/60 pt-2.5">
+                              <QtyStepper
+                                label="Returned safe"
+                                value={item.quantity_returned}
+                                max={item.quantity_booked}
+                                onStep={(delta) => stepReturnedQty(idx, delta)}
+                                onChange={(value) => handleUpdateReturnedQuantity(idx, value)}
+                              />
+                              <QtyStepper
+                                label="Broken"
+                                tone="danger"
+                                value={item.quantity_damaged || 0}
+                                max={item.quantity_booked}
+                                onStep={(delta) => stepDamagedQty(idx, delta)}
+                                onChange={(value) => handleUpdateDamagedQuantity(idx, value)}
+                              />
                               <input
                                 type="text"
-                                placeholder="Notes for missing/damaged..."
+                                placeholder="What happened to the missing or broken items?"
                                 value={item.notes || ""}
                                 onChange={(e) => handleUpdateEquipmentNote(idx, e.target.value)}
-                                className="flex-1 min-w-[140px] p-1.5 rounded-md border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground"
+                                className="min-h-[44px] w-full rounded-md border border-border bg-card px-2.5 text-xs text-foreground placeholder:text-muted-foreground sm:min-h-0 sm:py-2"
                               />
                             </div>
                           )}
-                        </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
 
-                  <div className="space-y-2 pt-2.5 border-t border-border/60">
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Additional Equipment Notes</label>
+                  <div className="space-y-2 border-t border-border/60 pt-2.5">
+                    <label htmlFor="equipment-notes" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Additional equipment notes
+                    </label>
                     <textarea
-                      placeholder="Any overall observations regarding the equipment..."
+                      id="equipment-notes"
+                      placeholder="Any overall observations regarding the equipment…"
                       value={equipmentNotes}
                       onChange={(e) => setEquipmentNotes(e.target.value)}
-                      className="w-full min-h-[70px] p-2.5 rounded-lg border border-border bg-background text-xs text-foreground focus:ring-1 focus:ring-primary placeholder:text-muted-foreground resize-y"
+                      className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary"
                     />
                   </div>
 
-                  <div className="flex justify-end pt-2">
-                    <button 
+                  {/* Desktop keeps the action in the flow of the card; the
+                      phone gets the pinned bar below instead. */}
+                  <div className="hidden justify-end pt-1 sm:flex">
+                    <button
                       type="button"
-                      onClick={handleSubmitEquipmentReturns} 
+                      onClick={handleSubmitEquipmentReturns}
                       disabled={submittingEquipment}
-                      className="w-full sm:w-auto py-2 px-4 min-h-[42px] sm:min-h-0 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 disabled:opacity-60 cursor-pointer"
                     >
                       <PackageCheck size={14} />
-                      <span>{submittingEquipment ? "Saving Verification..." : "Save Equipment Verification"}</span>
+                      <span>{submittingEquipment ? "Saving…" : "Save equipment verification"}</span>
                     </button>
                   </div>
                 </AdminCard>
+
+                {/* Pinned save bar. It rides above the tab bar so the crew can
+                    commit the count from anywhere in a long manifest instead
+                    of scrolling back to the bottom of it. */}
+                <div className="fixed inset-x-0 bottom-[var(--portal-tabbar-total)] z-30 border-t border-border bg-card/95 p-2.5 shadow-[0_-1px_12px_rgba(92,64,43,0.08)] backdrop-blur sm:hidden">
+                  <button
+                    type="button"
+                    onClick={handleSubmitEquipmentReturns}
+                    disabled={submittingEquipment}
+                    className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-[13px] font-bold text-primary-foreground shadow-2xs transition-colors hover:bg-primary/90 disabled:opacity-60 cursor-pointer portal-press"
+                  >
+                    <PackageCheck size={16} />
+                    <span>
+                      {submittingEquipment
+                        ? "Saving…"
+                        : countedItems < equipmentList.length
+                          ? `Save count (${countedItems}/${equipmentList.length} done)`
+                          : "Save equipment verification"}
+                    </span>
+                  </button>
+                </div>
+                {/* Reserves the pinned bar's own height so the last line of
+                    the manifest is not parked underneath it. */}
+                <div className="h-[68px] sm:hidden" aria-hidden="true" />
               </div>
             )}
           </div>

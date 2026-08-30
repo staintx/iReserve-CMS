@@ -357,16 +357,19 @@
 }
 
 /* Cards / Grid */
-/* Legacy default for bare `class="grid"` markup in the admin/manager/staff
-   portals. Scoped to .admin-layout: this file is loaded globally and, being
-   unlayered, it outranks Tailwind's utilities layer — unscoped it silently
-   overrode every `grid-cols-*` utility in the app, including the customer
-   portal. */
-.admin-layout :where(.grid) {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
+/* The legacy `.admin-layout :where(.grid)` default that lived here has been
+   removed. admin.css is unlayered, so it outranked Tailwind's utilities layer
+   however low its specificity, and it forced
+   `grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))` plus a 12px
+   gap onto *every* element carrying the `grid` class inside the three
+   portals. Two things broke as a result:
+     - `grid-cols-2` was silently ignored, so the Manager and Staff KPI rows
+       collapsed to one stacked column on a phone;
+     - every `grid place-items-center` avatar and icon chip got a 200px
+       minimum column, which pushed its initials outside its own circle.
+   It had no legitimate consumers: the only bare `class="grid"` markup in the
+   app is three customer pages, and this rule was already scoped away from
+   them. Bare `.grid` inside a portal now behaves as plain CSS grid. */
 
 .card {
   background: #fff;
@@ -3569,4 +3572,4 @@ input.search {
 }
 .inv-switch-v2 input:checked + .inv-slider-v2:before {
   transform: translateX(20px);
-}
+}

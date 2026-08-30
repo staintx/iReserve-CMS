@@ -166,15 +166,22 @@
   margin: 40px 0;
 }
 
-/* Legacy default for bare `class="grid"` markup. Must stay inside
-   @layer components: unlayered CSS outranks Tailwind's utilities layer, so
-   without this the auto-fit columns silently override every `grid-cols-*`
-   utility in the app. */
+/* Legacy default for bare `class="grid"` markup, kept inside
+   @layer components so Tailwind's utilities layer still wins.
+   The `grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))` that used
+   to be here is gone. Layering protected `grid-cols-*` utilities, but nothing
+   protected the plain `grid` utility: Tailwind's `grid` only sets
+   `display: grid`, so every `grid place-items-center` icon chip and avatar in
+   the app inherited a 220px minimum column and painted its glyph up to 70px
+   outside its own 36px box. That is why the dialog close button and the
+   remove-slot buttons in the staffing form appeared blank.
+   Its only consumers were three unrouted customer pages
+   (CustomerHome, CustomerMenu, CustomerPackages), so no live layout depends
+   on the columns; markup that wants them should ask with `grid-cols-*`. */
 @layer components {
   :where(.grid) {
     display: grid;
     gap: 16px;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 }
 

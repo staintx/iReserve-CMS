@@ -1902,6 +1902,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       <Modal
         title="Quotation Builder"
         onClose={onClose}
+        bodyClassName="overflow-hidden"
         className="max-w-4xl h-[80vh] flex items-center justify-center"
       >
         <div className="flex h-full items-center justify-center">
@@ -1927,6 +1928,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     <Modal
       title="Quotation Builder"
       onClose={() => requestClose("leave")}
+      bodyClassName="overflow-hidden"
       className="max-w-7xl w-[96vw] h-[90vh]"
     >
       <form onSubmit={handleSubmit} className="flex h-full flex-col gap-4 overflow-hidden lg:flex-row lg:gap-6">

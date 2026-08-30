@@ -4,6 +4,8 @@ import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
+import PageHeader from "../../components/admin/ui/PageHeader";
+import SegmentedTabs from "../../components/admin/ui/SegmentedTabs";
 import Badge from "../../components/admin/ui/Badge";
 import Modal from "../../components/common/Modal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -47,6 +49,80 @@ const isPastDate = (dateVal) => {
   today.setHours(0, 0, 0, 0);
   return d < today;
 };
+
+/**
+ * Native `<select>` is deliberate for crew pickers. On a phone it opens the
+ * platform's own wheel or list — searchable, one-handed, and already
+ * familiar — where a custom listbox would reimplement all of that worse
+ * inside a sheet that is itself already scrolling. What it needed was a
+ * real touch target: these were 2px-padded rows about 30px tall.
+ */
+const CREW_SELECT =
+  "w-full min-h-[44px] sm:min-h-0 rounded-lg border border-border bg-card px-2.5 py-2 " +
+  "text-xs font-medium text-foreground outline-none transition-shadow " +
+  "focus:ring-2 focus:ring-primary/40";
+
+/** One crew slot: a picker and, when the slot is removable, its remove button. */
+function CrewRow({ value, placeholder, options, onChange, onRemove, removeLabel }) {
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={placeholder}
+        className={CREW_SELECT + " flex-1 min-w-0"}
+      >
+        <option value="">{placeholder}</option>
+        {options}
+      </select>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={removeLabel}
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive cursor-pointer sm:h-9 sm:w-9"
+        >
+          <Trash2 size={15} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A role's group of slots. "Add" was an 11px underlined text link — the
+ * smallest possible target for the control this form is built around — so
+ * it is now a bordered button on its own line under the slots, where it
+ * reads as "one more of these" rather than competing with the group label.
+ */
+function CrewGroup({ label, addLabel, onAdd, secondaryAddLabel, onSecondaryAdd, children }) {
+  return (
+    <fieldset className="space-y-2 rounded-lg border border-border/80 bg-muted/20 p-2.5 sm:p-3">
+      <legend className="px-1 text-xs font-bold uppercase tracking-wider text-foreground">
+        {label}
+      </legend>
+      <div className="space-y-2">{children}</div>
+      <div className="flex flex-col gap-2 pt-0.5 sm:flex-row">
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-card text-[12px] font-bold text-primary transition-colors hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
+        >
+          <Plus size={13} /> {addLabel}
+        </button>
+        {onSecondaryAdd && (
+          <button
+            type="button"
+            onClick={onSecondaryAdd}
+            className="flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-card text-[12px] font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground cursor-pointer"
+          >
+            <Plus size={13} /> {secondaryAddLabel}
+          </button>
+        )}
+      </div>
+    </fieldset>
+  );
+}
 
 export default function ManagerBookings() {
   const navigate = useNavigate();
@@ -152,6 +228,35 @@ export default function ManagerBookings() {
   }, [bookings, search]);
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
+
+  // One <option> list, built once and reused by every crew picker instead of
+  // being re-mapped inside each of the four render loops.
+  const staffOptions = useMemo(
+    () =>
+      staff.map((person) => (
+        <option key={person._id} value={person._id}>
+          {person.full_name}
+          {person.availability_status && person.availability_status !== 'Available'
+            ? ' (' + person.availability_status + ')'
+            : ''}
+        </option>
+      )),
+    [staff]
+  );
+
+  // Shown in the assign sheet footer. On a phone the selected slots scroll
+  // out of view long before the Save button, so the count is the only way to
+  // confirm the team is complete without scrolling back up through it.
+  const selectedCrewCount = useMemo(() => {
+    const picked = [
+      assignment.headCook,
+      ...assignment.servers,
+      ...assignment.setupCrew,
+      ...assignment.assistants,
+    ].filter(Boolean).length;
+    const external = assignment.extraAssistants.filter((e) => e.name || e.phone).length;
+    return picked + external;
+  }, [assignment]);
 
   const openDetails = (booking) => {
     ManagerAPI.getBooking(booking._id).then((res) => {
@@ -537,180 +642,186 @@ export default function ManagerBookings() {
   return (
     <ManagerLayout>
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              Assigned Bookings
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Review event specifications, build staff teams, and monitor execution
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+        <PageHeader
+          title="Assigned Bookings"
+          description="Review event specifications, build staff teams, and monitor execution"
+          actions={
             <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/staff")}>
               <Users size={14} /> Staff Roster
             </Btn>
-          </div>
-        </div>
+          }
+        />
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-1 p-0.5 bg-muted/80 border border-border/80 rounded-md w-full sm:w-fit overflow-x-auto no-scrollbar scroll-smooth flex-nowrap">
-          {[
-            { id: "pending", label: "Pending Staffing", icon: Clock },
-            { id: "upcoming", label: "Upcoming Events", icon: Calendar },
-            { id: "completed", label: "Completed", icon: CheckCircle2 }
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab(item.id)}
-                className={`px-3 py-1.5 sm:py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                  tab === item.id 
-                    ? "bg-card text-foreground shadow-2xs border border-border/80 font-bold" 
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon size={13} className={tab === item.id ? "text-primary" : "text-muted-foreground"} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Filter / Search toolbar */}
-        <AdminCard className="!p-3.5">
-          <TableToolbar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search by client, event type, or reference..."
+        {/* The tab strip and the search field are the two controls a manager
+            touches between every card they read, so on a phone they ride the
+            top of the scroll container instead of scrolling away with the
+            page header above them. */}
+        <div className="portal-sticky -mx-3 space-y-2.5 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:space-y-4 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+          <SegmentedTabs
+            ariaLabel="Booking status"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { id: "pending", label: "Pending Staffing", shortLabel: "Pending", icon: Clock },
+              { id: "upcoming", label: "Upcoming Events", shortLabel: "Upcoming", icon: Calendar },
+              { id: "completed", label: "Completed", shortLabel: "Done", icon: CheckCircle2 },
+            ]}
           />
-        </AdminCard>
 
-        {/* Mobile View: Responsive Booking Cards (block md:hidden) */}
-        <div className="block md:hidden space-y-3">
+          <AdminCard className="!p-2.5 sm:!p-3.5">
+            <TableToolbar
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search client, event type, or reference"
+            />
+          </AdminCard>
+        </div>
+
+        {/* Phone and small-tablet list. A booking is one card, and the card
+            itself opens the event — the old layout spent a 50% column on a
+            "View Details" button that repeated the tap the card should
+            already have carried, leaving the actual decision (does this
+            event have a crew?) sharing the other half. Now the staffing
+            state is the loudest thing on the card, and the single action is
+            the one that state calls for. */}
+        <div className="block lg:hidden space-y-2.5">
           {loading ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              Loading assigned bookings...
-            </div>
-          ) : pageRows.length === 0 ? (
             <AdminCard className="!p-8 text-center text-xs text-muted-foreground">
-              No {tab} bookings found.
+              Loading assigned bookings…
+            </AdminCard>
+          ) : pageRows.length === 0 ? (
+            <AdminCard className="!p-8 text-center space-y-1.5">
+              <p className="text-sm font-semibold text-foreground">No {tab} bookings</p>
+              <p className="text-xs text-muted-foreground">
+                {search
+                  ? "No booking matches that search. Try a client name or a reference."
+                  : "Events assigned to you by Admin will appear here."}
+              </p>
             </AdminCard>
           ) : (
-            <div className="space-y-3">
+            <ul className="space-y-2.5 sm:grid sm:grid-cols-2 sm:gap-2.5 sm:space-y-0">
               {pageRows.map((b) => {
                 const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
                 const isCompleted = ["completed", "Completed"].includes(b.status);
                 const isPast = isPastDate(b.event_date);
                 const clientName = b.customer_id?.full_name || "Valued Client";
-                const eventDate = b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA";
-                const locationStr = [b.venue_type, b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
+                const eventDate = b.event_date
+                  ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "TBA";
+                const locationStr =
+                  [b.venue_type, b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
+
+                const crew = hasStaff
+                  ? {
+                      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+                      icon: CheckCircle2,
+                      text: b.staff_assignments.length + " crew dispatched",
+                    }
+                  : isPast
+                    ? {
+                        className: "border-rose-300 bg-rose-50 text-rose-900",
+                        icon: AlertTriangle,
+                        text: "Unassigned — event passed",
+                      }
+                    : {
+                        className: "border-amber-300 bg-amber-50 text-amber-900",
+                        icon: AlertCircle,
+                        text: "Needs staffing",
+                      };
+                const CrewIcon = crew.icon;
 
                 return (
-                  <AdminCard key={b._id} className="space-y-2.5 shadow-2xs">
-                    {/* Top Row: Event type, Reference & Status */}
-                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-xs text-foreground">{b.event_type || "Catering Event"}</span>
-                          {isPast && !isCompleted && (
-                            <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
-                              <AlertTriangle size={9} /> Event Passed
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10.5px] text-muted-foreground font-mono">REF: {b.reference || b._id?.slice(-6).toUpperCase()}</div>
-                      </div>
-                      <Badge status={b.status || "confirmed"} />
-                    </div>
-
-                    {/* Middle: Client & Specs */}
-                    <div className="grid grid-cols-2 gap-2 p-2 bg-muted/30 rounded-lg border border-border/80 text-[11px]">
-                      <div>
-                        <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Client</span>
-                        <div className="font-bold text-foreground truncate">{clientName}</div>
-                        <div className="text-muted-foreground">{b.guest_count || 0} Guests</div>
-                      </div>
-                      <div>
-                        <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Date &amp; Time</span>
-                        <div className="font-bold text-foreground">{eventDate}</div>
-                        <div className="text-muted-foreground truncate">{b.start_time || "Time TBA"}</div>
-                      </div>
-                    </div>
-
-                    {/* Venue & Assigned Crew Indicator */}
-                    <div className="flex items-center justify-between text-[11px] pt-0.5">
-                      <span className="text-muted-foreground truncate max-w-[60%]">
-                        📍 {locationStr}
-                      </span>
-                      {hasStaff ? (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10.5px]">
-                          ✓ {b.staff_assignments.length} Crew Dispatched
-                        </span>
-                      ) : isPast ? (
-                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-900 border border-rose-300 font-bold text-[10.5px]">
-                          ⚠️ Unassigned (Passed)
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 font-bold text-[10.5px]">
-                          ⚠️ Needs Staffing
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                  <li key={b._id}>
+                    <AdminCard className="!p-0 overflow-hidden">
                       <button
                         type="button"
                         onClick={() => openDetails(b)}
-                        className="py-1.5 px-2.5 min-h-[38px] bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        className="w-full space-y-2 p-3 text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
                       >
-                        <Eye size={13} className="text-muted-foreground" />
-                        <span>View Details</span>
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-sm font-bold text-foreground">
+                                {b.event_type || "Catering Event"}
+                              </span>
+                              {isPast && !isCompleted && (
+                                <span className="inline-flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-px text-[10px] font-bold text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                                  <AlertTriangle size={9} /> Passed
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {clientName} · {b.guest_count || 0} guests
+                            </span>
+                          </span>
+                          <Badge status={b.status || "confirmed"} />
+                        </span>
+
+                        <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                          <Calendar size={13} className="shrink-0 text-primary" />
+                          <span className="font-semibold text-foreground">{eventDate}</span>
+                          <span>· {b.start_time || "Time TBA"}</span>
+                        </span>
+
+                        <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                          <MapPin size={13} className="shrink-0" />
+                          <span className="truncate">{locationStr}</span>
+                        </span>
+
+                        <span className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                          <span className={"inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11.5px] font-bold " + crew.className}>
+                            <CrewIcon size={12} />
+                            {crew.text}
+                          </span>
+                          <span className="font-mono text-[10.5px] text-muted-foreground/80">
+                            REF {b.reference || b._id?.slice(-6).toUpperCase()}
+                          </span>
+                        </span>
                       </button>
 
-                      {!isCompleted && isPast ? (
-                        <button
-                          type="button"
-                          onClick={() => setCompleteTarget(b)}
-                          className="py-1.5 px-2.5 min-h-[38px] bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <CheckCircle2 size={13} />
-                          <span>Mark Completed</span>
-                        </button>
-                      ) : hasStaff ? (
-                        <button
-                          type="button"
-                          onClick={() => openAssign(b)}
-                          className="py-1.5 px-2.5 min-h-[38px] bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <UserCheck size={13} className="text-primary" />
-                          <span>Edit Staff</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => openAssign(b)}
-                          className="py-1.5 px-2.5 min-h-[38px] bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <UserPlus size={13} />
-                          <span>Dispatch Staff</span>
-                        </button>
-                      )}
-                    </div>
-                  </AdminCard>
+                      <div className="border-t border-border/60 p-2">
+                        {!isCompleted && isPast ? (
+                          <button
+                            type="button"
+                            onClick={() => setCompleteTarget(b)}
+                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer portal-press"
+                          >
+                            <CheckCircle2 size={15} />
+                            Mark Completed
+                          </button>
+                        ) : hasStaff ? (
+                          <button
+                            type="button"
+                            onClick={() => openAssign(b)}
+                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted cursor-pointer portal-press"
+                          >
+                            <UserCheck size={15} className="text-primary" />
+                            Edit Staff Team
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openAssign(b)}
+                            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 text-[13px] font-bold text-white shadow-2xs transition-colors hover:bg-amber-700 cursor-pointer portal-press"
+                          >
+                            <UserPlus size={15} />
+                            Dispatch Staff
+                          </button>
+                        )}
+                      </div>
+                    </AdminCard>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+          <AdminCard className="!p-0 overflow-hidden">
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+          </AdminCard>
         </div>
 
-        {/* Desktop Data Table (hidden md:block) */}
-        <AdminCard className="hidden md:block !p-0 overflow-hidden">
+        {/* Desktop Data Table (hidden lg:block) */}
+        <AdminCard className="hidden lg:block !p-0 overflow-hidden">
           <DataTable
             columns={columns}
             rows={pageRows}
@@ -720,38 +831,83 @@ export default function ManagerBookings() {
             emptyHint="Assigned events from Admin will appear here."
             onRowClick={(b) => openDetails(b)}
             minWidth="750px"
+            /* Between 1024px and the table's own min-width the row scrolls,
+               and the actions column was the first thing pushed off screen —
+               the one column the row is being read for. */
+            pinLastColumn
           />
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
 
-        {/* Staff Assignment Modal */}
+        {/* Staff Assignment Modal.
+            The form is long — a head cook, then any number of servers, setup
+            crew and assistants — and its Save button used to sit at the end
+            of it inside a dialog that had no scroll region, so on a phone the
+            manager could fill the whole team in and never reach the control
+            that dispatched it. The action now lives in the sheet's pinned
+            footer, where it is visible from the first select onward and
+            reports how many people are currently selected. */}
         {assignTarget && (
-          <Modal 
-            title={`Assign Staff Team — ${assignTarget.event_type || "Event"}`} 
+          <Modal
+            title={`Assign Staff Team — ${assignTarget.event_type || "Event"}`}
             onClose={() => setAssignTarget(null)}
-            className="max-w-2xl"
+            className="sm:max-w-2xl"
+            footer={
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11.5px] font-medium text-muted-foreground tabular-nums">
+                  {selectedCrewCount === 0
+                    ? "No one selected yet"
+                    : `${selectedCrewCount} assigned`}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Btn variant="secondary" onClick={() => setAssignTarget(null)} disabled={submittingAssign}>
+                    Cancel
+                  </Btn>
+                  <Btn
+                    variant="primary"
+                    onClick={submitAssignment}
+                    disabled={submittingAssign}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                  >
+                    {submittingAssign
+                      ? "Saving…"
+                      : isPastDate(assignTarget.event_date)
+                        ? "Save Records"
+                        : "Dispatch Team"}
+                  </Btn>
+                </div>
+              </div>
+            }
           >
-            <div className="space-y-4 text-xs sm:text-sm">
-              <div className="p-3 bg-muted/40 border border-border/80 rounded-lg flex items-center justify-between text-xs">
-                <div>
-                  <div className="font-bold text-foreground">{assignTarget.customer_id?.full_name || "Customer"}</div>
+            <div className="space-y-3.5 text-xs sm:text-sm">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-muted/40 p-3 text-xs">
+                <div className="min-w-0">
+                  <div className="truncate font-bold text-foreground">
+                    {assignTarget.customer_id?.full_name || "Customer"}
+                  </div>
                   <div className="text-muted-foreground">
-                    Target Date: <strong className="text-foreground">{assignTarget.event_date ? new Date(assignTarget.event_date).toLocaleDateString() : "TBD"}</strong>
+                    Target date:{" "}
+                    <strong className="text-foreground">
+                      {assignTarget.event_date ? new Date(assignTarget.event_date).toLocaleDateString() : "TBD"}
+                    </strong>
                   </div>
                 </div>
-                <span className="text-[11px] font-mono font-bold text-primary bg-primary/10 px-2 py-1 rounded border border-primary/20">
+                <span className="shrink-0 rounded border border-primary/20 bg-primary/10 px-2 py-1 font-mono text-[11px] font-bold text-primary">
                   {assignTarget.start_time || "Time TBA"}
                 </span>
               </div>
 
               {isPastDate(assignTarget.event_date) && (
-                <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
-                  <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50/90 p-3 text-xs text-amber-900 shadow-2xs dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div className="space-y-0.5">
-                    <div className="font-bold">Past Event Notice — Retroactive Staff Logging</div>
+                    <div className="font-bold">Past event — retroactive staff logging</div>
                     <div className="text-[11.5px] leading-relaxed">
-                      This event took place on <strong>{new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</strong>.
-                      Assignments saved here will record crew participation for historical, payroll, and inventory returns audit.
+                      This event took place on{" "}
+                      <strong>
+                        {new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </strong>
+                      . Assignments saved here record crew participation for historical, payroll and inventory-returns audit.
                     </div>
                   </div>
                 </div>
@@ -759,196 +915,108 @@ export default function ManagerBookings() {
 
               {/* Head Cook */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center justify-between">
+                <label htmlFor="assign-head-cook" className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-foreground">
                   <span>Head Cook / Chef</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">Kitchen Lead</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">Kitchen lead</span>
                 </label>
                 <select
+                  id="assign-head-cook"
                   value={assignment.headCook}
                   onChange={(e) => setAssignment({ ...assignment, headCook: e.target.value })}
-                  className="w-full p-2 rounded-lg border border-border bg-card text-xs font-semibold focus:ring-2 focus:ring-primary text-foreground"
+                  className={CREW_SELECT}
                 >
-                  <option value="">-- Select Head Cook --</option>
-                  {staff.map((person) => (
-                    <option key={person._id} value={person._id}>
-                      {person.full_name} {person.availability_status && person.availability_status !== "Available" ? `(${person.availability_status})` : "✓"}
-                    </option>
-                  ))}
+                  <option value="">Select head cook…</option>
+                  {staffOptions}
                 </select>
               </div>
 
-              {/* Servers */}
-              <div className="space-y-2 p-3 bg-muted/20 border border-border/80 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-foreground uppercase tracking-wider">Servers / Waitstaff</label>
-                  <button
-                    type="button"
-                    onClick={() => addAssignmentSlot("servers")}
-                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus size={12} /> Add Server Slot
-                  </button>
-                </div>
+              <CrewGroup
+                label="Servers / Waitstaff"
+                addLabel="Add server"
+                onAdd={() => addAssignmentSlot("servers")}
+              >
+                {assignment.servers.map((val, idx) => (
+                  <CrewRow
+                    key={idx}
+                    value={val}
+                    placeholder={`Select server #${idx + 1}…`}
+                    options={staffOptions}
+                    onChange={(next) => updateAssignment("servers", idx, next)}
+                    onRemove={assignment.servers.length > 1 ? () => removeAssignmentSlot("servers", idx) : null}
+                    removeLabel={`Remove server ${idx + 1}`}
+                  />
+                ))}
+              </CrewGroup>
 
-                <div className="space-y-2">
-                  {assignment.servers.map((val, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <select
-                        value={val}
-                        onChange={(e) => updateAssignment("servers", idx, e.target.value)}
-                        className="flex-1 p-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground"
-                      >
-                        <option value="">-- Select Server #{idx + 1} --</option>
-                        {staff.map((person) => (
-                          <option key={person._id} value={person._id}>
-                            {person.full_name} {person.availability_status && person.availability_status !== "Available" ? `(${person.availability_status})` : "✓"}
-                          </option>
-                        ))}
-                      </select>
-                      {assignment.servers.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeAssignmentSlot("servers", idx)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted cursor-pointer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <CrewGroup
+                label="Setup & Logistics Crew"
+                addLabel="Add crew"
+                onAdd={() => addAssignmentSlot("setupCrew")}
+              >
+                {assignment.setupCrew.map((val, idx) => (
+                  <CrewRow
+                    key={idx}
+                    value={val}
+                    placeholder={`Select setup crew #${idx + 1}…`}
+                    options={staffOptions}
+                    onChange={(next) => updateAssignment("setupCrew", idx, next)}
+                    onRemove={assignment.setupCrew.length > 1 ? () => removeAssignmentSlot("setupCrew", idx) : null}
+                    removeLabel={`Remove setup crew ${idx + 1}`}
+                  />
+                ))}
+              </CrewGroup>
 
-              {/* Setup Crew */}
-              <div className="space-y-2 p-3 bg-muted/20 border border-border/80 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-foreground uppercase tracking-wider">Setup &amp; Logistics Crew</label>
-                  <button
-                    type="button"
-                    onClick={() => addAssignmentSlot("setupCrew")}
-                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus size={12} /> Add Crew Slot
-                  </button>
-                </div>
-
-
-                <div className="space-y-2">
-                  {assignment.setupCrew.map((val, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <select
-                        value={val}
-                        onChange={(e) => updateAssignment("setupCrew", idx, e.target.value)}
-                        className="flex-1 p-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground"
-                      >
-                        <option value="">-- Select Setup Crew #{idx + 1} --</option>
-                        {staff.map((person) => (
-                          <option key={person._id} value={person._id}>
-                            {person.full_name} {person.availability_status && person.availability_status !== "Available" ? `(${person.availability_status})` : "✓"}
-                          </option>
-                        ))}
-                      </select>
-                      {assignment.setupCrew.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeAssignmentSlot("setupCrew", idx)}
-                          className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Assistants & Extra Crew */}
-              <div className="space-y-2 p-3 bg-muted/20 border border-border/80 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-foreground uppercase tracking-wider">Extra Support / Assistants</label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => addAssignmentSlot("assistants")}
-                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                    >
-                      + System Staff
-                    </button>
-                    <span className="text-muted-foreground">•</span>
-                    <button
-                      type="button"
-                      onClick={addExtraAssistant}
-                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                    >
-                      + On-Call / External
-                    </button>
-                  </div>
-                </div>
-
+              <CrewGroup
+                label="Extra Support / Assistants"
+                addLabel="Add assistant"
+                onAdd={() => addAssignmentSlot("assistants")}
+                secondaryAddLabel="Add on-call / external"
+                onSecondaryAdd={addExtraAssistant}
+              >
                 {assignment.assistants.map((val, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <select
-                      value={val}
-                      onChange={(e) => updateAssignment("assistants", idx, e.target.value)}
-                      className="flex-1 p-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground"
-                    >
-                      <option value="">-- Select Assistant #{idx + 1} --</option>
-                      {staff.map((person) => (
-                        <option key={person._id} value={person._id}>
-                          {person.full_name} {person.availability_status && person.availability_status !== "Available" ? `(${person.availability_status})` : "✓"}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => removeAssignmentSlot("assistants", idx)}
-                      className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted cursor-pointer"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                  <CrewRow
+                    key={idx}
+                    value={val}
+                    placeholder={`Select assistant #${idx + 1}…`}
+                    options={staffOptions}
+                    onChange={(next) => updateAssignment("assistants", idx, next)}
+                    onRemove={() => removeAssignmentSlot("assistants", idx)}
+                    removeLabel={`Remove assistant ${idx + 1}`}
+                  />
                 ))}
 
                 {assignment.extraAssistants.map((extra, idx) => (
-                  <div key={`extra-${idx}`} className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/50">
+                  <div
+                    key={`extra-${idx}`}
+                    className="space-y-2 rounded-md border border-dashed border-border bg-card p-2"
+                  >
                     <input
-                      placeholder="External Assistant Name"
+                      placeholder="External assistant name"
                       value={extra.name}
                       onChange={(e) => updateExtraAssistant(idx, "name", e.target.value)}
-                      className="p-2 rounded-lg border border-border bg-card text-xs text-foreground"
+                      className="h-11 w-full rounded-lg border border-border bg-card px-2.5 text-xs text-foreground sm:h-auto sm:py-2"
                     />
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <input
-                        placeholder="Contact Phone #"
+                        type="tel"
+                        inputMode="tel"
+                        placeholder="Contact phone number"
                         value={extra.phone}
                         onChange={(e) => updateExtraAssistant(idx, "phone", e.target.value)}
-                        className="flex-1 p-2 rounded-lg border border-border bg-card text-xs text-foreground"
+                        className="h-11 flex-1 rounded-lg border border-border bg-card px-2.5 text-xs text-foreground sm:h-auto sm:py-2"
                       />
                       <button
                         type="button"
                         onClick={() => removeExtraAssistant(idx)}
-                        className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted cursor-pointer"
+                        aria-label={`Remove external assistant ${idx + 1}`}
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive cursor-pointer sm:h-9 sm:w-9"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
-                <Btn variant="secondary" onClick={() => setAssignTarget(null)} disabled={submittingAssign}>
-                  Cancel
-                </Btn>
-                <Btn 
-                  variant="primary" 
-                  onClick={submitAssignment} 
-                  disabled={submittingAssign}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                >
-                  {submittingAssign ? "Saving..." : isPastDate(assignTarget.event_date) ? "Save Staff Records" : "Finalize & Dispatch Team"}
-                </Btn>
-              </div>
+              </CrewGroup>
             </div>
           </Modal>
         )}
@@ -958,9 +1026,30 @@ export default function ManagerBookings() {
           <Modal 
             title={`Event Specifications — ${detail.event_type || "Event"}`} 
             onClose={() => setDetail(null)} 
-            className="max-w-3xl"
+            className="sm:max-w-3xl"
+            footer={
+              <div className="flex items-center justify-between gap-2">
+                {!['completed', 'Completed'].includes(detail.status) ? (
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const target = detail;
+                      setDetail(null);
+                      setCompleteTarget(target);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    <CheckCircle2 size={14} /> Mark as Completed
+                  </Btn>
+                ) : (
+                  <span className="text-[11.5px] font-semibold text-emerald-700">Event completed</span>
+                )}
+                <Btn variant="secondary" size="sm" onClick={() => setDetail(null)}>Close</Btn>
+              </div>
+            }
           >
-            <div className="space-y-4 text-xs sm:text-sm max-h-[75vh] overflow-y-auto pr-1">
+            <div className="space-y-4 text-xs sm:text-sm">
               {/* Header Status & Reference Bar */}
               <div className="p-3 bg-muted/40 border border-border/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
                 <div className="flex items-center gap-2">
@@ -1223,13 +1312,19 @@ export default function ManagerBookings() {
                   {/* Manager Confirmation Checkbox & Additional Notes */}
                   <div className="p-3 bg-muted/20 border border-border/80 rounded-lg space-y-2.5 mt-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      {/* The whole row is the target: a 16px checkbox on a
+                          phone is a coin toss, and this one commits the
+                          manager's sign-off on the equipment count. */}
+                      <label
+                        htmlFor="managerEquipmentConfirm"
+                        className="flex min-h-[44px] flex-1 cursor-pointer select-none items-center gap-3 rounded-md py-1 sm:min-h-0"
+                      >
                         <input
                           type="checkbox"
                           id="managerEquipmentConfirm"
                           checked={managerConfirmed}
                           onChange={(e) => setManagerConfirmed(e.target.checked)}
-                          className="w-4 h-4 rounded text-primary focus:ring-primary border-border cursor-pointer"
+                          className="h-5 w-5 shrink-0 cursor-pointer rounded border-border text-primary focus:ring-primary sm:h-4 sm:w-4"
                         />
                         <span className="text-xs font-bold text-foreground">
                           Double-check and confirm equipment counted by staff
@@ -1310,9 +1405,9 @@ export default function ManagerBookings() {
                       setDetail(null);
                       openAssign(target);
                     }}
-                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    className="flex min-h-[38px] items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-bold text-primary transition-colors hover:bg-primary/5 cursor-pointer sm:min-h-0 sm:border-0 sm:bg-transparent sm:px-0 sm:hover:underline"
                   >
-                    <UserCheck size={13} /> Edit Assignments
+                    <UserCheck size={13} /> Edit team
                   </button>
                 </div>
 
@@ -1326,7 +1421,7 @@ export default function ManagerBookings() {
                         setDetail(null);
                         openAssign(target);
                       }}
-                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-md text-xs shrink-0 cursor-pointer"
+                      className="min-h-[40px] shrink-0 rounded-md bg-amber-600 px-3 text-xs font-bold text-white transition-colors hover:bg-amber-700 cursor-pointer sm:min-h-0 sm:py-1"
                     >
                       Assign Now
                     </button>
@@ -1376,26 +1471,6 @@ export default function ManagerBookings() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-border/60">
-                {!["completed", "Completed"].includes(detail.status) ? (
-                  <Btn 
-                    variant="primary" 
-                    size="xs" 
-                    onClick={() => {
-                      const target = detail;
-                      setDetail(null);
-                      setCompleteTarget(target);
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer"
-                    title="Mark this event as completed"
-                  >
-                    <CheckCircle2 size={13} /> Mark as Completed
-                  </Btn>
-                ) : (
-                  <div />
-                )}
-                <Btn variant="secondary" size="xs" onClick={() => setDetail(null)}>Close</Btn>
-              </div>
             </div>
           </Modal>
         )}
@@ -1405,7 +1480,12 @@ export default function ManagerBookings() {
           <Modal
             title={`Staff Item Notes — ${staffNoteModal.itemName}`}
             onClose={() => setStaffNoteModal(null)}
-            className="max-w-md"
+            className="sm:max-w-md"
+            footer={
+              <div className="flex justify-end">
+                <Btn variant="secondary" size="sm" onClick={() => setStaffNoteModal(null)}>Close</Btn>
+              </div>
+            }
           >
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg space-y-1.5 shadow-2xs">
@@ -1418,11 +1498,6 @@ export default function ManagerBookings() {
                 <p className="text-xs text-amber-950 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
                   {staffNoteModal.notes}
                 </p>
-              </div>
-              <div className="flex justify-end">
-                <Btn variant="secondary" size="xs" onClick={() => setStaffNoteModal(null)}>
-                  Close
-                </Btn>
               </div>
             </div>
           </Modal>

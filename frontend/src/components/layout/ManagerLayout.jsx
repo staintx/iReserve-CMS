@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import ManagerSidebar from "./ManagerSidebar";
-import AdminCopilotPanel from "../admin/ui/AdminCopilotPanel";
 import logo from "../../assets/images/logo.jpg";
 import { 
   Menu, 
@@ -108,9 +107,6 @@ export default function ManagerLayout({ children }) {
           </button>
         </nav>
       </div>
-
-      {/* Global Admin/Manager Copilot Panel */}
-      <AdminCopilotPanel />
     </div>
   );
 }

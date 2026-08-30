@@ -6,6 +6,7 @@ import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import Modal from "../../components/common/Modal";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
 import useToast from "../../hooks/useToast";
 import DataTable from "../../components/admin/table/DataTable";
 import TableToolbar from "../../components/admin/table/TableToolbar";
@@ -38,6 +39,15 @@ import {
 
 const formatMoney = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
+const isPastDate = (dateVal) => {
+  if (!dateVal) return false;
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return d < today;
+};
+
 export default function ManagerBookings() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,6 +62,8 @@ export default function ManagerBookings() {
 
   const [detail, setDetail] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
+  const [completeTarget, setCompleteTarget] = useState(null);
+  const [submittingComplete, setSubmittingComplete] = useState(false);
   const [assignment, setAssignment] = useState({
     headCook: "",
     servers: [""],
@@ -354,6 +366,21 @@ export default function ManagerBookings() {
       .finally(() => setSubmittingAssign(false));
   };
 
+  const handleMarkCompleted = (bookingId) => {
+    setSubmittingComplete(true);
+    ManagerAPI.markCompleted(bookingId)
+      .then(() => {
+        notify("Event marked as completed successfully!", "success");
+        setCompleteTarget(null);
+        setDetail(null);
+        loadBookings();
+      })
+      .catch((err) => {
+        notify(err.response?.data?.message || "Could not mark event as completed.", "error");
+      })
+      .finally(() => setSubmittingComplete(false));
+  };
+
   const submitNote = () => {
     if (!detail || !note.trim()) return;
     ManagerAPI.addNote(detail._id, { note: note.trim() })
@@ -371,9 +398,18 @@ export default function ManagerBookings() {
       header: "Event & Client",
       render: (b) => {
         const custName = b.customer_id?.full_name || `${b.contact_first_name || ""} ${b.contact_last_name || ""}`.trim() || "Customer";
+        const isPast = isPastDate(b.event_date);
+        const isCompleted = ["completed", "Completed"].includes(b.status);
         return (
           <div>
-            <div className="text-sm font-bold text-foreground">{b.event_type || "Event"}</div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm font-bold text-foreground">{b.event_type || "Event"}</span>
+              {isPast && !isCompleted && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                  <AlertTriangle size={10} /> Event Passed
+                </span>
+              )}
+            </div>
             <div className="text-xs text-muted-foreground">{custName} • REF: <span className="font-mono">{b.reference || b._id?.slice(-6).toUpperCase()}</span></div>
           </div>
         );
@@ -382,14 +418,17 @@ export default function ManagerBookings() {
     {
       key: "date",
       header: "Date & Time",
-      render: (b) => (
-        <div className="text-xs">
-          <div className="font-semibold text-foreground">
-            {b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
+      render: (b) => {
+        const isPast = isPastDate(b.event_date);
+        return (
+          <div className="text-xs">
+            <div className={`font-semibold ${isPast ? "text-muted-foreground" : "text-foreground"}`}>
+              {b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA"}
+            </div>
+            <div className="text-muted-foreground">{b.start_time || "Time TBA"}</div>
           </div>
-          <div className="text-muted-foreground">{b.start_time || "Time TBA"}</div>
-        </div>
-      )
+        );
+      }
     },
     {
       key: "venue",
@@ -406,14 +445,21 @@ export default function ManagerBookings() {
       header: "Team Assigned",
       render: (b) => {
         const count = (b.staff_assignments || []).length;
+        const isPast = isPastDate(b.event_date);
         return (
           <div>
             {count === 0 ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                <AlertCircle size={11} /> Unassigned
-              </span>
+              isPast ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">
+                  <AlertCircle size={11} /> Unassigned (Passed)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                  <AlertCircle size={11} /> Unassigned
+                </span>
+              )
             ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                 <CheckCircle2 size={11} /> {count} Staff Dispatched
               </span>
             )}
@@ -432,20 +478,44 @@ export default function ManagerBookings() {
       stopRowClick: true,
       render: (b) => {
         const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
+        const isCompleted = ["completed", "Completed"].includes(b.status);
+        const isPast = isPastDate(b.event_date);
+
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Btn variant="secondary" size="xs" onClick={() => openDetails(b)} title="View full event details">
               <Eye size={13} /> View
             </Btn>
+            {!isCompleted && isPast && (
+              <Btn
+                variant="primary"
+                size="xs"
+                onClick={() => setCompleteTarget(b)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+                title="Mark this event as concluded and completed"
+              >
+                <CheckCircle2 size={13} /> Complete
+              </Btn>
+            )}
             {hasStaff ? (
               <Btn 
                 variant="secondary" 
                 size="xs" 
                 onClick={() => openAssign(b)}
                 className="text-foreground hover:bg-muted font-semibold border-border flex items-center gap-1 cursor-pointer"
-                title="Edit dispatched staff team"
+                title={isPast ? "Edit retroactive staff assignments" : "Edit dispatched staff team"}
               >
                 <UserCheck size={13} className="text-primary" /> Edit Staff
+              </Btn>
+            ) : isPast ? (
+              <Btn 
+                variant="secondary" 
+                size="xs" 
+                onClick={() => openAssign(b)}
+                className="text-foreground hover:bg-muted font-medium border-border flex items-center gap-1 cursor-pointer"
+                title="Log past staff assignments retroactively"
+              >
+                <UserPlus size={13} /> Log Staff
               </Btn>
             ) : (
               <Btn 
@@ -533,6 +603,8 @@ export default function ManagerBookings() {
             <div className="space-y-3">
               {pageRows.map((b) => {
                 const hasStaff = Array.isArray(b.staff_assignments) && b.staff_assignments.length > 0;
+                const isCompleted = ["completed", "Completed"].includes(b.status);
+                const isPast = isPastDate(b.event_date);
                 const clientName = b.customer_id?.full_name || "Valued Client";
                 const eventDate = b.event_date ? new Date(b.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA";
                 const locationStr = [b.venue_type, b.barangay, b.municipality].filter(Boolean).join(", ") || "Venue TBA";
@@ -542,7 +614,14 @@ export default function ManagerBookings() {
                     {/* Top Row: Event type, Reference & Status */}
                     <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
                       <div>
-                        <div className="font-bold text-xs text-foreground">{b.event_type || "Catering Event"}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-xs text-foreground">{b.event_type || "Catering Event"}</span>
+                          {isPast && !isCompleted && (
+                            <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                              <AlertTriangle size={9} /> Event Passed
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10.5px] text-muted-foreground font-mono">REF: {b.reference || b._id?.slice(-6).toUpperCase()}</div>
                       </div>
                       <Badge status={b.status || "confirmed"} />
@@ -571,6 +650,10 @@ export default function ManagerBookings() {
                         <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10.5px]">
                           ✓ {b.staff_assignments.length} Crew Dispatched
                         </span>
+                      ) : isPast ? (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-900 border border-rose-300 font-bold text-[10.5px]">
+                          ⚠️ Unassigned (Passed)
+                        </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 font-bold text-[10.5px]">
                           ⚠️ Needs Staffing
@@ -589,7 +672,16 @@ export default function ManagerBookings() {
                         <span>View Details</span>
                       </button>
 
-                      {hasStaff ? (
+                      {!isCompleted && isPast ? (
+                        <button
+                          type="button"
+                          onClick={() => setCompleteTarget(b)}
+                          className="py-1.5 px-2.5 min-h-[38px] bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <CheckCircle2 size={13} />
+                          <span>Mark Completed</span>
+                        </button>
+                      ) : hasStaff ? (
                         <button
                           type="button"
                           onClick={() => openAssign(b)}
@@ -651,6 +743,19 @@ export default function ManagerBookings() {
                   {assignTarget.start_time || "Time TBA"}
                 </span>
               </div>
+
+              {isPastDate(assignTarget.event_date) && (
+                <div className="p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
+                  <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="font-bold">Past Event Notice — Retroactive Staff Logging</div>
+                    <div className="text-[11.5px] leading-relaxed">
+                      This event took place on <strong>{new Date(assignTarget.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</strong>.
+                      Assignments saved here will record crew participation for historical, payroll, and inventory returns audit.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Head Cook */}
               <div className="space-y-1.5">
@@ -841,7 +946,7 @@ export default function ManagerBookings() {
                   disabled={submittingAssign}
                   className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
                 >
-                  {submittingAssign ? "Dispatching..." : "Finalize & Dispatch Team"}
+                  {submittingAssign ? "Saving..." : isPastDate(assignTarget.event_date) ? "Save Staff Records" : "Finalize & Dispatch Team"}
                 </Btn>
               </div>
             </div>
@@ -1271,7 +1376,24 @@ export default function ManagerBookings() {
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-border/60">
+              <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                {!["completed", "Completed"].includes(detail.status) ? (
+                  <Btn 
+                    variant="primary" 
+                    size="xs" 
+                    onClick={() => {
+                      const target = detail;
+                      setDetail(null);
+                      setCompleteTarget(target);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer"
+                    title="Mark this event as completed"
+                  >
+                    <CheckCircle2 size={13} /> Mark as Completed
+                  </Btn>
+                ) : (
+                  <div />
+                )}
                 <Btn variant="secondary" size="xs" onClick={() => setDetail(null)}>Close</Btn>
               </div>
             </div>
@@ -1304,6 +1426,19 @@ export default function ManagerBookings() {
               </div>
             </div>
           </Modal>
+        )}
+
+        {/* Mark Completed Confirmation Dialog */}
+        {completeTarget && (
+          <ConfirmDialog
+            title="Complete Catering Event"
+            message={`Are you sure you want to mark booking ${completeTarget.reference || completeTarget._id?.slice(-6).toUpperCase()} (${completeTarget.event_type || "Event"}) as Completed? This will transition the booking to Completed status.`}
+            confirmText={submittingComplete ? "Completing..." : "Mark Completed"}
+            cancelText="Cancel"
+            tone="confirm"
+            onConfirm={() => handleMarkCompleted(completeTarget._id)}
+            onCancel={() => setCompleteTarget(null)}
+          />
         )}
       </div>
     </ManagerLayout>

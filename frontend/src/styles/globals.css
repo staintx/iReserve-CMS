@@ -3712,3 +3712,105 @@
 }
 
 
+
+/* ═══════════════════════════════════════════════════════════════
+   OPERATIONS PORTALS — MOBILE SHELL
+   Shared by the Manager and Staff portals (and available to Admin).
+   These are the few things Tailwind utilities cannot express inline:
+   safe-area maths, scrollbar suppression, and the momentum/overscroll
+   behaviour a bottom sheet needs. Everything else stays in utilities
+   so there is no second design system to keep in sync.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* `no-scrollbar` was already used by three tab strips but had never been
+   defined, so those strips shipped a visible scrollbar under their pills.
+   Defining it here fixes them rather than adding a fourth ad-hoc rule. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Height of the fixed mobile tab bar, excluding the home-indicator inset.
+   Pages pad their scroll container by `--portal-tabbar-total` so the last
+   row of a list is never parked underneath the bar. */
+:root {
+  --portal-tabbar-h: 3.5rem;
+  --portal-tabbar-total: calc(var(--portal-tabbar-h) + env(safe-area-inset-bottom, 0px));
+}
+
+/* The scroll region between the top bar and the tab bar. `dvh` (not `vh`)
+   so the visible area tracks the mobile URL bar collapsing instead of
+   leaving a strip of content permanently under it. */
+.portal-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-padding-bottom: var(--portal-tabbar-total);
+}
+
+@media (max-width: 767px) {
+  .portal-scroll {
+    padding-bottom: calc(var(--portal-tabbar-total) + 0.75rem);
+  }
+}
+
+.portal-tabbar {
+  height: var(--portal-tabbar-h);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: content-box;
+}
+
+/* Sticky filter/tab rails inside a page sit directly under the top bar and
+   need an opaque backing, or the list scrolls through them. */
+.portal-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* A sheet or dialog must not let a rubber-band scroll chain to the page
+   behind it — that is what makes a mobile modal feel like a web page
+   rather than a sheet. */
+.portal-sheet-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Touch feedback for the tab bar and card actions. Pointer devices keep
+   hover; touch devices get a press state, since `:hover` sticks after a
+   tap on touch and leaves rows looking permanently selected. */
+@media (hover: none) {
+  .portal-press:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-press:active {
+    transform: none;
+  }
+}
+
+/* iOS zooms the viewport when a focused input's font-size is under 16px.
+   Every operational form control in the portals is 12–13px by design, so
+   the rule is applied where it matters: real text entry fields. */
+@media (max-width: 767px) {
+  .admin-layout input:not([type="checkbox"]):not([type="radio"]),
+  .admin-layout select,
+  .admin-layout textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* A tablet crosses into the desktop shell at 768px and keeps the sidebar,
+   whose nav rows are sized for a cursor (34px). This lifts them to the touch
+   floor only where the primary input is actually a finger, so mouse-driven
+   desktops keep their density. */
+@media (pointer: coarse) {
+  .admin-layout aside nav a,
+  .admin-layout aside nav button {
+    min-height: 40px;
+  }
+}

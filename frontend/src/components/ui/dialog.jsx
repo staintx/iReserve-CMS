@@ -24,7 +24,7 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
-const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
+const DialogContent = React.forwardRef(({ className, children, hideClose = false, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -36,10 +36,17 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+      {/* A 36/40px hit area, not a 16px glyph. This is the control a phone
+          user reaches for first and it sat well under the touch-target
+          floor; `sm:top-4` keeps the desktop dialog's original alignment
+          while the sheet variant drops it clear of the grab handle.
+          `hideClose` is for the one dialog that draws its own close button —
+          two X glyphs were already overlapping there, and enlarging this one
+          made the collision impossible to miss. */}
+      {!hideClose && <DialogPrimitive.Close className="absolute right-2.5 top-3 sm:right-4 sm:top-4 z-10 grid h-10 w-10 sm:h-8 sm:w-8 place-items-center rounded-md text-muted-foreground opacity-80 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
+      </DialogPrimitive.Close>}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));

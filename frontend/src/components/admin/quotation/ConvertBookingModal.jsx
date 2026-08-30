@@ -81,7 +81,7 @@ export default function ConvertBookingModal({ quote, isDepositPaidProp = false, 
   const canSubmit = (depositPaid || bypassDeposit) && Boolean(selectedManagerId);
 
   return (
-    <Modal onClose={onClose} className="max-w-lg w-full p-0 overflow-hidden rounded-lg shadow-2xl border-0">
+    <Modal onClose={onClose} bodyClassName="p-0" className="max-w-lg w-full p-0 overflow-hidden rounded-lg shadow-2xl border-0">
       <div className="p-5 sm:p-6 flex flex-col items-center text-center space-y-4 bg-white relative">
         
         {/* Close Button */}

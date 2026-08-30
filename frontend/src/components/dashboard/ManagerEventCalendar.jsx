@@ -21,7 +21,9 @@ import {
 } from "lucide-react";
 import { ManagerAPI } from "../../api/manager";
 import useToast from "../../hooks/useToast";
+import Modal from "../common/Modal";
 import { useNavigate } from "react-router-dom";
+import useMediaQuery from "../../hooks/useMediaQuery";
 
 // Helper to format date keys in YYYY-MM-DD
 const formatDateKey = (dateObj) => {
@@ -89,6 +91,15 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("month"); // 'month' | 'week' | 'agenda'
+
+  /* The week view lays seven day columns of stacked event cards side by side.
+     That is a desktop shape: at 320px each column is about 40px wide, which
+     is narrower than the text inside it. Rather than ship a broken view or
+     silently reset the manager's choice, a narrow screen falls back to the
+     agenda — the same information as a readable vertical list — and the Week
+     control is simply not offered there. */
+  const isWideEnoughForWeek = useMediaQuery("(min-width: 640px)");
+  const effectiveViewMode = viewMode === "week" && !isWideEnoughForWeek ? "agenda" : viewMode;
   const [staffingFilter, setStaffingFilter] = useState("all"); // 'all' | 'needs_staffing' | 'ready'
 
   // Data states
@@ -194,25 +205,23 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
   }, [bookings, availability, staffingFilter]);
 
   // Calendar navigation helpers
-  const prevPeriod = () => {
-    if (viewMode === "month") {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    } else if (viewMode === "week") {
+  /* Steps by the unit the *rendered* view uses. Two things were wrong here:
+     the week branch fired even when a narrow screen had fallen back to the
+     agenda, and the agenda matched neither branch, so in agenda view the
+     chevrons were live controls that did nothing. Agenda is built from the
+     month the calendar has fetched, so it steps by month. */
+  const stepPeriod = (direction) => {
+    if (effectiveViewMode === "week") {
       const d = new Date(currentDate);
-      d.setDate(d.getDate() - 7);
+      d.setDate(d.getDate() + 7 * direction);
       setCurrentDate(d);
+      return;
     }
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + direction, 1));
   };
 
-  const nextPeriod = () => {
-    if (viewMode === "month") {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    } else if (viewMode === "week") {
-      const d = new Date(currentDate);
-      d.setDate(d.getDate() + 7);
-      setCurrentDate(d);
-    }
-  };
+  const prevPeriod = () => stepPeriod(-1);
+  const nextPeriod = () => stepPeriod(1);
 
   const goToToday = () => {
     const today = new Date();
@@ -306,139 +315,132 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
 
   return (
     <div className="space-y-4">
-      {/* Header Bar matching Admin Calendar aesthetic */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1
-              style={{ fontFamily: "Playfair Display, serif" }}
-              className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight"
-            >
+      {/* Calendar toolbar.
+          On a phone this block used to cost about 200px before a single date
+          appeared: a 24px serif title (an <h1> nested inside the dashboard's
+          own <h1>), a two-line description, three staffing filters, three
+          view pills and a full-width button. The title and description are
+          gone — the card is directly under "Manager Operations" and was
+          re-announcing it — the filters became a scrollable chip rail, and
+          the view switcher lost "Week", which cannot be drawn in seven 40px
+          columns and is now offered only where it fits. */}
+      <div className="rounded-2xl border border-border bg-card p-2.5 shadow-xs sm:p-4">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="hidden sm:block">
+            <h2 className="text-base font-bold tracking-tight text-foreground">
               Event Staffing &amp; Logistics Schedule
-            </h1>
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800">
-              <ShieldCheck size={12} className="text-amber-600" /> Manager View
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Oversee assigned catering events, monitor crew dispatch readiness, and set your availability
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-          {/* Operational Filter Tabs */}
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 text-xs">
-            <button
-              type="button"
-              onClick={() => setStaffingFilter("all")}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                staffingFilter === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              All Events
-            </button>
-            <button
-              type="button"
-              onClick={() => setStaffingFilter("needs_staffing")}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1 ${
-                staffingFilter === "needs_staffing" ? "bg-white text-amber-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <AlertCircle size={12} className="text-amber-600" /> Needs Staff
-            </button>
-            <button
-              type="button"
-              onClick={() => setStaffingFilter("ready")}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all flex items-center gap-1 ${
-                staffingFilter === "ready" ? "bg-white text-emerald-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <CheckCircle2 size={12} className="text-emerald-600" /> Team Ready
-            </button>
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Monitor crew dispatch readiness and set your availability
+            </p>
           </div>
 
-          {/* View Switcher Pills */}
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80 text-xs">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            {/* Staffing filter */}
+            <div className="-mx-2.5 flex gap-1.5 overflow-x-auto no-scrollbar px-2.5 sm:mx-0 sm:gap-1 sm:overflow-visible sm:rounded-xl sm:border sm:border-border sm:bg-muted sm:p-1 sm:px-1">
+              {[
+                { id: "all", label: "All events", icon: null },
+                { id: "needs_staffing", label: "Needs staff", icon: AlertCircle, iconClass: "text-amber-600" },
+                { id: "ready", label: "Team ready", icon: CheckCircle2, iconClass: "text-emerald-600" },
+              ].map((option) => {
+                const OptionIcon = option.icon;
+                const active = staffingFilter === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setStaffingFilter(option.id)}
+                    className={`flex min-h-[38px] shrink-0 items-center gap-1 rounded-lg px-3 text-xs font-semibold transition-all cursor-pointer sm:min-h-0 sm:px-2.5 sm:py-1 ${
+                      active
+                        ? "bg-primary text-white shadow-2xs sm:bg-card sm:text-foreground"
+                        : "border border-border bg-card text-muted-foreground hover:text-foreground sm:border-0 sm:bg-transparent"
+                    }`}
+                  >
+                    {OptionIcon && <OptionIcon size={13} className={active ? option.iconClass : "opacity-70"} />}
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* View switcher. Week is desktop-only by design, not by omission. */}
+            <div className="flex items-center gap-1 rounded-xl border border-border bg-muted p-1 text-xs">
+              {[
+                { id: "month", label: "Month", desktopOnly: false },
+                { id: "week", label: "Week", desktopOnly: true },
+                { id: "agenda", label: "Agenda", desktopOnly: false },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={effectiveViewMode === option.id}
+                  onClick={() => setViewMode(option.id)}
+                  className={`min-h-[38px] rounded-lg px-2.5 font-semibold transition-all cursor-pointer sm:min-h-0 sm:py-1 ${
+                    option.desktopOnly ? "hidden sm:block" : ""
+                  } ${
+                    effectiveViewMode === option.id
+                      ? "bg-card text-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
             <button
               type="button"
-              onClick={() => setViewMode("month")}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                viewMode === "month" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
-              }`}
+              onClick={() => setShowAvailabilityModal(true)}
+              className="flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#4C81E0] px-3.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-[#3b6bc4] cursor-pointer portal-press sm:min-h-0 sm:flex-initial sm:py-2"
             >
-              Month
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("week")}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                viewMode === "week" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Week
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("agenda")}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                viewMode === "agenda" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Agenda
+              <CalendarDays size={14} />
+              <span className="sm:hidden">My availability</span>
+              <span className="hidden sm:inline">Set My Availability</span>
             </button>
           </div>
-
-          {/* Manager Action: Set My Availability */}
-          <button
-            type="button"
-            onClick={() => setShowAvailabilityModal(true)}
-            className="flex items-center gap-1.5 bg-[#4C81E0] hover:bg-[#3b6bc4] text-white font-semibold text-xs px-3.5 py-2 rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer"
-          >
-            <CalendarDays size={14} />
-            <span>Set My Availability</span>
-          </button>
         </div>
       </div>
-
       {/* Main Grid: Calendar Area + Manager Day Operations Panel (1fr + 310px split) */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_310px] gap-4 items-start">
         {/* Calendar View Card */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3">
-          {/* Calendar Month Navigation Header */}
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2">
+        <div className="bg-card rounded-2xl border border-border p-2.5 sm:p-4 shadow-xs space-y-3">
+          {/* Month navigation. The chevrons were 28px; on the control a
+              manager taps most in this component that was the wrong size. */}
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/60">
+            <div className="flex items-center gap-1 sm:gap-2">
               <button
                 type="button"
                 onClick={prevPeriod}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-                title="Previous"
+                className="grid h-10 w-10 sm:h-9 sm:w-9 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                aria-label="Previous period"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={17} />
               </button>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 min-w-[140px] text-center">
+              <h3 className="text-[15px] sm:text-lg font-bold text-foreground min-w-[120px] sm:min-w-[140px] text-center tabular-nums">
                 {currentDate.toLocaleString("default", { month: "long", year: "numeric" })}
-              </h2>
+              </h3>
               <button
                 type="button"
                 onClick={nextPeriod}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-                title="Next"
+                className="grid h-10 w-10 sm:h-9 sm:w-9 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                aria-label="Next period"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={17} />
               </button>
             </div>
 
             <button
               type="button"
               onClick={goToToday}
-              className="text-xs font-semibold text-slate-700 hover:text-slate-900 border border-slate-200/90 px-2.5 py-1 rounded-lg hover:bg-slate-50 transition-colors"
+              className="min-h-[38px] sm:min-h-0 shrink-0 rounded-lg border border-border px-3 sm:py-1 text-xs font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               Today
             </button>
           </div>
 
           {/* MONTH VIEW */}
-          {viewMode === "month" && (
+          {effectiveViewMode === "month" && (
             <div className="space-y-2">
               {/* Days of Week Row */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }} className="gap-1 text-center">
@@ -500,7 +502,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                                 e.stopPropagation();
                                 setActiveItem(ev);
                               }}
-                              className={`text-[9px] sm:text-[10px] leading-tight font-medium px-1.5 py-[2px] rounded-md truncate flex items-center gap-1 ${opStyle.pillBg} transition-transform hover:scale-[1.01]`}
+                              className={`text-[10px] sm:text-[10.5px] leading-tight font-medium px-1.5 py-[2px] rounded-md truncate flex items-center gap-1 ${opStyle.pillBg} transition-transform hover:scale-[1.01]`}
                               title={`${ev.title} (${ev.clientName || ev.time})`}
                             >
                               <span className="truncate">{ev.title}</span>
@@ -519,7 +521,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                                     e.stopPropagation();
                                     setActiveItem(ev);
                                   }}
-                                  className={`text-[9px] sm:text-[10px] leading-tight font-medium px-1.5 py-[2px] rounded-md truncate flex items-center gap-1 ${opStyle.pillBg} transition-transform hover:scale-[1.01]`}
+                                  className={`text-[10px] sm:text-[10.5px] leading-tight font-medium px-1.5 py-[2px] rounded-md truncate flex items-center gap-1 ${opStyle.pillBg} transition-transform hover:scale-[1.01]`}
                                   title={`${ev.title} (${ev.clientName || ev.time})`}
                                 >
                                   <span className="truncate">{ev.title}</span>
@@ -530,12 +532,12 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                         )}
 
                         {dayEvents.length > 2 && (
-                          <div className="hidden sm:block text-[9px] font-bold text-slate-500 pl-1 leading-none">
+                          <div className="hidden sm:block text-[10px] font-bold text-muted-foreground pl-1 leading-none">
                             +{dayEvents.length - 2} more
                           </div>
                         )}
                         {dayEvents.length > 1 && (
-                          <div className="sm:hidden text-[9px] font-bold text-slate-500 pl-1 leading-none">
+                          <div className="sm:hidden text-[10px] font-bold text-muted-foreground pl-1 leading-none">
                             +{dayEvents.length - 1} more
                           </div>
                         )}
@@ -568,7 +570,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
           )}
 
           {/* WEEK VIEW */}
-          {viewMode === "week" && (
+          {effectiveViewMode === "week" && (
             <div className="space-y-4">
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }} className="gap-1.5 text-center">
                 {Array.from({ length: 7 }).map((_, i) => {
@@ -604,7 +606,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                               className={`p-1.5 rounded-lg text-[10px] font-medium ${opStyle.cardBg} border shadow-2xs cursor-pointer hover:opacity-90 leading-tight`}
                             >
                               <p className="font-bold truncate">{ev.title}</p>
-                              {ev.clientName && <p className="text-[9px] opacity-80 truncate mt-0.5">{ev.clientName}</p>}
+                              {ev.clientName && <p className="text-[10px] opacity-80 truncate mt-0.5">{ev.clientName}</p>}
                             </div>
                           );
                         })}
@@ -617,7 +619,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
           )}
 
           {/* AGENDA VIEW */}
-          {viewMode === "agenda" && (
+          {effectiveViewMode === "agenda" && (
             <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
               {Array.from(eventsByDate.entries()).length === 0 ? (
                 <p className="text-xs text-slate-500 text-center py-8">No assigned events or off-duty days found for this period.</p>
@@ -661,8 +663,10 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
           )}
         </div>
 
-        {/* Right Sidebar: Selected Date Operations Panel (Manager-Specific) */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3.5">
+        {/* Selected-date operations. On a wide screen it is the right rail;
+            below xl it stacks under the grid, which is the right order —
+            the manager picks a date above and reads its crew below. */}
+        <div className="bg-card rounded-2xl border border-border p-3 sm:p-4 shadow-xs space-y-3.5">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -687,12 +691,14 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                 {isSelectedDateUnavailable ? "Off-Duty (Unavailable)" : "On Duty (Available)"}
               </strong>
             </div>
+            {/* Was an 11px text link 15px tall — the smallest target in the
+                panel, on the one control the panel exists to offer. */}
             <button
               type="button"
               onClick={toggleQuickDuty}
-              className="text-[11px] font-bold text-primary hover:underline"
+              className="min-h-[40px] shrink-0 rounded-md border border-border bg-card px-3 text-[11.5px] font-bold text-primary transition-colors hover:bg-primary/5 cursor-pointer"
             >
-              {isSelectedDateUnavailable ? "Set Available" : "Mark Off-Duty"}
+              {isSelectedDateUnavailable ? "Set available" : "Mark off-duty"}
             </button>
           </div>
 
@@ -715,7 +721,7 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block mb-1 ${opStyle.pillBg}`}>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mb-1 ${opStyle.pillBg}`}>
                           {opStyle.badgeText}
                         </span>
                         <p className="font-bold text-xs text-slate-900 leading-snug">{ev.title}</p>
@@ -797,167 +803,168 @@ export default function ManagerEventCalendar({ onSelectBooking = null }) {
         </div>
       </div>
 
-      {/* Item Detail Popover / Modal (Logistical Overview) */}
+      {/* Both dialogs below were hand-rolled fixed overlays: no scroll region,
+          no Escape, no focus handling, and a centred card that on a phone put
+          its actions mid-screen. They now go through the app's Modal, which
+          presents as a bottom sheet under `sm` and owns all of that. */}
       {activeItem && activeItem.type === "booking" && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  {activeItem.categoryLabel}
-                </span>
-                <h3 className="text-base font-bold text-foreground mt-1">{activeItem.title}</h3>
-                <p className="text-xs text-muted-foreground">Client: {activeItem.clientName}</p>
-              </div>
-
+        <Modal
+          title={activeItem.title}
+          description={`${activeItem.categoryLabel} · ${activeItem.clientName}`}
+          onClose={() => setActiveItem(null)}
+          className="sm:max-w-lg"
+          footer={
+            <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setActiveItem(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-2.5 text-xs text-slate-700">
-              <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                <div>
-                  <span className="text-slate-500 block">Event Schedule:</span>
-                  <strong className="text-slate-900">{activeItem.time}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Guest Count:</span>
-                  <strong className="text-slate-900">{activeItem.guestCount || 0} Guests</strong>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-slate-500 block">Venue Location:</span>
-                  <strong className="text-slate-900">{activeItem.venue || "TBA"}</strong>
-                </div>
-              </div>
-
-              {/* Staff Roster List */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                  <span>Assigned Team ({activeItem.staffCount})</span>
-                  <span className={activeItem.staffCount > 0 ? "text-emerald-700" : "text-amber-700"}>
-                    {activeItem.staffCount > 0 ? "Team Dispatched" : "No Staff Dispatched"}
-                  </span>
-                </div>
-
-                {activeItem.staffCount === 0 ? (
-                  <p className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                    No staff members have been dispatched for this booking yet.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
-                    {activeItem.staffAssignments.map((a, idx) => (
-                      <div key={idx} className="p-2 bg-slate-50 border border-slate-200/80 rounded-lg text-[11px]">
-                        <strong className="block text-slate-900 truncate">{a.name || "Staff"}</strong>
-                        <span className="text-slate-500 text-[10px]">{a.role}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setActiveItem(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200"
+                className="min-h-[42px] rounded-lg border border-border bg-card px-4 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted cursor-pointer sm:min-h-9"
               >
                 Close
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  const item = activeItem;
                   setActiveItem(null);
-                  if (onSelectBooking && activeItem.rawItem) onSelectBooking(activeItem.rawItem);
+                  if (onSelectBooking && item.rawItem) onSelectBooking(item.rawItem);
                   else navigate("/manager/bookings");
                 }}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700"
+                className="min-h-[42px] rounded-lg bg-amber-600 px-4 text-xs font-bold text-white transition-colors hover:bg-amber-700 cursor-pointer portal-press sm:min-h-9"
               >
-                Assign / Edit Team
+                {activeItem.staffCount > 0 ? "Edit team" : "Assign team"}
               </button>
             </div>
+          }
+        >
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/80 bg-muted/30 p-3">
+              <div>
+                <span className="block text-[11px] text-muted-foreground">Event schedule</span>
+                <strong className="text-foreground">{activeItem.time}</strong>
+              </div>
+              <div>
+                <span className="block text-[11px] text-muted-foreground">Guest count</span>
+                <strong className="text-foreground tabular-nums">{activeItem.guestCount || 0} guests</strong>
+              </div>
+              <div className="col-span-2">
+                <span className="block text-[11px] text-muted-foreground">Venue location</span>
+                <strong className="text-foreground">{activeItem.venue || "TBA"}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-foreground">Assigned team ({activeItem.staffCount})</span>
+                <span className={activeItem.staffCount > 0 ? "text-emerald-700" : "text-amber-700"}>
+                  {activeItem.staffCount > 0 ? "Dispatched" : "No crew yet"}
+                </span>
+              </div>
+
+              {activeItem.staffCount === 0 ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+                  No staff members have been dispatched for this booking yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {activeItem.staffAssignments.map((a, idx) => (
+                    <div key={idx} className="rounded-lg border border-border/80 bg-muted/30 p-2 text-[11.5px]">
+                      <strong className="block truncate text-foreground">{a.name || "Staff"}</strong>
+                      <span className="text-[10.5px] text-muted-foreground">{a.role}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* Set Availability Modal */}
       {showAvailabilityModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card rounded-xl border border-border max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                <CalendarDays size={18} className="text-primary" /> Set My Personal Availability
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowAvailabilityModal(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-
-            <p className="text-xs text-slate-500">
-              Mark dates when you are <strong className="text-red-600">Off-Duty / Unavailable</strong> for new lead coordinator assignments. Click a date to toggle.
-            </p>
-
-            <div className="space-y-1">
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }} className="gap-1 text-center py-1">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="text-[10px] font-bold text-slate-400 uppercase">{day}</div>
-                ))}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }} className="gap-1">
-                {calendarDays.filter((d) => d.isCurrentMonth).map(({ date }, idx) => {
-                  const dateKey = formatDateKey(date);
-                  const isUnavailable = selectedUnavailableSet.has(dateKey);
-
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => toggleUnavailableDate(date)}
-                      className={`h-11 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center transition-all ${
-                        isUnavailable
-                          ? "bg-red-500 text-white border-red-600 shadow-2xs"
-                          : "bg-white text-slate-800 border-slate-200 hover:border-blue-400 hover:bg-blue-50/20"
-                      }`}
-                    >
-                      <span>{date.getDate()}</span>
-                      {isUnavailable && <span className="text-[8px] font-normal leading-none">Off</span>}
-                    </button>
-                  );
-                })}
+        <Modal
+          title="Set My Availability"
+          description="Tap a date to mark yourself off-duty for new lead-coordinator assignments."
+          onClose={() => setShowAvailabilityModal(false)}
+          className="sm:max-w-lg"
+          footer={
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11.5px] font-medium text-muted-foreground tabular-nums">
+                {selectedUnavailableSet.size === 0
+                  ? "No days marked off"
+                  : `${selectedUnavailableSet.size} day${selectedUnavailableSet.size === 1 ? "" : "s"} off`}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAvailabilityModal(false)}
+                  disabled={savingAvailability}
+                  className="min-h-[42px] rounded-lg border border-border bg-card px-4 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60 cursor-pointer sm:min-h-9"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAvailability}
+                  disabled={savingAvailability}
+                  className="min-h-[42px] rounded-lg bg-[#4C81E0] px-4 text-xs font-bold text-white transition-colors hover:bg-[#3b6bc4] disabled:opacity-60 cursor-pointer portal-press sm:min-h-9"
+                >
+                  {savingAvailability ? "Saving…" : "Save schedule"}
+                </button>
               </div>
             </div>
+          }
+        >
+          <div className="space-y-1">
+            <div
+              style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
+              className="gap-1 py-1 text-center"
+            >
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                <div key={day} className="text-[10px] font-bold uppercase text-muted-foreground" aria-hidden="true">
+                  <span className="sm:hidden">{day.slice(0, 1)}</span>
+                  <span className="hidden sm:inline">{day}</span>
+                </div>
+              ))}
+            </div>
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowAvailabilityModal(false)}
-                disabled={savingAvailability}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAvailability}
-                disabled={savingAvailability}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-[#4C81E0] hover:bg-[#3b6bc4]"
-              >
-                {savingAvailability ? "Saving..." : "Save My Schedule"}
-              </button>
+            <div
+              style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
+              className="gap-1"
+            >
+              {/* Leading blanks so the 1st lands on its real weekday. The old
+                  grid dropped them, which slid every date one column left of
+                  the header it was filed under. */}
+              {Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay() }).map((_, i) => (
+                <div key={`pad-${i}`} className="min-h-[46px]" aria-hidden="true" />
+              ))}
+              {calendarDays.filter((d) => d.isCurrentMonth).map(({ date }, idx) => {
+                const dateKey = formatDateKey(date);
+                const isUnavailable = selectedUnavailableSet.has(dateKey);
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => toggleUnavailableDate(date)}
+                    aria-pressed={isUnavailable}
+                    aria-label={
+                      date.toLocaleDateString("en-US", { month: "long", day: "numeric" }) +
+                      (isUnavailable ? " — marked off-duty" : " — available")
+                    }
+                    className={`flex min-h-[46px] flex-col items-center justify-center rounded-xl border text-xs font-semibold transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                      isUnavailable
+                        ? "border-red-600 bg-red-500 text-white shadow-2xs"
+                        : "border-border bg-card text-foreground hover:border-primary/60 hover:bg-primary/5"
+                    }`}
+                  >
+                    <span className="text-[13px] tabular-nums">{date.getDate()}</span>
+                    {isUnavailable && <span className="text-[10px] font-normal leading-none">Off</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

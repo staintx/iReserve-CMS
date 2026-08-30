@@ -4,6 +4,7 @@ import { ManagerAPI } from "../../api/manager";
 import ManagerLayout from "../../components/layout/ManagerLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
+import PageHeader from "../../components/admin/ui/PageHeader";
 import Badge from "../../components/admin/ui/Badge";
 import Modal from "../../components/common/Modal";
 import useToast from "../../hooks/useToast";
@@ -20,7 +21,11 @@ import {
   CheckCircle2, 
   AlertCircle,
   CalendarDays,
-  UserCheck
+  UserCheck,
+  Phone,
+  Mail,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 const buildCalendar = (year, monthIndex) => {
@@ -175,26 +180,21 @@ export default function ManagerStaff() {
   return (
     <ManagerLayout>
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/40">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              Staff Roster &amp; Availability
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              View team availability schedules and event workloads before dispatching
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+        <PageHeader
+          title="Staff Roster & Availability"
+          description="View team availability schedules and event workloads before dispatching"
+          actions={
             <Btn variant="secondary" size="sm" onClick={() => navigate("/manager/dashboard")}>
               My Dashboard
             </Btn>
-          </div>
-        </div>
+          }
+        />
 
-        {/* Toolbar */}
-        <AdminCard className="!p-3.5">
+        {/* Same sticky rail as Assigned Bookings: the position filter is what
+            a manager changes between reads, so it stays put while the roster
+            scrolls under it. */}
+        <div className="portal-sticky -mx-3 bg-background/95 px-3 pb-2.5 pt-0.5 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+        <AdminCard className="!p-2.5 sm:!p-3.5">
           <TableToolbar
             search={search}
             onSearchChange={setSearch}
@@ -204,62 +204,92 @@ export default function ManagerStaff() {
             onQuickFilterChange={setPositionFilter}
           />
         </AdminCard>
+        </div>
 
-        {/* Mobile View: Responsive Staff Cards (block md:hidden) */}
-        <div className="block md:hidden space-y-3">
+        {/* Phone roster. The whole row opens the schedule — it is the only
+            thing a manager can do with a staff member here, so a separate
+            "View Schedule" button was a second target for the tap the row
+            already implied. Contact details become real tel:/mailto: links,
+            which on a phone is the difference between reading a number and
+            calling the person you are about to dispatch. */}
+        <div className="block lg:hidden space-y-2.5">
           {loading ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              Loading staff roster...
-            </div>
-          ) : pageRows.length === 0 ? (
             <AdminCard className="!p-8 text-center text-xs text-muted-foreground">
-              No staff members found.
+              Loading staff roster…
+            </AdminCard>
+          ) : pageRows.length === 0 ? (
+            <AdminCard className="!p-8 text-center space-y-1.5">
+              <p className="text-sm font-semibold text-foreground">No staff members</p>
+              <p className="text-xs text-muted-foreground">
+                {search || positionFilter !== "all"
+                  ? "Nobody matches this search or position filter."
+                  : "Registered staff will appear here."}
+              </p>
             </AdminCard>
           ) : (
-            <div className="space-y-2.5">
+            <ul className="space-y-2.5 sm:grid sm:grid-cols-2 sm:gap-2.5 sm:space-y-0">
               {pageRows.map((s) => {
                 const upcoming = s.upcoming_count || 0;
                 return (
-                  <AdminCard key={s._id} className="space-y-2.5 shadow-2xs">
-                    <div className="flex items-center justify-between gap-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shrink-0">
-                          {initials(s.full_name)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-bold text-xs text-foreground truncate">{s.full_name}</div>
-                          <div className="text-[11px] text-muted-foreground truncate">{s.phone || s.email}</div>
-                        </div>
-                      </div>
-
-                      <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border text-[10.5px] font-semibold shrink-0">
-                        {s.position || "Staff"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/60 text-xs">
-                      <div className="text-[11px] text-muted-foreground">
-                        Upcoming Shifts: <strong className="text-foreground">{upcoming}</strong>
-                      </div>
+                  <li key={s._id}>
+                    <AdminCard className="!p-0 overflow-hidden">
                       <button
                         type="button"
                         onClick={() => openCalendar(s)}
-                        className="py-1.5 px-3 min-h-[38px] bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
+                        className="flex w-full items-center gap-3 p-3 text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
                       >
-                        <Calendar size={13} className="text-primary" />
-                        <span>View Schedule</span>
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-primary/20 bg-primary/10 text-[13px] font-bold text-primary">
+                          {initials(s.full_name)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-bold text-foreground">{s.full_name}</span>
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted-foreground">
+                            <span className="rounded bg-muted px-1.5 py-px font-semibold">
+                              {s.position || "Staff"}
+                            </span>
+                            <span className={upcoming > 0 ? "font-semibold text-foreground" : ""}>
+                              {upcoming} upcoming
+                            </span>
+                          </span>
+                        </span>
+                        <Calendar size={16} className="shrink-0 text-primary" />
                       </button>
-                    </div>
-                  </AdminCard>
+
+                      {(s.phone || s.email) && (
+                        <div className="flex items-stretch gap-px border-t border-border/60 bg-border/40">
+                          {s.phone && (
+                            <a
+                              href={`tel:${s.phone}`}
+                              className="flex min-h-[42px] flex-1 items-center justify-center gap-1.5 bg-card text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+                            >
+                              <Phone size={13} />
+                              Call
+                            </a>
+                          )}
+                          {s.email && (
+                            <a
+                              href={`mailto:${s.email}`}
+                              className="flex min-h-[42px] flex-1 items-center justify-center gap-1.5 bg-card text-xs font-semibold text-muted-foreground transition-colors hover:text-primary"
+                            >
+                              <Mail size={13} />
+                              Email
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </AdminCard>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+          <AdminCard className="!p-0 overflow-hidden">
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+          </AdminCard>
         </div>
 
-        {/* Desktop Data Table (hidden md:block) */}
-        <AdminCard className="hidden md:block !p-0 overflow-hidden">
+        {/* Desktop Data Table (hidden lg:block) */}
+        <AdminCard className="hidden lg:block !p-0 overflow-hidden">
           <DataTable
             columns={columns}
             rows={pageRows}
@@ -269,14 +299,27 @@ export default function ManagerStaff() {
             emptyHint="Registered staff will appear here."
             onRowClick={(s) => openCalendar(s)}
             minWidth="700px"
+            /* Between 1024px and the table's own min-width the row scrolls,
+               and the actions column was the first thing pushed off screen —
+               the one column the row is being read for. */
+            pinLastColumn
           />
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
 
         {/* Staff Availability Calendar Modal */}
         {selectedStaff && (
-          <Modal title={`Staff Schedule — ${selectedStaff.full_name}`} onClose={() => setSelectedStaff(null)} className="max-w-xl">
-            <div className="space-y-3.5 text-sm max-h-[80vh] overflow-y-auto pr-1">
+          <Modal
+            title={`Staff Schedule — ${selectedStaff.full_name}`}
+            onClose={() => setSelectedStaff(null)}
+            className="sm:max-w-xl"
+            footer={
+              <Btn variant="secondary" size="sm" onClick={() => setSelectedStaff(null)} className="w-full sm:w-auto sm:ml-auto sm:flex">
+                Close
+              </Btn>
+            }
+          >
+            <div className="space-y-3.5 text-sm">
               {/* Member Card */}
               <div className="flex items-center justify-between rounded-lg border border-border/80 bg-muted/30 p-2.5 sm:p-3 shadow-2xs">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -290,14 +333,36 @@ export default function ManagerStaff() {
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-base sm:text-lg font-bold text-foreground">{selectedStaff.upcoming_count || 0}</div>
-                  <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Upcoming</div>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Upcoming</div>
                 </div>
               </div>
 
               {/* Calendar with Legend */}
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2">
-                  <div className="text-xs font-bold text-foreground">{monthLabel}</div>
+                  {/* The month stepper the label always implied. Without it a
+                      manager could read this crew member's current month and
+                      nothing else, which is the wrong half of the question
+                      when they are staffing an event three weeks out. */}
+                  <div className="flex items-center justify-between gap-1 sm:justify-start sm:gap-2">
+                    <button
+                      type="button"
+                      aria-label="Previous month"
+                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                      className="grid h-9 w-9 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+                    <div className="text-xs font-bold text-foreground tabular-nums">{monthLabel}</div>
+                    <button
+                      type="button"
+                      aria-label="Next month"
+                      onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                      className="grid h-9 w-9 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer"
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
                   
                   {/* Legend */}
                   <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -343,8 +408,8 @@ export default function ManagerStaff() {
                         }`}
                       >
                         {day.date && <div className="text-[10.5px] font-semibold leading-tight">{day.label}</div>}
-                        {entry && <div className="text-[7.5px] sm:text-[8.5px] font-bold text-amber-900 truncate mt-0.5">Assigned</div>}
-                        {!entry && isUnavailable && <div className="text-[7.5px] sm:text-[8.5px] font-bold text-red-700 truncate mt-0.5">Off</div>}
+                        {entry && <div className="mt-0.5 truncate text-[10px] font-bold leading-none text-amber-900"><span className="sm:hidden">Job</span><span className="hidden sm:inline">Assigned</span></div>}
+                        {!entry && isUnavailable && <div className="mt-0.5 truncate text-[10px] font-bold leading-none text-red-700">Off</div>}
                       </div>
                     );
                   })}
@@ -364,7 +429,7 @@ export default function ManagerStaff() {
                           <div className="font-bold text-foreground truncate">{item.event_type || "Event"} ({item.customer_name})</div>
                           <div className="text-[10.5px] text-muted-foreground truncate">REF: {item.reference} • {new Date(item.date).toLocaleDateString()}</div>
                         </div>
-                        <span className="text-[9.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
+                        <span className="text-[10.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0">
                           {item.status}
                         </span>
                       </div>
@@ -373,9 +438,6 @@ export default function ManagerStaff() {
                 )}
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-border/60">
-                <Btn variant="secondary" size="sm" onClick={() => setSelectedStaff(null)} className="w-full sm:w-auto min-h-[38px] sm:min-h-0">Close</Btn>
-              </div>
             </div>
           </Modal>
         )}

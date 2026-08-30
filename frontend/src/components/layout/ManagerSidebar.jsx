@@ -13,10 +13,11 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { initialsOf } from "../../utils/format";
 import ConfirmDialog from "../common/ConfirmDialog";
 import NotificationBell from "../common/NotificationBell";
 
-export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
+export default function ManagerSidebar() {
   const auth = useAuth() || {}; 
   const user = auth.user || null;
   const navigate = useNavigate();
@@ -24,13 +25,7 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const initials = (() => {
-    const name = user?.full_name || user?.email || "";
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "MG";
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  })();
+  const initials = initialsOf(user?.full_name || user?.email, "MG");
 
   const NAV_ROW =
     "group relative flex items-center gap-2.5 rounded-lg text-[13px] whitespace-nowrap " +
@@ -61,17 +56,13 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
 
   return (
     <>
-      {mobileOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+      {/* Desktop and tablet only. Phones get PortalMobileNav instead of this
+          sidebar slid in from the left, so none of its desktop affordances —
+          the collapse toggle above all — leak onto a touch screen. */}
       <aside
         className={cn(
-          "fixed md:sticky top-0 self-start flex flex-col h-screen bg-card transition-all duration-300 ease-in-out border-r border-border z-50 shrink-0 select-none",
-          isCollapsed ? "w-16" : "w-60",
-          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          "hidden md:flex sticky top-0 self-start flex-col h-screen bg-card transition-[width] duration-300 ease-in-out border-r border-border z-30 shrink-0 select-none",
+          isCollapsed ? "w-16" : "w-60"
         )}
       >
         {/* Brand Header & Toggle */}
@@ -129,7 +120,7 @@ export default function ManagerSidebar({ mobileOpen, setMobileOpen }) {
         {/* Nav Links */}
         <nav className="flex flex-col flex-1 px-2 py-2 space-y-0.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {/* Notifications Item */}
-          <NotificationBell isSidebarItem isCollapsed={isCollapsed} onCloseSidebar={() => setMobileOpen && setMobileOpen(false)} />
+          <NotificationBell isSidebarItem isCollapsed={isCollapsed} />
 
           <div className={sectionLabelClass}>Operations</div>
 

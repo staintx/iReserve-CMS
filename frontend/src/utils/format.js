@@ -118,3 +118,16 @@ export const getEventTimingStatus = (booking) => {
   };
 };
 
+
+/**
+ * Avatar initials from a display name, falling back to an email local part.
+ * Lived as a copy-pasted IIFE in each of the three portal sidebars; the
+ * mobile menu made it a fourth, which is one too many to keep in sync.
+ */
+export const initialsOf = (nameOrEmail, fallback = "??") => {
+  const source = String(nameOrEmail || "").split("@")[0];
+  const parts = source.trim().split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 0) return fallback;
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};

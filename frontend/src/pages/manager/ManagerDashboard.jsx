@@ -12,12 +12,22 @@ import {
   Calendar as CalendarIcon, 
   Clock, 
   AlertCircle, 
+  AlertTriangle,
   Users, 
   ArrowRight, 
   CheckCircle2,
   UserCheck,
   Eye
 } from "lucide-react";
+
+const isPastDate = (dateVal) => {
+  if (!dateVal) return false;
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return d < today;
+};
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -128,31 +138,54 @@ export default function ManagerDashboard() {
               </p>
             ) : (
               <div className="space-y-2">
-                {summary.quickActions.pending.map((booking) => (
-                  <div 
-                    key={booking._id} 
-                    className="p-2.5 sm:p-3 rounded-lg border border-amber-200/80 bg-amber-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-foreground">
-                        {booking.customer_id?.full_name || "Customer"} — {booking.event_type || "Event"}
+                {summary.quickActions.pending.map((booking) => {
+                  const isPast = isPastDate(booking.event_date);
+                  return (
+                    <div 
+                      key={booking._id} 
+                      className={`p-2.5 sm:p-3 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs ${
+                        isPast ? "border-rose-200/80 bg-rose-50/40 dark:bg-rose-950/20 dark:border-rose-800" : "border-amber-200/80 bg-amber-50/40"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-foreground">
+                            {booking.customer_id?.full_name || "Customer"} — {booking.event_type || "Event"}
+                          </span>
+                          {isPast && (
+                            <span className="inline-flex items-center gap-0.5 text-[9.5px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 px-1.5 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                              <AlertTriangle size={9} /> Event Passed
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span>{booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}</span>
+                          <span>•</span>
+                          <span className="truncate">{booking.venue_type || "Venue"}</span>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        <span>{booking.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}</span>
-                        <span>•</span>
-                        <span className="truncate">{booking.venue_type || "Venue"}</span>
+
+                      <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto">
+                        <button
+                          onClick={() => navigate(`/manager/bookings?booking_id=${booking._id}&action=view`)}
+                          className="flex-1 sm:flex-initial px-2.5 py-1.5 min-h-[38px] sm:min-h-0 bg-card hover:bg-muted text-foreground border border-border text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Eye size={13} className="text-muted-foreground" />
+                          <span>View</span>
+                        </button>
+                        <button
+                          onClick={() => navigate(`/manager/bookings?booking_id=${booking._id}&action=assign`)}
+                          className={`flex-1 sm:flex-initial px-3 py-1.5 min-h-[38px] sm:min-h-0 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                            isPast ? "bg-slate-700 hover:bg-slate-800 active:bg-slate-900" : "bg-amber-600 hover:bg-amber-700 active:bg-amber-800"
+                          }`}
+                        >
+                          <span>{isPast ? "Log Staff" : "Assign Team"}</span>
+                          <ArrowRight size={13} />
+                        </button>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => navigate(`/manager/bookings?booking_id=${booking._id}&action=assign`)}
-                      className="w-full sm:w-auto px-3 py-1.5 min-h-[38px] sm:min-h-0 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
-                    >
-                      <span>Assign Team</span>
-                      <ArrowRight size={13} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </AdminCard>

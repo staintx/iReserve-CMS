@@ -943,7 +943,7 @@ export default function AdminQuoteDetails() {
                   icon={Ruler}
                   label="Event Space / Scaffold Size"
                   value={eventSpaceLabel(quote, quote.package_id) || null}
-                  hideWhenEmpty={isOffer}
+                  hideWhenEmpty={isOffer || isFoodOnly}
                 />
 
                 <CompactField 

@@ -601,6 +601,10 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
         const inq = await Inquiry.findById(params.inquiry_id).lean();
         if (!inq) return { error: "Inquiry not found." };
 
+        const isSetupOnly = inq.service_type === "Event Setup Only";
+        const isFoodOnly = inq.service_type === "Food Only";
+        const isFullService = inq.service_type === "Food and Event Setup" || (!isSetupOnly && !isFoodOnly);
+
         let pkg = null;
         if (params.package_id && mongoose.Types.ObjectId.isValid(params.package_id)) {
           pkg = await Package.findById(params.package_id).lean();
@@ -609,30 +613,68 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
         }
 
         if (!pkg && inq.event_type) {
+          const packageTypeFilter = isFoodOnly
+            ? "Food Only"
+            : isSetupOnly
+            ? "Event Setup Only"
+            : { $in: ["Food + Event Setup", "Event Setup Only", "Food Only"] };
+
           pkg = await Package.findOne({
             available: true,
             event_type: new RegExp(inq.event_type, "i"),
+            package_type: packageTypeFilter,
           }).lean();
         }
 
         if (!pkg) {
-          pkg = await Package.findOne({ available: true }).lean();
+          const packageTypeFilter = isFoodOnly
+            ? "Food Only"
+            : isSetupOnly
+            ? "Event Setup Only"
+            : undefined;
+
+          const query = { available: true };
+          if (packageTypeFilter) query.package_type = packageTypeFilter;
+
+          pkg = await Package.findOne(query).lean();
+          if (!pkg) {
+            pkg = await Package.findOne({ available: true }).lean();
+          }
         }
 
         const guestCount = inq.guest_count || 50;
         let basePackagePrice = 0;
 
         if (pkg) {
-          if (pkg.price_per_guest) {
+          if (isSetupOnly && pkg.setup_price) {
+            basePackagePrice = pkg.setup_price;
+          } else if (isFoodOnly && pkg.price_per_guest) {
             basePackagePrice = pkg.price_per_guest * guestCount;
+          } else if (pkg.price_per_guest && isFullService) {
+            basePackagePrice = (pkg.price_per_guest * guestCount) + (pkg.setup_price || 0);
           } else if (pkg.setup_price) {
             basePackagePrice = pkg.setup_price;
           }
         }
 
         // Fetch real addons from DB
-        const availableAddons = await Addon.find({ available: true }).limit(4).lean();
-        const recommendedAddons = availableAddons.slice(0, 2).map((a) => ({
+        const availableAddons = await Addon.find({ available: true }).limit(10).lean();
+        let filteredAddons = availableAddons;
+        if (isFoodOnly) {
+          filteredAddons = availableAddons.filter((a) => {
+            const lower = (a.name || "").toLowerCase();
+            return lower.includes("food") || lower.includes("lechon") || lower.includes("drink") || lower.includes("dessert") || lower.includes("tray") || lower.includes("buffet") || lower.includes("crew");
+          });
+          if (filteredAddons.length === 0) filteredAddons = availableAddons;
+        } else if (isSetupOnly) {
+          filteredAddons = availableAddons.filter((a) => {
+            const lower = (a.name || "").toLowerCase();
+            return !lower.includes("food") && !lower.includes("lechon") && !lower.includes("dish") && !lower.includes("buffet");
+          });
+          if (filteredAddons.length === 0) filteredAddons = availableAddons;
+        }
+
+        const recommendedAddons = filteredAddons.slice(0, 2).map((a) => ({
           name: a.name,
           price: a.price || 2500,
           pricing_type: a.pricing_type || "fixed",
@@ -642,20 +684,42 @@ async function executeTool(toolName, params = {}, { user, io } = {}) {
         const estimatedTotal = basePackagePrice + addonsTotal;
         const depositPercentage = 0.2; // 20% default
 
+        const defaultInclusions = isSetupOnly
+          ? ["Themed Stage & Backdrop", "Accent Mood Lighting", "Tables & Tiffany Chairs", "Setup & Egress Crew"]
+          : isFoodOnly
+          ? ["Buffet Table Setup", "Chafing Dishes & Food Warmers", "Complete Dinnerware & Cutlery", "Service Crew"]
+          : ["Complete Buffet Setup", "Themed Backdrop & Styling", "Chafing Dishes & Warmers", "Service & Setup Crew"];
+
+        // Sanitize pkg inclusions if Food Only
+        let finalInclusions = defaultInclusions;
+        if (pkg?.inclusions?.length) {
+          if (isFoodOnly) {
+            const setupExclusions = ["backdrop", "stage", "scaffold", "tent", "couch", "grass carpet", "chandelier", "dove", "red carpet", "chair", "table", "fan"];
+            const foodInclusions = pkg.inclusions.filter((inc) => {
+              const lower = String(inc).toLowerCase();
+              return !setupExclusions.some((kw) => lower.includes(kw));
+            });
+            finalInclusions = foodInclusions.length ? foodInclusions : defaultInclusions;
+          } else {
+            finalInclusions = pkg.inclusions;
+          }
+        }
+
         return {
           inquiry_id: inq._id,
+          service_type: inq.service_type || (isFoodOnly ? "Food Only" : isSetupOnly ? "Event Setup Only" : "Food and Event Setup"),
           customer_name: `${inq.contact_first_name} ${inq.contact_last_name}`,
-          recommended_package: pkg?.name || "Full Package",
+          recommended_package: pkg?.name || (isFoodOnly ? "Catering Food Package" : isSetupOnly ? "Event Setup Styling" : "Full Service Catering"),
           package_id: pkg?._id || null,
           starting_price: basePackagePrice,
-          inclusions: pkg?.inclusions || ["Complete Buffet Setup", "Service Crew", "Chafing Dishes"],
+          inclusions: finalInclusions,
           guest_count: guestCount,
           estimated_package_cost: basePackagePrice,
           recommended_addons: recommendedAddons,
           addons_total: addonsTotal,
           estimated_total: estimatedTotal,
           deposit_amount: Math.round(estimatedTotal * depositPercentage),
-          admin_notes: `AI Suggestion: Tailored for ${inq.event_type || "Event"} (${guestCount} guests)${
+          admin_notes: `AI Suggestion: Tailored for ${inq.service_type || "Event"} - ${inq.event_type || "Event"} (${guestCount} guests)${
             inq.budget_range ? ` matching budget estimate ${inq.budget_range}` : ""
           }.${inq.special_requests ? ` Notes: ${inq.special_requests}` : ""}`,
         };

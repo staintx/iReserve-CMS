@@ -264,6 +264,8 @@ const findDraft = (inquiryId) => Quotation.findOne({ inquiry_id: inquiryId, stat
  */
 function buildEventSnapshot(inquiry) {
   return {
+    booking_for: inquiry.booking_for || "myself",
+    celebrant_name: inquiry.celebrant_name || "",
     contact_first_name: inquiry.contact_first_name,
     contact_last_name: inquiry.contact_last_name,
     contact_email: inquiry.contact_email,

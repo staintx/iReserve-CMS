@@ -92,6 +92,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/60 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-[#4C81E0] shadow-2xs">
               <PackagePlus size={13} className="text-[#4C81E0]" />
               {selectedCount} added to booking
+            </span>
           ) : null
         }
       />
@@ -101,6 +102,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
           <SectionTitle icon={PackagePlus}>Available Add-ons</SectionTitle>
 
           <AddOnPicker
+            items={items}
             quantityOf={quantityOf}
             onToggle={toggleAddOn}
             onQuantityChange={handleQuantityChange}

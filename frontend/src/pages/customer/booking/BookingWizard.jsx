@@ -172,6 +172,8 @@ export default function BookingWizard() {
       package_id: initialPackageId || "",
       venue_type: "",
       venue_type_other: "",
+      booking_for: "myself",
+      celebrant_name: "",
       indoor_outdoor: "Indoor",
       province: BATANGAS_PROVINCE,
       municipality: "",
@@ -862,6 +864,13 @@ export default function BookingWizard() {
             break;
           }
 
+          if (
+            form.booking_for === "someone_else" &&
+            !String(form.celebrant_name || "").trim()
+          ) {
+            errors.celebrant_name = "Enter the celebrant or honoree's name.";
+          }
+
           const eventType =
             form.event_type === OTHER_EVENT_TYPE
               ? String(form.event_type_other || "").trim()
@@ -1237,6 +1246,7 @@ export default function BookingWizard() {
           reference: data?.reference || null,
           estimatedTotal: estimate.total,
           summary: [
+            ...(form.celebrant_name ? [{ label: "Celebrant / Honoree", value: form.celebrant_name }] : []),
             { label: "Event type", value: eventType },
             { label: "Event date", value: formatEventDate(form.event_date) },
             { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },

@@ -261,8 +261,12 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "Forbidden: You do not have access to this inquiry" });
   }
 
-  // Only transition status to "Under Review" when an admin/staff actually opens/views the inquiry details
-  if (["admin", "staff", "manager"].includes(req.user?.role) && rawInquiry.status === "Pending Review") {
+  // Only transition status to "Under Review" when an admin/staff actually opens/views an ACTIVE (unarchived) inquiry details
+  if (
+    ["admin", "staff", "manager"].includes(req.user?.role) &&
+    rawInquiry.status === "Pending Review" &&
+    !rawInquiry.archived
+  ) {
     rawInquiry.status = "Under Review";
     await rawInquiry.save();
     inquiry.status = "Under Review";
@@ -320,6 +324,8 @@ const CUSTOMER_EDITABLE_STATUSES = ["Pending Review", "Under Review"];
  */
 const CUSTOMER_EDITABLE_FIELDS = [
   "event_type",
+  "booking_for",
+  "celebrant_name",
   "event_date",
   "start_time",
   "duration_hours",

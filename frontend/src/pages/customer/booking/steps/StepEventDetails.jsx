@@ -1,4 +1,4 @@
-import { PartyPopper, MapPin, Package, Palette, Users, Truck, Store, Sparkles } from "lucide-react";
+import { PartyPopper, MapPin, Package, Palette, Users, Truck, Store, Sparkles, User, Heart } from "lucide-react";
 import {
   Card,
   SH,
@@ -211,24 +211,76 @@ export default function StepEventDetails({
       ) : isOffer && isDelivery ? (
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 items-start">
           <Card className="p-3.5 sm:p-4">
-            <SectionTitle icon={Users}>Guest count</SectionTitle>
-            <Field
-              label={guestCountLabel(offer)}
-              required
-              hint={
-                perPax > 0
-                  ? `₱${perPax.toLocaleString("en-PH")} / pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated total`
-                  : guestCountHelp(offer)
-              }
-              error={errors.guest_count}
-            >
-              <GuestCounter
-                value={currentCount}
-                onChange={handleGuestChange}
-                min={guestMin || 1}
-                max={guestMax || 1000}
-              />
-            </Field>
+            <SectionTitle icon={Users}>Event Details &amp; Guests</SectionTitle>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Who is this event for?
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                      form.booking_for !== "someone_else"
+                        ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>For myself</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                      form.booking_for === "someone_else"
+                        ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <Heart className="w-3.5 h-3.5" />
+                    <span>For someone else</span>
+                  </button>
+                </div>
+              </div>
+
+              {form.booking_for === "someone_else" && (
+                <Field
+                  label="Celebrant / Honoree name"
+                  required
+                  hint="e.g. Sarah, John & Maria (used for your event title)"
+                  error={errors.celebrant_name}
+                >
+                  <TInput
+                    placeholder="e.g. Sarah"
+                    value={form.celebrant_name || ""}
+                    onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
+                    hasError={!!errors.celebrant_name}
+                  />
+                </Field>
+              )}
+
+              <Field
+                label={guestCountLabel(offer)}
+                required
+                hint={
+                  perPax > 0
+                    ? `₱${perPax.toLocaleString("en-PH")} / pax · ${currentCount} guests = ₱${(currentCount * perPax).toLocaleString("en-PH")} estimated total`
+                    : guestCountHelp(offer)
+                }
+                error={errors.guest_count}
+              >
+                <GuestCounter
+                  value={currentCount}
+                  onChange={handleGuestChange}
+                  min={guestMin || 1}
+                  max={guestMax || 1000}
+                />
+              </Field>
+            </div>
           </Card>
 
           <Card className="p-3.5 sm:p-4">
@@ -294,6 +346,57 @@ export default function StepEventDetails({
             <Card className="p-3.5 sm:p-4">
               <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
               <div className="space-y-3">
+                {/* Who is this event for */}
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Who is this event for?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                        form.booking_for !== "someone_else"
+                          ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>For myself</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                        form.booking_for === "someone_else"
+                          ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      )}
+                    >
+                      <Heart className="w-3.5 h-3.5" />
+                      <span>For someone else</span>
+                    </button>
+                  </div>
+                </div>
+
+                {form.booking_for === "someone_else" && (
+                  <Field
+                    label="Celebrant / Honoree name"
+                    required
+                    hint="e.g. Sarah, John & Maria, Baby Liam (used for your event title & quote)"
+                    error={errors.celebrant_name}
+                  >
+                    <TInput
+                      placeholder="e.g. Sarah"
+                      value={form.celebrant_name || ""}
+                      onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
+                      hasError={!!errors.celebrant_name}
+                    />
+                  </Field>
+                )}
+
                 <Field
                   label="Event type"
                   required

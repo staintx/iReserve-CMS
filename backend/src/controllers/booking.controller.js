@@ -2627,6 +2627,9 @@ exports.executeInquiryConversion = async ({
     package_name_snapshot:
       inquiry.package_name_snapshot || inquiry.package_id?.name || "",
     event_type: inquiry.event_type || "Event",
+    booking_for: inquiry.booking_for || "myself",
+    celebrant_name: inquiry.celebrant_name || "",
+    event_theme: inquiry.event_theme || "",
     event_date: inquiry.event_date,
     start_time: inquiry.start_time || "12:00",
     guest_count: quotation?.guest_count || inquiry.guest_count || 1,

@@ -16,6 +16,8 @@ exports.bookingSchema = Joi.object({
   staff_ids: Joi.array().items(Joi.string()).optional(),
 
   event_type: Joi.string().required(),
+  booking_for: Joi.string().valid("myself", "someone_else").optional(),
+  celebrant_name: Joi.string().allow("").optional(),
   event_theme: Joi.string().allow("").optional(),
   event_date: Joi.date()
     .required()

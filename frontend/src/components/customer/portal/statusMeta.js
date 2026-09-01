@@ -35,9 +35,17 @@ export const serviceIcon = (serviceType) => {
   return PartyPopper;
 };
 
-/** Friendly label for the event itself, e.g. "Glenn's Wedding". */
+/** Friendly label for the event itself, e.g. "Sarah's Birthday", "John & Maria's Wedding", or "Glenn's Wedding". */
 export const recordTitle = (record) => {
   const eventName = record?.event_type === "Other" ? record?.event_type_other : record?.event_type;
+  const celebrant = record?.celebrant_name?.trim();
+  if (celebrant) {
+    if (eventName && celebrant.toLowerCase().includes(eventName.toLowerCase())) {
+      return celebrant;
+    }
+    const suffix = celebrant.endsWith("s") || celebrant.endsWith("S") ? "'" : "'s";
+    return `${celebrant}${suffix} ${eventName || "Event"}`;
+  }
   const owner = record?.contact_first_name ? `${record.contact_first_name}'s ` : "";
   return `${owner}${eventName || "Event"}`;
 };

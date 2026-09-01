@@ -1051,6 +1051,14 @@ export default function CustomerInquiries() {
                     </h4>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                      {selectedInquiry.celebrant_name && (
+                        <div>
+                          <span className="text-[11px] text-slate-400 block font-medium">Celebrant / Honoree</span>
+                          <span className="font-semibold text-slate-900 block mt-0.5">
+                            {selectedInquiry.celebrant_name}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Date &amp; Time</span>
                         <span className="font-semibold text-slate-900 block mt-0.5">

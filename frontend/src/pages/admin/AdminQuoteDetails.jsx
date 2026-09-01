@@ -855,6 +855,14 @@ export default function AdminQuoteDetails() {
             {/* Event Specifics Card */}
             <CompactCard title="Event Specifics" icon={Calendar}>
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-2.5">
+                {quote.celebrant_name && (
+                  <CompactField 
+                    icon={User} 
+                    label="Celebrant / Honoree" 
+                    value={quote.celebrant_name} 
+                  />
+                )}
+
                 <CompactField 
                   icon={Layers} 
                   label="Service Type" 
@@ -1224,6 +1232,13 @@ export default function AdminQuoteDetails() {
                     <div className="flex items-center gap-2.5 text-slate-500 min-w-0">
                       <Phone size={13} className="text-slate-400 shrink-0" />
                       <span>{quote.contact_alt_phone} (Alt)</span>
+                    </div>
+                  )}
+
+                  {quote.celebrant_name && (
+                    <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Booked For:</span>
+                      <span className="font-semibold text-slate-800">{quote.celebrant_name}</span>
                     </div>
                   )}
 

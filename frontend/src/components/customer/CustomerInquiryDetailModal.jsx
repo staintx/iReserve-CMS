@@ -161,6 +161,12 @@ export default function CustomerInquiryDetailModal({
                       <Calendar className="w-3.5 h-3.5 text-[#2C4B8A]" /> Schedule &amp; Setup
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {data?.celebrant_name && (
+                        <div>
+                          <span className="text-[11px] text-slate-400 block font-medium">Celebrant / Honoree</span>
+                          <span className="font-semibold text-slate-900 block mt-0.5">{data.celebrant_name}</span>
+                        </div>
+                      )}
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Event Date</span>
                         <span className="font-semibold text-slate-900 block mt-0.5">{formatShortDate(data?.event_date)}</span>
@@ -318,6 +324,12 @@ export default function CustomerInquiryDetailModal({
                         <span className="text-[11px] text-slate-400 block font-medium">Name</span>
                         <span className="font-semibold text-slate-900 block mt-0.5">{`${data?.contact_first_name || ""} ${data?.contact_last_name || ""}`.trim() || "N/A"}</span>
                       </div>
+                      {data?.celebrant_name && (
+                        <div>
+                          <span className="text-[11px] text-slate-400 block font-medium">Booked For</span>
+                          <span className="font-semibold text-slate-900 block mt-0.5">{data.celebrant_name}</span>
+                        </div>
+                      )}
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Email Address</span>
                         <span className="font-semibold text-slate-900 block mt-0.5">{data?.contact_email || "N/A"}</span>

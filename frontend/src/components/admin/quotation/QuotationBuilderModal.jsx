@@ -1958,10 +1958,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   if (!inquiry) return null;
 
+  const modalTitle = inquiry?.status === "Revision Requested"
+    ? "Revise Quotation"
+    : quotation
+    ? "Quotation Editor"
+    : "Prepare Quotation";
+
   if (loading) {
     return (
       <Modal
-        title="Quotation Builder"
+        title={modalTitle}
         onClose={onClose}
         bodyClassName="overflow-hidden"
         className="max-w-4xl h-[80vh] flex items-center justify-center"
@@ -2000,7 +2006,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   return (
     <Modal
-      title="Quotation Builder"
+      title={modalTitle}
       onClose={() => requestClose("leave")}
       bodyClassName="overflow-hidden"
       className="max-w-7xl w-[96vw] h-[90vh]"

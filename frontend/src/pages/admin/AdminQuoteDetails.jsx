@@ -1321,7 +1321,7 @@ export default function AdminQuoteDetails() {
                   className="w-full mt-3.5 py-2 px-3 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Activity size={13} />
-                  {isRevisionRequested ? "Revise Quotation" : "Open Quotation Builder"}
+                  {isRevisionRequested ? "Revise Quotation" : isQuotationSent ? "Edit Quotation" : "Prepare Quotation"}
                 </button>
               )}
             </div>

@@ -22,8 +22,6 @@ import { cn } from "@/lib/utils";
 import StatusPill from "./portal/StatusPill";
 import StateNotice from "./portal/StateNotice";
 import DetailGrid from "./portal/DetailGrid";
-import AmountSummary from "./portal/AmountSummary";
-import { ACTION_DANGER } from "./portal/actionStyles";
 import { formatCurrency, formatEventDate, formatShortDate, formatTime } from "../../utils/format";
 import {
   MENU_PRICING,
@@ -196,7 +194,17 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     });
   };
 
-  const isExpired = quotation.expiration_date && new Date(quotation.expiration_date) < new Date();
+  const isPastExpiry = Boolean(
+    quotation.expiration_date &&
+      new Date(quotation.expiration_date).setHours(23, 59, 59, 999) < Date.now()
+  );
+  const eventDateVal = snapshot?.event_date || inquiry?.event_date;
+  const isWithinLockout = Boolean(
+    eventDateVal &&
+      new Date(eventDateVal).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
+  );
+  const isExpired = isPastExpiry || isWithinLockout;
+
   const isDepositPaid = inquiry?.payment_status === "deposit_paid" || inquiry?.payment_status === "fully_paid" || Boolean(inquiry?.converted_booking_id) || quotation?.inquiry_payment_status === "deposit_paid" || quotation?.inquiry_payment_status === "fully_paid" || Boolean(quotation?.approved_payment);
   // A Draft is unfinished work the server no longer serves to customers, so it
   // is not something to accept, decline, or ask for changes to.
@@ -329,47 +337,41 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           Radix renders this in a body portal, outside the layout wrapper that
           normally scopes them, so without it the dialog inherits the warm
           boutique palette and renders body text in brown/gold. */}
-      <DialogContent className="customer-shell block w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-background p-0 text-foreground shadow-xl focus:outline-none">
+      <DialogContent className="block w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl focus:outline-none [scrollbar-width:thin]">
 
-        {/* Header — reads as an official document (brand rule, seal, gold
-            hairline) while staying compact so the money stays above the fold.
-            pr-12 keeps content clear of the dialog's own close button. */}
-        <div className="relative border-b border-border bg-card px-5 py-5 pr-12 sm:px-7 sm:py-6 sm:pr-14">
-          <span className="absolute inset-x-0 top-0 h-1 bg-primary" aria-hidden="true" />
+        {/* Header Bar */}
+        <div className="relative border-b border-slate-200 bg-slate-50/80 px-5 py-4.5 pr-14 sm:px-6 sm:py-5">
+          <span className="absolute inset-x-0 top-0 h-1 bg-[#2C4B8A]" aria-hidden="true" />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="flex min-w-0 flex-1 items-start gap-3.5">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <span
-                className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-powder text-primary ring-1 ring-accent/40"
+                className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#2C4B8A] border border-blue-200/80 shadow-2xs"
                 aria-hidden="true"
               >
                 <FileText className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <DialogTitle className="font-serif text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                  Official Catering Quotation
+                <DialogTitle className="font-sans text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+                  Catering Quotation
                 </DialogTitle>
-                {/* flex-wrap rather than inline spans: each segment is
-                    whitespace-nowrap, and with no whitespace between them the
-                    browser has no soft-wrap opportunity and the line overflows
-                    on narrow screens. */}
-                <DialogDescription className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 font-sans text-sm text-muted-foreground">
+                <DialogDescription className="mt-1 flex flex-wrap items-baseline gap-x-1.5 font-sans text-xs text-slate-500">
                   <span className="whitespace-nowrap">
                     Quotation Ref:{" "}
-                    <span className="font-semibold tabular-nums text-foreground">
+                    <span className="font-semibold tabular-nums text-slate-800">
                       {quotation.quotation_number || "QTN-000001"}
                     </span>
                   </span>
                   <span className="opacity-40" aria-hidden="true">·</span>
                   <span className="whitespace-nowrap">
                     Version{" "}
-                    <span className="font-semibold tabular-nums text-foreground">{versionLabel}</span>
+                    <span className="font-semibold tabular-nums text-slate-800">{versionLabel}</span>
                   </span>
                   {inquiry?.reference && (
                     <>
                       <span className="opacity-40" aria-hidden="true">·</span>
                       <span className="whitespace-nowrap">
                         Inquiry:{" "}
-                        <span className="font-semibold tabular-nums text-foreground">{inquiry.reference}</span>
+                        <span className="font-semibold tabular-nums text-slate-800">{inquiry.reference}</span>
                       </span>
                     </>
                   )}
@@ -380,30 +382,26 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
               <StatusPill tone={status.tone} label={status.label} icon={status.icon} />
             </div>
           </div>
-          {/* Champagne hairline — the one decorative flourish, kept to 1px. */}
-          <span className="absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-accent/60 to-transparent sm:inset-x-7" aria-hidden="true" />
         </div>
 
-        {/* Revised-quotation indicator + the switch between the clean
-            quotation and the focused comparison. Only rendered when there is
-            a real earlier version to compare against. */}
+        {/* Revised-quotation indicator */}
         {hasChanges && (
-          <div className="flex flex-col gap-3 border-b border-border bg-amber-50/60 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <p className="flex items-start gap-2.5 text-sm leading-relaxed text-amber-900">
-              <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-amber-50/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="flex items-start gap-2.5 text-xs sm:text-sm leading-relaxed text-amber-900">
+              <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
               <span>
                 <strong className="font-semibold">Quotation revised — Version {versionLabel}.</strong>{" "}
-                <span className="tabular-nums">Updated {formatShortDate(quotation.updatedAt || quotation.createdAt)}</span>
+                <span className="tabular-nums opacity-90">Updated {formatShortDate(quotation.updatedAt || quotation.createdAt)}</span>
               </span>
             </p>
-            <div className="inline-flex shrink-0 rounded-lg bg-card p-1 ring-1 ring-amber-200">
+            <div className="inline-flex shrink-0 rounded-md bg-white p-0.5 border border-amber-200 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setPane("quotation")}
                 aria-pressed={pane === "quotation"}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  pane === "quotation" ? "bg-muted font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"
+                  "rounded px-2.5 py-1 text-xs transition-colors cursor-pointer",
+                  pane === "quotation" ? "bg-slate-100 font-bold text-slate-900" : "font-medium text-slate-600 hover:text-slate-900"
                 )}
               >
                 Current quotation
@@ -413,8 +411,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 onClick={() => setPane("changes")}
                 aria-pressed={pane === "changes"}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  pane === "changes" ? "bg-muted font-semibold text-foreground" : "font-medium text-muted-foreground hover:text-foreground"
+                  "rounded px-2.5 py-1 text-xs transition-colors cursor-pointer",
+                  pane === "changes" ? "bg-slate-100 font-bold text-slate-900" : "font-medium text-slate-600 hover:text-slate-900"
                 )}
               >
                 View {changes.length} change{changes.length === 1 ? "" : "s"}
@@ -424,76 +422,66 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
         )}
 
         {pane === "changes" && hasChanges ? (
-          <div className="space-y-4 px-5 py-6 sm:px-7">
+          <div className="space-y-4 px-5 py-5 sm:px-6">
             <div>
-              <h3 className="font-serif text-lg font-bold text-foreground">
+              <h3 className="font-sans text-base font-bold text-slate-900">
                 Changes since Version {previousVersionLabel}
               </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                <span className="tabular-nums">{changes.length}</span> update
+              <p className="mt-0.5 text-xs text-slate-500">
+                <span className="tabular-nums font-semibold">{changes.length}</span> update
                 {changes.length === 1 ? " was" : "s were"} made to your quotation.
               </p>
             </div>
 
-            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
               {changes.map((change, idx) => (
-                <li key={idx} className="flex flex-col gap-1 px-4 py-3.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4 sm:px-5">
-                  <span className="min-w-0 text-sm font-medium text-foreground">
+                <li key={idx} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4 sm:px-5">
+                  <span className="min-w-0 text-xs sm:text-sm font-medium text-slate-800">
                     {change.name ? `${change.label}: ${change.name}` : change.label}
                   </span>
                   {change.detail ? (
                     <span
                       className={cn(
-                        "shrink-0 font-sans text-sm font-medium tabular-nums",
+                        "shrink-0 font-sans text-xs sm:text-sm font-medium tabular-nums",
                         change.kind === "removed" ? "text-rose-700" : "text-emerald-700"
                       )}
                     >
                       {change.detail}
                     </span>
                   ) : (
-                    <span className="flex shrink-0 items-baseline gap-2 font-sans text-sm tabular-nums">
-                      <span className="text-muted-foreground line-through">{change.from}</span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 self-center text-muted-foreground" aria-hidden="true" />
-                      <span className="font-semibold text-foreground">{change.to}</span>
+                    <span className="flex shrink-0 items-baseline gap-2 font-sans text-xs sm:text-sm tabular-nums">
+                      <span className="text-slate-400 line-through">{change.from}</span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 self-center text-slate-400" aria-hidden="true" />
+                      <span className="font-semibold text-slate-900">{change.to}</span>
                     </span>
                   )}
                 </li>
               ))}
             </ul>
-
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              These are the changes your caterer applied to this version. Anything you asked for that
-              isn't listed here was not carried into this quotation.
-            </p>
           </div>
         ) : (
-        <div className="space-y-6 px-5 py-6 sm:px-7">
+        <div className="space-y-5 px-5 py-5 sm:px-6">
 
-          {/* Change request. Sits at the top of the quotation so it is the
-              first thing in view once opened, rather than below every pricing
-              section. It is a plain message to the team: nothing here edits the
-              quotation, and no quotation field is exposed for a customer to
-              change. The caterer reissues a version if they can accommodate it. */}
+          {/* Change request form */}
           {showRevisionForm && (
             <form
               onSubmit={handleRevisionSubmit}
-              className="space-y-3 rounded-xl border-2 border-primary bg-card p-4 sm:p-5"
+              className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-4 sm:p-5 shadow-2xs"
               aria-labelledby="revision-heading"
             >
               <div className="flex items-start gap-2.5">
                 <span
-                  className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-powder text-primary"
+                  className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-[#2C4B8A]"
                   aria-hidden="true"
                 >
                   <RefreshCw className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 id="revision-heading" className="font-serif text-lg font-bold text-foreground">
+                  <h3 id="revision-heading" className="font-sans text-sm font-bold text-slate-900">
                     What would you like to change?
                   </h3>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    Describe it in your own words. You might mention guest count, menu or package,
-                    add-ons, event details, or anything else.
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Describe it in your own words (e.g. guest count, menu dishes, add-ons, event timing).
                   </p>
                 </div>
               </div>
@@ -501,28 +489,25 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 id="revision-note"
                 ref={revisionInputRef}
                 aria-label="Describe the change you would like"
-                className="min-h-[130px] w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="For example: can we increase the guest count from 50 to 70 and add 2 cocktail tables?"
+                className="min-h-[100px] w-full rounded-lg border border-slate-300 bg-white p-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2C4B8A]/40 focus-visible:border-[#2C4B8A]"
+                placeholder="For example: can we increase the guest count from 50 to 70 and add another appetizer?"
                 value={revisionNote}
                 onChange={(e) => setRevisionNote(e.target.value)}
                 required
               />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                This sends a request to our team. It does not change your quotation on its own.
-                We'll review it and send you an updated version if we can accommodate it.
+              <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                This sends a change request to our team. Your current quotation remains active until an updated version is issued.
               </p>
-              {/* Failure stays with the form, holding the text the customer
-                  wrote, instead of closing it behind a toast. */}
               {revisionError && (
                 <InlineMessage tone="error" assertive>
                   {revisionError}
                 </InlineMessage>
               )}
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setShowRevisionForm(false)}>
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowRevisionForm(false)} className="text-xs h-8">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" size="sm" disabled={isSubmitting} className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs h-8 font-semibold">
                   {isSubmitting ? "Sending…" : "Send change request"}
                 </Button>
               </div>
@@ -530,8 +515,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           )}
 
           {isExpired && (
-            <StateNotice tone="neutral" icon={Clock} title="This quote has expired.">
-              Message our team and we'll send you an updated quotation.
+            <StateNotice tone="neutral" icon={Clock} title="This quotation has expired.">
+              To ensure high-quality catering and proper event arrangements, bookings must be confirmed at least 3 days before the event. Please message our team if you would like to request an updated quotation.
             </StateNotice>
           )}
 
@@ -541,8 +526,6 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
             </StateNotice>
           )}
 
-          {/* A submitted request is pending until an admin acts on it — it is
-              not itself a change to the quotation (§3). */}
           {quotation.customer_response && (
             quotation.status === "Revision Requested" ? (
               <StateNotice tone="warning" icon={Clock} title="Your change request is with our team.">
@@ -562,51 +545,70 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           )}
 
           {/* 1. What it costs and what to pay — the most prominent block */}
-          <section className="space-y-3">
-            <h3 className="font-serif text-lg font-bold text-foreground">Your total</h3>
-            <AmountSummary
-              rows={[
-                { label: "Total cost", value: formatCurrency(total), strong: true },
-                {
-                  label: "Deposit to reserve your date",
-                  value: (
-                    <span className="flex items-center gap-2">
-                      <span>{formatCurrency(deposit)}</span>
-                      {isDepositPaid && (
-                        <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Paid
-                        </span>
-                      )}
-                    </span>
-                  ),
-                  hint: isDepositPaid
-                    ? "Deposit confirmed via PayMongo online payment."
-                    : deposit > 0
-                    ? null
-                    : "Not required — the full amount is due on acceptance",
-                },
-                deposit > 0 && {
-                  label: "Remaining balance after deposit",
-                  value: formatCurrency(remaining),
-                },
-                {
-                  label: "Quote valid until",
-                  value: quotation.expiration_date
-                    ? formatEventDate(quotation.expiration_date)
-                    : "7 days from issue",
-                  tone: isExpired ? "danger" : undefined,
-                },
-              ]}
-              headline={headline}
-            />
+          <section className="space-y-2">
+            <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-500">
+              Quotation Summary
+            </h3>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <dl className="divide-y divide-slate-100 text-xs sm:text-sm">
+                <div className="flex items-baseline justify-between gap-3 px-4 py-3 sm:px-5 bg-slate-50/70">
+                  <dt className="font-bold text-slate-900">Total Quoted Amount</dt>
+                  <dd className="font-sans text-base sm:text-lg font-bold tabular-nums text-slate-900">
+                    {formatCurrency(total)}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                  <dt className="text-slate-600 flex items-center gap-2">
+                    <span>Deposit to reserve your date</span>
+                    {isDepositPaid && (
+                      <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10.5px] font-bold text-emerald-800">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Paid
+                      </span>
+                    )}
+                  </dt>
+                  <dd className="font-sans font-semibold tabular-nums text-slate-800">
+                    {formatCurrency(deposit)}
+                  </dd>
+                </div>
+                {deposit > 0 && (
+                  <div className="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                    <dt className="text-slate-500">Remaining balance after deposit</dt>
+                    <dd className="font-sans font-medium tabular-nums text-slate-600">
+                      {formatCurrency(remaining)}
+                    </dd>
+                  </div>
+                )}
+                <div className="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                  <dt className="text-slate-500">Quote valid until</dt>
+                  <dd className={cn(
+                    "font-sans font-medium tabular-nums",
+                    isExpired ? "font-bold text-rose-700" : "text-slate-600"
+                  )}>
+                    {quotation.expiration_date
+                      ? `${isExpired ? "Expired " : ""}${formatShortDate(quotation.expiration_date)}`
+                      : "7 days from issue"}
+                  </dd>
+                </div>
+              </dl>
+
+              {!isDepositPaid && deposit > 0 && canRespond && (
+                <div className="border-t border-slate-100 bg-blue-50/60 px-4 py-2.5 sm:px-5 text-xs text-blue-900">
+                  <span className="text-[11.5px] text-blue-800 leading-relaxed">
+                    A deposit of <strong>{formatCurrency(deposit)}</strong> is required to confirm booking and lock in your date. The remaining balance of <strong>{formatCurrency(remaining)}</strong> is settled before the event.
+                  </span>
+                </div>
+              )}
+            </div>
           </section>
 
           {/* 2. What we're quoting for */}
-          <section className="space-y-3">
-            <h3 className="font-serif text-lg font-bold text-foreground">Event details</h3>
-            <div className="space-y-5 rounded-xl border border-border bg-card p-4 sm:p-5">
+          <section className="space-y-2">
+            <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-500">
+              Event Details
+            </h3>
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
               <DetailGrid
-                title="Event"
+                title="Event Schedule"
                 items={[
                   { label: "Event type", value: eventDetail("event_type") || "Catering event" },
                   { label: "Date", value: formatEventDate(eventDetail("event_date"), { fallback: "To be confirmed" }) },
@@ -619,14 +621,12 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 ]}
               />
               <DetailGrid
-                title="Location"
-                className="border-t border-border pt-4"
+                title="Location & Logistics"
+                className="border-t border-slate-100 pt-3.5"
                 items={[
                   { label: "Address", value: fullAddress, wide: true },
                   eventDetail("venue_type") && { label: "Venue type", value: eventDetail("venue_type") },
-                  // One row, not two: the event space and the scaffold are the
-                  // same measurement under two names.
-                  eventSpace && { label: "Event space / scaffold size", value: eventSpace },
+                  eventSpace && { label: "Event space", value: eventSpace },
                   eventDetail("landmark") && { label: "Landmark", value: eventDetail("landmark") },
                   eventDetail("delivery_method") && {
                     label: "Delivery",
@@ -635,8 +635,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 ]}
               />
               <DetailGrid
-                title="Contact"
-                className="border-t border-border pt-4"
+                title="Contact Person"
+                className="border-t border-slate-100 pt-3.5"
                 items={[
                   {
                     label: "Name",
@@ -651,8 +651,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 eventDetail("dietary_restrictions") ||
                 eventDetail("allergies")) && (
                 <DetailGrid
-                  title="Your notes"
-                  className="border-t border-border pt-4"
+                  title="Special Notes & Dietary"
+                  className="border-t border-slate-100 pt-3.5"
                   items={[
                     eventDetail("special_requests") && {
                       label: "Special instructions",
@@ -676,50 +676,47 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           </section>
 
           {/* 3. What's included and what costs extra */}
-          <section className="space-y-3">
-            <h3 className="font-serif text-lg font-bold text-foreground">What's included</h3>
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <section className="space-y-2">
+            <h3 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-500">
+              Quotation Breakdown
+            </h3>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
 
               {quotation.package_name && (
-                <div className="border-b border-border px-4 py-4 sm:px-5">
+                <div className="border-b border-slate-100 p-4 sm:p-5">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="min-w-0">
-                      <span className="text-sm font-semibold text-foreground">{quotation.package_name}</span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        Event setup package
+                      <span className="text-sm font-bold text-slate-900">{quotation.package_name}</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        Event Package
                       </span>
                     </div>
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-sm font-semibold text-slate-900">
                       {Number(quotation.package_price) > 0
                         ? formatCurrency(quotation.package_price)
                         : "Included"}
                     </span>
                   </div>
 
-                  {/* How the package price was reached, whenever something was
-                      taken out of it. Without this the customer sees a package
-                      price that does not match the package they browsed. */}
+                  {/* Deduction breakdown */}
                   {showPackageBreakdown && (
-                    <dl className="mt-3 space-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                    <dl className="mt-3 space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
                       <div className="flex items-baseline justify-between gap-4">
-                        <dt className="text-xs text-muted-foreground">Package starting price</dt>
-                        <dd className="font-sans text-xs font-medium tabular-nums text-foreground">
+                        <dt className="text-xs text-slate-500">Package starting price</dt>
+                        <dd className="font-sans text-xs font-medium tabular-nums text-slate-900">
                           {formatCurrency(startingPrice)}
                         </dd>
                       </div>
                       {removedInclusions.map((entry, idx) => (
                         <div key={idx} className="flex items-baseline justify-between gap-4">
-                          <dt className="min-w-0 text-xs text-muted-foreground">
+                          <dt className="min-w-0 text-xs text-slate-500">
                             Removed: {entry.name}
                           </dt>
-                          <dd className="font-sans text-xs font-medium tabular-nums text-emerald-700">
+                          <dd className="font-sans text-xs font-semibold tabular-nums text-emerald-700">
                             − {formatCurrency(entry.deduction)}
                           </dd>
                         </div>
                       ))}
-                      {/* Said as the arithmetic the caterer did, not just its
-                          result: a customer who asked for three tables instead
-                          of six should be able to check the number themselves. */}
                       {inclusionAdjustments.map((entry, idx) => {
                         const amount = Number(entry.amount) || 0;
                         const difference = Math.abs(
@@ -727,7 +724,7 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                         );
                         return (
                           <div key={`adj-${idx}`} className="flex items-baseline justify-between gap-4">
-                            <dt className="min-w-0 text-xs text-muted-foreground">
+                            <dt className="min-w-0 text-xs text-slate-500">
                               {entry.quantity} instead of {entry.base_quantity}: {entry.name}
                               {difference > 0 && Number(entry.unit_price) > 0 && (
                                 <span className="block tabular-nums opacity-80">
@@ -736,8 +733,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                               )}
                             </dt>
                             <dd
-                              className={`font-sans text-xs font-medium tabular-nums ${
-                                amount < 0 ? "text-emerald-700" : "text-foreground"
+                              className={`font-sans text-xs font-semibold tabular-nums ${
+                                amount < 0 ? "text-emerald-700" : "text-slate-900"
                               }`}
                             >
                               {amount < 0 ? "− " : "+ "}
@@ -746,9 +743,9 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                           </div>
                         );
                       })}
-                      <div className="flex items-baseline justify-between gap-4 border-t border-border pt-1.5">
-                        <dt className="text-xs font-semibold text-foreground">Adjusted package price</dt>
-                        <dd className="font-sans text-xs font-semibold tabular-nums text-foreground">
+                      <div className="flex items-baseline justify-between gap-4 border-t border-slate-200 pt-1.5">
+                        <dt className="text-xs font-bold text-slate-900">Adjusted package price</dt>
+                        <dd className="font-sans text-xs font-bold tabular-nums text-slate-900">
                           {formatCurrency(quotation.package_price)}
                         </dd>
                       </div>
@@ -756,25 +753,25 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                   )}
 
                   {inclusionGroups.length > 0 && (
-                    <div className="mt-4 space-y-3.5">
+                    <div className="mt-3.5 space-y-3">
                       {inclusionGroups.map((group, groupIdx) => (
                         <div key={group.category || groupIdx}>
                           {group.category && (
-                            <h5 className="mb-1.5 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <h5 className="mb-1.5 font-sans text-[11px] font-bold uppercase tracking-wider text-slate-400">
                               {group.category}
                             </h5>
                           )}
                           <ul className="grid grid-cols-1 gap-x-5 gap-y-1 sm:grid-cols-2">
                             {group.items.map((item, idx) => (
-                              <li key={idx} className="flex items-baseline gap-2 text-sm text-foreground">
+                              <li key={idx} className="flex items-baseline gap-2 text-xs text-slate-800">
                                 <span
-                                  className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary"
+                                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2C4B8A]"
                                   aria-hidden="true"
                                 />
                                 <span className="min-w-0">
                                   {item.name}
                                   {item.qty && (
-                                    <span className="text-muted-foreground"> ({item.qty})</span>
+                                    <span className="text-slate-500 font-medium"> ({item.qty})</span>
                                   )}
                                 </span>
                               </li>
@@ -787,16 +784,13 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 </div>
               )}
 
+              {/* Menu items */}
               {quotation.menu_items?.length > 0 && (
-                <div className="border-b border-border px-4 py-4 sm:px-5">
-                  <h4 className="mb-3 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Menu
+                <div className="border-b border-slate-100 p-4 sm:p-5 space-y-3">
+                  <h4 className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Menu Dishes ({quotation.menu_items.length})
                   </h4>
-                  <ul className="space-y-3">
-                    {/* Every value the caterer priced the line on, in the
-                        order their builder shows it: how many, at what rate,
-                        for what total. A customer reading this and an admin
-                        reading the builder see the same facts. */}
+                  <ul className="space-y-2.5">
                     {quotation.menu_items.map((item, idx) => {
                       const units = menuQuantityOf(item, guestCount);
                       const byQuantity = item.pricing_type === MENU_PRICING.QUANTITY;
@@ -804,46 +798,38 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                       const lineTotal = menuLineTotal(item, guestCount);
                       const basis = byQuantity
                         ? `${units} ${unitLabel || (units === 1 ? "unit" : "units")} × ${formatCurrency(item.price)}`
-                        : `${units} ${units === 1 ? "guest" : "guests"} × ${formatCurrency(item.price)} per guest`;
+                        : `${units} guests × ${formatCurrency(item.price)} per guest`;
                       return (
                         <li key={idx} className="flex items-baseline justify-between gap-4">
                           <div className="min-w-0">
-                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground">
+                            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm font-semibold text-slate-900">
                               <span>{item.name}</span>
-                              {/* What the dish is, as a label. It is not a
-                                  note about the order and never reads as one. */}
                               {item.category && (
-                                <span className="rounded bg-muted px-1.5 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide text-slate-600 border border-slate-200/60">
                                   {item.category}
                                 </span>
                               )}
-                              {/* Same blue/violet split the builder uses, so
-                                  "per unit" looks like "per unit" on both
-                                  sides of the conversation. */}
                               <span
-                                className={`rounded px-1.5 py-0.5 font-sans text-[10px] font-bold uppercase tracking-wide ${
-                                  byQuantity
-                                    ? "bg-violet-50 text-violet-700"
-                                    : "bg-primary/10 text-primary"
-                                }`}
+                                className={cn(
+                                  "rounded px-1.5 py-0.5 font-sans text-[10px] font-bold uppercase tracking-wide",
+                                  byQuantity ? "bg-violet-50 text-violet-700 border border-violet-200/60" : "bg-blue-50 text-blue-700 border border-blue-200/60"
+                                )}
                               >
-                                {byQuantity
-                                  ? `${units} ${unitLabel || (units === 1 ? "unit" : "units")}`
-                                  : "Per guest"}
+                                {byQuantity ? `${units} ${unitLabel || (units === 1 ? "unit" : "units")}` : "Per guest"}
                               </span>
                             </span>
                             {Number(item.price) > 0 && (
-                              <span className="mt-0.5 block font-sans text-xs tabular-nums text-muted-foreground">
+                              <span className="mt-0.5 block font-sans text-[11px] tabular-nums text-slate-500">
                                 {basis}
                               </span>
                             )}
                             {item.note && (
-                              <span className="mt-1 block border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
+                              <span className="mt-1 block border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500">
                                 {item.note}
                               </span>
                             )}
                           </div>
-                          <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                          <span className="shrink-0 font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-900">
                             {lineTotal > 0 ? formatCurrency(lineTotal) : "Included"}
                           </span>
                         </li>
@@ -853,31 +839,30 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 </div>
               )}
 
+              {/* Add-ons */}
               {quotation.add_ons?.length > 0 && (
-                <div className="border-b border-border px-4 py-4 sm:px-5">
-                  <h4 className="mb-3 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Add-ons and rentals
+                <div className="border-b border-slate-100 p-4 sm:p-5 space-y-3">
+                  <h4 className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Add-ons &amp; Rentals
                   </h4>
                   <ul className="space-y-2.5">
                     {quotation.add_ons.map((item, idx) => {
-                      // Same rule the total was computed from, so what is
-                      // shown and what is charged can never disagree.
                       const units = addOnQuantityOf(item);
                       const itemTotal = addOnLineTotal(item);
                       return (
                         <li key={idx} className="flex items-baseline justify-between gap-4">
                           <div className="min-w-0">
-                            <span className="text-sm text-foreground">{item.name}</span>
-                            <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
+                            <span className="text-xs sm:text-sm font-semibold text-slate-900">{item.name}</span>
+                            <span className="mt-0.5 block text-[11px] tabular-nums text-slate-500">
                               {units} × {formatCurrency(item.price)}
                             </span>
                             {item.note && (
-                              <span className="mt-1 block border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
+                              <span className="mt-1 block border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500">
                                 {item.note}
                               </span>
                             )}
                           </div>
-                          <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                          <span className="shrink-0 font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-900">
                             {formatCurrency(itemTotal)}
                           </span>
                         </li>
@@ -887,52 +872,53 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 </div>
               )}
 
+              {/* Logistics & Service Fees */}
               {hasFees && (
-                <div className="border-b border-border px-4 py-4 sm:px-5">
-                  <h4 className="mb-3 font-sans text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Service and logistics
+                <div className="border-b border-slate-100 p-4 sm:p-5 space-y-3">
+                  <h4 className="font-sans text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Service &amp; Logistics
                   </h4>
                   <ul className="space-y-2.5">
                     {quotation.transportation_fee > 0 && (
                       <li className="flex items-baseline justify-between gap-4">
-                        <span className="flex items-center gap-2 text-sm text-foreground">
-                          <Truck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-800">
+                          <Truck className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                           Transportation and logistics
                         </span>
-                        <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                        <span className="shrink-0 font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-900">
                           {formatCurrency(quotation.transportation_fee)}
                         </span>
                       </li>
                     )}
                     {quotation.equipment_fee > 0 && (
                       <li className="flex items-baseline justify-between gap-4">
-                        <span className="flex items-center gap-2 text-sm text-foreground">
-                          <PackageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-800">
+                          <PackageIcon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                           Equipment rental and setup
                         </span>
-                        <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                        <span className="shrink-0 font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-900">
                           {formatCurrency(quotation.equipment_fee)}
                         </span>
                       </li>
                     )}
                     {quotation.decoration_fee > 0 && (
                       <li className="flex items-baseline justify-between gap-4">
-                        <span className="flex items-center gap-2 text-sm text-foreground">
-                          <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-800">
+                          <Sparkles className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                           Venue styling and decoration
                         </span>
-                        <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                        <span className="shrink-0 font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-900">
                           {formatCurrency(quotation.decoration_fee)}
                         </span>
                       </li>
                     )}
                     {additionalFees.map((fee, idx) => (
                       <li key={idx} className="flex items-baseline justify-between gap-4">
-                        <span className="flex items-center gap-2 text-sm text-foreground">
-                          <PackageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-800">
+                          <PackageIcon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                           {fee.name || "Additional fee"}
                         </span>
-                        <span className="shrink-0 font-sans text-sm font-medium tabular-nums text-foreground">
+                        <span className="shrink-0 font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-900">
                           {formatCurrency(fee.amount)}
                         </span>
                       </li>
@@ -942,100 +928,98 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
               )}
 
               {/* Running totals */}
-              <dl className="divide-y divide-border">
+              <dl className="divide-y divide-slate-100">
                 {quotation.subtotal > 0 && (
-                  <div className="flex items-baseline justify-between gap-4 px-4 py-3 sm:px-5">
-                    <dt className="text-sm text-muted-foreground">Subtotal</dt>
-                    <dd className="font-sans text-sm font-medium tabular-nums text-foreground">
+                  <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 sm:px-5">
+                    <dt className="text-xs sm:text-sm text-slate-500">Subtotal</dt>
+                    <dd className="font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-800">
                       {formatCurrency(quotation.subtotal)}
                     </dd>
                   </div>
                 )}
                 {quotation.discounts > 0 && (
-                  <div className="flex items-baseline justify-between gap-4 px-4 py-3 sm:px-5">
-                    <dt className="text-sm text-muted-foreground">Discount</dt>
-                    <dd className="font-sans text-sm font-medium tabular-nums text-emerald-700">
+                  <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 sm:px-5">
+                    <dt className="text-xs sm:text-sm text-slate-500">Discount</dt>
+                    <dd className="font-sans text-xs sm:text-sm font-semibold tabular-nums text-emerald-700">
                       − {formatCurrency(quotation.discounts)}
                     </dd>
                   </div>
                 )}
                 {quotation.taxes > 0 && (
-                  <div className="flex items-baseline justify-between gap-4 px-4 py-3 sm:px-5">
-                    <dt className="text-sm text-muted-foreground">Taxes and VAT</dt>
-                    <dd className="font-sans text-sm font-medium tabular-nums text-foreground">
+                  <div className="flex items-baseline justify-between gap-4 px-4 py-2.5 sm:px-5">
+                    <dt className="text-xs sm:text-sm text-slate-500">Taxes &amp; VAT</dt>
+                    <dd className="font-sans text-xs sm:text-sm font-semibold tabular-nums text-slate-800">
                       {formatCurrency(quotation.taxes)}
                     </dd>
                   </div>
                 )}
-                <div className="flex items-baseline justify-between gap-4 bg-muted/40 px-4 py-4 sm:px-5">
-                  <dt className="text-sm font-semibold text-foreground">Total cost</dt>
-                  <dd className="font-sans text-xl font-bold tabular-nums text-foreground">
+                <div className="flex items-baseline justify-between gap-4 bg-slate-50/80 px-4 py-3.5 sm:px-5 border-t border-slate-200">
+                  <dt className="text-sm font-bold text-slate-900">Final Total</dt>
+                  <dd className="font-sans text-base sm:text-lg font-bold tabular-nums text-slate-900">
                     {formatCurrency(total)}
                   </dd>
                 </div>
               </dl>
             </div>
 
-            {/* The stored total is authoritative and can include adjustments
-                that aren't itemised, so say so rather than letting the numbers
-                look like they don't add up. */}
-            <p className="px-1 text-xs leading-relaxed text-muted-foreground">
-              <span className="font-medium text-foreground">About the final total:</span>{" "}
-              The final total may include pricing adjustments, discounts, service fees, or other
-              applicable charges that are not shown as separate line items.
+            <p className="px-1 text-[11px] leading-relaxed text-slate-400">
+              <span className="font-medium text-slate-600">Note:</span> The final total includes all quoted items, package adjustments, and confirmed fees.
             </p>
           </section>
 
         </div>
         )}
 
-        {/* Decision bar. No Close action here by design — the dialog is
-            dismissed with the top-right X or Escape, so the footer carries
-            only the three decisions. On mobile they stack full-width in
-            priority order rather than being squeezed onto one row. */}
+        {/* Decision bar */}
         {canRespond && !showRevisionForm && (
-          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-7">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/95 backdrop-blur-xs px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
             <Button
               variant="ghost"
               onClick={handleReject}
               disabled={isSubmitting}
-              className={cn("w-full sm:w-auto", ACTION_DANGER)}
+              className="text-slate-500 hover:text-rose-700 hover:bg-rose-50 font-semibold text-xs h-9 px-3 rounded-md cursor-pointer"
             >
-              <XCircle className="h-4 w-4" /> Decline
+              <XCircle className="h-4 w-4 mr-1 text-slate-400" /> Decline
             </Button>
-            {/* col-reverse puts Accept first on mobile (priority order top to
-                bottom); the sm row restores DOM order so it sits rightmost. */}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-2.5">
               <Button
                 variant="outline"
                 onClick={() => setShowRevisionForm(true)}
                 disabled={isSubmitting}
-                className="w-full sm:w-auto"
+                className="border-slate-300 text-slate-700 hover:bg-white font-semibold text-xs h-9 px-4 rounded-md cursor-pointer shadow-2xs"
               >
-                <RefreshCw className="h-4 w-4" /> Request a change
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Request a change
               </Button>
-              <Button onClick={handleAccept} disabled={isSubmitting} className="w-full sm:w-auto">
-                <CheckCircle2 className="h-4 w-4" />
-                {isSubmitting ? "Processing…" : "Accept & Continue to Payment"}
+              <Button
+                onClick={handleAccept}
+                disabled={isSubmitting}
+                className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs h-9 px-5 rounded-md cursor-pointer shadow-xs"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                {isSubmitting ? "Processing…" : `Accept & Pay Deposit (${formatCurrency(dueOnAcceptance)})`}
               </Button>
             </div>
           </div>
         )}
 
-        {/* Retry Payment bar if already accepted/awaiting confirmation but deposit is unpaid */}
+        {/* Retry Payment bar if already accepted but unpaid */}
         {!canRespond && canRetryPayment && !showRevisionForm && (
-          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-7">
+          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/95 backdrop-blur-xs px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
             <Button
               variant="outline"
               onClick={() => setShowRevisionForm(true)}
               disabled={isSubmitting}
-              className="w-full sm:w-auto"
+              className="border-slate-300 text-slate-700 hover:bg-white font-semibold text-xs h-9 px-4 rounded-md cursor-pointer shadow-2xs"
             >
-              <RefreshCw className="h-4 w-4" /> Request a change
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Request a change
             </Button>
-            <Button onClick={handleAccept} disabled={isSubmitting} className="w-full sm:w-auto">
-              <CheckCircle2 className="h-4 w-4" />
-              {isSubmitting ? "Processing…" : "Pay Deposit via PayMongo"}
+            <Button
+              onClick={handleAccept}
+              disabled={isSubmitting}
+              className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs h-9 px-5 rounded-md cursor-pointer shadow-xs"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1.5" />
+              {isSubmitting ? "Processing…" : `Pay Deposit via PayMongo (${formatCurrency(dueOnAcceptance)})`}
             </Button>
           </div>
         )}

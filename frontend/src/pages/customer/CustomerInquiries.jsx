@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
@@ -110,6 +110,8 @@ export default function CustomerInquiries() {
     fetchInquiries();
   }, []);
 
+  const verifyingPaymentRef = useRef(new Set());
+
   // Automatic real-time confirmation on return from PayMongo checkout
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -117,22 +119,31 @@ export default function CustomerInquiries() {
     const paymentId = params.get("payment_id");
 
     if (paymentStatus === "success" && paymentId) {
+      if (verifyingPaymentRef.current.has(paymentId)) return;
+      verifyingPaymentRef.current.add(paymentId);
+
+      const toastId = `payment-verify-${paymentId}`;
       const verify = async () => {
         try {
-          notify("Confirming your payment with the payment gateway...", "info");
+          notify("Confirming your payment with the payment gateway...", "info", { id: toastId });
           await CustomerAPI.verifyPayment(paymentId);
-          notify("Deposit payment confirmed in real time! Your booking is locked.", "success");
+          notify("Deposit payment confirmed in real time! Your booking is locked.", "success", { id: toastId });
           fetchInquiries();
         } catch (err) {
           console.error("Payment auto-verification error:", err);
+          notify(err.response?.data?.message || "Failed to confirm payment with gateway.", "error", { id: toastId });
           fetchInquiries();
         }
       };
       verify();
       navigate(location.pathname, { replace: true });
     } else if (paymentStatus === "cancelled") {
-      notify("Payment checkout was cancelled.", "warning");
-      navigate(location.pathname, { replace: true });
+      const cancelKey = `cancelled_${location.search}`;
+      if (!verifyingPaymentRef.current.has(cancelKey)) {
+        verifyingPaymentRef.current.add(cancelKey);
+        notify("Payment checkout was cancelled.", "warning", { id: "payment-cancelled" });
+        navigate(location.pathname, { replace: true });
+      }
     }
   }, [location.search]);
 
@@ -219,7 +230,7 @@ export default function CustomerInquiries() {
         setQuotationVersions(quotes);
         setIsQuotationModalOpen(true);
       } else {
-        notify("No formal quotation details found for this inquiry.", "error");
+        notify("No quotation details found for this inquiry.", "error");
       }
     } catch (err) {
       notify("Failed to retrieve quotation details.", "error");
@@ -733,7 +744,7 @@ export default function CustomerInquiries() {
                       <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-md space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-emerald-800">
-                            Formal Quotation Prepared
+                            Quotation Prepared
                           </span>
                           <span className="font-mono text-sm font-bold text-emerald-900">
                             {formatCurrency(inq.total_price)}
@@ -904,10 +915,12 @@ export default function CustomerInquiries() {
                         </span>
 
                         <span className="text-xs font-bold text-slate-900 font-mono">
-                          {inq.total_price
+                          {inq.total_price > 0
                             ? formatCurrency(inq.total_price)
                             : inq.budget_range
                             ? inq.budget_range
+                            : isQuotationReady
+                            ? "Quote Ready"
                             : "Pending Quote"}
                         </span>
                       </div>
@@ -928,7 +941,7 @@ export default function CustomerInquiries() {
                         <span className="font-mono">{refCode}</span>
                         {isQuotationReady && (
                           <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                            <Eye className="w-3 h-3" /> Quote Ready
+                            <FileCheck2 className="w-3 h-3" /> Quote Ready
                           </span>
                         )}
                         {isConverted && (
@@ -1025,19 +1038,26 @@ export default function CustomerInquiries() {
 
                   {/* Status Alert Prompt */}
                   {selectedInquiry.status === "Quotation Sent" && (
-                    <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-md flex items-center justify-between gap-3 text-xs text-emerald-900 shadow-2xs">
-                      <div className="flex items-center gap-2">
-                        <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>
-                          Your quotation is ready for{" "}
-                          <strong>{formatCurrency(selectedInquiry.total_price)}</strong>. Review and
-                          accept to lock in your date.
-                        </span>
+                    <div className="p-3.5 sm:p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-1.5 bg-emerald-600 text-white rounded-md shrink-0">
+                          <FileCheck2 size={15} />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-emerald-950 text-xs sm:text-sm leading-tight">
+                            {selectedInquiry.total_price > 0
+                              ? `Your quotation is ready for ${formatCurrency(selectedInquiry.total_price)}`
+                              : "Your quotation is ready for review"}
+                          </h4>
+                          <p className="text-[11px] text-emerald-700 mt-0.5">
+                            Review pricing, dishes, and inclusions to lock in your date.
+                          </p>
+                        </div>
                       </div>
                       <Button
-                        size="xs"
+                        size="sm"
                         onClick={() => openQuotationView(selectedInquiry)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 font-semibold rounded cursor-pointer"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 font-semibold text-xs h-8 px-3.5 rounded-md cursor-pointer shadow-xs"
                       >
                         Review Quote
                       </Button>
@@ -1051,6 +1071,14 @@ export default function CustomerInquiries() {
                     </h4>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                      {selectedInquiry.celebrant_name && (
+                        <div>
+                          <span className="text-[11px] text-slate-400 block font-medium">Celebrant / Honoree</span>
+                          <span className="font-semibold text-slate-900 block mt-0.5">
+                            {selectedInquiry.celebrant_name}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Date &amp; Time</span>
                         <span className="font-semibold text-slate-900 block mt-0.5">

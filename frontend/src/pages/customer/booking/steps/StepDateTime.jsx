@@ -269,11 +269,7 @@ export default function StepDateTime({
     <StepShell width="wide">
       <SH
         title="Date & Time"
-        sub={
-          leadTimeDays
-            ? `Pick when your event starts. We require at least ${leadTimeDays} days' notice. Crossed-out dates are fully booked.`
-            : "Pick when your event starts. Crossed-out dates are already fully booked."
-        }
+        sub="Pick when your event starts. We require at least 3 full days of advance preparation time. Crossed-out dates are fully booked."
       />
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[330px_1fr] items-start">

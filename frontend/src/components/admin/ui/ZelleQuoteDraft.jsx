@@ -92,13 +92,20 @@ export default function ZelleQuoteDraft({
             <div className="space-y-3.5 text-xs">
               {/* Package Recommendation */}
               <div className="p-3.5 rounded-2xl bg-primary/5 border border-primary/20 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
                     <Package className="w-3.5 h-3.5" /> Recommended Package:
                   </span>
-                  <Badge variant="outline" className="text-[10px] bg-card">
-                    {recommendation.guest_count} guests
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {recommendation.service_type && (
+                      <Badge variant="outline" className="text-[10px] bg-card font-medium text-amber-700 dark:text-amber-300 border-amber-300">
+                        {recommendation.service_type}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-[10px] bg-card">
+                      {recommendation.guest_count} guests
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex items-baseline justify-between pt-1">
                   <h4 className="font-serif font-bold text-sm text-foreground">{recommendation.recommended_package}</h4>

@@ -159,6 +159,8 @@ function formFromInquiry(inquiry) {
   return {
     event_type: eventTypeIsOther ? OTHER_EVENT_TYPE : matchEventType(rawEventType) || rawEventType,
     event_type_other: eventTypeIsOther ? rawEventType : "",
+    booking_for: inquiry?.booking_for || "myself",
+    celebrant_name: inquiry?.celebrant_name || "",
     event_date: toDateInputValue(inquiry?.event_date),
     start_time: inquiry?.start_time || "",
     duration_hours: inquiry?.duration_hours ?? "",
@@ -510,6 +512,9 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
 
   const validate = () => {
     const next = {};
+    if (form.booking_for === "someone_else" && !form.celebrant_name?.trim()) {
+      next.celebrant_name = "Enter the celebrant or honoree's name.";
+    }
     if (!form.event_type || (form.event_type === OTHER_EVENT_TYPE && !form.event_type_other.trim())) {
       next.event_type = "Select or describe your event type.";
     }
@@ -572,6 +577,8 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
 
     const payload = {
       event_type: form.event_type === OTHER_EVENT_TYPE ? form.event_type_other.trim() : form.event_type,
+      booking_for: form.booking_for || "myself",
+      celebrant_name: form.booking_for === "someone_else" ? form.celebrant_name.trim() : "",
       event_date: form.event_date,
       start_time: form.start_time,
       venue_type: form.venue_type === OTHER_VENUE_TYPE ? form.venue_type_other.trim() : form.venue_type,
@@ -1075,6 +1082,58 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
 
           <Card className="p-4">
             <SectionTitle icon={CalendarDays}>Event</SectionTitle>
+            <div className="mb-3">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                Who is this event for?
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                    form.booking_for !== "someone_else"
+                      ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>For myself</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                    form.booking_for === "someone_else"
+                      ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>For someone else</span>
+                </button>
+              </div>
+            </div>
+
+            {form.booking_for === "someone_else" && (
+              <div className="mb-3">
+                <Field
+                  label="Celebrant / Honoree name"
+                  required
+                  hint="e.g. Sarah, John & Maria, Baby Liam"
+                  error={errors.celebrant_name}
+                >
+                  <TInput
+                    placeholder="e.g. Sarah"
+                    value={form.celebrant_name || ""}
+                    onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
+                    hasError={!!errors.celebrant_name}
+                  />
+                </Field>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Event type" required error={errors.event_type}>
                 <TSelect

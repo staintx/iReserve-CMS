@@ -27,7 +27,11 @@ import {
   PackagePlus,
   Eye,
   ShieldCheck,
-  UserPlus
+  UserPlus,
+  Truck,
+  Sparkles,
+  Layers,
+  AlertTriangle
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -43,6 +47,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "../../components/ui/input";
 import { createConversation } from "../../api/messages";
 import { menuAmountLabel } from "../../utils/quotationPricing";
+import { isFoodOnly, isSetupOnly, isOcularRequired } from "../../components/customer/portal/statusMeta";
 
 export default function AdminBookingDetails() {
   const { id } = useParams();
@@ -225,7 +230,42 @@ export default function AdminBookingDetails() {
     );
   }
   
-  const TIMELINE_STEPS = ["Inquiry Received", "Quotation Sent", "Quote Accepted", "Deposit Paid", "Confirmed", "Ocular Scheduled", "Ready for Event", "Completed"];
+  const serviceType = booking.service_type || "Food and Event Setup";
+  const isFoodOnlyService = isFoodOnly(serviceType);
+  const isSetupOnlyService = isSetupOnly(serviceType);
+
+  const TIMELINE_STEPS = isFoodOnlyService
+    ? [
+        "Inquiry Received",
+        "Quotation Sent",
+        "Quote Accepted",
+        "Deposit Paid",
+        "Confirmed",
+        "Food Preparation",
+        "Out for Delivery",
+        "Delivered & Completed",
+      ]
+    : isSetupOnlyService
+    ? [
+        "Inquiry Received",
+        "Quotation Sent",
+        "Quote Accepted",
+        "Deposit Paid",
+        "Confirmed",
+        "Ocular Scheduled",
+        "Setup Preparation",
+        "Completed",
+      ]
+    : [
+        "Inquiry Received",
+        "Quotation Sent",
+        "Quote Accepted",
+        "Deposit Paid",
+        "Confirmed",
+        "Ocular Scheduled",
+        "Ready for Event",
+        "Completed",
+      ];
   
   let completedIdx = 0;
   const rawStatus = (booking.status || "").toLowerCase();
@@ -233,20 +273,38 @@ export default function AdminBookingDetails() {
   const ocularOutcomeVal = (booking.ocular_visit?.outcome || "").toLowerCase();
   const hasOcularScheduledOrDone = ocularStatus === "completed" || ocularOutcomeVal === "proceed" || ocularStatus === "scheduled" || ocularStatus === "skipped";
 
-  if (rawStatus === "completed") {
-    completedIdx = 7;
-  } else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) {
-    completedIdx = 6;
-  } else if (hasOcularScheduledOrDone || rawStatus === "ocular scheduled") {
-    completedIdx = 5;
-  } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
-    completedIdx = 4;
-  } else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") {
-    completedIdx = 3;
-  } else if (rawStatus === "customer_accepted") {
-    completedIdx = 2;
-  } else if (rawStatus === "quote_sent") {
-    completedIdx = 1;
+  if (isFoodOnlyService) {
+    if (["completed", "delivered"].includes(rawStatus)) {
+      completedIdx = 7;
+    } else if (["out for delivery", "in transit", "ready for delivery"].includes(rawStatus)) {
+      completedIdx = 6;
+    } else if (["preparing", "food preparation", "ongoing", "ready for event"].includes(rawStatus)) {
+      completedIdx = 5;
+    } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
+      completedIdx = 4;
+    } else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") {
+      completedIdx = 3;
+    } else if (rawStatus === "customer_accepted") {
+      completedIdx = 2;
+    } else if (rawStatus === "quote_sent") {
+      completedIdx = 1;
+    }
+  } else {
+    if (rawStatus === "completed") {
+      completedIdx = 7;
+    } else if (["ready for event", "ongoing", "preparing"].includes(rawStatus)) {
+      completedIdx = 6;
+    } else if (hasOcularScheduledOrDone || rawStatus === "ocular scheduled") {
+      completedIdx = 5;
+    } else if (["confirmed", "converted to booking"].includes(rawStatus)) {
+      completedIdx = 4;
+    } else if (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") {
+      completedIdx = 3;
+    } else if (rawStatus === "customer_accepted") {
+      completedIdx = 2;
+    } else if (rawStatus === "quote_sent") {
+      completedIdx = 1;
+    }
   }
 
   const fmt = (n) => "₱" + Number(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -672,7 +730,9 @@ export default function AdminBookingDetails() {
               </div>
               <div className="pt-2 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">Event Coordinator</span>
+                  <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
+                    {isFoodOnlyService ? "Kitchen / Dispatch Contact" : isSetupOnlyService ? "Event Stylist / Setup Lead" : "Event Coordinator"}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -703,13 +763,20 @@ export default function AdminBookingDetails() {
                         <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
                           <span>{booking.event_manager_id.full_name}</span>
                           <span className="text-[10px] text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded-md font-semibold shrink-0">
-                            Manager
+                            {isFoodOnlyService ? "Dispatch Lead" : isSetupOnlyService ? "Stylist" : "Manager"}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-500 truncate mt-0.5">
-                          {booking.event_manager_id.email || booking.event_manager_id.phone || "Assigned Coordinator"}
+                          {booking.event_manager_id.email || booking.event_manager_id.phone || "Assigned Contact"}
                         </div>
                       </div>
+                    </div>
+                  </div>
+                ) : isFoodOnlyService ? (
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-between text-xs text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <Truck size={14} className="text-slate-400" />
+                      <span>Not required on-site (Drop-off Delivery)</span>
                     </div>
                   </div>
                 ) : (
@@ -777,189 +844,344 @@ export default function AdminBookingDetails() {
           </AdminCard>
         </div>
 
-        {/* Ocular Visit & Venue Inspection Card */}
-        <AdminCard className="!p-6 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
-                <Eye className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
-                  Ocular Visit &amp; Venue Inspection
-                  {booking.ocular_visit?.status === "completed" && (
+        {/* Ocular Visit Card (for Setup/Full Catering) OR Delivery & Logistics Card (for Food Only) */}
+        {isFoodOnlyService ? (
+          <AdminCard className="!p-6 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
+                    Food Delivery &amp; Logistics Dispatch
                     <span className="text-[10px] font-bold font-mono text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200">
-                      {booking.ocular_visit.outcome === "proceed" ? "Inspection Passed ✓" : "Completed"}
+                      Food Drop-Off (No Ocular Needed)
                     </span>
-                  )}
-                  {booking.ocular_visit?.status === "scheduled" && (
-                    <span className="text-[10px] font-bold font-mono text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
-                      Scheduled
-                    </span>
-                  )}
-                  {booking.ocular_visit?.status === "requested" && (
-                    <span className="text-[10px] font-bold font-mono text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
-                      Requested by Client
-                    </span>
-                  )}
-                  {(!booking.ocular_visit?.status || booking.ocular_visit?.status === "pending") && (
-                    <span className="text-[10px] font-bold font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                      Pending Schedule
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Site inspection schedule, venue layout verification, and measurements for this reservation.
-                </p>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Food preparation dispatch, arrival schedule, and drop-off destination for this order.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-slate-600 font-medium bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
+                  Delivery Method: <strong className="text-slate-900 capitalize">{booking.delivery_method || "Drop-Off Delivery"}</strong>
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <Btn
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setOcularDate(booking.ocular_visit?.scheduled_date ? new Date(booking.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
-                  setOcularTime(booking.ocular_visit?.scheduled_time || "");
-                  setShowRescheduleModal(true);
-                }}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                {booking.ocular_visit?.scheduled_date ? "Reschedule / Edit Visit" : "Schedule Ocular Visit"}
-              </Btn>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs pt-2">
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Target Arrival Date</span>
+                <strong className="text-slate-900 font-bold text-sm block">
+                  {booking.event_date
+                    ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                    : "Date TBA"}
+                </strong>
+                <span className="text-[11px] text-slate-500">
+                  {booking.start_time ? `Drop-off by ${booking.start_time}` : "Time TBA"}
+                </span>
+              </div>
 
-              {booking.ocular_visit?.status === "scheduled" && (
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Delivery Destination</span>
+                <strong className="text-slate-900 font-bold text-sm block truncate">
+                  {booking.municipality || booking.barangay || "Local Delivery"}
+                </strong>
+                <span className="text-[11px] text-slate-500 truncate block">
+                  {[booking.street, booking.barangay, booking.municipality].filter(Boolean).join(", ") || "Address TBA"}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Drop-Off Contact</span>
+                <strong className="text-slate-900 font-bold text-sm block truncate">
+                  {customerName}
+                </strong>
+                <span className="text-[11px] text-slate-500 truncate block">
+                  {booking.contact_phone || "No phone listed"}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Service Handling</span>
+                <strong className="text-slate-900 font-bold text-sm block text-amber-800">
+                  Food Drop-Off Only
+                </strong>
+                <span className="text-[11px] text-slate-500 block">
+                  Packed Catering / Drop &amp; Leave
+                </span>
+              </div>
+            </div>
+
+            {/* Delivery & Kitchen Notes */}
+            <div className="pt-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                Delivery Instructions &amp; Landmark
+              </span>
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 leading-relaxed whitespace-pre-line shadow-2xs">
+                {booking.landmark ? (
+                  <div>
+                    <strong>Landmark / Directions:</strong> {booking.landmark}
+                    {booking.special_requests && (
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-200">
+                        <strong>Special Instructions:</strong> {booking.special_requests}
+                      </div>
+                    )}
+                  </div>
+                ) : booking.special_requests ? (
+                  <div>
+                    <strong>Special Instructions:</strong> {booking.special_requests}
+                  </div>
+                ) : (
+                  <span className="text-slate-400 italic">No specific delivery landmark or instructions provided.</span>
+                )}
+              </div>
+            </div>
+          </AdminCard>
+        ) : (
+          <AdminCard className="!p-6 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
+                    Ocular Visit &amp; Venue Inspection
+                    {booking.ocular_visit?.status === "completed" && (
+                      <span className="text-[10px] font-bold font-mono text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200">
+                        {booking.ocular_visit.outcome === "proceed" ? "Inspection Passed ✓" : "Completed"}
+                      </span>
+                    )}
+                    {booking.ocular_visit?.status === "scheduled" && (
+                      <span className="text-[10px] font-bold font-mono text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
+                        Scheduled
+                      </span>
+                    )}
+                    {booking.ocular_visit?.status === "requested" && (
+                      <span className="text-[10px] font-bold font-mono text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                        Requested by Client
+                      </span>
+                    )}
+                    {(!booking.ocular_visit?.status || booking.ocular_visit?.status === "pending") && (
+                      <span className="text-[10px] font-bold font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                        Pending Schedule
+                      </span>
+                    )}
+                    {booking.ocular_visit?.is_required && (
+                      <span className="text-[10px] font-bold font-mono text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-md border border-rose-200">
+                        Required
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Site inspection schedule, venue layout verification, and measurements for this reservation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
                 <Btn
                   size="sm"
-                  variant="primary"
+                  variant="outline"
                   onClick={() => {
-                    setOcularOutcome(booking.ocular_visit?.outcome || "proceed");
-                    setOcularInspectionNotes(booking.ocular_visit?.notes || "");
-                    setShowCompleteOcularModal(true);
+                    AdminAPI.updateBooking(booking._id, { 
+                      ocular_visit: { 
+                        ...(booking.ocular_visit || {}), 
+                        is_required: !booking.ocular_visit?.is_required 
+                      } 
+                    })
+                    .then(() => {
+                      notify(`Ocular visit marked as ${!booking.ocular_visit?.is_required ? "required" : "optional"}`, "success");
+                      loadData();
+                    })
+                    .catch(err => notify(err.response?.data?.message || "Failed to update ocular requirement", "error"));
+                  }}
+                  className={`text-xs ${booking.ocular_visit?.is_required ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {booking.ocular_visit?.is_required ? "Required" : "Mark as Required"}
+                </Btn>
+                <Btn
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setOcularDate(booking.ocular_visit?.scheduled_date ? new Date(booking.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
+                    setOcularTime(booking.ocular_visit?.scheduled_time || "");
+                    setShowRescheduleModal(true);
                   }}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Complete Inspection
+                  <Calendar className="w-3.5 h-3.5" />
+                  {booking.ocular_visit?.scheduled_date ? "Reschedule / Edit Visit" : "Schedule Ocular Visit"}
                 </Btn>
-              )}
 
-              <Btn
-                size="sm"
-                variant="ghost"
-                onClick={() => navigate("/admin/bookings/ocular")}
-              >
-                View in Ocular Management &rarr;
-              </Btn>
+                {booking.ocular_visit?.status === "scheduled" && (
+                  <Btn
+                    size="sm"
+                    variant="primary"
+                    onClick={() => {
+                      setOcularOutcome(booking.ocular_visit?.outcome || "proceed");
+                      setOcularInspectionNotes(booking.ocular_visit?.notes || "");
+                      setShowCompleteOcularModal(true);
+                    }}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Complete Inspection
+                  </Btn>
+                )}
+
+                <Btn
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => navigate("/admin/bookings/ocular")}
+                >
+                  View in Ocular Management &rarr;
+                </Btn>
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs pt-2">
-            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
-              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Visit Date &amp; Time</span>
-              <strong className="text-slate-900 font-bold text-sm block">
-                {booking.ocular_visit?.scheduled_date
-                  ? new Date(booking.ocular_visit.scheduled_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                  : "Not Scheduled"}
-              </strong>
-              <span className="text-[11px] text-slate-500">
-                {booking.ocular_visit?.scheduled_time ? `@ ${booking.ocular_visit.scheduled_time}` : "Time TBA"}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs pt-2">
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Visit Date &amp; Time</span>
+                <strong className="text-slate-900 font-bold text-sm block">
+                  {booking.ocular_visit?.scheduled_date
+                    ? new Date(booking.ocular_visit.scheduled_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                    : "Not Scheduled"}
+                </strong>
+                <span className="text-[11px] text-slate-500">
+                  {booking.ocular_visit?.scheduled_time ? `@ ${booking.ocular_visit.scheduled_time}` : "Time TBA"}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Status</span>
+                <strong className="text-slate-900 font-bold text-sm block capitalize">
+                  {booking.ocular_visit?.status || "Pending"}
+                </strong>
+                <span className="text-[11px] text-slate-500">
+                  {booking.ocular_visit?.completed_at
+                    ? `Completed on ${new Date(booking.ocular_visit.completed_at).toLocaleDateString()}`
+                    : "Awaiting site inspection"}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Outcome</span>
+                <strong className="text-slate-900 font-bold text-sm block">
+                  {booking.ocular_visit?.outcome === "proceed"
+                    ? "Inspection Passed (Proceed)"
+                    : booking.ocular_visit?.outcome === "revise"
+                    ? "Revision Needed"
+                    : booking.ocular_visit?.outcome === "reschedule"
+                    ? "Reschedule Needed"
+                    : booking.ocular_visit?.outcome === "cancel"
+                    ? "Cancelled"
+                    : "Pending Inspection"}
+                </strong>
+                <span className="text-[11px] text-slate-500">
+                  {booking.ocular_visit?.outcome === "proceed"
+                    ? "Venue verified for setup"
+                    : booking.ocular_visit?.outcome
+                    ? "Follow-up required"
+                    : "Outcome not logged yet"}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
+                <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Assigned Coordinator</span>
+                <strong className="text-slate-900 font-bold text-sm block truncate">
+                  {booking.event_manager_id?.full_name || "Unassigned"}
+                </strong>
+                <span className="text-[11px] text-slate-500 truncate block">
+                  {booking.event_manager_id?.phone || booking.event_manager_id?.email || "No contact info"}
+                </span>
+              </div>
+            </div>
+
+            {/* Ocular Notes & Place Measurements */}
+            <div className="pt-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                Ocular Notes &amp; Place Measurements
               </span>
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 leading-relaxed whitespace-pre-line shadow-2xs">
+                {booking.ocular_visit?.notes || (
+                  <span className="text-slate-400 italic">No ocular inspection notes or place measurements recorded yet.</span>
+                )}
+              </div>
             </div>
-
-            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
-              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Status</span>
-              <strong className="text-slate-900 font-bold text-sm block capitalize">
-                {booking.ocular_visit?.status || "Pending"}
-              </strong>
-              <span className="text-[11px] text-slate-500">
-                {booking.ocular_visit?.completed_at
-                  ? `Completed on ${new Date(booking.ocular_visit.completed_at).toLocaleDateString()}`
-                  : "Awaiting site inspection"}
-              </span>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
-              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Inspection Outcome</span>
-              <strong className="text-slate-900 font-bold text-sm block">
-                {booking.ocular_visit?.outcome === "proceed"
-                  ? "Inspection Passed (Proceed)"
-                  : booking.ocular_visit?.outcome === "revise"
-                  ? "Revision Needed"
-                  : booking.ocular_visit?.outcome === "reschedule"
-                  ? "Reschedule Needed"
-                  : booking.ocular_visit?.outcome === "cancel"
-                  ? "Cancelled"
-                  : "Pending Inspection"}
-              </strong>
-              <span className="text-[11px] text-slate-500">
-                {booking.ocular_visit?.outcome === "proceed"
-                  ? "Venue verified for setup"
-                  : booking.ocular_visit?.outcome
-                  ? "Follow-up required"
-                  : "Outcome not logged yet"}
-              </span>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-md border border-slate-200/80 space-y-1 shadow-2xs">
-              <span className="text-slate-400 font-semibold uppercase text-[10px] tracking-wider block">Assigned Coordinator</span>
-              <strong className="text-slate-900 font-bold text-sm block truncate">
-                {booking.event_manager_id?.full_name || "Unassigned"}
-              </strong>
-              <span className="text-[11px] text-slate-500 truncate block">
-                {booking.event_manager_id?.phone || booking.event_manager_id?.email || "No contact info"}
-              </span>
-            </div>
-          </div>
-
-          {/* Ocular Notes & Place Measurements */}
-          <div className="pt-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Ocular Notes &amp; Place Measurements
-            </span>
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-700 leading-relaxed whitespace-pre-line shadow-2xs">
-              {booking.ocular_visit?.notes || (
-                <span className="text-slate-400 italic">No ocular inspection notes or place measurements recorded yet.</span>
-              )}
-            </div>
-          </div>
-        </AdminCard>
+          </AdminCard>
+        )}
 
         {/* Itemized Menu & Service Details */}
         <AdminCard className="!p-6 space-y-4">
           <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
-            <Utensils className="w-5 h-5 text-amber-600" /> Itemized Menu & Service Breakdown
+            {isSetupOnlyService ? (
+              <>
+                <Layers className="w-5 h-5 text-amber-600" /> Venue Styling &amp; Equipment Breakdown
+              </>
+            ) : (
+              <>
+                <Utensils className="w-5 h-5 text-amber-600" /> Itemized Menu &amp; Service Breakdown
+              </>
+            )}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-            {/* Menu Items */}
-            <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Selected Menu Dishes</span>
-              <div className="border border-slate-200 rounded-md overflow-hidden text-xs shadow-2xs">
-                {booking.menu_items && booking.menu_items.length > 0 ? (
-                  booking.menu_items.map((item, idx) => (
-                    <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
-                      <div>
-                        <strong className="text-slate-900">{item.name || item}</strong>
-                        {/* The amount the quotation settled on, so the kitchen
-                            reads the same order the customer accepted. */}
-                        {menuAmountLabel(item) && (
-                          <span className="ml-1.5 text-[11px] font-semibold text-slate-500">
-                            {menuAmountLabel(item)}
-                          </span>
-                        )}
-                        {item.note && <span className="block text-slate-400 text-[11px]">{item.note}</span>}
-                      </div>
-                      <span className="font-semibold text-slate-700">{item.price ? fmt(item.price) : "Included"}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="p-4 text-center text-slate-400 text-xs">No specific menu items listed.</p>
-                )}
+            {/* Menu Items OR Venue Styling Details */}
+            {isSetupOnlyService ? (
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Venue Styling &amp; Inclusions</span>
+                <div className="border border-slate-200 rounded-md p-3.5 bg-slate-50/50 text-xs space-y-2.5 shadow-2xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Theme / Concept:</span>
+                    <strong className="text-slate-900">{booking.event_theme || booking.event_type || "Event Setup"}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Venue Layout:</span>
+                    <strong className="text-slate-900">{booking.venue_type || "Standard Venue"}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Guest Capacity:</span>
+                    <strong className="text-slate-900">{booking.guest_count || 0} Guests</strong>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200 text-slate-600 leading-relaxed">
+                    <span className="font-semibold text-slate-700">Setup Service:</span> Includes complete backdrop, floral styling, table arrangements, and on-site setup team.
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Selected Menu Dishes</span>
+                <div className="border border-slate-200 rounded-md overflow-hidden text-xs shadow-2xs">
+                  {booking.menu_items && booking.menu_items.length > 0 ? (
+                    booking.menu_items.map((item, idx) => (
+                      <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
+                        <div>
+                          <strong className="text-slate-900">{item.name || item}</strong>
+                          {/* The amount the quotation settled on, so the kitchen
+                              reads the same order the customer accepted. */}
+                          {menuAmountLabel(item) && (
+                            <span className="ml-1.5 text-[11px] font-semibold text-slate-500">
+                              {menuAmountLabel(item)}
+                            </span>
+                          )}
+                          {item.note && <span className="block text-slate-400 text-[11px]">{item.note}</span>}
+                        </div>
+                        <span className="font-semibold text-slate-700">{item.price ? fmt(item.price) : "Included"}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="p-4 text-center text-slate-400 text-xs">No specific menu items listed.</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Service & Add-ons */}
             <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Add-ons & Equipment Services</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Add-ons &amp; Equipment Services</span>
               <div className="border border-slate-200 rounded-md overflow-hidden text-xs shadow-2xs">
                 {booking.service_items && booking.service_items.length > 0 ? (
                   booking.service_items.map((item, idx) => (

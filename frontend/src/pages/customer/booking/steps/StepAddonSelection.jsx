@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { PackageOpen, Info, MessageSquare } from "lucide-react";
+import { PackagePlus, Info, MessageSquare, PackageOpen } from "lucide-react";
 import {
   Card,
   SH,
@@ -90,7 +90,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
         aside={
           selectedCount > 0 ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/60 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-[#4C81E0] shadow-2xs">
-              <PackageOpen size={13} className="text-[#4C81E0]" />
+              <PackagePlus size={13} className="text-[#4C81E0]" />
               {selectedCount} added to booking
             </span>
           ) : null
@@ -99,7 +99,7 @@ export default function StepAddonSelection({ form, setForm, addons, estimate }) 
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
         <Card className="p-5">
-          <SectionTitle icon={PackageOpen}>Available Add-ons</SectionTitle>
+          <SectionTitle icon={PackagePlus}>Available Add-ons</SectionTitle>
 
           <AddOnPicker
             items={items}

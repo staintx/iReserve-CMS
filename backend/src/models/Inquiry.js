@@ -46,6 +46,13 @@ const InquirySchema = new mongoose.Schema(
     ],
     
     event_type: { type: String, required: true },
+    booking_for: {
+      type: String,
+      enum: ["myself", "someone_else"],
+      default: "myself",
+    },
+    // When booking for someone else, the celebrant or honoree name (e.g. "Sarah", "John & Maria", "Liam")
+    celebrant_name: { type: String, default: "" },
     event_theme: String,
     // Colour names for the chosen theme, e.g. ["Navy", "Ivory", "Gold"].
     // `event_theme` alone used to be a free-text box, and what customers

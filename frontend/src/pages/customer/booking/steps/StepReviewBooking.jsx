@@ -346,6 +346,9 @@ export default function StepReviewBooking({
                   )}
                 </>
               )}
+              {form.celebrant_name && (
+                <Row label="Celebrant / Honoree" value={form.celebrant_name} />
+              )}
               {atVenue && <Row label="Event type" value={eventType} />}
               {atVenue && !form.is_custom_setup && theme && (
                 <Row label="Theme" value={theme} />

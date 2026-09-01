@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
@@ -30,7 +30,8 @@ import {
   ExternalLink,
   ChevronRight,
   History,
-  FileText
+  FileText,
+  Truck
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -43,6 +44,7 @@ import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
+import { isFoodOnly, isSetupOnly, isOcularRequired } from "../../components/customer/portal/statusMeta";
 import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimeline";
 import BookingVersionHistory from "../../components/booking/BookingVersionHistory";
 import AmountSummary from "../../components/customer/portal/AmountSummary";
@@ -150,6 +152,8 @@ export default function CustomerEventDashboard() {
     }
   };
 
+  const verifyingPaymentRef = useRef(new Set());
+
   useEffect(() => {
     fetchBooking();
     fetchPayments();
@@ -159,15 +163,25 @@ export default function CustomerEventDashboard() {
     const paymentStatus = searchParams.get("payment");
     const paymentId = searchParams.get("payment_id");
     if (paymentStatus === "success") {
-      notify("Payment completed successfully! Updating booking status...", "success");
-      if (paymentId) {
-        CustomerAPI.verifyPayment(paymentId).then(() => {
-          fetchBooking();
-          fetchPayments();
-        }).catch(() => {});
+      const lockKey = paymentId || "success_status";
+      if (!verifyingPaymentRef.current.has(lockKey)) {
+        verifyingPaymentRef.current.add(lockKey);
+        const toastId = `payment-verify-${lockKey}`;
+        notify("Payment completed successfully! Updating booking status...", "success", { id: toastId });
+        if (paymentId) {
+          CustomerAPI.verifyPayment(paymentId)
+            .then(() => {
+              fetchBooking();
+              fetchPayments();
+            })
+            .catch(() => {});
+        }
       }
     } else if (paymentStatus === "cancelled") {
-      notify("Payment was cancelled. You can retry paying the balance anytime.", "info");
+      if (!verifyingPaymentRef.current.has("cancelled")) {
+        verifyingPaymentRef.current.add("cancelled");
+        notify("Payment was cancelled. You can retry paying the balance anytime.", "info", { id: "payment-cancelled" });
+      }
     }
   }, [id, searchParams]);
 
@@ -461,7 +475,42 @@ export default function CustomerEventDashboard() {
     );
   }
 
-  const steps = booking.payment_method === "cod" ? [
+  const serviceType = booking.service_type || "Food and Event Setup";
+  const isFoodOnlyService = isFoodOnly(serviceType);
+  const isSetupOnlyService = isSetupOnly(serviceType);
+
+  const steps = isFoodOnlyService ? [
+    { 
+      label: "Order Request Submitted", 
+      completed: true, 
+      date: new Date(booking.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+      desc: "Initial food order received"
+    },
+    { 
+      label: "Deposit / Payment Confirmed", 
+      completed: !["pending deposit", "cancelled"].includes(booking.status) && booking.payment_status !== "pending", 
+      date: booking.payment_status === "paid" || booking.payment_status === "partially paid" || booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid" ? "Completed" : "Pending",
+      desc: "Order confirmed and locked with kitchen"
+    },
+    {
+      label: "Food Preparation",
+      completed: ["preparing", "ongoing", "ready for event", "out for delivery", "completed"].includes(String(booking.status).toLowerCase()),
+      date: ["preparing", "ongoing", "ready for event", "out for delivery", "completed"].includes(String(booking.status).toLowerCase()) ? "In Progress" : "Scheduled",
+      desc: "Kitchen staff preparing your dishes"
+    },
+    { 
+      label: "Out for Delivery & Drop-off", 
+      completed: ["out for delivery", "completed"].includes(String(booking.status).toLowerCase()),
+      date: ["out for delivery", "completed"].includes(String(booking.status).toLowerCase()) ? "Completed" : "Event Day",
+      desc: "Dispatched to destination address"
+    },
+    { 
+      label: "Delivered & Completed", 
+      completed: ["completed", "Completed"].includes(booking.status),
+      date: ["completed", "Completed"].includes(booking.status) ? "Completed" : "Upcoming",
+      desc: "Food successfully delivered & received"
+    },
+  ] : booking.payment_method === "cod" ? [
     { 
       label: "Order Placed", 
       completed: true, 
@@ -494,7 +543,7 @@ export default function CustomerEventDashboard() {
       desc: "Initial deposit to secure your event date"
     },
     {
-      label: "Venue Ocular Visit",
+      label: isSetupOnlyService ? "Venue Setup Inspection" : "Venue Ocular Visit",
       completed: booking.ocular_visit?.status === "completed",
       date: booking.ocular_visit?.scheduled_date ? new Date(booking.ocular_visit.scheduled_date).toLocaleDateString() : "Optional / Pending",
       desc: "Inspection of venue layout & logistics"
@@ -515,8 +564,7 @@ export default function CustomerEventDashboard() {
 
   const assignedStaff = booking.staff_assignments || [];
   const eventManager = booking.event_manager_id;
-  const isCustomOrSetup = booking.service_type !== "Food Only" && booking.service_type !== "food";
-  const needsOcular = isCustomOrSetup && (!booking.ocular_visit || !booking.ocular_visit.status || booking.ocular_visit.status === "pending");
+  const needsOcular = !isFoodOnlyService && (!booking.ocular_visit || !booking.ocular_visit.status || booking.ocular_visit.status === "pending");
   const pendingOcular = booking.ocular_visit && booking.ocular_visit.status === "requested";
 
   // Status badge config
@@ -701,15 +749,36 @@ export default function CustomerEventDashboard() {
                   </Button>
 
                   {needsOcular && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setRequestingOcular(true)}
-                      className="text-xs rounded-md border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium gap-1.5 h-8 px-3"
-                    >
-                      <CalendarRange className="w-3.5 h-3.5 text-amber-600" />
-                      Schedule Ocular
-                    </Button>
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setRequestingOcular(true)}
+                        className="text-xs rounded-md border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium gap-1.5 h-8 px-3"
+                      >
+                        <CalendarRange className="w-3.5 h-3.5 text-amber-600" />
+                        Schedule Ocular
+                      </Button>
+                      {!booking.ocular_visit?.is_required && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                              CustomerAPI.skipOcular(booking._id)
+                                .then(() => {
+                                  notify("Ocular visit skipped successfully.", "success");
+                                  fetchBooking();
+                                })
+                                .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                            }
+                          }}
+                          className="text-xs rounded-md border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium h-8 px-3"
+                        >
+                          Skip Ocular
+                        </Button>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1005,7 +1074,7 @@ export default function CustomerEventDashboard() {
                   <CardHeader className="border-b border-border py-3 px-4">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-primary" />
-                      Assigned Catering Team
+                      {isFoodOnlyService ? "Kitchen & Dispatch Team" : "Assigned Catering Team"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 space-y-3">
@@ -1017,8 +1086,10 @@ export default function CustomerEventDashboard() {
                               {eventManager.full_name?.charAt(0) || "M"}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-foreground text-xs truncate">{eventManager.full_name || "Event Manager"}</p>
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/20">Event Manager</Badge>
+                              <p className="font-semibold text-foreground text-xs truncate">{eventManager.full_name || "Manager"}</p>
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/20">
+                                {isFoodOnlyService ? "Dispatch Lead" : "Event Manager"}
+                              </Badge>
                               {eventManager.phone && (
                                 <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                   <Phone className="w-3 h-3" /> {eventManager.phone}
@@ -1033,7 +1104,7 @@ export default function CustomerEventDashboard() {
                               {staff.name?.charAt(0) || staff.full_name?.charAt(0) || "S"}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-foreground text-xs truncate">{staff.name || staff.full_name || "Catering Staff"}</p>
+                              <p className="font-semibold text-foreground text-xs truncate">{staff.name || staff.full_name || "Staff"}</p>
                               <p className="text-[11px] text-muted-foreground">{staff.role || "Staff Member"}</p>
                               {staff.phone && (
                                 <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -1048,7 +1119,9 @@ export default function CustomerEventDashboard() {
                       <div className="text-center py-5 px-3 bg-muted/20 rounded-md border border-dashed border-border">
                         <Users className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1.5" />
                         <p className="text-xs text-muted-foreground">
-                          Staff and Event Manager will be assigned closer to your event date.
+                          {isFoodOnlyService
+                            ? "Kitchen and delivery team will prepare and dispatch your food on the event day."
+                            : "Staff and Event Manager will be assigned closer to your event date."}
                         </p>
                       </div>
                     )}
@@ -1219,79 +1292,143 @@ export default function CustomerEventDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Ocular Inspection Widget (1 col) */}
+              {/* Ocular Inspection Widget (for setup/full) OR Delivery Details Widget (for food only) */}
               <div className="space-y-4">
-                <Card className="border-border shadow-2xs rounded-lg">
-                  <CardHeader className="border-b border-border py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <CalendarRange className="w-4 h-4 text-primary" />
-                      Venue Ocular Inspection
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 space-y-3">
-                    {booking.ocular_visit && booking.ocular_visit.status === "scheduled" && (
-                      <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-md space-y-1.5">
+                {isFoodOnlyService ? (
+                  <Card className="border-border shadow-2xs rounded-lg">
+                    <CardHeader className="border-b border-border py-3 px-4">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-primary" />
+                        Food Delivery &amp; Drop-off
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 space-y-3 text-xs">
+                      <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-emerald-900 text-xs">Scheduled Visit</span>
-                          <Badge className="bg-emerald-600 text-white text-[10px] py-0 px-1.5">Scheduled</Badge>
+                          <span className="font-semibold text-slate-900">Delivery Schedule</span>
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] py-0 px-1.5 font-medium">
+                            Food Drop-Off
+                          </Badge>
                         </div>
-                        <p className="text-xs font-semibold text-emerald-950 flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-emerald-700" />
-                          {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()}
+                        <p className="text-slate-700 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          {booking.event_date ? new Date(booking.event_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : "Date TBA"}
                         </p>
-                        {booking.ocular_visit.scheduled_time && (
-                          <p className="text-[11px] text-emerald-800 flex items-center gap-1.5">
-                            <Clock className="w-3 h-3 text-emerald-700" />
-                            {booking.ocular_visit.scheduled_time}
-                          </p>
+                        <p className="text-slate-700 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          {booking.start_time ? `Drop-off by ${booking.start_time}` : "Time TBA"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1 text-slate-600">
+                        <p className="font-medium text-slate-800">Drop-off Destination:</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {[booking.street, booking.barangay, booking.municipality, booking.province].filter(Boolean).join(", ") || "Address TBA"}
+                        </p>
+                        {booking.landmark && (
+                          <p className="text-[11px] text-muted-foreground font-mono">Landmark: {booking.landmark}</p>
                         )}
                       </div>
-                    )}
 
-                    {pendingOcular && (
-                      <div className="bg-blue-50 border border-blue-200 p-3 rounded-md space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-blue-900 text-xs">Request Sent</span>
-                          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[10px] py-0 px-1.5">Awaiting Confirmation</Badge>
+                      <p className="text-[11px] text-muted-foreground pt-2 border-t border-border leading-relaxed">
+                        Food will be delivered packed and warm to your location. No on-site ocular visit is needed.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="border-border shadow-2xs rounded-lg">
+                    <CardHeader className="border-b border-border py-3 px-4">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <CalendarRange className="w-4 h-4 text-primary" />
+                        {isSetupOnlyService ? "Venue Setup Inspection" : "Venue Ocular Inspection"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 space-y-3">
+                      {booking.ocular_visit && booking.ocular_visit.status === "scheduled" && (
+                        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-md space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-emerald-900 text-xs">Scheduled Visit</span>
+                            <Badge className="bg-emerald-600 text-white text-[10px] py-0 px-1.5">Scheduled</Badge>
+                          </div>
+                          <p className="text-xs font-semibold text-emerald-950 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                            {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()}
+                          </p>
+                          {booking.ocular_visit.scheduled_time && (
+                            <p className="text-[11px] text-emerald-800 flex items-center gap-1.5">
+                              <Clock className="w-3 h-3 text-emerald-700" />
+                              {booking.ocular_visit.scheduled_time}
+                            </p>
+                          )}
                         </div>
-                        <p className="text-[11px] text-blue-800">Your requested ocular visit date is under review by admin.</p>
-                        <p className="text-xs font-semibold text-blue-900">
-                          Date: {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    )}
+                      )}
 
-                    {booking.ocular_visit && booking.ocular_visit.status === "completed" && (
-                      <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900 text-xs">Inspection Done</span>
-                          <Badge className="bg-slate-800 text-white text-[10px] py-0 px-1.5">Completed</Badge>
-                        </div>
-                        <p className="text-[11px] text-slate-700">The venue layout and logistics have been verified.</p>
-                      </div>
-                    )}
-
-                    {needsOcular && (
-                      <div className="p-3.5 rounded-md border border-dashed border-border text-center space-y-2.5">
-                        <CalendarRange className="w-6 h-6 text-muted-foreground/40 mx-auto" />
-                        <div className="space-y-0.5">
-                          <p className="font-semibold text-foreground text-xs">Schedule Venue Ocular Visit</p>
-                          <p className="text-[11px] text-muted-foreground leading-snug">
-                            Inspect venue layout & setup requirements before your event.
+                      {pendingOcular && (
+                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-md space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-blue-900 text-xs">Request Sent</span>
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 text-[10px] py-0 px-1.5">Awaiting Confirmation</Badge>
+                          </div>
+                          <p className="text-[11px] text-blue-800">Your requested ocular visit date is under review by admin.</p>
+                          <p className="text-xs font-semibold text-blue-900">
+                            Date: {new Date(booking.ocular_visit.scheduled_date).toLocaleDateString()}
                           </p>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => setRequestingOcular(true)}
-                          className="w-full text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 h-8"
-                        >
-                          Request Ocular Visit
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      )}
+
+                      {booking.ocular_visit && booking.ocular_visit.status === "completed" && (
+                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900 text-xs">Inspection Done</span>
+                            <Badge className="bg-slate-800 text-white text-[10px] py-0 px-1.5">Completed</Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-700">The venue layout and logistics have been verified.</p>
+                        </div>
+                      )}
+
+                      {needsOcular && (
+                        <div className="p-3.5 rounded-md border border-dashed border-border text-center space-y-2.5">
+                          <CalendarRange className="w-6 h-6 text-muted-foreground/40 mx-auto" />
+                          <div className="space-y-0.5">
+                            <p className="font-semibold text-foreground text-xs">Schedule Venue Ocular Visit</p>
+                            <p className="text-[11px] text-muted-foreground leading-snug">
+                              Inspect venue layout & setup requirements before your event.
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setRequestingOcular(true)}
+                              className="w-full text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 h-8"
+                            >
+                              Request Ocular Visit
+                            </Button>
+                            {!booking.ocular_visit?.is_required && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => {
+                                  if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                                    CustomerAPI.skipOcular(booking._id)
+                                      .then(() => {
+                                        notify("Ocular visit skipped successfully.", "success");
+                                        fetchBooking();
+                                      })
+                                      .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                                  }
+                                }}
+                                className="w-full text-[11px] text-slate-500 hover:text-slate-700 h-6"
+                              >
+                                Skip Ocular Visit
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
             </div>

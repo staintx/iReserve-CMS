@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, Info, ArrowLeft, ArrowRight, Loader2, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Info, ArrowLeft, ArrowRight, Loader2, Save, Utensils, CalendarDays, Box, Phone, Mail, Clock, AlertTriangle, User, Heart } from "lucide-react";
 import { formatEventDate } from "../../../utils/format";
 import { cn } from "@/lib/utils";
 import useBusinessInfo from "../../../hooks/useBusinessInfo";
@@ -125,6 +125,8 @@ export default function QuoteWizard() {
     service_type: "food",
     event_type: matchedType || (isOther ? "Other" : ""),
     event_type_other: isOther ? initialEventType : "",
+    booking_for: "myself",
+    celebrant_name: "",
     event_theme: "",
     event_date: "",
     start_time: "",
@@ -324,6 +326,8 @@ export default function QuoteWizard() {
     return {
       customer_id: form.customer_id,
       event_type: getEventTypeValue(),
+      booking_for: form.booking_for || "myself",
+      celebrant_name: form.booking_for === "someone_else" ? String(form.celebrant_name || "").trim() : "",
       event_theme: form.event_theme,
       event_date: form.event_date,
       start_time: form.start_time,
@@ -404,6 +408,10 @@ export default function QuoteWizard() {
         nextErrors[field] = `${label} is required.`;
       }
     };
+
+    if (form.booking_for === "someone_else" && isEmpty(form.celebrant_name)) {
+      nextErrors.celebrant_name = "Please enter the celebrant or honoree's name.";
+    }
 
     if (isEmpty(form.event_type)) {
       nextErrors.event_type = "Event type is required.";
@@ -702,6 +710,52 @@ export default function QuoteWizard() {
                         <CardTitle className="text-xl font-serif">Event Information</CardTitle>
                       </CardHeader>
                       <CardContent className="p-6 md:p-8 space-y-6">
+                        <div className="space-y-3 pb-2 border-b border-border">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                            Who is this event for?
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
+                              className={cn(
+                                "flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all cursor-pointer",
+                                form.booking_for !== "someone_else"
+                                  ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary/30"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                              )}
+                            >
+                              <User className="w-4 h-4" />
+                              <span>For myself</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                              className={cn(
+                                "flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all cursor-pointer",
+                                form.booking_for === "someone_else"
+                                  ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary/30"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                              )}
+                            >
+                              <Heart className="w-4 h-4" />
+                              <span>For someone else</span>
+                            </button>
+                          </div>
+                          {form.booking_for === "someone_else" && (
+                            <div className="space-y-1.5 pt-1">
+                              <Label>Celebrant / Honoree Name <span className="text-destructive">*</span></Label>
+                              <Input
+                                placeholder="e.g. Sarah, John & Maria, Baby Liam"
+                                value={form.celebrant_name || ""}
+                                onChange={(e) => setForm((prev) => ({ ...prev, celebrant_name: e.target.value }))}
+                              />
+                              <p className="text-[11px] text-muted-foreground">Used for your personalized event title and official quotation.</p>
+                              {errors.celebrant_name && <p className="text-xs text-destructive mt-1">{errors.celebrant_name}</p>}
+                            </div>
+                          )}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
                             <Label>Event Type</Label>
@@ -1194,6 +1248,52 @@ export default function QuoteWizard() {
                         <CardTitle className="text-xl font-serif">Event Details</CardTitle>
                       </CardHeader>
                       <CardContent className="p-6 md:p-8 space-y-6">
+                        <div className="space-y-3 pb-2 border-b border-border">
+                          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                            Who is this event for?
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
+                              className={cn(
+                                "flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all cursor-pointer",
+                                form.booking_for !== "someone_else"
+                                  ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary/30"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                              )}
+                            >
+                              <User className="w-4 h-4" />
+                              <span>For myself</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                              className={cn(
+                                "flex items-center justify-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all cursor-pointer",
+                                form.booking_for === "someone_else"
+                                  ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary/30"
+                                  : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                              )}
+                            >
+                              <Heart className="w-4 h-4" />
+                              <span>For someone else</span>
+                            </button>
+                          </div>
+                          {form.booking_for === "someone_else" && (
+                            <div className="space-y-1.5 pt-1">
+                              <Label>Celebrant / Honoree Name <span className="text-destructive">*</span></Label>
+                              <Input
+                                placeholder="e.g. Sarah, John & Maria, Baby Liam"
+                                value={form.celebrant_name || ""}
+                                onChange={(e) => setForm((prev) => ({ ...prev, celebrant_name: e.target.value }))}
+                              />
+                              <p className="text-[11px] text-muted-foreground">Used for your personalized event title and official quotation.</p>
+                              {errors.celebrant_name && <p className="text-xs text-destructive mt-1">{errors.celebrant_name}</p>}
+                            </div>
+                          )}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
                             <Label>Event Type</Label>

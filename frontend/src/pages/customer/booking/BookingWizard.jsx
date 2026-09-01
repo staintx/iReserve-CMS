@@ -59,7 +59,9 @@ import { formatEventDate } from "../../../utils/format";
 // -----------------------------------------------------------------------------
 // Constants
 // -----------------------------------------------------------------------------
-const MIN_DATE_OFFSET_DAYS = 3;
+// We require at least 3 full buffer days of preparation between today and the event.
+// e.g., if today is Tuesday Sept 1, Sept 2, 3, 4 are preparation days, making Saturday Sept 5 (+4 days) the earliest selectable date.
+const MIN_DATE_OFFSET_DAYS = 4;
 
 // Drafts are namespaced per account so signing in as someone else in the same
 // tab can never surface the previous customer's half-filled booking, and are
@@ -172,6 +174,8 @@ export default function BookingWizard() {
       package_id: initialPackageId || "",
       venue_type: "",
       venue_type_other: "",
+      booking_for: "myself",
+      celebrant_name: "",
       indoor_outdoor: "Indoor",
       province: BATANGAS_PROVINCE,
       municipality: "",
@@ -287,7 +291,10 @@ export default function BookingWizard() {
   const minDate = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() + MIN_DATE_OFFSET_DAYS);
-    return date.toISOString().split("T")[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }, []);
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);
@@ -862,6 +869,13 @@ export default function BookingWizard() {
             break;
           }
 
+          if (
+            form.booking_for === "someone_else" &&
+            !String(form.celebrant_name || "").trim()
+          ) {
+            errors.celebrant_name = "Enter the celebrant or honoree's name.";
+          }
+
           const eventType =
             form.event_type === OTHER_EVENT_TYPE
               ? String(form.event_type_other || "").trim()
@@ -1237,6 +1251,7 @@ export default function BookingWizard() {
           reference: data?.reference || null,
           estimatedTotal: estimate.total,
           summary: [
+            ...(form.celebrant_name ? [{ label: "Celebrant / Honoree", value: form.celebrant_name }] : []),
             { label: "Event type", value: eventType },
             { label: "Event date", value: formatEventDate(form.event_date) },
             { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },

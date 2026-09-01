@@ -160,6 +160,10 @@ export default function BookingCard({
         title="Booking details"
         items={[
           { label: "Reference number", value: refCode, mono: true },
+          booking.celebrant_name && {
+            label: "Celebrant / Honoree",
+            value: booking.celebrant_name,
+          },
           { label: "Service", value: serviceType },
           { label: "Package", value: packageName },
           { label: "Guests", value: booking.guest_count ? `${booking.guest_count} guests` : "—" },

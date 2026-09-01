@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Sparkles, Info, MessageSquare, PackageOpen } from "lucide-react";
+import { PackagePlus, Info, MessageSquare, PackageOpen } from "lucide-react";
 import {
   Card,
   SH,
@@ -123,7 +123,7 @@ export default function StepPackageAddOns({
         aside={
           selectedCount > 0 ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200/60 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-[#4C81E0] shadow-2xs">
-              <Sparkles size={13} className="text-[#4C81E0]" />
+              <PackagePlus size={13} className="text-[#4C81E0]" />
               {selectedCount} added to booking
             </span>
           ) : null
@@ -135,7 +135,7 @@ export default function StepPackageAddOns({
           {/* Case 1: Package has specific add-ons */}
           {hasPackageItems && (
             <div>
-              <SectionTitle icon={Sparkles}>
+              <SectionTitle icon={PackagePlus}>
                 Add-ons for {packageDetails?.name || "your package"}
               </SectionTitle>
               <AddOnPicker
@@ -157,10 +157,8 @@ export default function StepPackageAddOns({
           {/* Case 2: Common / Global Add-ons */}
           {hasCommonItems && (
             <div>
-              <SectionTitle icon={hasPackageItems ? PackageOpen : Sparkles}>
-                {hasPackageItems
-                  ? "Common Event Add-ons & Equipment"
-                  : "Common Event Add-ons & Equipment"}
+              <SectionTitle icon={PackageOpen}>
+                Common Event Add-ons &amp; Equipment
               </SectionTitle>
               {hasPackageItems && (
                 <p className="mt-0.5 text-[11px] text-slate-500">
@@ -181,7 +179,7 @@ export default function StepPackageAddOns({
           {/* Fallback if no add-ons at all */}
           {!hasPackageItems && !hasCommonItems && (
             <div>
-              <SectionTitle icon={Sparkles}>Event Add-ons</SectionTitle>
+              <SectionTitle icon={PackagePlus}>Event Add-ons</SectionTitle>
               <div className="mt-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center">
                 <Info className="mx-auto mb-2 h-5 w-5 text-slate-400" />
                 <p className="text-xs font-bold text-slate-800">No add-ons currently available</p>

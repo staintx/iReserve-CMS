@@ -36,6 +36,12 @@ const BookingSchema = new mongoose.Schema(
     // staff_ids removed – use staff_assignments instead
 
     event_type: { type: String, required: [true, "Event type is required"] },
+    booking_for: {
+      type: String,
+      enum: ["myself", "someone_else"],
+      default: "myself",
+    },
+    celebrant_name: { type: String, default: "" },
     event_theme: String,
 
     event_date: { type: Date, required: [true, "Event date is required"] },
@@ -284,6 +290,7 @@ const BookingSchema = new mongoose.Schema(
     },
 
     ocular_visit: {
+      is_required: { type: Boolean, default: false },
       scheduled_date: Date,
       scheduled_time: String,
       status: {

@@ -21,6 +21,8 @@ import {
   Percent,
   CreditCard,
   User,
+  Heart,
+  Truck,
   Check,
   Lock,
   MapPin,
@@ -72,7 +74,7 @@ import { useConfirm } from "../../feedback/confirmContext";
 --------------------------------------------------------------------------- */
 
 const INPUT_BASE =
-  "w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500";
+  "w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 const inputClass = (hasError) =>
   `${INPUT_BASE} ${hasError ? "border-red-400 bg-red-50/40" : "border-slate-300"}`;
 
@@ -132,7 +134,7 @@ function Field({ label, required, hint, error, htmlFor, children, className = ""
   );
 }
 
-/** A peso input. Keyboard rules block the characters that produce a negative. */
+/** A peso input. Keyboard rules block the characters that produce a negative, and onWheel prevents scrolling changes. */
 function MoneyInput({ id, value, onChange, error, disabled, placeholder, className = "" }) {
   const block = (e) => {
     if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") e.preventDefault();
@@ -151,6 +153,7 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
         disabled={disabled}
         placeholder={placeholder}
         onKeyDown={block}
+        onWheel={(e) => e.target.blur()}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={`${inputClass(error)} pl-7 font-semibold tabular-nums ${className}`}
@@ -266,6 +269,31 @@ const addDays = (days) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return toDateInput(date);
+};
+
+/**
+ * Calculates the maximum allowable quotation expiration date (3 days before the event).
+ */
+const computeMaxValidityDate = (eventDateStr) => {
+  if (!eventDateStr) return null;
+  const date = new Date(eventDateStr);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() - 3);
+  return toDateInput(date);
+};
+
+/**
+ * Calculates the default expiration date, capped at 3 days before the event.
+ */
+const computeDefaultExpiration = (eventDateStr) => {
+  const plus7 = addDays(7);
+  const maxValid = computeMaxValidityDate(eventDateStr);
+  if (!maxValid) return plus7;
+  const today = todayInput();
+  if (maxValid < plus7) {
+    return maxValid < today ? today : maxValid;
+  }
+  return plus7;
 };
 
 /**
@@ -403,6 +431,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   // Section 1: what the customer submitted, editable so the admin can correct it
   const [details, setDetails] = useState({
+    booking_for: "myself",
+    celebrant_name: "",
     contact_first_name: "",
     contact_last_name: "",
     contact_email: "",
@@ -470,12 +500,19 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   const isFoodOnly = details.service_type === SERVICE_TYPES.FOOD_ONLY;
   const isSetupOnly = details.service_type === SERVICE_TYPES.SETUP_ONLY;
+  const isFullService = details.service_type === SERVICE_TYPES.FULL_SERVICE;
   // Whether this quotation carries catering at all. Setup Only never does; on
   // every other service type it is the customer's own answer, which they can
   // set to no without changing the service type.
   const cateringIncluded = !isSetupOnly && details.include_food !== false;
   const packageRecord =
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+
+  // Latest allowable validity date: at least 3 full days before the event
+  const maxValidityDate = useMemo(
+    () => computeMaxValidityDate(details.event_date),
+    [details.event_date]
+  );
 
   /**
    * When the booking came from a Special Offer, what that combo promised.
@@ -601,6 +638,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         // below starts from it, and only an unfinished draft's own saved edits
         // (applied further down) are allowed to override that starting point.
         const detailsFromInquiry = {
+          booking_for: inquiry?.booking_for || "myself",
+          celebrant_name: inquiry?.celebrant_name || "",
           contact_first_name: inquiry?.contact_first_name || inquiry?.customer_id?.first_name || "",
           contact_last_name: inquiry?.contact_last_name || inquiry?.customer_id?.last_name || "",
           contact_email: inquiry?.contact_email || inquiry?.customer_id?.email || "",
@@ -786,11 +825,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setDiscounts(latest.discounts ? String(latest.discounts) : "");
           setDepositAmount(latest.deposit_amount ? String(latest.deposit_amount) : "");
           // A revision of a quotation whose validity has already run out gets
-          // a fresh window rather than opening pre-filled with a date the
-          // form will refuse to send.
+          // a fresh window capped to 3 days before the event.
           const storedExpiry = toDateInput(latest.expiration_date);
+          const maxExpiry = computeMaxValidityDate(latest.event_snapshot?.event_date || inquiry?.event_date);
+          const freshExpiry = computeDefaultExpiration(latest.event_snapshot?.event_date || inquiry?.event_date);
           setExpirationDate(
-            storedExpiry && storedExpiry >= todayInput() ? storedExpiry : addDays(7)
+            storedExpiry && storedExpiry >= todayInput()
+              ? (maxExpiry && storedExpiry > maxExpiry ? maxExpiry : storedExpiry)
+              : freshExpiry
           );
           setAdminNotes(latest.admin_notes || "");
           return;
@@ -903,6 +945,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             return { name: String(item || ""), price: "", quantity: 1, note: "", pricing_type: "quantity" };
           })
         );
+
+        setExpirationDate(computeDefaultExpiration(inquiry?.event_date));
       })
       .catch(() => {
         if (active) notify("Failed to load quotation details", "error");
@@ -1182,7 +1226,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     const notes = [];
     const depositShare = totals.totalCost > 0 ? (totals.depositAmount / totals.totalCost) * 100 : 0;
 
-    if (!totals.startingPrice && !inquiry?.is_custom_setup && packageRecord) {
+    if (!totals.startingPrice && !inquiry?.is_custom_setup && packageRecord && !isFoodOnly) {
       notes.push(
         `${packageRecord.name || "This package"} has no price on record, so the starting price begins at zero. Enter the baseline this quotation should start from.`
       );
@@ -1232,6 +1276,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         `${totals.guestCount} guests is below this package's minimum of ${capacityMin}.`
       );
     }
+    if (maxValidityDate && maxValidityDate < todayInput()) {
+      notes.push(
+        "This event is scheduled within the 3-day preparation window. Extra kitchen and staging coordination is required."
+      );
+    }
     return notes;
   }, [
     totals,
@@ -1243,12 +1292,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     customerSelection.dishes.length,
     offerContext,
     unresolvedDishes,
+    isFoodOnly,
+    maxValidityDate,
   ]);
-
-  /* --- Validation --------------------------------------------------------- */
 
   const validate = () => {
     const found = {};
+
+    if (details.booking_for === "someone_else" && !String(details.celebrant_name || "").trim())
+      found.celebrant_name = "Enter the name of the celebrant or honoree.";
 
     if (!String(details.contact_first_name || "").trim())
       found.contact_first_name = "Enter the customer's first name.";
@@ -1272,8 +1324,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (!details.start_time) found.start_time = "Set the start time.";
     if (!Number(details.guest_count) || Number(details.guest_count) < 1)
       found.guest_count = "Enter the number of guests this quotation covers.";
-    if (!details.municipality) found.municipality = "Choose the municipality of the venue.";
-    if (!details.barangay) found.barangay = "Choose the barangay of the venue.";
+
+    const isPickupOrder = isFoodOnly && inquiry?.delivery_method === "pickup";
+    if (!isPickupOrder) {
+      if (!details.municipality) found.municipality = "Choose the municipality of the venue.";
+      if (!details.barangay) found.barangay = "Choose the barangay of the venue.";
+    }
 
     if (!String(packageName || "").trim())
       found.package_name = "This quotation has no package name.";
@@ -1369,13 +1425,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         totals.totalCost
       )}.`;
 
-    if (!expirationDate) found.expiration_date = "Set the date this quotation stops being valid.";
-    // The picker greys out earlier days, but a date can still be typed into
-    // it, and a quotation that expired before it was sent gives the customer
-    // nothing they can accept.
-    else if (expirationDate < today)
+    if (!expirationDate) {
+      found.expiration_date = "Set the date this quotation stops being valid.";
+    } else if (expirationDate < today) {
       found.expiration_date =
         "This quotation would already have expired. Choose today or a later date.";
+    } else if (maxValidityDate && expirationDate > maxValidityDate) {
+      found.expiration_date = `Quotations must expire at least 3 days before the event (latest valid date: ${formatShortDate(
+        maxValidityDate
+      )}) to allow for preparation time.`;
+    }
 
     return found;
   };
@@ -1836,6 +1895,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       // built from it at conversion time. Corrections made here are saved there
       // first so the quotation is never issued against details it contradicts.
       await AdminAPI.updateInquiry(inquiry._id, {
+        booking_for: details.booking_for || "myself",
+        celebrant_name: String(details.celebrant_name || "").trim(),
         contact_first_name: details.contact_first_name.trim(),
         contact_last_name: details.contact_last_name.trim(),
         contact_email: details.contact_email.trim(),
@@ -1897,10 +1958,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   if (!inquiry) return null;
 
+  const modalTitle = inquiry?.status === "Revision Requested"
+    ? "Revise Quotation"
+    : quotation
+    ? "Quotation Editor"
+    : "Prepare Quotation";
+
   if (loading) {
     return (
       <Modal
-        title="Quotation Builder"
+        title={modalTitle}
         onClose={onClose}
         bodyClassName="overflow-hidden"
         className="max-w-4xl h-[80vh] flex items-center justify-center"
@@ -1916,17 +1983,30 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const menuHeading = cateringIncluded ? "Menu" : null;
 
   // Section numbers count only the sections this service type actually shows,
-  // so a setup-only quotation never jumps from 03 to 05.
+  // so a setup-only quotation cleanly skips menu (e.g. 01 Details, 02 Package, 03 Inclusions, 04 Add-ons, 05 Adjustments, 06 Payment).
   const stepNumbers = (() => {
-    let step = 3;
-    const menu = isSetupOnly ? null : ++step;
-    const addOns = isFoodOnly ? null : ++step;
-    return { menu, addOns, adjustments: ++step, payment: ++step };
+    let step = 1;
+    const detailsStep = step;
+    const packageStep = ++step;
+    const inclusionsStep = ++step;
+    const menuStep = isSetupOnly ? null : ++step;
+    const addOnsStep = ++step;
+    const adjustmentsStep = ++step;
+    const paymentStep = ++step;
+    return {
+      details: detailsStep,
+      pkg: packageStep,
+      inclusions: inclusionsStep,
+      menu: menuStep,
+      addOns: addOnsStep,
+      adjustments: adjustmentsStep,
+      payment: paymentStep,
+    };
   })();
 
   return (
     <Modal
-      title="Quotation Builder"
+      title={modalTitle}
       onClose={() => requestClose("leave")}
       bodyClassName="overflow-hidden"
       className="max-w-7xl w-[96vw] h-[90vh]"
@@ -2068,12 +2148,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           {/* --- 1. Customer and event information --------------------------- */}
           <SectionCard
-            step={1}
+            step={stepNumbers.details}
             id="qb-section-details"
             accent="slate"
             icon={User}
-            title="Customer and event information"
-            description="What the customer submitted when they booked. Correct anything that is wrong before quoting."
+            title={
+              isFoodOnly
+                ? "Customer & Order Details"
+                : isSetupOnly
+                ? "Customer & Event Setup Information"
+                : "Customer & Event Information"
+            }
+            description={
+              isFoodOnly
+                ? "Delivery or pickup instructions and customer contact details. Correct anything that is wrong before quoting."
+                : isSetupOnly
+                ? "Event setup specifications and venue location for our setup crew."
+                : "What the customer submitted when they booked. Correct anything that is wrong before quoting."
+            }
             aside={
               inquiry.reference ? (
                 <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
@@ -2120,6 +2212,66 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     className={inputClass(errors.contact_phone)}
                   />
                 </Field>
+              </div>
+
+              {/* Celebrant / Honoree toggle and input */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  <User size={12} /> Event Honoree / Celebrant
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Who is this event for?" htmlFor="qb-booking_for">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetail("booking_for", "myself");
+                          setDetail("celebrant_name", "");
+                        }}
+                        className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                          details.booking_for !== "someone_else"
+                            ? "bg-primary text-white border-primary shadow-2xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <User size={13} /> For myself
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetail("booking_for", "someone_else")}
+                        className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                          details.booking_for === "someone_else"
+                            ? "bg-primary text-white border-primary shadow-2xs"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Heart size={13} /> Someone else
+                      </button>
+                    </div>
+                  </Field>
+                  {details.booking_for === "someone_else" ? (
+                    <Field
+                      label="Celebrant / Honoree Name"
+                      required
+                      error={errors.celebrant_name}
+                      hint="Name of the person or couple celebrating (e.g. Sarah Jane, Baby Liam, John & Maria)."
+                      htmlFor="qb-celebrant_name"
+                    >
+                      <input
+                        id="qb-celebrant_name"
+                        type="text"
+                        placeholder="e.g. Sarah Jane"
+                        value={details.celebrant_name}
+                        onChange={(e) => setDetail("celebrant_name", e.target.value)}
+                        className={inputClass(errors.celebrant_name)}
+                      />
+                    </Field>
+                  ) : (
+                    <div className="flex items-center text-xs text-slate-500 pt-5">
+                      <span>Booking under the customer's own name ({details.contact_first_name || "Customer"}).</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -2208,10 +2360,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 )}
 
                 <Field
-                  label="Guest count"
+                  label={isFoodOnly ? "Headcount / Pax" : "Guest count"}
                   required
                   error={errors.guest_count}
-                  hint="How many people the event is catered and set up for."
+                  hint={isFoodOnly ? "Number of people the food is catered/packaged for." : "How many people the event is catered and set up for."}
                   htmlFor="qb-guest_count"
                 >
                   <input
@@ -2219,16 +2371,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     type="number"
                     min="1"
                     value={details.guest_count}
+                    onWheel={(e) => e.target.blur()}
                     onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
                     className={`${inputClass(errors.guest_count)} font-semibold tabular-nums`}
                   />
                 </Field>
 
-                <Field label="Venue type" htmlFor="qb-venue_type">
+                <Field label={isFoodOnly ? "Venue / Destination Type" : "Venue type"} htmlFor="qb-venue_type">
                   <input
                     id="qb-venue_type"
                     type="text"
-                    placeholder="e.g. Function Hall"
+                    placeholder={isFoodOnly ? "e.g. Residential, Office" : "e.g. Function Hall"}
                     value={details.venue_type}
                     onChange={(e) => setDetail("venue_type", e.target.value)}
                     className={inputClass(false)}
@@ -2240,7 +2393,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     there is deliberately one field rather than two that could
                     drift apart. Locked for the same reason the package is: the
                     starting price was derived from this size. */}
-                {eventSpace && (
+                {eventSpace && !isFoodOnly && (
                   <Field
                     label="Event space / scaffold size"
                     hint="Set when the customer booked. Rebooking is what changes it."
@@ -2258,21 +2411,17 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 )}
               </div>
 
-              {/* The look of the event, editable here rather than quoted back
-                  as a fixed brief. What a customer picked from a theme card at
-                  booking time is a starting point, and the colours in
-                  particular are usually settled in conversation afterwards —
-                  which is this form. */}
+              {/* Theme & Palette - styled cleanly for all types */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field
-                  label="Theme"
+                  label={isFoodOnly ? "Order Motif / Theme (Optional)" : "Theme"}
                   hint="What the customer chose, or what you have since agreed with them."
                   htmlFor="qb-event_theme"
                 >
                   <input
                     id="qb-event_theme"
                     type="text"
-                    placeholder="e.g. Rustic Garden"
+                    placeholder={isFoodOnly ? "e.g. Minimalist Gold" : "e.g. Rustic Garden"}
                     value={details.event_theme}
                     onChange={(e) => setDetail("event_theme", e.target.value)}
                     className={inputClass(false)}
@@ -2280,7 +2429,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 </Field>
 
                 <Field
-                  label="Colour palette"
+                  label={isFoodOnly ? "Color Motif (Optional)" : "Colour palette"}
                   hint="Colour names separated by commas."
                   htmlFor="qb-event_palette"
                 >
@@ -2308,9 +2457,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  <MapPin size={12} /> Venue location
-                </p>
+                <div className="mb-2.5 flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    <MapPin size={12} /> {isFoodOnly ? "Delivery / Venue Location" : "Venue Location"}
+                  </p>
+                  {isFoodOnly && inquiry.delivery_method && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-primary">
+                      <Truck size={11} /> {inquiry.delivery_method === "pickup" ? "Store Pickup" : "Delivery"}
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Field label="Municipality" required error={errors.municipality} htmlFor="qb-municipality">
                     <select
@@ -2547,11 +2703,27 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           )}
 
           <SectionCard
-            step={2}
+            step={stepNumbers.pkg}
             accent="primary"
             icon={Package}
-            title={offerContext ? "Combo and food price" : "Package and starting price"}
-            description="The baseline this quotation is built from, before anything is added or removed."
+            title={
+              offerContext
+                ? "Combo and food price"
+                : isFoodOnly
+                ? "Catering Package / Food Baseline"
+                : isSetupOnly
+                ? "Event Setup Package & Starting Price"
+                : "Package and Starting Price"
+            }
+            description={
+              offerContext
+                ? "Combo food terms and baseline price."
+                : isFoodOnly
+                ? "The baseline catering package or food order rate before individual dishes or add-ons."
+                : isSetupOnly
+                ? "The baseline setup package price before inclusion deductions or adjustments."
+                : "The baseline this quotation is built from, before anything is added or removed."
+            }
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field
@@ -2561,21 +2733,23 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
                   <Lock size={13} className="shrink-0 text-slate-500" />
                   <span className="truncate text-sm font-semibold text-slate-800" title={packageName}>
-                    {packageName || "Custom Package"}
+                    {packageName || (isFoodOnly ? "Custom Food Order" : isSetupOnly ? "Custom Setup Package" : "Custom Package")}
                   </span>
                 </div>
               </Field>
 
               <Field
-                label={offerContext ? "Combo food price" : "Starting price"}
+                label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline price" : "Starting price"}
                 required
                 error={errors.package_starting_price}
                 hint={
                   offerContext
                     ? `${offerContext.guests} guests × ${formatCurrency(offerContext.perPax)} per pax. Adjust only if the combo changed.`
+                    : isFoodOnly
+                    ? (totals.startingPrice > 0 ? "Package baseline food rate. Set to 0 if pricing strictly per dish in the Menu section." : "Set baseline rate or 0 if dishes below will carry the price.")
                     : totals.startingPrice > 0
-                      ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
-                      : "This package has no price on record. Enter the baseline for this quotation."
+                    ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
+                    : "This package has no price on record. Enter the baseline for this quotation."
                 }
                 htmlFor="qb-package_starting_price"
               >
@@ -2637,13 +2811,25 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           </SectionCard>
 
-          {/* --- 3. Package inclusions --------------------------------------- */}
+{/* --- 3. Package inclusions --------------------------------------- */}
           <SectionCard
-            step={3}
+            step={stepNumbers.inclusions}
             accent="emerald"
             icon={Check}
-            title="Package inclusions"
-            description="Remove what the customer is not getting, or change how many of something they get, and state what that is worth."
+            title={
+              isFoodOnly
+                ? "Catering Inclusions"
+                : isSetupOnly
+                ? "Event Setup Inclusions"
+                : "Package Inclusions"
+            }
+            description={
+              isFoodOnly
+                ? "Buffet presentation, food warmers, dinnerware, or service crew included with this order."
+                : isSetupOnly
+                ? "Backdrops, staging, lighting, tables, chairs, and setup/egress crew included with this package."
+                : "Remove what the customer is not getting, or change how many of something they get, and state what that is worth."
+            }
             aside={
               <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
                 {keptInclusions.length} kept, {removedInclusions.length} removed
@@ -2653,27 +2839,27 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             }
           >
             {errors.removed_inclusions && (
-              <p
-                id="qb-removed_inclusions"
-                className="mb-3 flex items-start gap-1.5 rounded-md border border-red-300 bg-red-50 p-2.5 text-[11.5px] font-medium leading-snug text-red-700"
+              <div
+                role="alert"
+                className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700"
               >
-                <AlertCircle size={13} className="mt-[1px] shrink-0" />
-                {errors.removed_inclusions}
-              </p>
+                <AlertCircle size={14} className="shrink-0 text-red-500" />
+                <span>{errors.removed_inclusions}</span>
+              </div>
             )}
 
             {inclusions.length === 0 ? (
-              <p className="py-2 text-xs italic text-slate-500">
-                This package has no inclusions on record. Add the ones this quotation covers.
-              </p>
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400">
+                {isFoodOnly
+                  ? "This food order has no preset inclusions on record. Add catering equipment, chafing warmers, or service crew below if needed."
+                  : isSetupOnly
+                  ? "This setup package has no preset inclusions on record. Add setup equipment, backdrops, or styling items below."
+                  : "This package has no inclusions on record. Add any items that come with it below."}
+              </div>
             ) : (
               <div className="space-y-4">
                 {inclusionGroups.map((group) => (
                   <div key={group.category}>
-                    {/* The category, said once at the top of its own list
-                        instead of repeated on every line inside it. A package
-                        with forty inclusions is read by finding the heading
-                        you want and stopping there. */}
                     <div className="mb-1.5 flex items-center gap-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                         {group.category}
@@ -2751,8 +2937,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                     type="number"
                                     min="0"
                                     value={entry.quantity ?? ""}
+                                    onWheel={(e) => e.target.blur()}
                                     onChange={(e) => handleInclusionQuantity(index, e.target.value)}
-                                    className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
+                                    className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
                                         ? "border-red-400"
                                         : "border-slate-200"
                                       }`}
@@ -3138,8 +3325,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 min="1"
                                 disabled={item.removed}
                                 value={item.quantity}
+                                onWheel={(e) => e.target.blur()}
                                 onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
-                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${
                                   errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
                                 }`}
                               />
@@ -3248,203 +3436,217 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           )}
 
           {/* --- 5. Add-ons and services ------------------------------------- */}
-          {!isFoodOnly && (
-            <SectionCard
-              step={stepNumbers.addOns}
-              accent="violet"
-              icon={Sparkles}
-              title="Add-ons and services"
-              description="The catalog holds the add-on names. How many, at what price, and why are what you quote for this event."
-            >
-              <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
-                <select
-                  value={selectedCatalogAddon}
-                  onChange={(e) => setSelectedCatalogAddon(e.target.value)}
-                  className={`${inputClass(false)} text-xs`}
-                >
-                  <option value="">Pick an add-on from the global catalog</option>
-                  {catalogAddons.map((addon) => (
-                    <option key={addon._id} value={addon._id}>
-                      {addon.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleAddCatalogAddon}
-                  disabled={!selectedCatalogAddon}
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
-                >
-                  <Plus size={13} /> Add service
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAddOns((prev) => [
-                      ...prev,
-                      { name: "", price: "", quantity: 1, note: "", pricing_type: "quantity" },
-                    ])
-                  }
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  <Plus size={13} /> Custom service
-                </button>
-              </div>
+          <SectionCard
+            step={stepNumbers.addOns}
+            accent="violet"
+            icon={Sparkles}
+            title={
+              isFoodOnly
+                ? "Food & Catering Add-ons"
+                : isSetupOnly
+                ? "Event Setup & Equipment Add-ons"
+                : "Add-ons and Extra Services"
+            }
+            description={
+              isFoodOnly
+                ? "Additional food trays, whole roasted pig (lechon), drink stations, dessert tables, or extra crew."
+                : isSetupOnly
+                ? "Themed backdrop styling, mood lighting, Tiffany chairs, staging, or sound rentals."
+                : "The catalog holds the add-on names. How many, at what price, and why are what you quote for this event."
+            }
+          >
+            <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
+              <select
+                value={selectedCatalogAddon}
+                onChange={(e) => setSelectedCatalogAddon(e.target.value)}
+                className={`${inputClass(false)} text-xs`}
+              >
+                <option value="">
+                  {isFoodOnly
+                    ? "Pick a catering / food add-on from catalog"
+                    : isSetupOnly
+                    ? "Pick a setup / equipment add-on from catalog"
+                    : "Pick an add-on from the global catalog"}
+                </option>
+                {catalogAddons.map((addon) => (
+                  <option key={addon._id} value={addon._id}>
+                    {addon.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleAddCatalogAddon}
+                disabled={!selectedCatalogAddon}
+                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40 cursor-pointer"
+              >
+                <Plus size={13} /> {isFoodOnly ? "Add catering add-on" : isSetupOnly ? "Add setup add-on" : "Add service"}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAddOns((prev) => [
+                    ...prev,
+                    { name: "", price: "", quantity: 1, note: "", pricing_type: "quantity" },
+                  ])
+                }
+                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
+              >
+                <Plus size={13} /> {isFoodOnly ? "Custom food add-on" : "Custom service"}
+              </button>
+            </div>
 
-              {addOns.length === 0 ? (
-                <p className="py-3 text-center text-xs italic text-slate-500">
-                  No add-ons on this quotation yet.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {addOns.map((item, index) => {
-                    const rowError =
-                      errors[`add_ons.${index}.name`] ||
-                      errors[`add_ons.${index}.price`] ||
-                      errors[`add_ons.${index}.quantity`];
-                    // The same violet the Menu rows above use for "a counted
-                    // number of units". An admin who has learned the language
-                    // once in one section should not relearn it in the next.
-                    const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
-                    return (
-                      <li
-                        key={index}
-                        className={`rounded-lg border p-2.5 transition-colors ${
-                          item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
-                        }`}
-                      >
-                        {/* Explicit widths, matching the Menu rows: the name
-                            keeps a guaranteed minimum so the numbers beside it
-                            can never squeeze it out of the row. */}
-                        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                          <input
-                            id={`qb-add_ons.${index}.name`}
-                            type="text"
-                            value={item.name}
-                            disabled={item.removed}
-                            onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
-                            placeholder="Add-on or service name"
-                            className={`${inputClass(errors[`add_ons.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${
-                              item.removed ? "line-through decoration-slate-400" : ""
-                            }`}
-                          />
+            {addOns.length === 0 ? (
+              <p className="py-3 text-center text-xs italic text-slate-500">
+                {isFoodOnly
+                  ? "No catering add-ons on this quotation yet. Add extra lechon, drinks, or dessert stations if needed."
+                  : isSetupOnly
+                  ? "No setup add-ons on this quotation yet. Add extra lighting, backdrop, or styling rentals if needed."
+                  : "No add-ons on this quotation yet."}
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {addOns.map((item, index) => {
+                  const rowError =
+                    errors[`add_ons.${index}.name`] ||
+                    errors[`add_ons.${index}.price`] ||
+                    errors[`add_ons.${index}.quantity`];
+                  const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
+                  return (
+                    <li
+                      key={index}
+                      className={`rounded-lg border p-2.5 transition-colors ${
+                        item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                        <input
+                          id={`qb-add_ons.${index}.name`}
+                          type="text"
+                          value={item.name}
+                          disabled={item.removed}
+                          onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
+                          placeholder={isFoodOnly ? "e.g. Whole Roasted Lechon, Beverage Bar" : "Add-on or service name"}
+                          className={`${inputClass(errors[`add_ons.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${
+                            item.removed ? "line-through decoration-slate-400" : ""
+                          }`}
+                        />
 
-                          <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                            {/* Quantity and price, the only two figures an
-                                add-on is charged from. A service supplied once
-                                is a quantity of one, so there is no second
-                                pricing mode to choose between. */}
-                            <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
-                              <input
-                                id={`qb-add_ons.${index}.quantity`}
-                                type="number"
-                                min="1"
-                                disabled={item.removed}
-                                value={item.quantity}
-                                onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
-                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
-                                  errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
-                                }`}
-                              />
-                            </div>
-
-                            <div className="w-28">
-                              <MoneyInput
-                                id={`qb-add_ons.${index}.price`}
-                                value={item.price}
-                                disabled={item.removed}
-                                placeholder="Unit price"
-                                error={errors[`add_ons.${index}.price`]}
-                                onChange={(value) => handleAddOnChange(index, "price", value)}
-                                className="py-1.5 text-xs"
-                              />
-                            </div>
-
-                            <div className="min-w-[96px] text-right">
-                              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                                Line total
-                              </span>
-                              <span
-                                className={`text-xs font-bold tabular-nums ${item.removed ? "text-slate-400 line-through" : "text-slate-800"
-                                  }`}
-                              >
-                                {formatCurrency(addOnLineTotal(item))}
-                              </span>
-                            </div>
-
-                            {/* Parked, not deleted: one click puts it back,
-                                with its quoted price still filled in. */}
-                            {item.removed ? (
-                              <RowAction
-                                onClick={() => toggleAddOnRemoved(index)}
-                                icon={Undo2}
-                                label="Restore"
-                                tone="success"
-                                title="Put this add-on back on the quotation"
-                              />
-                            ) : (
-                              <RowAction
-                                onClick={() =>
-                                  String(item.name || "").trim() || numberOf(item.price)
-                                    ? toggleAddOnRemoved(index)
-                                    : handleDeleteAddOn(index)
-                                }
-                                icon={Trash2}
-                                label="Remove"
-                                title="Take this add-on off the quotation. You can restore it."
-                              />
-                            )}
-                          </div>
-                        </div>
-                        {/* Why this add-on is on the quotation, in the
-                            admin's words. Shown to the customer beside the
-                            line, and never part of what it costs. */}
-                        {!item.removed && (
-                          <div className="mt-2">
-                            <label
-                              htmlFor={`qb-add_ons.${index}.note`}
-                              className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                            >
-                              Notes
-                            </label>
+                        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                          <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
                             <input
-                              id={`qb-add_ons.${index}.note`}
-                              type="text"
-                              value={item.note || ""}
-                              onChange={(e) => handleAddOnChange(index, "note", e.target.value)}
-                              placeholder="e.g. Set up an hour before the programme starts."
-                              className={`${inputClass(false)} py-1.5 text-xs`}
+                              id={`qb-add_ons.${index}.quantity`}
+                              type="number"
+                              min="1"
+                              disabled={item.removed}
+                              value={item.quantity}
+                              onWheel={(e) => e.target.blur()}
+                              onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
+                              className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
+                              }`}
                             />
                           </div>
-                        )}
 
-                        {rowError && (
-                          <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
-                            <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                            {rowError}
-                          </p>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </SectionCard>
-          )}
+                          <div className="w-28">
+                            <MoneyInput
+                              id={`qb-add_ons.${index}.price`}
+                              value={item.price}
+                              disabled={item.removed}
+                              placeholder="Unit price"
+                              error={errors[`add_ons.${index}.price`]}
+                              onChange={(value) => handleAddOnChange(index, "price", value)}
+                              className="py-1.5 text-xs"
+                            />
+                          </div>
+
+                          <div className="min-w-[96px] text-right">
+                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                              Line total
+                            </span>
+                            <span
+                              className={`text-xs font-bold tabular-nums ${
+                                item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                              }`}
+                            >
+                              {formatCurrency(addOnLineTotal(item))}
+                            </span>
+                          </div>
+
+                          {item.removed ? (
+                            <RowAction
+                              onClick={() => toggleAddOnRemoved(index)}
+                              icon={Undo2}
+                              label="Restore"
+                              tone="success"
+                              title="Put this add-on back on the quotation"
+                            />
+                          ) : (
+                            <RowAction
+                              onClick={() =>
+                                String(item.name || "").trim() || numberOf(item.price)
+                                  ? toggleAddOnRemoved(index)
+                                  : handleDeleteAddOn(index)
+                              }
+                              icon={Trash2}
+                              label="Remove"
+                              title="Take this add-on off the quotation. You can restore it."
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {!item.removed && (
+                        <div className="mt-2">
+                          <label
+                            htmlFor={`qb-add_ons.${index}.note`}
+                            className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                          >
+                            Notes
+                          </label>
+                          <input
+                            id={`qb-add_ons.${index}.note`}
+                            type="text"
+                            value={item.note || ""}
+                            onChange={(e) => handleAddOnChange(index, "note", e.target.value)}
+                            placeholder={isFoodOnly ? "e.g. Served hot alongside main buffet." : "e.g. Set up an hour before the programme starts."}
+                            className={`${inputClass(false)} py-1.5 text-xs`}
+                          />
+                        </div>
+                      )}
+
+                      {rowError && (
+                        <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                          <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                          {rowError}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </SectionCard>
 
           {/* --- 6. Adjustments ---------------------------------------------- */}
           <SectionCard
             step={stepNumbers.adjustments}
             accent="sky"
             icon={Percent}
-            title="Adjustments"
-            description="Transportation, any custom fees, then tax and discount applied to the subtotal."
+            title="Adjustments & Logistics"
+            description="Transportation, delivery, custom fees, then tax and discount applied to the subtotal."
           >
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Field
-                  label="Transportation"
-                  hint="Logistics and delivery for this event."
+                  label={isFoodOnly ? "Delivery / Logistics fee" : "Transportation & Logistics"}
+                  hint={
+                    isFoodOnly
+                      ? inquiry.delivery_method === "pickup"
+                        ? "Pickup orders typically have ₱0 delivery fee."
+                        : "Delivery and handling fee to destination."
+                      : "Logistics, hauling, and crew transportation for this event."
+                  }
                   htmlFor="qb-transportation_fee"
                 >
                   <MoneyInput
@@ -3580,19 +3782,21 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 required
                 error={errors.expiration_date}
                 hint={
-                  expirationDate && expirationDate >= today
+                  maxValidityDate
+                    ? `Must be valid until at latest 3 days before event (${formatShortDate(maxValidityDate)}).`
+                    : expirationDate && expirationDate >= today
                     ? `Selectable from today. ${validityWindow}`
                     : "Selectable from today onward — earlier dates are greyed out in the picker."
                 }
                 htmlFor="qb-expiration_date"
               >
                 {/* `min` is what greys the past out in the native picker;
-                    validate() re-checks it because the field can still be
-                    typed into. */}
+                    `max` prevents setting validity closer than 3 days to event. */}
                 <input
                   id="qb-expiration_date"
                   type="date"
                   min={today}
+                  max={maxValidityDate || undefined}
                   value={expirationDate}
                   onChange={(e) => {
                     setExpirationDate(e.target.value);
@@ -3600,22 +3804,39 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   }}
                   className={inputClass(errors.expiration_date)}
                 />
-                {/* The common validity windows, so the usual answer is one
-                    click rather than a calendar navigation. */}
+                {/* The common validity windows, capped to 3 days before the event. */}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {[7, 14, 30].map((days) => (
+                  {maxValidityDate && (
                     <button
-                      key={days}
                       type="button"
                       onClick={() => {
-                        setExpirationDate(addDays(days));
+                        setExpirationDate(maxValidityDate);
                         clearError("expiration_date");
                       }}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                      className="rounded-md border border-blue-300 bg-blue-50/70 px-2 py-1 text-[11px] font-semibold text-[#4C81E0] transition-colors hover:bg-blue-100"
                     >
-                      {days} days
+                      3 days before event ({formatShortDate(maxValidityDate)})
                     </button>
-                  ))}
+                  )}
+                  {[7, 14, 30].map((days) => {
+                    const targetDate = addDays(days);
+                    const isCapped = maxValidityDate && targetDate > maxValidityDate;
+                    const finalDate = isCapped ? maxValidityDate : targetDate;
+                    if (maxValidityDate && days > 7 && targetDate >= maxValidityDate) return null;
+                    return (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => {
+                          setExpirationDate(finalDate);
+                          clearError("expiration_date");
+                        }}
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                      >
+                        {days} days{isCapped ? " (capped)" : ""}
+                      </button>
+                    );
+                  })}
                 </div>
               </Field>
 
@@ -3682,9 +3903,18 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Package
+                {isFoodOnly
+                  ? offerContext
+                    ? "Combo Food Baseline"
+                    : "Food Baseline"
+                  : isSetupOnly
+                  ? "Setup Package"
+                  : "Package Baseline"}
               </p>
-              <SummaryRow label="Starting price" value={formatCurrency(totals.startingPrice)} />
+              <SummaryRow
+                label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline" : "Starting price"}
+                value={formatCurrency(totals.startingPrice)}
+              />
               {totals.inclusionDeductions > 0 && (
                 <SummaryRow
                   label="Removed inclusions"
@@ -3694,7 +3924,15 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 />
               )}
               <SummaryRow
-                label="Adjusted package price"
+                label={
+                  isFoodOnly
+                    ? offerContext
+                      ? "Adjusted food price"
+                      : "Adjusted food baseline"
+                    : isSetupOnly
+                    ? "Adjusted setup price"
+                    : "Adjusted package price"
+                }
                 value={formatCurrency(totals.packagePrice)}
                 strong
               />
@@ -3704,24 +3942,28 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Added to the quote
               </p>
-              {menuHeading && (
+              {!isSetupOnly && cateringIncluded && (
                 <SummaryRow
-                  label={menuHeading}
+                  label={isFoodOnly ? "Menu dishes" : (menuHeading || "Menu")}
                   detail={`(${chargeableMenuItems.length} ${
                     chargeableMenuItems.length === 1 ? "dish" : "dishes"
                   })`}
                   value={formatCurrency(totals.menuSubtotal)}
                 />
               )}
-              {!isFoodOnly && (
-                <SummaryRow
-                  label="Add-ons and services"
-                  detail={`(${chargeableAddOns.length})`}
-                  value={formatCurrency(totals.addOnsSubtotal)}
-                />
-              )}
               <SummaryRow
-                label="Transportation"
+                label={
+                  isFoodOnly
+                    ? "Catering add-ons"
+                    : isSetupOnly
+                    ? "Setup add-ons"
+                    : "Add-ons and services"
+                }
+                detail={`(${chargeableAddOns.length})`}
+                value={formatCurrency(totals.addOnsSubtotal)}
+              />
+              <SummaryRow
+                label={isFoodOnly ? "Delivery / Logistics" : "Transportation"}
                 value={formatCurrency(money(transportationFee))}
               />
               {additionalFees.map((fee, index) => (

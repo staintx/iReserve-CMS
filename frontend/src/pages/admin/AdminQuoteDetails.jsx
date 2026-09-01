@@ -577,7 +577,7 @@ export default function AdminQuoteDetails() {
                 <Send size={15} />
               </div>
               <div className="min-w-0">
-                <h4 className="font-bold text-blue-950 text-xs sm:text-sm leading-tight">Formal Quotation Sent to Customer</h4>
+                <h4 className="font-bold text-blue-950 text-xs sm:text-sm leading-tight">Quotation Sent to Customer</h4>
                 <p className="text-[11px] text-blue-700 mt-0.5">Quotation issued to {quote.contact_first_name} {quote.contact_last_name}. Awaiting customer response.</p>
               </div>
             </div>
@@ -592,7 +592,7 @@ export default function AdminQuoteDetails() {
               </div>
               <div className="min-w-0">
                 <h4 className="font-bold text-amber-950 text-xs sm:text-sm leading-tight">Action Needed: Quotation Pending</h4>
-                <p className="text-[11px] text-amber-700 mt-0.5">This customer inquiry is awaiting pricing calculations and a formal quotation.</p>
+                <p className="text-[11px] text-amber-700 mt-0.5">This customer inquiry is awaiting pricing calculations and a quotation.</p>
               </div>
             </div>
           </div>
@@ -855,6 +855,14 @@ export default function AdminQuoteDetails() {
             {/* Event Specifics Card */}
             <CompactCard title="Event Specifics" icon={Calendar}>
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-2.5">
+                {quote.celebrant_name && (
+                  <CompactField 
+                    icon={User} 
+                    label="Celebrant / Honoree" 
+                    value={quote.celebrant_name} 
+                  />
+                )}
+
                 <CompactField 
                   icon={Layers} 
                   label="Service Type" 
@@ -935,7 +943,7 @@ export default function AdminQuoteDetails() {
                   icon={Ruler}
                   label="Event Space / Scaffold Size"
                   value={eventSpaceLabel(quote, quote.package_id) || null}
-                  hideWhenEmpty={isOffer}
+                  hideWhenEmpty={isOffer || isFoodOnly}
                 />
 
                 <CompactField 
@@ -1227,6 +1235,13 @@ export default function AdminQuoteDetails() {
                     </div>
                   )}
 
+                  {quote.celebrant_name && (
+                    <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Booked For:</span>
+                      <span className="font-semibold text-slate-800">{quote.celebrant_name}</span>
+                    </div>
+                  )}
+
                   {quote.contact_method && (
                     <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                       <span>Preferred Contact:</span>
@@ -1306,7 +1321,7 @@ export default function AdminQuoteDetails() {
                   className="w-full mt-3.5 py-2 px-3 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Activity size={13} />
-                  {isRevisionRequested ? "Revise Quotation" : "Open Quotation Builder"}
+                  {isRevisionRequested ? "Revise Quotation" : isQuotationSent ? "Edit Quotation" : "Prepare Quotation"}
                 </button>
               )}
             </div>

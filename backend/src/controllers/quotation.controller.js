@@ -174,6 +174,20 @@ function validateQuotationPayload(body, totals) {
   } else if (isPastDay(body.expiration_date)) {
     errors.expiration_date =
       "This quotation would already have expired. Choose today or a later date.";
+  } else {
+    const eventDateValue = body.event_date || body.event_snapshot?.event_date;
+    if (eventDateValue) {
+      const eventDate = new Date(eventDateValue);
+      if (!Number.isNaN(eventDate.getTime())) {
+        const maxValidDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate() - 3);
+        const expDate = new Date(body.expiration_date);
+        const startOfExpDay = new Date(expDate.getFullYear(), expDate.getMonth(), expDate.getDate());
+        if (startOfExpDay > maxValidDate) {
+          errors.expiration_date =
+            "Quotations must expire at least 3 days before the event to allow for preparation.";
+        }
+      }
+    }
   }
 
   // The deposit is what reserves the date. A quotation the customer can accept
@@ -264,6 +278,8 @@ const findDraft = (inquiryId) => Quotation.findOne({ inquiry_id: inquiryId, stat
  */
 function buildEventSnapshot(inquiry) {
   return {
+    booking_for: inquiry.booking_for || "myself",
+    celebrant_name: inquiry.celebrant_name || "",
     contact_first_name: inquiry.contact_first_name,
     contact_last_name: inquiry.contact_last_name,
     contact_email: inquiry.contact_email,
@@ -403,6 +419,7 @@ exports.createQuotation = asyncHandler(async (req, res) => {
 
   inquiry.status = "Quotation Sent";
   inquiry.revision_count = nextVersion - 1;
+  inquiry.total_price = totals.totalCost;
   await inquiry.save();
 
   const io = req.app.get("io");
@@ -538,6 +555,29 @@ exports.acceptQuotation = asyncHandler(async (req, res) => {
   // A draft was never issued, so there is nothing here to respond to.
   if (quotation.status === "Draft") {
     return res.status(400).json({ message: "This quotation has not been sent yet." });
+  }
+
+  // An expired quotation can no longer be accepted.
+  if (quotation.expiration_date && isPastDay(quotation.expiration_date)) {
+    return res.status(400).json({
+      message: "This quotation has expired. Bookings must be confirmed at least 3 days before the event.",
+    });
+  }
+
+  // Check 3-day lockout against event date
+  const eventDateValue = quotation.event_snapshot?.event_date || quotation.inquiry_id?.event_date;
+  if (eventDateValue) {
+    const eventDate = new Date(eventDateValue);
+    if (!Number.isNaN(eventDate.getTime())) {
+      const startOfEventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+      const now = new Date();
+      const minPrepDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3);
+      if (startOfEventDay <= minPrepDate) {
+        return res.status(400).json({
+          message: "This event is within the 3-day preparation window and can no longer be confirmed online. Please contact our team directly.",
+        });
+      }
+    }
   }
 
   const inquiryId = quotation.inquiry_id?._id || quotation.inquiry_id;

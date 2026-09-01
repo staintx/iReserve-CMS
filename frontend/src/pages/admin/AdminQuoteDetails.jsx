@@ -577,7 +577,7 @@ export default function AdminQuoteDetails() {
                 <Send size={15} />
               </div>
               <div className="min-w-0">
-                <h4 className="font-bold text-blue-950 text-xs sm:text-sm leading-tight">Formal Quotation Sent to Customer</h4>
+                <h4 className="font-bold text-blue-950 text-xs sm:text-sm leading-tight">Quotation Sent to Customer</h4>
                 <p className="text-[11px] text-blue-700 mt-0.5">Quotation issued to {quote.contact_first_name} {quote.contact_last_name}. Awaiting customer response.</p>
               </div>
             </div>
@@ -592,7 +592,7 @@ export default function AdminQuoteDetails() {
               </div>
               <div className="min-w-0">
                 <h4 className="font-bold text-amber-950 text-xs sm:text-sm leading-tight">Action Needed: Quotation Pending</h4>
-                <p className="text-[11px] text-amber-700 mt-0.5">This customer inquiry is awaiting pricing calculations and a formal quotation.</p>
+                <p className="text-[11px] text-amber-700 mt-0.5">This customer inquiry is awaiting pricing calculations and a quotation.</p>
               </div>
             </div>
           </div>

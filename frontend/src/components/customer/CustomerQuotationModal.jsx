@@ -196,7 +196,17 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     });
   };
 
-  const isExpired = quotation.expiration_date && new Date(quotation.expiration_date) < new Date();
+  const isPastExpiry = Boolean(
+    quotation.expiration_date &&
+      new Date(quotation.expiration_date).setHours(23, 59, 59, 999) < Date.now()
+  );
+  const eventDateVal = snapshot?.event_date || inquiry?.event_date;
+  const isWithinLockout = Boolean(
+    eventDateVal &&
+      new Date(eventDateVal).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
+  );
+  const isExpired = isPastExpiry || isWithinLockout;
+
   const isDepositPaid = inquiry?.payment_status === "deposit_paid" || inquiry?.payment_status === "fully_paid" || Boolean(inquiry?.converted_booking_id) || quotation?.inquiry_payment_status === "deposit_paid" || quotation?.inquiry_payment_status === "fully_paid" || Boolean(quotation?.approved_payment);
   // A Draft is unfinished work the server no longer serves to customers, so it
   // is not something to accept, decline, or ask for changes to.
@@ -530,8 +540,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           )}
 
           {isExpired && (
-            <StateNotice tone="neutral" icon={Clock} title="This quote has expired.">
-              Message our team and we'll send you an updated quotation.
+            <StateNotice tone="neutral" icon={Clock} title="This quotation has expired.">
+              To ensure high-quality catering and proper event arrangements, bookings must be confirmed at least 3 days before the event. Please message our team if you would like to request an updated quotation.
             </StateNotice>
           )}
 

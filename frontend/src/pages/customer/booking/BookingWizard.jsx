@@ -59,7 +59,9 @@ import { formatEventDate } from "../../../utils/format";
 // -----------------------------------------------------------------------------
 // Constants
 // -----------------------------------------------------------------------------
-const MIN_DATE_OFFSET_DAYS = 3;
+// We require at least 3 full buffer days of preparation between today and the event.
+// e.g., if today is Tuesday Sept 1, Sept 2, 3, 4 are preparation days, making Saturday Sept 5 (+4 days) the earliest selectable date.
+const MIN_DATE_OFFSET_DAYS = 4;
 
 // Drafts are namespaced per account so signing in as someone else in the same
 // tab can never surface the previous customer's half-filled booking, and are
@@ -289,7 +291,10 @@ export default function BookingWizard() {
   const minDate = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() + MIN_DATE_OFFSET_DAYS);
-    return date.toISOString().split("T")[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }, []);
 
   const municipalities = useMemo(() => getBatangasMunicipalities(), []);

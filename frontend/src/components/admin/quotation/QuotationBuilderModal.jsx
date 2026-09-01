@@ -74,7 +74,7 @@ import { useConfirm } from "../../feedback/confirmContext";
 --------------------------------------------------------------------------- */
 
 const INPUT_BASE =
-  "w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500";
+  "w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:bg-slate-50 disabled:text-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 const inputClass = (hasError) =>
   `${INPUT_BASE} ${hasError ? "border-red-400 bg-red-50/40" : "border-slate-300"}`;
 
@@ -134,7 +134,7 @@ function Field({ label, required, hint, error, htmlFor, children, className = ""
   );
 }
 
-/** A peso input. Keyboard rules block the characters that produce a negative. */
+/** A peso input. Keyboard rules block the characters that produce a negative, and onWheel prevents scrolling changes. */
 function MoneyInput({ id, value, onChange, error, disabled, placeholder, className = "" }) {
   const block = (e) => {
     if (e.key === "-" || e.key === "+" || e.key === "e" || e.key === "E") e.preventDefault();
@@ -153,6 +153,7 @@ function MoneyInput({ id, value, onChange, error, disabled, placeholder, classNa
         disabled={disabled}
         placeholder={placeholder}
         onKeyDown={block}
+        onWheel={(e) => e.target.blur()}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={`${inputClass(error)} pl-7 font-semibold tabular-nums ${className}`}
@@ -268,6 +269,31 @@ const addDays = (days) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return toDateInput(date);
+};
+
+/**
+ * Calculates the maximum allowable quotation expiration date (3 days before the event).
+ */
+const computeMaxValidityDate = (eventDateStr) => {
+  if (!eventDateStr) return null;
+  const date = new Date(eventDateStr);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() - 3);
+  return toDateInput(date);
+};
+
+/**
+ * Calculates the default expiration date, capped at 3 days before the event.
+ */
+const computeDefaultExpiration = (eventDateStr) => {
+  const plus7 = addDays(7);
+  const maxValid = computeMaxValidityDate(eventDateStr);
+  if (!maxValid) return plus7;
+  const today = todayInput();
+  if (maxValid < plus7) {
+    return maxValid < today ? today : maxValid;
+  }
+  return plus7;
 };
 
 /**
@@ -481,6 +507,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const cateringIncluded = !isSetupOnly && details.include_food !== false;
   const packageRecord =
     inquiry?.package_id && typeof inquiry.package_id === "object" ? inquiry.package_id : null;
+
+  // Latest allowable validity date: at least 3 full days before the event
+  const maxValidityDate = useMemo(
+    () => computeMaxValidityDate(details.event_date),
+    [details.event_date]
+  );
 
   /**
    * When the booking came from a Special Offer, what that combo promised.
@@ -793,11 +825,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setDiscounts(latest.discounts ? String(latest.discounts) : "");
           setDepositAmount(latest.deposit_amount ? String(latest.deposit_amount) : "");
           // A revision of a quotation whose validity has already run out gets
-          // a fresh window rather than opening pre-filled with a date the
-          // form will refuse to send.
+          // a fresh window capped to 3 days before the event.
           const storedExpiry = toDateInput(latest.expiration_date);
+          const maxExpiry = computeMaxValidityDate(latest.event_snapshot?.event_date || inquiry?.event_date);
+          const freshExpiry = computeDefaultExpiration(latest.event_snapshot?.event_date || inquiry?.event_date);
           setExpirationDate(
-            storedExpiry && storedExpiry >= todayInput() ? storedExpiry : addDays(7)
+            storedExpiry && storedExpiry >= todayInput()
+              ? (maxExpiry && storedExpiry > maxExpiry ? maxExpiry : storedExpiry)
+              : freshExpiry
           );
           setAdminNotes(latest.admin_notes || "");
           return;
@@ -910,6 +945,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             return { name: String(item || ""), price: "", quantity: 1, note: "", pricing_type: "quantity" };
           })
         );
+
+        setExpirationDate(computeDefaultExpiration(inquiry?.event_date));
       })
       .catch(() => {
         if (active) notify("Failed to load quotation details", "error");
@@ -1239,6 +1276,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         `${totals.guestCount} guests is below this package's minimum of ${capacityMin}.`
       );
     }
+    if (maxValidityDate && maxValidityDate < todayInput()) {
+      notes.push(
+        "This event is scheduled within the 3-day preparation window. Extra kitchen and staging coordination is required."
+      );
+    }
     return notes;
   }, [
     totals,
@@ -1251,6 +1293,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     offerContext,
     unresolvedDishes,
     isFoodOnly,
+    maxValidityDate,
   ]);
 
   const validate = () => {
@@ -1382,13 +1425,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         totals.totalCost
       )}.`;
 
-    if (!expirationDate) found.expiration_date = "Set the date this quotation stops being valid.";
-    // The picker greys out earlier days, but a date can still be typed into
-    // it, and a quotation that expired before it was sent gives the customer
-    // nothing they can accept.
-    else if (expirationDate < today)
+    if (!expirationDate) {
+      found.expiration_date = "Set the date this quotation stops being valid.";
+    } else if (expirationDate < today) {
       found.expiration_date =
         "This quotation would already have expired. Choose today or a later date.";
+    } else if (maxValidityDate && expirationDate > maxValidityDate) {
+      found.expiration_date = `Quotations must expire at least 3 days before the event (latest valid date: ${formatShortDate(
+        maxValidityDate
+      )}) to allow for preparation time.`;
+    }
 
     return found;
   };
@@ -2319,6 +2365,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     type="number"
                     min="1"
                     value={details.guest_count}
+                    onWheel={(e) => e.target.blur()}
                     onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
                     className={`${inputClass(errors.guest_count)} font-semibold tabular-nums`}
                   />
@@ -2884,8 +2931,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                     type="number"
                                     min="0"
                                     value={entry.quantity ?? ""}
+                                    onWheel={(e) => e.target.blur()}
                                     onChange={(e) => handleInclusionQuantity(index, e.target.value)}
-                                    className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
+                                    className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
                                         ? "border-red-400"
                                         : "border-slate-200"
                                       }`}
@@ -3271,8 +3319,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 min="1"
                                 disabled={item.removed}
                                 value={item.quantity}
+                                onWheel={(e) => e.target.blur()}
                                 onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
-                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${
                                   errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
                                 }`}
                               />
@@ -3485,8 +3534,9 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                               min="1"
                               disabled={item.removed}
                               value={item.quantity}
+                              onWheel={(e) => e.target.blur()}
                               onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
-                              className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${
+                              className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${
                                 errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
                               }`}
                             />
@@ -3726,19 +3776,21 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 required
                 error={errors.expiration_date}
                 hint={
-                  expirationDate && expirationDate >= today
+                  maxValidityDate
+                    ? `Must be valid until at latest 3 days before event (${formatShortDate(maxValidityDate)}).`
+                    : expirationDate && expirationDate >= today
                     ? `Selectable from today. ${validityWindow}`
                     : "Selectable from today onward — earlier dates are greyed out in the picker."
                 }
                 htmlFor="qb-expiration_date"
               >
                 {/* `min` is what greys the past out in the native picker;
-                    validate() re-checks it because the field can still be
-                    typed into. */}
+                    `max` prevents setting validity closer than 3 days to event. */}
                 <input
                   id="qb-expiration_date"
                   type="date"
                   min={today}
+                  max={maxValidityDate || undefined}
                   value={expirationDate}
                   onChange={(e) => {
                     setExpirationDate(e.target.value);
@@ -3746,22 +3798,39 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   }}
                   className={inputClass(errors.expiration_date)}
                 />
-                {/* The common validity windows, so the usual answer is one
-                    click rather than a calendar navigation. */}
+                {/* The common validity windows, capped to 3 days before the event. */}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {[7, 14, 30].map((days) => (
+                  {maxValidityDate && (
                     <button
-                      key={days}
                       type="button"
                       onClick={() => {
-                        setExpirationDate(addDays(days));
+                        setExpirationDate(maxValidityDate);
                         clearError("expiration_date");
                       }}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                      className="rounded-md border border-blue-300 bg-blue-50/70 px-2 py-1 text-[11px] font-semibold text-[#4C81E0] transition-colors hover:bg-blue-100"
                     >
-                      {days} days
+                      3 days before event ({formatShortDate(maxValidityDate)})
                     </button>
-                  ))}
+                  )}
+                  {[7, 14, 30].map((days) => {
+                    const targetDate = addDays(days);
+                    const isCapped = maxValidityDate && targetDate > maxValidityDate;
+                    const finalDate = isCapped ? maxValidityDate : targetDate;
+                    if (maxValidityDate && days > 7 && targetDate >= maxValidityDate) return null;
+                    return (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => {
+                          setExpirationDate(finalDate);
+                          clearError("expiration_date");
+                        }}
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                      >
+                        {days} days{isCapped ? " (capped)" : ""}
+                      </button>
+                    );
+                  })}
                 </div>
               </Field>
 

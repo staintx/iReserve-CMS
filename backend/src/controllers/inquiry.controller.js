@@ -1,4 +1,5 @@
 const Inquiry = require("../models/Inquiry");
+const Quotation = require("../models/Quotation");
 const Package = require("../models/Package");
 const BlockedDate = require("../models/BlockedDate");
 const Payment = require("../models/Payment");
@@ -126,6 +127,21 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     }));
   }
 
+  // Validate minimum lead time: require at least 3 full buffer days between today and event date
+  if (payload.event_date) {
+    const parsedDate = new Date(payload.event_date);
+    if (!isNaN(parsedDate.getTime())) {
+      const eventStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+      const now = new Date();
+      const minAllowed = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 4);
+      if (eventStart < minAllowed) {
+        return res.status(400).json({
+          message: "Event date must be at least 3 full days in advance to allow for catering and event preparation."
+        });
+      }
+    }
+  }
+
   // Check if requested date is blocked by admin
   if (payload.event_date) {
     const parsedDate = new Date(payload.event_date);
@@ -194,20 +210,29 @@ exports.getInquiries = asyncHandler(async (req, res) => {
   const inqIds = inquiries.map(i => i._id);
   const convertedBookingIds = inquiries.map(i => i.converted_booking_id).filter(Boolean);
 
-  const [approvedPayments, bookings] = await Promise.all([
+  const [approvedPayments, bookings, quotations] = await Promise.all([
     Payment.find({
       $or: [
         { inquiry_id: { $in: inqIds }, status: "approved" },
         ...(convertedBookingIds.length > 0 ? [{ booking_id: { $in: convertedBookingIds }, status: "approved" }] : [])
       ]
     }).lean(),
-    convertedBookingIds.length > 0 ? Booking.find({ _id: { $in: convertedBookingIds } }).lean() : []
+    convertedBookingIds.length > 0 ? Booking.find({ _id: { $in: convertedBookingIds } }).lean() : [],
+    Quotation.find({ inquiry_id: { $in: inqIds }, status: { $ne: "Draft" } }).sort({ version_number: -1 }).lean(),
   ]);
 
   const approvedInquiryMap = new Map();
   approvedPayments.forEach(p => {
     if (p.inquiry_id) approvedInquiryMap.set(String(p.inquiry_id), p);
     if (p.booking_id) approvedInquiryMap.set(String(p.booking_id), p);
+  });
+
+  const quotationMap = new Map();
+  quotations.forEach(q => {
+    const inqIdStr = String(q.inquiry_id);
+    if (!quotationMap.has(inqIdStr)) {
+      quotationMap.set(inqIdStr, q);
+    }
   });
 
   const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
@@ -220,6 +245,14 @@ exports.getInquiries = asyncHandler(async (req, res) => {
       inquiry.booking_type = inquiry.package_id
         ? bookingTypeForPackage(inquiry.package_id)
         : BOOKING_TYPES.CUSTOM;
+    }
+
+    const latestQuote = quotationMap.get(String(inquiry._id));
+    if (latestQuote) {
+      inquiry.total_price = Number(latestQuote.total_cost) || inquiry.total_price || 0;
+      inquiry.deposit_amount = Number(latestQuote.deposit_amount) || 0;
+      inquiry.quotation_expiration_date = latestQuote.expiration_date || null;
+      inquiry.quotation_status = latestQuote.status || null;
     }
 
     const booking = inquiry.converted_booking_id ? bookingMap.get(String(inquiry.converted_booking_id)) : null;
@@ -278,12 +311,22 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   const inquiryObj = inquiry.toObject();
   inquiryObj.had_package_selection = hadPackageSelection;
 
-  const approvedPayment = await Payment.findOne({
-    $or: [
-      { inquiry_id: inquiry._id, status: "approved" },
-      ...(inquiry.converted_booking_id ? [{ booking_id: inquiry.converted_booking_id, status: "approved" }] : [])
-    ]
-  }).lean();
+  const [approvedPayment, latestQuote] = await Promise.all([
+    Payment.findOne({
+      $or: [
+        { inquiry_id: inquiry._id, status: "approved" },
+        ...(inquiry.converted_booking_id ? [{ booking_id: inquiry.converted_booking_id, status: "approved" }] : [])
+      ]
+    }).lean(),
+    Quotation.findOne({ inquiry_id: inquiry._id, status: { $ne: "Draft" } }).sort({ version_number: -1 }).lean()
+  ]);
+
+  if (latestQuote) {
+    inquiryObj.total_price = Number(latestQuote.total_cost) || inquiryObj.total_price || 0;
+    inquiryObj.deposit_amount = Number(latestQuote.deposit_amount) || 0;
+    inquiryObj.quotation_expiration_date = latestQuote.expiration_date || null;
+    inquiryObj.quotation_status = latestQuote.status || null;
+  }
 
   if (approvedPayment || inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid") {
     inquiryObj.payment_status = inquiry.payment_status === "fully_paid" ? "fully_paid" : "deposit_paid";

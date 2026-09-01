@@ -30,7 +30,8 @@ import {
   UserPlus,
   Truck,
   Sparkles,
-  Layers
+  Layers,
+  AlertTriangle
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -970,6 +971,11 @@ export default function AdminBookingDetails() {
                         Pending Schedule
                       </span>
                     )}
+                    {booking.ocular_visit?.is_required && (
+                      <span className="text-[10px] font-bold font-mono text-rose-700 bg-rose-100/80 px-2 py-0.5 rounded-md border border-rose-200">
+                        Required
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Site inspection schedule, venue layout verification, and measurements for this reservation.
@@ -978,6 +984,27 @@ export default function AdminBookingDetails() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                <Btn
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    AdminAPI.updateBooking(booking._id, { 
+                      ocular_visit: { 
+                        ...(booking.ocular_visit || {}), 
+                        is_required: !booking.ocular_visit?.is_required 
+                      } 
+                    })
+                    .then(() => {
+                      notify(`Ocular visit marked as ${!booking.ocular_visit?.is_required ? "required" : "optional"}`, "success");
+                      loadData();
+                    })
+                    .catch(err => notify(err.response?.data?.message || "Failed to update ocular requirement", "error"));
+                  }}
+                  className={`text-xs ${booking.ocular_visit?.is_required ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {booking.ocular_visit?.is_required ? "Required" : "Mark as Required"}
+                </Btn>
                 <Btn
                   size="sm"
                   variant="secondary"

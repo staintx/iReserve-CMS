@@ -23,6 +23,7 @@ router.put("/:id/inventory", protect, authorize("admin", "staff"), ctrl.assignIn
 router.post("/:id/ocular/schedule", protect, authorize("admin", "staff"), ctrl.scheduleOcular);
 router.post("/:id/ocular/complete", protect, authorize("admin", "staff"), ctrl.completeOcular);
 router.post("/:id/ocular/request", protect, authorize("customer"), ctrl.requestOcular);
+router.post("/:id/ocular/skip", protect, authorize("customer"), ctrl.skipOcular);
 router.post("/:id/request-cancellation", protect, authorize("customer"), ctrl.requestCancellation);
 router.get("/availability", protect, ctrl.checkAvailability);
 router.get("/booked-dates", ctrl.getBookedDates);

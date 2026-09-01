@@ -290,6 +290,7 @@ const BookingSchema = new mongoose.Schema(
     },
 
     ocular_visit: {
+      is_required: { type: Boolean, default: false },
       scheduled_date: Date,
       scheduled_time: String,
       status: {

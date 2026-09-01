@@ -1975,6 +1975,35 @@ exports.requestOcular = asyncHandler(async (req, res) => {
   res.json(booking);
 });
 
+exports.skipOcular = asyncHandler(async (req, res) => {
+  const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id });
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (booking.ocular_visit?.is_required) {
+    return res.status(400).json({ message: "An ocular visit is required for this booking and cannot be skipped." });
+  }
+
+  if (!booking.ocular_visit) booking.ocular_visit = {};
+  booking.ocular_visit.status = "skipped";
+  booking.ocular_visit.outcome = "proceed";
+  booking.ocular_visit.notes = "Skipped by customer.";
+  
+  await booking.save();
+  
+  if (req.user) {
+    await logAction({
+      user_id: req.user._id,
+      action: "ocular_skipped",
+      entity_type: "booking",
+      entity_id: booking._id,
+      details: `Customer skipped the ocular visit.`,
+      ip_address: req.ip,
+    });
+  }
+  
+  res.json(booking);
+});
+
 exports.resolveChangeRequest = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });

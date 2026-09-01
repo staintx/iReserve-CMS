@@ -749,15 +749,36 @@ export default function CustomerEventDashboard() {
                   </Button>
 
                   {needsOcular && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setRequestingOcular(true)}
-                      className="text-xs rounded-md border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium gap-1.5 h-8 px-3"
-                    >
-                      <CalendarRange className="w-3.5 h-3.5 text-amber-600" />
-                      Schedule Ocular
-                    </Button>
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setRequestingOcular(true)}
+                        className="text-xs rounded-md border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium gap-1.5 h-8 px-3"
+                      >
+                        <CalendarRange className="w-3.5 h-3.5 text-amber-600" />
+                        Schedule Ocular
+                      </Button>
+                      {!booking.ocular_visit?.is_required && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                              CustomerAPI.skipOcular(booking._id)
+                                .then(() => {
+                                  notify("Ocular visit skipped successfully.", "success");
+                                  fetchBooking();
+                                })
+                                .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                            }
+                          }}
+                          className="text-xs rounded-md border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium h-8 px-3"
+                        >
+                          Skip Ocular
+                        </Button>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1374,14 +1395,35 @@ export default function CustomerEventDashboard() {
                               Inspect venue layout & setup requirements before your event.
                             </p>
                           </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setRequestingOcular(true)}
-                            className="w-full text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 h-8"
-                          >
-                            Request Ocular Visit
-                          </Button>
+                          <div className="flex flex-col gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setRequestingOcular(true)}
+                              className="w-full text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 h-8"
+                            >
+                              Request Ocular Visit
+                            </Button>
+                            {!booking.ocular_visit?.is_required && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => {
+                                  if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                                    CustomerAPI.skipOcular(booking._id)
+                                      .then(() => {
+                                        notify("Ocular visit skipped successfully.", "success");
+                                        fetchBooking();
+                                      })
+                                      .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                                  }
+                                }}
+                                className="w-full text-[11px] text-slate-500 hover:text-slate-700 h-6"
+                              >
+                                Skip Ocular Visit
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </CardContent>

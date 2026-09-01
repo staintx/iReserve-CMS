@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
@@ -110,6 +110,8 @@ export default function CustomerInquiries() {
     fetchInquiries();
   }, []);
 
+  const verifyingPaymentRef = useRef(new Set());
+
   // Automatic real-time confirmation on return from PayMongo checkout
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -117,22 +119,31 @@ export default function CustomerInquiries() {
     const paymentId = params.get("payment_id");
 
     if (paymentStatus === "success" && paymentId) {
+      if (verifyingPaymentRef.current.has(paymentId)) return;
+      verifyingPaymentRef.current.add(paymentId);
+
+      const toastId = `payment-verify-${paymentId}`;
       const verify = async () => {
         try {
-          notify("Confirming your payment with the payment gateway...", "info");
+          notify("Confirming your payment with the payment gateway...", "info", { id: toastId });
           await CustomerAPI.verifyPayment(paymentId);
-          notify("Deposit payment confirmed in real time! Your booking is locked.", "success");
+          notify("Deposit payment confirmed in real time! Your booking is locked.", "success", { id: toastId });
           fetchInquiries();
         } catch (err) {
           console.error("Payment auto-verification error:", err);
+          notify(err.response?.data?.message || "Failed to confirm payment with gateway.", "error", { id: toastId });
           fetchInquiries();
         }
       };
       verify();
       navigate(location.pathname, { replace: true });
     } else if (paymentStatus === "cancelled") {
-      notify("Payment checkout was cancelled.", "warning");
-      navigate(location.pathname, { replace: true });
+      const cancelKey = `cancelled_${location.search}`;
+      if (!verifyingPaymentRef.current.has(cancelKey)) {
+        verifyingPaymentRef.current.add(cancelKey);
+        notify("Payment checkout was cancelled.", "warning", { id: "payment-cancelled" });
+        navigate(location.pathname, { replace: true });
+      }
     }
   }, [location.search]);
 

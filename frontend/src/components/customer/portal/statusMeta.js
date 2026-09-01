@@ -35,6 +35,21 @@ export const serviceIcon = (serviceType) => {
   return PartyPopper;
 };
 
+/** Helpers for service type differentiation */
+export const isFoodOnly = (serviceType) => {
+  const norm = String(serviceType || "").trim().toLowerCase();
+  return norm === "food only" || norm === "food";
+};
+
+export const isSetupOnly = (serviceType) => {
+  const norm = String(serviceType || "").trim().toLowerCase();
+  return norm === "event setup only" || norm === "setup only" || norm === "setup";
+};
+
+export const isOcularRequired = (serviceType) => !isFoodOnly(serviceType);
+export const isCoordinatorRequired = (serviceType) => !isFoodOnly(serviceType);
+export const isMenuRequired = (serviceType) => !isSetupOnly(serviceType);
+
 /** Friendly label for the event itself, e.g. "Sarah's Birthday", "John & Maria's Wedding", or "Glenn's Wedding". */
 export const recordTitle = (record) => {
   const eventName = record?.event_type === "Other" ? record?.event_type_other : record?.event_type;

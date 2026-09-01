@@ -71,9 +71,9 @@ export default function CustomerInquiryDetailModal({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 rounded-md overflow-hidden bg-white border border-slate-200 shadow-xl">
         {/* Header Bar */}
-        <div className="p-4 sm:p-5 pr-12 border-b border-slate-200 bg-slate-50/80 shrink-0 space-y-3">
+        <div className="p-4 sm:p-5 pr-14 border-b border-slate-200 bg-slate-50/80 shrink-0 space-y-3">
           {/* Top metadata row */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap pr-8">
             <span className="font-mono text-xs font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
               {refCode}
             </span>
@@ -89,7 +89,7 @@ export default function CustomerInquiryDetailModal({
             >
               {status.label}
             </span>
-            <span className="text-xs text-slate-400 ml-auto">
+            <span className="text-xs text-slate-400 ml-auto mr-1">
               Submitted {data?.createdAt ? formatShortDate(data.createdAt) : "Recently"}
             </span>
           </div>
@@ -142,13 +142,27 @@ export default function CustomerInquiryDetailModal({
                 <div className="space-y-4">
                   {/* Status Banner */}
                   {isQuotationReady && (
-                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-md flex items-center justify-between gap-3 text-emerald-900 shadow-2xs">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>A quotation has been prepared for <strong>{data?.total_price ? formatCurrency(data.total_price) : "this event"}</strong>.</span>
+                    <div className="p-3.5 sm:p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-emerald-900 shadow-2xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-1.5 bg-emerald-600 text-white rounded-md shrink-0">
+                          <CheckCircle2 size={15} />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-emerald-950 text-xs sm:text-sm leading-tight">
+                            Quotation Ready
+                          </h4>
+                          <p className="text-[11px] text-emerald-700 mt-0.5">
+                            A quotation has been prepared for{" "}
+                            <strong>{data?.total_price > 0 ? formatCurrency(data.total_price) : "this event"}</strong>.
+                          </p>
+                        </div>
                       </div>
                       {onOpenQuote && (
-                        <Button size="xs" onClick={() => onOpenQuote(data)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded cursor-pointer shadow-2xs">
+                        <Button
+                          size="sm"
+                          onClick={() => onOpenQuote(data)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-3.5 rounded-md cursor-pointer shadow-xs shrink-0"
+                        >
                           View Quote
                         </Button>
                       )}
@@ -202,7 +216,11 @@ export default function CustomerInquiryDetailModal({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Event Theme</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">{data?.event_theme || "Standard Event Styling"}</span>
+                        <span className="font-semibold text-slate-900 block mt-0.5">
+                          {serviceType === "Food Only" && !data?.event_theme
+                            ? "N/A (Food Only Service)"
+                            : data?.event_theme || "Standard Event Styling"}
+                        </span>
                       </div>
                       <div>
                         <span className="text-[11px] text-slate-400 block font-medium">Color Palette</span>
@@ -215,7 +233,9 @@ export default function CustomerInquiryDetailModal({
                             ))}
                           </div>
                         ) : (
-                          <span className="text-slate-700 font-semibold block mt-0.5">Standard Palette</span>
+                          <span className="text-slate-700 font-semibold block mt-0.5">
+                            {serviceType === "Food Only" ? "N/A" : "Standard Palette"}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -351,9 +371,9 @@ export default function CustomerInquiryDetailModal({
                         <span className="font-semibold text-slate-900 block mt-0.5">{data?.budget_range || "Flexible / Not specified"}</span>
                       </div>
                       <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Official Quoted Total</span>
+                        <span className="text-[11px] text-slate-400 block font-medium">Quoted Total</span>
                         <span className="font-bold text-sm text-[#2C4B8A] block mt-0.5">
-                          {data?.total_price ? formatCurrency(data.total_price) : "Quotation in preparation"}
+                          {data?.total_price > 0 ? formatCurrency(data.total_price) : "Quotation in preparation"}
                         </span>
                       </div>
                     </div>

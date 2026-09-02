@@ -406,7 +406,7 @@ export function QtyStepper({ value = 0, onDecrease, onIncrease, label = "quantit
 /**
  * Guest count counter. Clean, responsive, high-density.
  */
-export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
+export function GuestCounter({ value, onChange, min = 1, max = 300 }) {
   const numeric = Number(value) || 0;
   const [draft, setDraft] = React.useState(String(value ?? ""));
   const [focused, setFocused] = React.useState(false);
@@ -437,9 +437,17 @@ export function GuestCounter({ value, onChange, min = 1, max = 1000 }) {
   );
 
   // Round numbers inside the allowed range, so the common cases are one tap.
-  const presets = [25, 50, 100, 150, 200, 300].filter(
-    (n) => n >= min && n <= max,
-  );
+  const basePresets = [25, 50, 60, 75, 80, 100, 150, 200, 250, 300];
+  let presets = basePresets.filter((n) => n >= min && n <= max);
+  if (presets.length <= 1 && max > min) {
+    const stepSize = Math.max(10, Math.round((max - min) / 4 / 10) * 10 || 10);
+    const generated = [];
+    for (let val = min; val <= max; val += stepSize) {
+      generated.push(val);
+    }
+    if (!generated.includes(max)) generated.push(max);
+    presets = generated;
+  }
 
   return (
     <div>

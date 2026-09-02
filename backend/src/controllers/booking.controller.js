@@ -1435,62 +1435,178 @@ exports.verifyReturns = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-  const { returns } = req.body;
-  if (!Array.isArray(returns)) {
-    return res.status(400).json({ message: "Returns data must be an array" });
-  }
-
-  const currentReturns = booking.equipment_returns || [];
+  const { returns, damage_fee, damage_reason, mark_clean, additional_notes } = req.body;
   const Inventory = require("../models/Inventory");
+  const currentReturns = booking.equipment_returns || [];
+  const inventoryItems = booking.inventory_items || [];
 
-  for (const returnData of returns) {
-    const { inventory_id, quantity_returned } = returnData;
-
-    let existingRecord = currentReturns.find(
-      (r) => r.inventory_id && r.inventory_id.toString() === inventory_id,
-    );
-
-    if (!existingRecord) {
-      const bookedItem = (booking.inventory_items || []).find(
-        (i) => i.inventory_id && i.inventory_id.toString() === inventory_id,
+  if (mark_clean) {
+    // 1-Click Clean Return: Mark 100% of booked items as returned in perfect condition
+    for (const item of inventoryItems) {
+      if (!item.inventory_id) continue;
+      const invIdStr = String(item.inventory_id._id || item.inventory_id);
+      let existingRecord = currentReturns.find(
+        (r) => String(r.inventory_id?._id || r.inventory_id) === invIdStr,
       );
-      if (bookedItem) {
+
+      const bookedQty = Number(item.quantity || 1);
+      const oldReturned = Number(existingRecord?.quantity_returned || 0);
+      const delta = bookedQty - oldReturned;
+
+      if (!existingRecord) {
         existingRecord = {
-          inventory_id: bookedItem.inventory_id,
-          name: bookedItem.name,
-          quantity_booked: bookedItem.quantity,
-          quantity_returned: 0,
+          inventory_id: item.inventory_id,
+          name: item.name || "Equipment Item",
+          quantity_booked: bookedQty,
+          quantity_returned: bookedQty,
+          quantity_damaged: 0,
+          notes: "Returned in good condition",
+          verified_at: new Date(),
+          verified_by: req.user._id,
         };
         currentReturns.push(existingRecord);
+      } else {
+        existingRecord.quantity_returned = bookedQty;
+        existingRecord.quantity_damaged = 0;
+        existingRecord.notes = "Returned in good condition";
+        existingRecord.verified_at = new Date();
+        existingRecord.verified_by = req.user._id;
+      }
+
+      if (delta > 0) {
+        const invItem = await Inventory.findById(item.inventory_id);
+        if (invItem) {
+          invItem.quantity = (invItem.quantity || 0) + delta;
+          await invItem.save();
+          writeInventoryLog({
+            inventory_id: item.inventory_id,
+            event_type: "reservation_released",
+            delta,
+            booking_id: booking._id,
+            reason: `Clean return verified for booking #${booking.reference || booking._id}`,
+          });
+        }
       }
     }
 
-    if (existingRecord) {
-      const oldReturned = existingRecord.quantity_returned || 0;
-      const newReturned = Number(quantity_returned) || 0;
+    booking.equipment_returns = currentReturns;
+    booking.equipment_manager_verified = {
+      confirmed: true,
+      confirmed_by: req.user._id,
+      confirmed_at: new Date(),
+      additional_notes: additional_notes || "All equipment verified returned in good condition.",
+    };
+  } else if (Array.isArray(returns)) {
+    // Item-by-item verification
+    for (const returnData of returns) {
+      const { inventory_id, quantity_returned, quantity_damaged, notes } = returnData;
+      if (!inventory_id) continue;
+      const invIdStr = String(inventory_id._id || inventory_id);
 
-      let delta = 0;
-      if (!existingRecord.verified_at) {
-        delta = newReturned - (existingRecord.quantity_booked || 0);
-      } else {
-        delta = newReturned - oldReturned;
+      let existingRecord = currentReturns.find(
+        (r) => String(r.inventory_id?._id || r.inventory_id) === invIdStr,
+      );
+
+      const bookedItem = inventoryItems.find(
+        (i) => String(i.inventory_id?._id || i.inventory_id) === invIdStr,
+      );
+      const bookedQty = Number(bookedItem?.quantity || existingRecord?.quantity_booked || 1);
+
+      if (!existingRecord) {
+        existingRecord = {
+          inventory_id,
+          name: bookedItem?.name || "Equipment Item",
+          quantity_booked: bookedQty,
+          quantity_returned: 0,
+          quantity_damaged: 0,
+          notes: "",
+        };
+        currentReturns.push(existingRecord);
       }
+
+      const oldReturned = Number(existingRecord.quantity_returned || 0);
+      const newReturned = Math.max(0, Number(quantity_returned || 0));
+      const newDamaged = Math.max(0, Number(quantity_damaged || 0));
+      const delta = newReturned - oldReturned;
 
       if (delta !== 0) {
         const invItem = await Inventory.findById(inventory_id);
         if (invItem) {
           invItem.quantity = Math.max(0, (invItem.quantity || 0) + delta);
           await invItem.save();
+          writeInventoryLog({
+            inventory_id,
+            event_type: delta > 0 ? "reservation_released" : "adjustment",
+            delta,
+            booking_id: booking._id,
+            reason: `Return verification for booking #${booking.reference || booking._id}`,
+          });
         }
       }
 
+      if (newDamaged > 0) {
+        writeInventoryLog({
+          inventory_id,
+          event_type: "damage_loss",
+          delta: -newDamaged,
+          booking_id: booking._id,
+          reason: `Equipment damage logged (${newDamaged} units): ${notes || "Damaged during event"}`,
+        });
+      }
+
       existingRecord.quantity_returned = newReturned;
+      existingRecord.quantity_damaged = newDamaged;
+      existingRecord.notes = notes || "";
       existingRecord.verified_at = new Date();
       existingRecord.verified_by = req.user._id;
     }
+
+    booking.equipment_returns = currentReturns;
+    booking.equipment_manager_verified = {
+      confirmed: true,
+      confirmed_by: req.user._id,
+      confirmed_at: new Date(),
+      additional_notes: additional_notes || "Equipment return inspection completed.",
+    };
   }
 
-  booking.equipment_returns = currentReturns;
+  // Process Damage Fee if assessed
+  const numDamageFee = Number(damage_fee);
+  if (numDamageFee > 0) {
+    const chargeName = damage_reason && damage_reason.trim()
+      ? `Equipment Damage / Loss Charge: ${damage_reason.trim()}`
+      : "Equipment Damage & Loss Assessment Fee";
+
+    if (!booking.additional_charges) booking.additional_charges = [];
+    booking.additional_charges.push({
+      name: chargeName,
+      amount: numDamageFee,
+    });
+
+    booking.total_price = (Number(booking.total_price) || 0) + numDamageFee;
+
+    // Check payment status: if previously fully paid, set to deposit_paid because balance is now owed
+    if (booking.payment_status === "fully_paid") {
+      booking.payment_status = "deposit_paid";
+    }
+
+    // Send Realtime & In-App Notification to customer
+    const io = req.app.get("io");
+    if (booking.customer_id) {
+      await createNotification(
+        {
+          userId: booking.customer_id,
+          title: "Equipment Damage Fee Applied",
+          body: `An equipment damage fee of ₱${numDamageFee.toLocaleString()} was charged to booking #${booking.reference || booking._id}. Reason: ${damage_reason || "Equipment damage inspection"}.`,
+          type: "warning",
+          link: `/customer/bookings/${booking._id}`,
+          meta: { booking_id: booking._id, damage_fee: numDamageFee },
+        },
+        io,
+      );
+    }
+  }
+
   await booking.save();
 
   await logAction({
@@ -1498,9 +1614,14 @@ exports.verifyReturns = asyncHandler(async (req, res) => {
     action: "booking_returns_verified",
     entity_type: "booking",
     entity_id: booking._id,
-    details: `Verified equipment returns for booking #${booking._id}`,
+    details: `Verified equipment returns${numDamageFee > 0 ? ` with ₱${numDamageFee} damage fee charged` : ""}`,
     ip_address: req.ip,
   });
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "booking", action: "returns_verified", booking_id: booking._id });
+  }
 
   res.json(booking);
 });
@@ -1912,67 +2033,6 @@ exports.getAvailableTimes = asyncHandler(async (req, res) => {
   });
 
   res.json(results);
-});
-
-exports.scheduleOcular = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id);
-  if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-  if (!booking.ocular_visit) booking.ocular_visit = {};
-  booking.ocular_visit.scheduled_date = req.body.scheduled_date;
-  booking.ocular_visit.scheduled_time = req.body.scheduled_time;
-  booking.ocular_visit.status = "scheduled";
-
-  await booking.save();
-  
-  if (req.user) {
-    await logAction({
-      user_id: req.user._id,
-      action: "ocular_scheduled",
-      entity_type: "booking",
-      entity_id: booking._id,
-      details: `Ocular visit scheduled for ${new Date(req.body.scheduled_date).toLocaleDateString()} at ${req.body.scheduled_time}`,
-      ip_address: req.ip,
-    });
-  }
-
-  res.json(booking);
-});
-
-
-
-exports.requestOcular = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({ _id: req.params.id, customer_id: req.user._id });
-  if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-  if (!booking.ocular_visit) booking.ocular_visit = {};
-  booking.ocular_visit.scheduled_date = req.body.scheduled_date;
-  booking.ocular_visit.scheduled_time = req.body.scheduled_time;
-  booking.ocular_visit.status = "requested";
-  
-  await booking.save();
-  
-  if (req.user) {
-    await logAction({
-      user_id: req.user._id,
-      action: "ocular_requested",
-      entity_type: "booking",
-      entity_id: booking._id,
-      details: `Customer requested ocular visit for ${new Date(req.body.scheduled_date).toLocaleDateString()} at ${req.body.scheduled_time}`,
-      ip_address: req.ip,
-    });
-  }
-  
-  const io = req.app.get("io");
-  await notifyAdmins({
-    title: "New Ocular Request",
-    body: `Customer requested an ocular visit for booking ${booking.reference || booking._id}.`,
-    type: "info",
-    link: `/admin/ocular-visits`,
-    meta: { booking_id: booking._id }
-  }, io);
-
-  res.json(booking);
 });
 
 exports.skipOcular = asyncHandler(async (req, res) => {
@@ -2740,16 +2800,24 @@ exports.executeInquiryConversion = async ({
   if (inventoryItems.length > 0) {
     const InventoryReservation = require("../models/InventoryReservation");
     const reservations = inventoryItems
-      .filter(item => item.inventory_id)
-      .map(item => ({
+      .filter((item) => item.inventory_id)
+      .map((item) => ({
         booking_id: newBooking._id,
         inventory_id: item.inventory_id,
-        quantity_reserved: item.quantity,
+        quantity: Number(item.quantity || 1),
         event_date: newBooking.event_date,
-        status: "reserved"
       }));
     if (reservations.length > 0) {
       await InventoryReservation.insertMany(reservations);
+      reservations.forEach((r) =>
+        writeInventoryLog({
+          inventory_id: r.inventory_id,
+          event_type: "reservation_allocated",
+          delta: -r.quantity,
+          booking_id: newBooking._id,
+          reason: `Equipment allocated upon converting inquiry ${inquiry.reference || inquiry._id} to booking ${newBooking.reference || newBooking._id}`,
+        }),
+      );
     }
   }
 

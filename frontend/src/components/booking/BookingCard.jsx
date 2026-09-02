@@ -27,6 +27,7 @@ import {
   CreditCard,
   XCircle,
   UserPlus,
+  Star,
 } from "lucide-react";
 
 export default function BookingCard({
@@ -148,6 +149,16 @@ export default function BookingCard({
       return (
         <Button onClick={() => startPayment(booking, true)} className={cn("w-full sm:w-auto", ACTION_PAY)}>
           <CreditCard className="h-4 w-4" /> Pay Remaining Balance
+        </Button>
+      );
+    }
+    if (["completed", "event completed"].includes(rawStatus)) {
+      return (
+        <Button
+          onClick={() => navigate(`/customer/bookings/${booking._id}`)}
+          className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-1.5 shadow-2xs"
+        >
+          <Star className="h-4 w-4 fill-slate-950 text-slate-950" /> Rate & Review Event
         </Button>
       );
     }

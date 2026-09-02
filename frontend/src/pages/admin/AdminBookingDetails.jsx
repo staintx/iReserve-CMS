@@ -38,6 +38,7 @@ import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import AssignEquipmentModal from "../../components/admin/ui/AssignEquipmentModal";
+import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipmentReturnsModal";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
@@ -65,6 +66,7 @@ export default function AdminBookingDetails() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+  const [showVerifyReturnsModal, setShowVerifyReturnsModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [sourceQuotation, setSourceQuotation] = useState(null);
 
@@ -538,6 +540,17 @@ export default function AdminBookingDetails() {
     }
   };
 
+  const handleMarkCompleted = async () => {
+    if (!window.confirm("Are you sure you want to mark this event as Completed? This will finalize the event and allow the customer to leave a review.")) return;
+    try {
+      await AdminAPI.markBookingCompleted(booking._id);
+      notify("Event marked as Completed successfully!", "success");
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to mark event as completed.", "error");
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6 bg-background min-h-screen">
@@ -576,6 +589,12 @@ export default function AdminBookingDetails() {
             {["pending deposit", "Deposit Pending"].includes(booking.status) && (
               <Btn size="sm" variant="primary" onClick={handleApprove}>
                 <Check size={13} /> Confirm & Approve Booking
+              </Btn>
+            )}
+
+            {["confirmed", "Confirmed", "preparing", "Ready for Event", "ready for event", "ongoing"].includes(booking.status) && (
+              <Btn size="sm" variant="primary" onClick={handleMarkCompleted} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-2xs gap-1.5">
+                <CheckCircle2 size={13} /> Mark as Completed
               </Btn>
             )}
 
@@ -1251,10 +1270,35 @@ export default function AdminBookingDetails() {
               </p>
             </div>
             
-            <Btn size="sm" variant="primary" onClick={() => setShowEquipmentModal(true)}>
-              <PackagePlus size={14} /> {booking.inventory_items && booking.inventory_items.length > 0 ? "Manage / Edit Equipment" : "Assign Equipment"}
-            </Btn>
+            <div className="flex items-center gap-2 flex-wrap">
+              {booking.inventory_items && booking.inventory_items.length > 0 && (
+                <Btn
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setShowVerifyReturnsModal(true)}
+                  className="border-emerald-300 text-emerald-800 bg-emerald-50/50 hover:bg-emerald-100 font-semibold gap-1.5 shadow-2xs"
+                >
+                  <PackageCheck size={14} className="text-emerald-700" /> Verify Returns & Condition
+                </Btn>
+              )}
+              <Btn size="sm" variant="primary" onClick={() => setShowEquipmentModal(true)}>
+                <PackagePlus size={14} /> {booking.inventory_items && booking.inventory_items.length > 0 ? "Manage / Edit Equipment" : "Assign Equipment"}
+              </Btn>
+            </div>
           </div>
+
+          {booking.equipment_manager_verified?.confirmed && (
+            <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-md text-xs text-emerald-950 flex items-start gap-2.5 shadow-2xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Equipment Returns Verified Clean:</span> Confirmed
+                {booking.equipment_manager_verified.confirmed_at ? ` on ${new Date(booking.equipment_manager_verified.confirmed_at).toLocaleDateString()}` : ""}.
+                {booking.equipment_manager_verified.additional_notes && (
+                  <p className="text-emerald-800 mt-0.5 italic">"{booking.equipment_manager_verified.additional_notes}"</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {booking.inventory_items && booking.inventory_items.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
@@ -1280,7 +1324,11 @@ export default function AdminBookingDetails() {
 
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                       <span>Status:</span>
-                      {returnRecord?.verified_at ? (
+                      {returnRecord?.quantity_damaged > 0 ? (
+                        <span className="text-rose-700 font-bold flex items-center gap-1">
+                          <AlertTriangle size={12} className="text-rose-600" /> Damaged ({returnRecord.quantity_damaged}/{qty})
+                        </span>
+                      ) : returnRecord?.verified_at ? (
                         <span className="text-emerald-700 font-semibold flex items-center gap-1">
                           <PackageCheck size={12} /> Returned ({returnRecord.quantity_returned}/{qty})
                         </span>
@@ -1318,6 +1366,14 @@ export default function AdminBookingDetails() {
           booking={booking}
           open={showEquipmentModal}
           onClose={() => setShowEquipmentModal(false)}
+          onSave={loadData}
+        />
+
+        {/* Modal: Equipment Return & Damage Verification */}
+        <VerifyEquipmentReturnsModal
+          booking={booking}
+          open={showVerifyReturnsModal}
+          onClose={() => setShowVerifyReturnsModal(false)}
           onSave={loadData}
         />
 

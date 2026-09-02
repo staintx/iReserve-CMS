@@ -4,8 +4,9 @@ const { protect } = require("../middleware/auth.middleware");
 
 router.post("/", protect, ctrl.create);
 router.get("/public", ctrl.getPublic);
+router.get("/booking/:bookingId", protect, ctrl.getByBooking);
 router.get("/", protect, ctrl.getAll);
 router.get("/:id", protect, ctrl.getById);
 router.delete("/:id", protect, ctrl.remove);
 
-module.exports = router;
+module.exports = router;

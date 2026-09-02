@@ -31,7 +31,9 @@ import {
   ChevronRight,
   History,
   FileText,
-  Truck
+  Truck,
+  Star,
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -131,6 +133,18 @@ export default function CustomerEventDashboard() {
 
   const [isAcceptingQuote, setIsAcceptingQuote] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
+
+  // Rating & Review State
+  const [bookingRating, setBookingRating] = useState(null);
+  const [loadingRating, setLoadingRating] = useState(false);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [ratingHoverStars, setRatingHoverStars] = useState(0);
+  const [ratingReview, setRatingReview] = useState("");
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
+  // Cancellation Request State
+  const [requestingCancellation, setRequestingCancellation] = useState(false);
+  const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
 
   const handleAcceptRevision = async () => {
     try {
@@ -290,12 +304,65 @@ export default function CustomerEventDashboard() {
     }
   };
 
+  const fetchBookingRating = async (bId) => {
+    try {
+      setLoadingRating(true);
+      const res = await CustomerAPI.getRatingByBooking(bId);
+      setBookingRating(res.data || null);
+      if (res.data?.stars) setRatingStars(res.data.stars);
+      if (res.data?.review) setRatingReview(res.data.review);
+    } catch {
+      setBookingRating(null);
+    } finally {
+      setLoadingRating(false);
+    }
+  };
+
+  const submitCustomerRating = async (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    if (!booking?._id) return;
+    try {
+      setIsSubmittingRating(true);
+      const res = await CustomerAPI.submitRating({
+        booking_id: booking._id,
+        stars: ratingStars,
+        review: ratingReview.trim(),
+      });
+      setBookingRating(res.data);
+      notify("Thank you! Your event rating and review has been submitted.", "success");
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to submit review.", "error");
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
+
+  const submitCancellationRequest = async () => {
+    if (!booking?._id) return;
+    try {
+      setIsSubmittingCancellation(true);
+      await CustomerAPI.requestCancellation(booking._id);
+      notify("Cancellation request submitted to management for review.", "success");
+      setRequestingCancellation(false);
+      fetchBooking();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to submit cancellation request.", "error");
+    } finally {
+      setIsSubmittingCancellation(false);
+    }
+  };
+
   const fetchBooking = () => {
     CustomerAPI.getBookings()
       .then((res) => {
         const found = res.data.find(b => b._id === id);
         setBooking(found || null);
-        if (found) fetchSourceQuotation(found);
+        if (found) {
+          fetchSourceQuotation(found);
+          if (["completed", "Completed", "event completed"].includes(found.status)) {
+            fetchBookingRating(found._id);
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -780,6 +847,16 @@ export default function CustomerEventDashboard() {
                       )}
                     </>
                   )}
+
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setRequestingCancellation(true)}
+                    className="text-xs rounded-md border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-medium gap-1.5 h-8 px-3"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                    Request Cancellation
+                  </Button>
                 </>
               )}
             </div>
@@ -834,6 +911,84 @@ export default function CustomerEventDashboard() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Rating & Review Section for Completed Events */}
+        {["completed", "Completed", "event completed"].includes(rawStatus) && (
+          <Card className="border-amber-200/80 bg-gradient-to-r from-amber-50/60 to-orange-50/40 rounded-lg shadow-2xs">
+            <CardHeader className="py-3.5 px-4 sm:px-5 border-b border-amber-200/60">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-600" />
+                  {bookingRating ? "Your Event Rating & Review" : "Rate & Review Your Event Experience"}
+                </CardTitle>
+                {bookingRating && (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[11px] font-semibold">
+                    <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" /> Submitted
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="text-xs text-amber-900/80">
+                {bookingRating 
+                  ? "Thank you for sharing your feedback with our catering and styling team!" 
+                  : "We hope your event was a success! Please rate the food, styling, and staff service."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5">
+              <form onSubmit={submitCustomerRating} className="space-y-3.5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-700">Overall Rating:</span>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const filled = (ratingHoverStars || ratingStars) >= star;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setRatingStars(star)}
+                          onMouseEnter={() => setRatingHoverStars(star)}
+                          onMouseLeave={() => setRatingHoverStars(0)}
+                          className="p-1 text-amber-500 hover:scale-110 transition-transform cursor-pointer focus:outline-none"
+                          aria-label={`${star} star`}
+                        >
+                          <Star
+                            className={`w-5 h-5 sm:w-6 sm:h-6 ${filled ? "fill-amber-400 text-amber-500" : "text-slate-300"}`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="text-xs font-bold text-amber-900 ml-1">
+                    {ratingStars} of 5 Stars
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block" htmlFor="customer-rating-feedback">
+                    Your Review & Comments
+                  </label>
+                  <textarea
+                    id="customer-rating-feedback"
+                    rows={3}
+                    value={ratingReview}
+                    onChange={(e) => setRatingReview(e.target.value)}
+                    placeholder="Share your thoughts on the food quality, taste, event setup, coordination, and team service..."
+                    className="flex w-full rounded-md border border-input bg-white px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="submit"
+                    disabled={isSubmittingRating}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-4 rounded-md shadow-2xs gap-1.5 cursor-pointer"
+                  >
+                    {isSubmittingRating ? "Submitting..." : bookingRating ? "Update Review" : "Submit Rating & Review"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
         {/* Main Tabbed Interface */}
@@ -1690,6 +1845,47 @@ export default function CustomerEventDashboard() {
           eventTitle={booking?.event_type || "Event Venue Inspection"}
         />
       )}
+
+      {/* Request Cancellation Dialog */}
+      <Dialog open={requestingCancellation} onOpenChange={setRequestingCancellation}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-1">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <DialogTitle>Request Booking Cancellation?</DialogTitle>
+            <DialogDescription className="pt-1.5 text-xs leading-relaxed text-slate-600">
+              This will send a formal cancellation request to our catering management team. Any refundable amount will be calculated and processed in accordance with our event booking terms.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 space-y-1 my-2">
+            <div className="font-semibold text-slate-900">Reference: {refCode}</div>
+            <div>Event: {booking?.event_type || "Catering"} on {booking?.event_date ? new Date(booking.event_date).toLocaleDateString() : "TBD"}</div>
+            <div>Amount Paid: {formatCurrency(displayPaid)}</div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRequestingCancellation(false)}
+              disabled={isSubmittingCancellation}
+              className="text-xs h-8 px-3"
+            >
+              Keep Booking
+            </Button>
+            <Button
+              type="button"
+              onClick={submitCancellationRequest}
+              disabled={isSubmittingCancellation}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs h-8 px-4 rounded-md gap-1.5 cursor-pointer"
+            >
+              {isSubmittingCancellation ? "Submitting..." : "Confirm Cancellation Request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </CustomerDashboardLayout>
   );

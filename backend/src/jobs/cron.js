@@ -5,6 +5,17 @@ const { notifyAdmins, createNotification } = require('../utils/notify');
 const { createCheckoutSession } = require('../services/payment.service');
 const { sendFinalInvoiceEmail } = require('../utils/booking-emails');
 
+const ACTIVE_UPCOMING_STATUSES = [
+    "confirmed",
+    "Confirmed",
+    "preparing",
+    "Ready for Event",
+    "ready for event",
+    "Deposit Pending",
+    "deposit pending",
+    "deposit_paid"
+];
+
 const startCronJobs = (io) => {
     // Run every day at midnight — 3-day final invoicing + upcoming event notifications
     cron.schedule('0 0 * * *', async () => {
@@ -19,7 +30,7 @@ const startCronJobs = (io) => {
 
             const upcomingBookings = await Booking.find({
                 event_date: { $gte: inThreeDaysStart, $lte: inThreeDaysEnd },
-                status: { $in: ["confirmed", "preparing"] }
+                status: { $in: ACTIVE_UPCOMING_STATUSES }
             }).populate("customer_id");
 
             let count = 0;
@@ -33,7 +44,7 @@ const startCronJobs = (io) => {
                 // 1. Notify Admins
                 await notifyAdmins({
                     title: "Upcoming Event",
-                    body: `An event is coming up in 3 days on ${inThreeDaysStart.toLocaleDateString()}.`,
+                    body: `An event (${booking.event_type || "Event"}) is coming up in 3 days on ${inThreeDaysStart.toLocaleDateString()}.`,
                     type: "info",
                     link: "/admin/bookings",
                     meta: { booking_id: booking._id }
@@ -42,8 +53,8 @@ const startCronJobs = (io) => {
                 // 2. Generate Final Invoice if not fully paid
                 if (booking.payment_status !== "fully_paid") {
                     const payments = await Payment.find({ booking_id: booking._id, status: "approved" });
-                    const amountPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-                    const balance = booking.total_price - amountPaid;
+                    const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                    const balance = (Number(booking.total_price) || 0) - amountPaid;
 
                     if (balance > 0) {
                         const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -56,11 +67,12 @@ const startCronJobs = (io) => {
                             status: "pending",
                             gateway: "paymongo"
                         }).sort({ updatedAt: -1 });
+
                         if (payment) {
                             payment.amount = balance;
                             payment.customer_id = booking.customer_id?._id || booking.customer_id;
                             await payment.save();
-
+                        } else {
                             payment = await Payment.create({
                                 booking_id: booking._id,
                                 customer_id: booking.customer_id?._id || booking.customer_id,
@@ -143,14 +155,14 @@ const startCronJobs = (io) => {
 
                 const unpaidBookings = await Booking.find({
                     event_date: { $gte: targetStart, $lte: targetEnd },
-                    status: { $in: ["confirmed", "preparing"] },
+                    status: { $in: ACTIVE_UPCOMING_STATUSES },
                     payment_status: { $ne: "fully_paid" }
                 }).populate("customer_id");
 
                 for (const booking of unpaidBookings) {
                     const payments = await Payment.find({ booking_id: booking._id, status: "approved" });
-                    const amountPaid = payments.reduce((sum, p) => sum + p.amount, 0);
-                    const balance = booking.total_price - amountPaid;
+                    const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                    const balance = (Number(booking.total_price) || 0) - amountPaid;
 
                     if (balance > 0) {
                         const customerId = booking.customer_id?._id || booking.customer_id;
@@ -196,7 +208,7 @@ const startCronJobs = (io) => {
 
             // Events happening today → ongoing
             const todayResult = await Booking.updateMany(
-                { event_date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ["confirmed", "preparing"] } },
+                { event_date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ACTIVE_UPCOMING_STATUSES } },
                 { $set: { status: "ongoing" } }
             );
 
@@ -211,7 +223,7 @@ const startCronJobs = (io) => {
             yesterdayEnd.setHours(23, 59, 59, 999);
 
             const yesterdayResult = await Booking.updateMany(
-                { event_date: { $gte: yesterdayStart, $lte: yesterdayEnd }, status: "ongoing" },
+                { event_date: { $gte: yesterdayStart, $lte: yesterdayEnd }, status: { $in: ["ongoing", "Ready for Event", "ready for event", "confirmed", "Confirmed", "preparing"] } },
                 { $set: { status: "completed", completed_at: new Date() } }
             );
 

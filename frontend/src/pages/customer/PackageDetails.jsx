@@ -134,7 +134,7 @@ export default function PackageDetails() {
           : data.setup_price || perGuestPrice(data) || 0,
         // A combo allows flexible guest count input starting from 1 or min pax
         guestMin: offer ? data.guest_min || 1 : data.guest_min || null,
-        guestMax: offer ? data.guest_max || 1000 : data.guest_max || null,
+        guestMax: offer ? data.guest_max || 300 : data.guest_max || null,
       }
     : null;
 

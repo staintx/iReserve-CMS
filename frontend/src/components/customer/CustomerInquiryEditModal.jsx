@@ -1205,7 +1205,7 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
                     value={Number(form.guest_count) || 1}
                     onChange={(val) => setForm((prev) => ({ ...prev, guest_count: val }))}
                     min={1}
-                    max={1000}
+                    max={300}
                   />
                 )}
               </Field>

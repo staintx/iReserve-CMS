@@ -71,7 +71,7 @@ export default function StepDeliveryDetails({
                   value={currentCount}
                   onChange={handleGuestChange}
                   min={1}
-                  max={1000}
+                  max={300}
                 />
               </Field>
             </div>

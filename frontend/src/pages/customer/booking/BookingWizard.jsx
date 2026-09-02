@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { guestRange } from "../../../lib/packageDisplay";
 import {
   AlertCircle,
   ArrowLeft,
@@ -268,8 +269,43 @@ export default function BookingWizard() {
 
     if (isOffer) {
       const pkgMin = positive(packageDetails?.guest_min) || 1;
-      const pkgMax = positive(packageDetails?.guest_max) || 1000;
+      const pkgMax = positive(packageDetails?.guest_max) || 300;
       return { guestMin: pkgMin, guestMax: pkgMax };
+    }
+
+    // 1. Scaffold options (from selected option in form or package scaffold options)
+    const scaffoldMin = positive(form.scaffold_guest_min);
+    const scaffoldMax = positive(form.scaffold_guest_max);
+    if (scaffoldMin || scaffoldMax) {
+      return {
+        guestMin: scaffoldMin || positive(packageDetails?.guest_min) || 1,
+        guestMax: scaffoldMax || positive(packageDetails?.guest_max) || 300,
+      };
+    }
+
+    // Infer scaffold range from dimensions if min/max not explicitly stored on option
+    if (form.scaffold_width && form.scaffold_length) {
+      const w = Number(form.scaffold_width);
+      const l = Number(form.scaffold_length);
+      if (w === 20 && l === 20) return { guestMin: 50, guestMax: 80 };
+      if (w === 20 && l === 40) return { guestMin: 100, guestMax: 150 };
+      if (w === 40 && l === 40) return { guestMin: 150, guestMax: 220 };
+      if (w === 20 && l === 60) return { guestMin: 180, guestMax: 250 };
+      if (w === 40 && l === 60) return { guestMin: 250, guestMax: 350 };
+      const area = w * l;
+      return {
+        guestMin: Math.max(10, Math.round(area / 10)),
+        guestMax: Math.max(50, Math.round(area / 5)),
+      };
+    }
+
+    // 2. Package guest range
+    const [rangeMin, rangeMax] = guestRange(packageDetails);
+    if (rangeMin || rangeMax) {
+      return {
+        guestMin: rangeMin || positive(initialGuestMin) || 1,
+        guestMax: rangeMax || positive(initialGuestMax) || 300,
+      };
     }
 
     const packageMin =
@@ -277,15 +313,19 @@ export default function BookingWizard() {
     const packageMax =
       positive(packageDetails?.guest_max) || positive(initialGuestMax);
     if (packageMin || packageMax) {
-      return { guestMin: packageMin || 1, guestMax: packageMax || 1000 };
+      return { guestMin: packageMin || 1, guestMax: packageMax || 300 };
     }
 
-    return { guestMin: 1, guestMax: 1000 };
+    return { guestMin: 1, guestMax: 300 };
   }, [
     isOffer,
     packageDetails,
     initialGuestMin,
     initialGuestMax,
+    form.scaffold_guest_min,
+    form.scaffold_guest_max,
+    form.scaffold_width,
+    form.scaffold_length,
   ]);
 
   const minDate = useMemo(() => {
@@ -740,37 +780,59 @@ export default function BookingWizard() {
 
   // How the chosen setup size compares with the guest count. Both numbers come
   // from the data: guest_min/guest_max on the scaffold option the customer
-  // picked. No capacity is inferred for options that do not declare one.
+  // picked.
   const setupCapacity = useMemo(() => {
-    if (form.service_type !== SERVICE_TYPES.SETUP_ONLY) return null;
+    if (form.service_type !== SERVICE_TYPES.SETUP_ONLY && !form.selected_scaffold_option_id && !form.scaffold_width) return null;
 
-    const min = Number(form.scaffold_guest_min) || null;
-    const max = Number(form.scaffold_guest_max) || null;
+    let min = Number(form.scaffold_guest_min) || null;
+    let max = Number(form.scaffold_guest_max) || null;
+
+    if (!min && !max && form.scaffold_width && form.scaffold_length) {
+      const w = Number(form.scaffold_width);
+      const l = Number(form.scaffold_length);
+      if (w === 20 && l === 20) { min = 50; max = 80; }
+      else if (w === 20 && l === 40) { min = 100; max = 150; }
+      else if (w === 40 && l === 40) { min = 150; max = 220; }
+      else if (w === 20 && l === 60) { min = 180; max = 250; }
+      else if (w === 40 && l === 60) { min = 250; max = 350; }
+      else {
+        const area = w * l;
+        min = Math.max(10, Math.round(area / 10));
+        max = Math.max(min + 20, Math.round(area / 5));
+      }
+    }
+
     if (!min && !max) return null;
 
     const guests = parseNumber(form.guest_count) || 0;
-    if (!guests) return null;
-
+    const sizeLabel = form.scaffold_width && form.scaffold_length ? `${form.scaffold_width}×${form.scaffold_length} ft` : "";
     const label =
       min && max ? `${min} to ${max} guests` : max ? `up to ${max} guests` : `${min} guests or more`;
+
+    if (!guests) {
+      return { status: "info", message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}is recommended for ${label}.` };
+    }
 
     if (max && guests > max) {
       return {
         status: "over",
-        message: `Your setup size fits ${label}, but you have entered ${guests}. Choose a larger size, or lower the guest count.`,
+        message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}is recommended for ${label}. For ${guests} guests, consider choosing a larger setup size.`,
       };
     }
     if (min && guests < min) {
       return {
         status: "under",
-        message: `Your setup size is built for ${label}. With ${guests} guests a smaller size may suit you better.`,
+        message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}is built for ${label}. With ${guests} guests, a smaller setup size may suit you better.`,
       };
     }
-    return { status: "ok", message: `Your setup size fits ${label}.` };
+    return { status: "ok", message: `Your setup size ${sizeLabel ? `(${sizeLabel}) ` : ""}comfortably fits ${label}.` };
   }, [
     form.service_type,
+    form.selected_scaffold_option_id,
     form.scaffold_guest_min,
     form.scaffold_guest_max,
+    form.scaffold_width,
+    form.scaffold_length,
     form.guest_count,
   ]);
 

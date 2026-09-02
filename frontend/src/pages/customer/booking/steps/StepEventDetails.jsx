@@ -37,7 +37,7 @@ export default function StepEventDetails({
   isCustomBooking,
   selectedPackageName,
   guestMin = 1,
-  guestMax = 500,
+  guestMax = 300,
   estimate,
   errors = {},
   setupCapacity = null,
@@ -195,7 +195,7 @@ export default function StepEventDetails({
                 value={currentCount}
                 onChange={handleGuestChange}
                 min={guestMin || 1}
-                max={guestMax || 1000}
+                max={guestMax || 300}
               />
             </Field>
           </Card>
@@ -277,7 +277,7 @@ export default function StepEventDetails({
                   value={currentCount}
                   onChange={handleGuestChange}
                   min={guestMin || 1}
-                  max={guestMax || 1000}
+                  max={guestMax || 300}
                 />
               </Field>
             </div>
@@ -437,20 +437,18 @@ export default function StepEventDetails({
                   label={guestCountLabel(offer)}
                   required
                   hint={
-                    setupCapacity?.status === "ok"
-                      ? setupCapacity.message
-                      : `${guestMin} to ${guestMax} guests supported.`
+                    setupCapacity?.message || `${guestMin} to ${guestMax} guests supported.`
                   }
                   error={
                     errors.guest_count ||
-                    (setupCapacity?.status === "under" ? setupCapacity.message : "")
+                    (setupCapacity?.status === "over" ? setupCapacity.message : "")
                   }
                 >
                   <GuestCounter
                     value={currentCount}
                     onChange={handleGuestChange}
                     min={guestMin || 1}
-                    max={guestMax || 1000}
+                    max={guestMax || 300}
                   />
                 </Field>
               </div>

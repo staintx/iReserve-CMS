@@ -462,6 +462,7 @@ export default function AdminPackages() {
                         <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500 text-white">
                           <Tag size={11} /> Combo Pack
                         </span>
+                      ) : (
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
                           Event Setup
                         </span>
@@ -589,6 +590,7 @@ export default function AdminPackages() {
                   <Tag size={20} className="text-amber-500" />
                 ) : (
                   <Search size={20} className="text-muted-foreground" />
+                )}
               </div>
 
               <h3 className="text-lg font-semibold text-foreground mb-1">

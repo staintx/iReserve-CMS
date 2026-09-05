@@ -208,22 +208,22 @@ export default function AdminQuotesList() {
   const getStatusBadge = (status) => {
     switch (status) {
       case "Pending Review":
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0" /> Pending Review</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 inline-flex items-center w-fit">Pending Review</span>;
       case "Under Review":
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-blue-50 text-blue-800 border border-blue-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" /> Under Review</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-800 border border-blue-200/80 inline-flex items-center w-fit">Under Review</span>;
       case "Revision Requested":
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-orange-50 text-orange-800 border border-orange-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-orange-600 shrink-0" /> Revision Requested</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-orange-50 text-orange-800 border border-orange-200/80 inline-flex items-center w-fit">Revision Requested</span>;
       case "Sent":
       case "Quotation Sent":
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-blue-50 text-blue-800 border border-blue-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" /> Quotation Sent</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-blue-50 text-blue-800 border border-blue-200/80 inline-flex items-center w-fit">Quotation Sent</span>;
       case "Awaiting Final Confirmation":
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-purple-50 text-purple-800 border border-purple-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0" /> Awaiting Final Confirmation</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-purple-50 text-purple-800 border border-purple-200/80 inline-flex items-center w-fit">Awaiting Final Confirmation</span>;
       case "Accepted":
       case "Quote Accepted":
       case "Converted to Booking":
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" /> Accepted</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 inline-flex items-center w-fit">Accepted</span>;
       default:
-        return <span className="px-2 py-0.5 text-[11px] font-semibold font-mono rounded-md bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" /> {status}</span>;
+        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200 inline-flex items-center w-fit">{status}</span>;
     }
   };
 

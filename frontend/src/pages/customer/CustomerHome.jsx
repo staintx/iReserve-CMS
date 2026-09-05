@@ -8,10 +8,10 @@ export default function CustomerHome() {
     <CustomerLayout>
       <section className="hero">
         <div className="hero-text">
-          <h1>Make Your Event Memorable with iReserve</h1>
+          <h1>Effortless event catering, made to fit your celebration.</h1>
           <p>
-            From inquiries to bookings, we help you plan, customize, and manage
-            your catering service in one place.
+            Select your favorite dishes, customize your package, and secure your
+            event schedule in just a few clicks.
           </p>
           <div className="hero-actions">
             <button className="btn" onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}>Start Inquiry</button>

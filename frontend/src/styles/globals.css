@@ -2588,10 +2588,17 @@
 
   /* Section nav sits above the filters inside the same sticky bar, so the
      order on screen is: which section, how to narrow it, then the results. */
+  .ls-filterbar-combined {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px 24px;
+  }
+
   .ls-packagenav {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 16px;
   }
 

@@ -200,113 +200,106 @@ export default function Packages() {
           the filters were for. */}
       {packages.status === "ready" && (available.length > 0 || offers.length > 0) && (
         <div className="ls-filterbar" ref={filterBarRef}>
-          <div className="ls-inner ls-packagenav">
-            <nav aria-label="Package sections">
-              <a className="ls-packagenav-link" href="#regular-packages">
-                Regular Packages
-                <span>{available.length}</span>
-              </a>
-              {offers.length > 0 && (
-                <a className="ls-packagenav-link" href="#special-offers">
-                  Combo Packs
-                  <span>{offers.length}</span>
+          <div className="ls-inner ls-filterbar-combined">
+            <div className="ls-packagenav">
+              <nav aria-label="Package sections">
+                <a className="ls-packagenav-link" href="#regular-packages">
+                  Regular Packages
+                  <span>{available.length}</span>
                 </a>
-              )}
-            </nav>
-          </div>
+                {offers.length > 0 && (
+                  <a className="ls-packagenav-link" href="#special-offers">
+                    Combo Packs
+                    <span>{offers.length}</span>
+                  </a>
+                )}
+              </nav>
 
-          {/* Filters describe setup size and price per guest, neither of which
-              says anything about a fixed combo — so they are scoped to the
-              regular catalogue and say so, rather than appearing to filter a
-              section they cannot touch. */}
-          {available.length > 0 && (
-          <div className="ls-inner ls-filterbar-inner">
-            {serviceOptions.length > 1 && (
-              <div className="ls-chips" role="group" aria-label="Filter by what's included">
-                <button
-                  type="button"
-                  className="ls-chip"
-                  aria-pressed={selectedService === "all"}
-                  onClick={() => setService("all")}
-                >
-                  All packages
-                </button>
-                {serviceOptions.map((type) => (
+              {serviceOptions.length > 1 && (
+                <div className="ls-chips" role="group" aria-label="Filter by what's included">
                   <button
-                    key={type}
                     type="button"
                     className="ls-chip"
-                    aria-pressed={selectedService === type}
-                    onClick={() => setService(type)}
+                    aria-pressed={selectedService === "all"}
+                    onClick={() => setService("all")}
                   >
-                    {SERVICE_LABELS[type]}
+                    All packages
                   </button>
-                ))}
-              </div>
-            )}
-
-            <div className="ls-filters">
-              {eventOptions.length > 0 && (
-                <div className="ls-field">
-                  <label htmlFor="package-event">Event</label>
-                  <select
-                    id="package-event"
-                    value={selectedEvent}
-                    onChange={(event) => setEventType(event.target.value)}
-                  >
-                    <option value="all">Any event</option>
-                    {eventOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  {serviceOptions.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className="ls-chip"
+                      aria-pressed={selectedService === type}
+                      onClick={() => setService(type)}
+                    >
+                      {SERVICE_LABELS[type]}
+                    </button>
+                  ))}
                 </div>
-              )}
-
-              <div className="ls-field">
-                <label htmlFor="price-min">Price per guest</label>
-                <div className="ls-field-pair">
-                  <input
-                    id="price-min"
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    placeholder="Min"
-                    value={priceMin}
-                    onChange={(event) => setPriceMin(event.target.value)}
-                    aria-describedby="price-help"
-                  />
-                  <span aria-hidden="true">–</span>
-                  <input
-                    id="price-max"
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    placeholder="Max"
-                    value={priceMax}
-                    onChange={(event) => setPriceMax(event.target.value)}
-                    aria-label="Maximum price per guest"
-                    aria-describedby="price-help"
-                  />
-                </div>
-                <p className="ls-field-help" id="price-help">
-                  Only applies to packages priced per guest.
-                </p>
-              </div>
-
-              {hasAnyFilter && (
-                <button
-                  type="button"
-                  className="ls-btn ls-btn--sm ls-btn--ghost"
-                  onClick={clearFilters}
-                >
-                  Clear filters
-                </button>
               )}
             </div>
+
+            {available.length > 0 && (
+              <div className="ls-filters">
+                {eventOptions.length > 0 && (
+                  <div className="ls-field">
+                    <label htmlFor="package-event">Event</label>
+                    <select
+                      id="package-event"
+                      value={selectedEvent}
+                      onChange={(event) => setEventType(event.target.value)}
+                    >
+                      <option value="all">Any event</option>
+                      {eventOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="ls-field">
+                  <label htmlFor="price-min">Price per guest</label>
+                  <div className="ls-field-pair">
+                    <input
+                      id="price-min"
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      placeholder="Min"
+                      value={priceMin}
+                      onChange={(event) => setPriceMin(event.target.value)}
+                      aria-describedby="price-help"
+                    />
+                    <span aria-hidden="true">–</span>
+                    <input
+                      id="price-max"
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      placeholder="Max"
+                      value={priceMax}
+                      onChange={(event) => setPriceMax(event.target.value)}
+                      aria-label="Maximum price per guest"
+                      aria-describedby="price-help"
+                    />
+                  </div>
+                </div>
+
+                {hasAnyFilter && (
+                  <button
+                    type="button"
+                    className="ls-btn ls-btn--sm ls-btn--ghost"
+                    onClick={clearFilters}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          )}
         </div>
       )}
 

@@ -1,4 +1,17 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo(0, 0);
+    }
+  }, [pathname, search, hash]);
+
+  return null;
+}
 import ProtectedRoute from "./ProtectedRoute";
 import useAuth from "../hooks/useAuth";
 
@@ -90,6 +103,7 @@ export default function AppRoutes() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         {/* Public pages */}
         <Route

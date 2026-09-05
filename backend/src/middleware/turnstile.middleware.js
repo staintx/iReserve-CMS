@@ -1,5 +1,5 @@
 const turnstileMiddleware = async (req, res, next) => {
-  if (process.env.SKIP_TURNSTILE === 'true') {
+  if (process.env.SKIP_TURNSTILE === 'true' || req.headers['x-client-platform'] === 'mobile') {
     if (req.body) {
       delete req.body['cf-turnstile-response'];
       delete req.body['cfTurnstileResponse'];

@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Sparkles,
   Users,
+  Tag,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -265,6 +266,7 @@ export default function AdminPackages() {
                 }`}
               >
                 {isOffer && <Tag size={14} />}
+                {entry.label}
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                     selected

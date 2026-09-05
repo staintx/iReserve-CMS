@@ -960,10 +960,8 @@ export default function BookingWizard() {
 
           if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're expecting.";
-          } else if (guests < guestMin || guests > guestMax) {
-            errors.guest_count = `Enter a guest count between ${guestMin} and ${guestMax}.`;
-          } else if (setupCapacity?.status === "over") {
-            errors.guest_count = setupCapacity.message;
+          } else if (guests < (guestMin || 1)) {
+            errors.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
           }
           break;
         }

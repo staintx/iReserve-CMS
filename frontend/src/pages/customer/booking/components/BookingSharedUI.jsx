@@ -406,7 +406,7 @@ export function QtyStepper({ value = 0, onDecrease, onIncrease, label = "quantit
 /**
  * Guest count counter. Clean, responsive, high-density.
  */
-export function GuestCounter({ value, onChange, min = 1, max = 300 }) {
+export function GuestCounter({ value, onChange, min = 1, max = null }) {
   const numeric = Number(value) || 0;
   const [draft, setDraft] = React.useState(String(value ?? ""));
   const [focused, setFocused] = React.useState(false);
@@ -416,7 +416,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 300 }) {
     if (!focused) setDraft(String(value ?? ""));
   }, [value, focused]);
 
-  const clamp = (n) => Math.min(max, Math.max(min, n));
+  const clamp = (n) => (max ? Math.min(max, Math.max(min, n)) : Math.max(min, n));
   const step = (delta) => onChange(clamp((numeric || min) + delta));
 
   const commit = () => {
@@ -438,8 +438,8 @@ export function GuestCounter({ value, onChange, min = 1, max = 300 }) {
 
   // Round numbers inside the allowed range, so the common cases are one tap.
   const basePresets = [25, 50, 60, 75, 80, 100, 150, 200, 250, 300];
-  let presets = basePresets.filter((n) => n >= min && n <= max);
-  if (presets.length <= 1 && max > min) {
+  let presets = basePresets.filter((n) => n >= min && (!max || n <= max));
+  if (presets.length <= 1 && max && max > min) {
     const stepSize = Math.max(10, Math.round((max - min) / 4 / 10) * 10 || 10);
     const generated = [];
     for (let val = min; val <= max; val += stepSize) {
@@ -467,7 +467,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 300 }) {
           autoComplete="off"
           value={draft}
           min={min}
-          max={max}
+          {...(max ? { max } : {})}
           aria-label="Number of guests"
           onFocus={() => setFocused(true)}
           onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
@@ -484,7 +484,7 @@ export function GuestCounter({ value, onChange, min = 1, max = 300 }) {
         <button
           type="button"
           onClick={() => step(10)}
-          disabled={numeric >= max}
+          disabled={max ? numeric >= max : false}
           aria-label="Ten more guests"
           className={btn}
         >

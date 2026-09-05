@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Caezelle's Catering",
+    "slug": "caezelles-catering",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#FFFFFF",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.caezelles.catering"
+    },
+    "android": {
+      "package": "com.caezelles.catering",
+      "adaptiveIcon": {
+        "backgroundColor": "#2C4B8A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 exports.protect = async (req, res, next) => {
-  let token = req.cookies?.token;
+  let token = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
   if (!token) return res.status(401).json({ message: "No token" });
 
   try {
@@ -26,7 +26,7 @@ exports.isAdmin = (req, res, next) => {
 };
 
 exports.optionalProtect = async (req, res, next) => {
-  const token = req.cookies?.token;
+  const token = req.cookies?.token || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.split(" ")[1] : null);
   if (!token) return next();
 
   try {

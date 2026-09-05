@@ -60,6 +60,7 @@ export default function PackageDetails() {
 
   useEffect(() => {
     let cancelled = false;
+    window.scrollTo(0, 0);
     fetchPackage().then((next) => {
       if (!cancelled) setResult({ ...next, id });
     });

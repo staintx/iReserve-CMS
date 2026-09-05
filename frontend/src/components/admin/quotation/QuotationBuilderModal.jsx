@@ -61,7 +61,7 @@ import {
   offerPricePerPax,
 } from "../../../lib/specialOffers";
 import { BATANGAS_PROVINCE, getBatangasBarangays, getBatangasMunicipalities } from "../../../utils/batangas";
-import { formatCurrency } from "../../../utils/format";
+import { formatCurrency, formatShortDate } from "../../../utils/format";
 import FeedbackDialog from "../../feedback/FeedbackDialog";
 import InlineMessage from "../../feedback/InlineMessage";
 import { useConfirm } from "../../feedback/confirmContext";

@@ -311,13 +311,13 @@ export default function Landing() {
         <div className="ls-hero-scrim" aria-hidden="true" />
 
         <div className="ls-inner ls-hero-inner">
-          <p className="ls-hero-eyebrow">Catering &amp; event setup</p>
+          <p className="ls-hero-eyebrow">Hassle-free reservations</p>
           <h1 id="hero-title">
-            Catering and event setup for weddings, birthdays, and corporate events
+            Effortless event catering, made to fit your celebration.
           </h1>
           <p className="ls-hero-sub">
-            Choose a ready-made package or build your own — pick the food, set your
-            guest count, and reserve your date online.
+            Select your favorite dishes, customize your package, and secure your
+            event schedule in just a few clicks.
           </p>
 
           <div className="ls-hero-actions">

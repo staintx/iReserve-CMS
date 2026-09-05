@@ -1767,7 +1767,7 @@
     position: relative;
     display: flex;
     align-items: flex-end;
-    min-height: min(90vh, 760px);
+    min-height: 100svh;
     overflow: hidden;
     background: #0E1626;
     isolation: isolate;
@@ -1806,14 +1806,14 @@
     position: relative;
     z-index: 2;
     width: 100%;
-    padding-top: calc(var(--ls-header-h) + 88px);
-    padding-bottom: 64px;
+    padding-top: calc(var(--ls-header-h) + 32px);
+    padding-bottom: 48px;
   }
 
   @media (min-width: 768px) {
     .ls-hero-inner {
-      padding-top: calc(var(--ls-header-h) + 140px);
-      padding-bottom: 80px;
+      padding-top: calc(var(--ls-header-h) + 48px);
+      padding-bottom: 64px;
     }
   }
 

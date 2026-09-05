@@ -264,8 +264,7 @@ export default function AdminPackages() {
                     : "border-transparent text-gray-500 hover:text-gray-800"
                 }`}
               >
-                {isOffer && <Sparkles size={14} />}
-                {entry.label}
+                {isOffer && <Tag size={14} />}
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                     selected
@@ -461,9 +460,8 @@ export default function AdminPackages() {
                     <div className="mb-3 flex flex-wrap items-center gap-2">
                       {offer ? (
                         <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500 text-white">
-                          <Sparkles size={11} /> Combo Pack
+                          <Tag size={11} /> Combo Pack
                         </span>
-                      ) : (
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
                           Event Setup
                         </span>
@@ -588,10 +586,9 @@ export default function AdminPackages() {
             <div className="text-center py-10 bg-card rounded-lg border border-border/80 p-4">
               <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
                 {isOfferTab ? (
-                  <Sparkles size={20} className="text-amber-500" />
+                  <Tag size={20} className="text-amber-500" />
                 ) : (
                   <Search size={20} className="text-muted-foreground" />
-                )}
               </div>
 
               <h3 className="text-lg font-semibold text-foreground mb-1">

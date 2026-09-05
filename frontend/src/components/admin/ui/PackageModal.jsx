@@ -8,6 +8,7 @@ import {
   Sparkles,
   ChevronUp,
   ChevronDown,
+  Tag,
 } from "lucide-react";
 import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
@@ -958,7 +959,7 @@ export default function PackageModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <h2 className="flex items-center gap-2 font-bold text-foreground text-lg">
-              {isOffer && <Sparkles size={17} className="text-amber-500" />}
+              {isOffer && <Tag size={17} className="text-amber-500" />}
               {isOffer
                 ? pkg
                   ? "Edit Combo"
@@ -1048,7 +1049,7 @@ export default function PackageModal({
                       >
                         <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                           {offerOption && (
-                            <Sparkles size={13} className="text-amber-500" />
+                            <Tag size={13} className="text-amber-500" />
                           )}
                           {option.title}
                         </span>
@@ -1311,7 +1312,7 @@ export default function PackageModal({
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <h3 className="flex items-center gap-2 font-bold text-foreground">
-                    <Sparkles size={15} className="text-amber-500" />
+                    <Tag size={15} className="text-amber-500" />
                     Combo Food <span className="text-red-400">*</span>
                   </h3>
                   <p className="text-xs text-gray-500">

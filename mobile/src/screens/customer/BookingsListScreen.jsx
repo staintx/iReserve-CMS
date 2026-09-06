@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
   /* List Content */
   listContent: {
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
     gap: spacing.lg,
   },
   bookingCard: {

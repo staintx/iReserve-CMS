@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mail, Lock, Sparkles, Utensils } from "lucide-react-native";
+import { Mail, Lock, Sparkles, Utensils, User, ShieldCheck, ChefHat } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
@@ -68,6 +68,22 @@ export const LoginScreen = ({ navigation }) => {
     }
   };
 
+  const handleQuickDemo = async (demoEmail) => {
+    setEmail(demoEmail);
+    setPassword("Test1234!");
+    setError("");
+    setLoading(true);
+    try {
+      await login(demoEmail, "Test1234!");
+    } catch (err) {
+      const msg =
+        err.response?.data?.message || "Unable to sign in with demo account.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -88,17 +104,19 @@ export const LoginScreen = ({ navigation }) => {
         {/* Brand Header */}
         <View style={styles.brandHeader}>
           <View style={styles.logoBadge}>
-            <Utensils size={32} color={colors.primary} />
+            <Utensils size={30} color={colors.primary} />
           </View>
-          <Text style={styles.brandName}>Caezelle's</Text>
-          <Text style={styles.brandSubtitle}>Catering & Event Services</Text>
+          <Text style={styles.brandName}>
+            iReserve<Text style={styles.brandDot}>.</Text>
+          </Text>
+          <Text style={styles.brandSubtitle}>Caezelle's Food, Catering & Services</Text>
         </View>
 
         {/* Welcome Text */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeTitle}>Welcome Back</Text>
           <Text style={styles.welcomeDesc}>
-            Sign in to manage your reservations, quotations, and events.
+            Sign in to manage your reservations, catering quotations, and events.
           </Text>
         </View>
 
@@ -169,6 +187,47 @@ export const LoginScreen = ({ navigation }) => {
             size="lg"
             style={styles.submitBtn}
           />
+
+          {/* Quick Demo Access Pills */}
+          <View style={styles.demoSection}>
+            <View style={styles.demoDividerRow}>
+              <View style={styles.demoDividerLine} />
+              <Text style={styles.demoDividerText}>OR QUICK DEMO LOGIN</Text>
+              <View style={styles.demoDividerLine} />
+            </View>
+
+            <View style={styles.demoPillsRow}>
+              <TouchableOpacity
+                style={styles.demoPill}
+                onPress={() => handleQuickDemo("mobile_tester@example.com")}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <User size={14} color={colors.primary} />
+                <Text style={styles.demoPillText}>Customer</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.demoPill}
+                onPress={() => handleQuickDemo("test_manager@example.com")}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <ShieldCheck size={14} color={colors.primary} />
+                <Text style={styles.demoPillText}>Manager</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.demoPill}
+                onPress={() => handleQuickDemo("test_staff@example.com")}
+                disabled={loading}
+                activeOpacity={0.7}
+              >
+                <ChefHat size={14} color={colors.primary} />
+                <Text style={styles.demoPillText}>Staff</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Footer Link */}
@@ -201,40 +260,46 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 24,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm,
     borderWidth: 1.5,
-    borderColor: colors.powder,
+    borderColor: colors.primaryBorder,
   },
   brandName: {
     fontSize: typography.sizes.title,
+    fontFamily: typography.fontFamilies.extraBold,
     fontWeight: "800",
-    color: colors.primary,
+    color: colors.foreground,
     letterSpacing: -0.5,
   },
+  brandDot: {
+    color: colors.primary,
+  },
   brandSubtitle: {
-    fontSize: typography.sizes.sm,
-    color: colors.secondary,
-    fontWeight: "500",
-    marginTop: 2,
-    letterSpacing: 0.3,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+    marginTop: 4,
+    letterSpacing: 0.2,
   },
   welcomeSection: {
     marginBottom: spacing.xl,
   },
   welcomeTitle: {
     fontSize: typography.sizes.xxl,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   welcomeDesc: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 4,
     lineHeight: 20,
@@ -252,14 +317,14 @@ const styles = StyleSheet.create({
   },
   expiredBannerText: {
     fontSize: typography.sizes.sm,
-    color: colors.warning,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.warningText,
     flex: 1,
-    fontWeight: "500",
   },
   expiredBannerDismiss: {
     fontSize: typography.sizes.xs,
-    color: colors.warning,
-    fontWeight: "700",
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.warningDark,
     marginLeft: spacing.sm,
   },
   errorBanner: {
@@ -272,8 +337,8 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.error,
-    fontWeight: "500",
     lineHeight: 18,
   },
   form: {
@@ -285,11 +350,53 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
-    fontWeight: "600",
   },
   submitBtn: {
     marginTop: spacing.xs,
+  },
+  demoSection: {
+    marginTop: spacing.xl,
+  },
+  demoDividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  demoDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.borderLight,
+  },
+  demoDividerText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foregroundMuted,
+    marginHorizontal: spacing.sm,
+    letterSpacing: 0.5,
+  },
+  demoPillsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  demoPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.pill,
+    gap: 6,
+  },
+  demoPillText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
   },
   footer: {
     flexDirection: "row",
@@ -299,12 +406,13 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
   registerLink: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
-    fontWeight: "700",
   },
 });
 

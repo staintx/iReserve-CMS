@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -28,7 +29,11 @@ export const StaffProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === "web") {
+      await logout();
+      return;
+    }
     Alert.alert(
       "Confirm Sign Out",
       "Are you sure you want to sign out of the staff app?",
@@ -160,12 +165,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: 120,
   },
   profileCard: {
     flexDirection: "row",
@@ -176,15 +181,15 @@ const styles = StyleSheet.create({
   avatar: {
     width: 64,
     height: 64,
-    borderRadius: radius.full,
-    backgroundColor: colors.secondary,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     ...shadows.sm,
   },
   avatarText: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.white,
   },
   profileInfo: {
@@ -192,25 +197,25 @@ const styles = StyleSheet.create({
   },
   nameText: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: colors.secondaryLight,
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.full,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
     alignSelf: "flex-start",
     marginTop: 4,
     marginBottom: 6,
   },
   roleText: {
     fontSize: 10,
-    fontWeight: "700",
-    color: colors.secondary,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary,
   },
   detailRow: {
     flexDirection: "row",
@@ -220,11 +225,12 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textSubtle,
   },
   sectionHeading: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foregroundMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -249,11 +255,12 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   menuSub: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textSubtle,
     marginTop: 2,
   },
@@ -264,18 +271,19 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.errorLight,
     paddingVertical: spacing.md,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.errorBorder,
     marginTop: spacing.md,
   },
   logoutText: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.error,
   },
   versionText: {
     fontSize: 11,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textDisabled,
     textAlign: "center",
     marginTop: spacing.lg,

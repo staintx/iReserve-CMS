@@ -41,7 +41,7 @@ export const RootNavigator = () => {
     <NavigationContainer ref={navigationRef}>
       {!isAuthenticated ? (
         <AuthNavigator />
-      ) : user?.role === "manager" ? (
+      ) : user?.role === "manager" || user?.role === "admin" ? (
         <ManagerNavigator />
       ) : user?.role === "staff" ? (
         <StaffNavigator />

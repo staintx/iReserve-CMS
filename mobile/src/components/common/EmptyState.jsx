@@ -15,13 +15,13 @@ export const EmptyState = ({
   return (
     <View style={[styles.container, style]}>
       <View style={styles.iconCircle}>
-        <IconComponent size={36} color={colors.secondary} />
+        <IconComponent size={32} color={colors.primary} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
       {actionLabel && onAction && (
         <View style={styles.actionWrapper}>
-          <AppButton title={actionLabel} onPress={onAction} size="sm" />
+          <AppButton title={actionLabel} onPress={onAction} size="md" />
         </View>
       )}
     </View>
@@ -37,25 +37,26 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.section,
   },
   iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.surfaceAlt,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.base,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderWidth: 1.5,
+    borderColor: colors.borderFocus,
   },
   title: {
     fontSize: typography.sizes.lg,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     marginBottom: spacing.xs,
     textAlign: "center",
   },
   description: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,

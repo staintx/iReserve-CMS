@@ -8,6 +8,7 @@ import {
   User,
 } from "lucide-react-native";
 import { colors } from "../constants/theme";
+import FloatingTabBar from "../components/common/FloatingTabBar";
 
 // Screens
 import StaffTodayScreen from "../screens/staff/StaffTodayScreen";
@@ -24,12 +25,9 @@ const StaffTabs = () => {
   return (
     <Tab.Navigator
       initialRouteName="StaffToday"
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.secondary,
-        tabBarInactiveTintColor: colors.textSubtle,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen

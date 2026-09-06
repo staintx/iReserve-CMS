@@ -498,10 +498,10 @@ const styles = StyleSheet.create({
   },
   memberCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.borderLight,
     ...shadows.sm,
   },
   memberCardAssigned: {
@@ -515,22 +515,23 @@ const styles = StyleSheet.create({
   },
   memberName: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   memberPosition: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
   statusBadge: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: radius.full,
   },
   statusBadgeText: {
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   memberBottomRow: {
     flexDirection: "row",
@@ -543,18 +544,22 @@ const styles = StyleSheet.create({
   },
   memberCount: {
     fontSize: 11,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
   },
   toggleCheck: {
     width: 28,
     height: 28,
-    borderRadius: radius.full,
+    borderRadius: 14,
     backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     alignItems: "center",
     justifyContent: "center",
   },
   toggleCheckActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   footer: {
     position: "absolute",
@@ -576,7 +581,7 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     width: "100%",
     maxHeight: "80%",
@@ -584,12 +589,13 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   modalSub: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
     marginTop: 2,
     marginBottom: spacing.sm,
   },

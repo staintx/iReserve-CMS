@@ -34,6 +34,7 @@ import AnimatedProgressBar from "../../components/common/AnimatedProgressBar";
 import AnimatedStepper from "../../components/common/AnimatedStepper";
 import { useAuth } from "../../context/AuthContext";
 import customerApi from "../../api/customer";
+import SerratedDivider from "../../components/common/SerratedDivider";
 import { BATANGAS_PROVINCE, getBatangasMunicipalities, getBatangasBarangays } from "../../utils/batangas";
 import { formatCurrency, formatDate } from "../../utils/format";
 
@@ -385,7 +386,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* STEP 2: DATE & TIME SCHEDULE */}
+        {/* STEP 2: DATE & TIME SCHEDULE (Glovo style) */}
         {currentStep === 2 && (
           <View>
             <Text style={styles.stepTitle}>When is your event?</Text>
@@ -393,8 +394,36 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               Catering requires at least {MIN_DATE_OFFSET_DAYS} days advance preparation for kitchen & logistics.
             </Text>
 
+            {/* Quick Date Presets Strip (Glovo style) */}
+            <Text style={styles.fieldLabel}>Suggested Dates</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateCardsScroll}>
+              {[4, 5, 6, 7, 14, 21].map((offset) => {
+                const targetD = new Date();
+                targetD.setDate(targetD.getDate() + offset);
+                const iso = targetD.toISOString().split("T")[0];
+                const dayName = targetD.toLocaleDateString("en-US", { weekday: "short" });
+                const dateNum = targetD.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const isSelected = selectedDate === iso;
+
+                return (
+                  <TouchableOpacity
+                    key={offset}
+                    style={[styles.dateCard, isSelected && styles.dateCardActive]}
+                    onPress={() => setSelectedDate(iso)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.dateCardRadio, isSelected && styles.dateCardRadioActive]}>
+                      {isSelected && <View style={styles.dateCardRadioDot} />}
+                    </View>
+                    <Text style={[styles.dateCardDay, isSelected && styles.dateCardTextActive]}>{dayName}</Text>
+                    <Text style={[styles.dateCardDate, isSelected && styles.dateCardTextActive]}>{dateNum}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
             <AppInput
-              label="Event Date (YYYY-MM-DD)"
+              label="Or Enter Specific Event Date (YYYY-MM-DD)"
               value={selectedDate}
               onChangeText={setSelectedDate}
               placeholder="e.g. 2026-09-20"
@@ -402,9 +431,9 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             />
 
             <View style={styles.dateHintCard}>
-              <AlertCircle size={18} color={colors.secondary} />
+              <AlertCircle size={18} color={colors.primary} />
               <Text style={styles.dateHintText}>
-                Earliest available date: {formatDate(minSelectableDate)}
+                Earliest available reservation: {formatDate(minSelectableDate)}
               </Text>
             </View>
 
@@ -583,10 +612,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               </View>
 
               {estimatedTotal > 0 && (
-                <View style={[styles.summaryRow, styles.estimateRow]}>
-                  <Text style={styles.estimateLabel}>Estimated Total:</Text>
-                  <Text style={styles.estimateValue}>{formatCurrency(estimatedTotal)}</Text>
-                </View>
+                <>
+                  <SerratedDivider color={colors.background} style={{ marginVertical: spacing.sm }} />
+                  <View style={[styles.summaryRow, styles.estimateRow]}>
+                    <Text style={styles.estimateLabel}>Estimated Total:</Text>
+                    <Text style={styles.estimateValue}>{formatCurrency(estimatedTotal)}</Text>
+                  </View>
+                </>
               )}
             </Card>
 
@@ -618,10 +650,19 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         )}
       </ScrollView>
 
-      {/* Fixed Bottom Action Bar */}
+      {/* Fixed Bottom Action Bar (Glovo Dual Pill Buttons) */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+        {currentStep > 1 && (
+          <AppButton
+            title="Back"
+            variant="secondary"
+            onPress={handleBack}
+            size="lg"
+            style={styles.backActionBtn}
+          />
+        )}
         <AppButton
-          title={currentStep === 5 ? "Submit Catering Inquiry" : "Next Step"}
+          title={currentStep === 5 ? "Submit Catering Inquiry" : "Continue"}
           onPress={handleNext}
           disabled={!canProceed}
           loading={submitting}
@@ -859,6 +900,60 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     textAlign: "center",
   },
+  dateCardsScroll: {
+    paddingVertical: spacing.xs,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  dateCard: {
+    width: 86,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+  },
+  dateCardActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  dateCardRadio: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  dateCardRadioActive: {
+    borderColor: colors.primary,
+  },
+  dateCardRadioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  dateCardDay: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foregroundMuted,
+    marginBottom: 2,
+  },
+  dateCardDate: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
+  },
+  dateCardTextActive: {
+    color: colors.primary,
+  },
   dateHintCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1042,9 +1137,14 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  backActionBtn: {
+    flex: 1,
   },
   actionBtn: {
-    width: "100%",
+    flex: 2,
   },
   modalBackdrop: {
     flex: 1,

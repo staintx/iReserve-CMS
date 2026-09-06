@@ -29,6 +29,7 @@ import ZelleChatScreen from "../screens/customer/ZelleChatScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
 
 import { useSocket } from "../context/SocketContext";
+import FloatingTabBar from "../components/common/FloatingTabBar";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -39,12 +40,9 @@ const CustomerTabs = () => {
   return (
     <Tab.Navigator
       initialRouteName="CustomerHome"
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSubtle,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen

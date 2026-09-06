@@ -201,12 +201,16 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.base,
+    paddingBottom: 110,
   },
   convCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: spacing.base,
     marginBottom: spacing.sm,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   avatar: {
     width: 48,
@@ -216,6 +220,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.borderFocus,
   },
   convBody: {
     flex: 1,
@@ -228,11 +234,12 @@ const styles = StyleSheet.create({
   },
   recipientName: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   timeText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
   },
   messageRow: {
@@ -242,13 +249,14 @@ const styles = StyleSheet.create({
   },
   lastMessage: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     flex: 1,
     marginRight: spacing.sm,
   },
   lastMessageUnread: {
     color: colors.foreground,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   unreadBadge: {
     backgroundColor: colors.primary,
@@ -259,7 +267,7 @@ const styles = StyleSheet.create({
   unreadBadgeText: {
     color: colors.white,
     fontSize: 10,
-    fontWeight: "800",
+    fontFamily: typography.fontFamily.bold,
   },
 });
 

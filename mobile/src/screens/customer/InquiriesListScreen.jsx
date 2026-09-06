@@ -451,9 +451,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -479,9 +479,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
-    height: 42,
+    height: 44,
   },
   searchIcon: {
     marginRight: spacing.sm,
@@ -514,8 +514,8 @@ const styles = StyleSheet.create({
   },
   serviceChip: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radius.full,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
   /* List Content */
   listContent: {
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
     gap: spacing.lg,
   },
   inquiryCard: {
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
   },
   eventTitle: {
     fontSize: typography.sizes.lg,
-    fontFamily: typography.fontFamilies.serifBold,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
     letterSpacing: -0.2,
     marginTop: 2,

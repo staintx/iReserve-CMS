@@ -91,10 +91,10 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 7,
-    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md + 2,
     borderRadius: radius.full,
-    borderWidth: 1,
+    borderWidth: 1.2,
   },
   pillActive: {
     backgroundColor: colors.primary,
@@ -102,17 +102,16 @@ const styles = StyleSheet.create({
   },
   pillInactive: {
     backgroundColor: colors.surface,
-    borderColor: colors.cardBorder,
+    borderColor: colors.border,
   },
   pillText: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamilies.medium,
-    fontWeight: "600",
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     letterSpacing: 0.1,
   },
   pillTextActive: {
     color: colors.white,
-    fontFamily: typography.fontFamilies.bold,
   },
   pillTextInactive: {
     color: colors.foreground,
@@ -120,14 +119,14 @@ const styles = StyleSheet.create({
   countBadge: {
     marginLeft: 6,
     paddingHorizontal: 7,
-    paddingVertical: 1,
+    paddingVertical: 2,
     borderRadius: radius.full,
   },
   countBadgeActive: {
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
   countBadgeInactive: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.powder,
   },
   countText: {
     fontSize: typography.sizes.xs,

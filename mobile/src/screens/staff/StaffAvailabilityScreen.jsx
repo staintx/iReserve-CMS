@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -291,7 +292,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
   },
   monthNavRow: {
@@ -300,21 +301,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: spacing.sm,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   arrowBtn: {
     padding: 6,
   },
   monthLabelText: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: 100,
+    paddingBottom: 160,
   },
   bannerCard: {
     marginBottom: spacing.md,
@@ -329,6 +332,7 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
     color: colors.foreground,
     flex: 1,
     lineHeight: 18,
@@ -347,7 +351,7 @@ const styles = StyleSheet.create({
   },
   weekdayText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.textSubtle,
     width: 40,
     textAlign: "center",
@@ -365,7 +369,7 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: "transparent",
   },
@@ -374,36 +378,36 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   cellUnavailable: {
-    backgroundColor: "#FDEAEA",
-    borderColor: "#F5B7B1",
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
   },
   cellText: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.semiBold,
     color: colors.foreground,
   },
   cellTextAssigned: {
     color: colors.primary,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   cellTextUnavailable: {
     color: colors.error,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   dotRow: {
     height: 4,
     marginTop: 2,
   },
   assignedDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: colors.primary,
   },
   unavailableDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: colors.error,
   },
   legendRow: {
@@ -422,10 +426,11 @@ const styles = StyleSheet.create({
   legendBox: {
     width: 14,
     height: 14,
-    borderRadius: 3,
+    borderRadius: radius.xs,
   },
   legendLabel: {
     fontSize: 11,
+    fontFamily: typography.fontFamily.medium,
     color: colors.textSubtle,
   },
   summaryCard: {
@@ -433,7 +438,7 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     marginBottom: spacing.xs,
   },
@@ -444,23 +449,20 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
   },
   summaryVal: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   footer: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    bottom: Platform.OS === "ios" ? 86 : 76,
+    left: spacing.base,
+    right: spacing.base,
+    backgroundColor: "transparent",
   },
 });
 

@@ -201,9 +201,12 @@ export const BookingDetailScreen = ({ route, navigation }) => {
             <StatusBadge status={booking.status} />
           </View>
 
-          {/* Timeline Visualizer */}
+          {/* Timeline Visualizer (Glovo Route Tracking Style) */}
           <View style={styles.timelineContainer}>
-            <Text style={styles.timelineHeading}>Event Progress</Text>
+            <View style={styles.timelineHeaderRow}>
+              <Text style={styles.timelineHeading}>Order & Event Milestones</Text>
+              <Text style={styles.timelineLiveBadge}>LIVE TRACKING</Text>
+            </View>
             <View style={styles.stepsRow}>
               {timelineSteps.map((step, idx) => (
                 <View key={step.id} style={styles.stepItem}>
@@ -217,10 +220,19 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                     {step.done ? (
                       <CheckCircle size={14} color={colors.white} />
                     ) : (
-                      <Text style={styles.stepNumber}>{idx + 1}</Text>
+                      <Text style={[styles.stepNumber, step.active && styles.stepNumberActive]}>
+                        {idx + 1}
+                      </Text>
                     )}
                   </View>
-                  <Text style={[styles.stepLabel, step.done && styles.stepLabelDone]}>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      step.done && styles.stepLabelDone,
+                      step.active && styles.stepLabelActive,
+                    ]}
+                    numberOfLines={2}
+                  >
                     {step.label}
                   </Text>
                 </View>
@@ -404,12 +416,28 @@ const styles = StyleSheet.create({
     borderTopColor: colors.borderLight,
     paddingTop: spacing.md,
   },
+  timelineHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
   timelineHeading: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
-    color: colors.foregroundMuted,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
     textTransform: "uppercase",
-    marginBottom: spacing.md,
+    letterSpacing: 0.5,
+  },
+  timelineLiveBadge: {
+    fontSize: 9,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    letterSpacing: 0.5,
   },
   stepsRow: {
     flexDirection: "row",
@@ -418,36 +446,51 @@ const styles = StyleSheet.create({
   stepItem: {
     alignItems: "center",
     flex: 1,
+    paddingHorizontal: 2,
   },
   stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.border,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   stepDotDone: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   stepDotActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.white,
+    borderColor: colors.primary,
+    borderWidth: 2.5,
   },
   stepNumber: {
     fontSize: 10,
-    fontWeight: "700",
-    color: colors.white,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foregroundMuted,
+  },
+  stepNumberActive: {
+    color: colors.primary,
+    fontWeight: "800",
   },
   stepLabel: {
-    fontSize: 9,
+    fontSize: 10,
     color: colors.foregroundMuted,
     textAlign: "center",
-    fontWeight: "500",
+    fontFamily: typography.fontFamily.medium,
+    lineHeight: 13,
   },
   stepLabelDone: {
     color: colors.foreground,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
+  },
+  stepLabelActive: {
+    color: colors.primary,
+    fontFamily: typography.fontFamily.bold,
   },
   sectionCard: {
     padding: spacing.lg,

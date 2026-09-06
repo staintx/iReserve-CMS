@@ -388,12 +388,12 @@ const styles = StyleSheet.create({
   },
   listHeading: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   markAllBtnText: {
     fontSize: typography.sizes.xs,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   itemList: {
@@ -402,6 +402,9 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     padding: spacing.sm + 2,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   itemHeaderRow: {
     flexDirection: "row",
@@ -410,23 +413,23 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     flex: 1,
     marginRight: spacing.xs,
   },
   bookedBadge: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.borderFocus,
   },
   bookedText: {
     fontSize: 10,
-    fontWeight: "600",
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary,
   },
   steppersContainer: {
     flexDirection: "row",
@@ -436,13 +439,13 @@ const styles = StyleSheet.create({
   stepperBox: {
     flex: 1,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.sm,
-    padding: spacing.xs,
+    borderRadius: radius.md,
+    padding: spacing.xs + 2,
     alignItems: "center",
   },
   stepperLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.medium,
     color: colors.foregroundMuted,
     marginBottom: 4,
   },
@@ -452,9 +455,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   stepperBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -463,7 +466,7 @@ const styles = StyleSheet.create({
   },
   stepperVal: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     minWidth: 20,
     textAlign: "center",
@@ -476,8 +479,8 @@ const styles = StyleSheet.create({
   },
   missingWarningText: {
     fontSize: 11,
+    fontFamily: typography.fontFamily.bold,
     color: colors.warning,
-    fontWeight: "600",
   },
   itemNoteInput: {
     backgroundColor: colors.inputBackground,

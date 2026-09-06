@@ -111,10 +111,11 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     marginBottom: spacing.xs + 2,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   inputWrapper: {
     flexDirection: "row",
@@ -122,22 +123,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.inputBackground,
     borderWidth: 1.2,
     borderColor: colors.inputBorder,
-    borderRadius: radius.md,
-    height: 48,
-    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    height: 52,
+    paddingHorizontal: spacing.md + 2,
   },
   inputWrapperFocused: {
     borderColor: colors.primary,
-    borderWidth: 1.5,
+    borderWidth: 1.6,
     backgroundColor: colors.white,
-    // Note: NEVER add elevation here on Android! Dynamic elevation causes Android view hierarchy
-    // to recreate elevation layers, which forces the native EditText to blur and closes the keyboard.
     ...Platform.select({
       ios: {
         shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
       },
     }),
   },
@@ -147,16 +146,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorLight,
   },
   inputWrapperDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
+    backgroundColor: colors.borderLight,
   },
   leftIconWrapper: {
-    marginRight: spacing.sm,
+    marginRight: spacing.sm + 2,
   },
   textInput: {
     flex: 1,
     height: "100%",
     color: colors.foreground,
     fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.medium,
     paddingVertical: 0,
   },
   rightIconWrapper: {
@@ -166,12 +167,14 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     color: colors.error,
     marginTop: spacing.xs,
-    fontWeight: "500",
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
   },
   helperText: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    color: colors.foregroundMuted,
     marginTop: spacing.xs,
+    fontFamily: typography.fontFamilies.regular,
   },
 });
 

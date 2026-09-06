@@ -17,6 +17,11 @@ export const customerApi = {
     return response.data;
   },
 
+  getGallery: async () => {
+    const response = await client.get("/gallery");
+    return response.data;
+  },
+
   getAddons: async () => {
     const response = await client.get("/addons");
     return response.data;

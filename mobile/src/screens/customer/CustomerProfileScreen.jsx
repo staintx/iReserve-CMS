@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -96,7 +97,11 @@ export const CustomerProfileScreen = ({ navigation }) => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === "web") {
+      await logout();
+      return;
+    }
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign Out", style: "destructive", onPress: logout },
@@ -250,31 +255,36 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.xl,
+    paddingBottom: 130,
   },
   heroCard: {
     alignItems: "center",
     padding: spacing.xl,
     backgroundColor: colors.surfaceAlt,
     marginBottom: spacing.base,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm,
-    borderWidth: 1.5,
-    borderColor: colors.powder,
+    borderWidth: 2,
+    borderColor: colors.borderFocus,
   },
   heroName: {
-    fontSize: typography.sizes.lg,
-    fontWeight: "800",
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
   },
   heroEmail: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
@@ -282,18 +292,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
-    paddingVertical: 3,
+    paddingVertical: 4,
     marginTop: spacing.sm,
   },
   roleText: {
     fontSize: 10,
-    fontWeight: "800",
+    fontFamily: typography.fontFamily.bold,
     color: colors.white,
     letterSpacing: 0.5,
   },
   sectionCard: {
     padding: spacing.lg,
     marginBottom: spacing.base,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -302,16 +315,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "800",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
     textTransform: "uppercase",
-    color: colors.secondary,
+    color: colors.foregroundMuted,
     letterSpacing: 0.5,
   },
   editBtnText: {
     fontSize: typography.sizes.xs,
     color: colors.primary,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   detailsList: {
     marginTop: spacing.xs,
@@ -319,7 +332,7 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
   },
@@ -331,10 +344,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.foregroundMuted,
     textTransform: "uppercase",
+    fontFamily: typography.fontFamily.medium,
   },
   detailValue: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     marginTop: 1,
   },
@@ -345,7 +359,7 @@ const styles = StyleSheet.create({
   },
   menuActionText: {
     fontSize: typography.sizes.base,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.medium,
     color: colors.foreground,
     marginLeft: spacing.md,
     flex: 1,
@@ -357,13 +371,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorLight,
     borderWidth: 1,
     borderColor: colors.errorBorder,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    height: 52,
+    paddingHorizontal: spacing.xl,
     marginTop: spacing.sm,
   },
   logoutText: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.error,
   },
 });

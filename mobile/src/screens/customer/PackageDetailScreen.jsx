@@ -16,7 +16,7 @@ import {
   Shield,
   Clock,
 } from "lucide-react-native";
-import { colors, radius, spacing, typography } from "../../constants/theme";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
@@ -251,33 +251,56 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     marginTop: spacing.md,
   },
+  packageName: {
+    fontSize: typography.sizes.title,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+    letterSpacing: -0.4,
+  },
+  packageCategory: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.primary,
+    marginTop: 2,
+  },
+  priceHero: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginTop: spacing.md,
+  },
   priceHeroText: {
     fontSize: typography.sizes.title,
-    fontWeight: "900",
+    fontFamily: typography.fontFamilies.extraBold,
+    fontWeight: "800",
     color: colors.primary,
   },
   priceHeroUnit: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
-    fontWeight: "600",
   },
   sectionCard: {
     padding: spacing.lg,
     marginBottom: spacing.base,
+    borderRadius: radius.lg,
   },
   sectionTitle: {
     fontSize: typography.sizes.md,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
     marginBottom: spacing.sm,
   },
   sectionSubtitle: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginBottom: spacing.md,
   },
   descriptionText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 22,
   },
@@ -292,16 +315,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: radius.lg,
   },
   factValue: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
     marginTop: 6,
     textAlign: "center",
   },
   factLabel: {
-    fontSize: 10,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
     textAlign: "center",
@@ -315,13 +341,14 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: colors.successLight,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginRight: spacing.sm + 2,
   },
   inclusionText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foreground,
     flex: 1,
     lineHeight: 20,
@@ -332,15 +359,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.border,
   },
   scaffoldLabel: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "600",
     color: colors.foreground,
   },
   scaffoldPrice: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.primary,
   },
@@ -355,13 +384,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 8,
+    borderTopWidth: 1.2,
+    borderTopColor: colors.border,
+    ...shadows.lg,
   },
   bottomPriceContainer: {
     flex: 1,
@@ -369,15 +394,17 @@ const styles = StyleSheet.create({
   },
   bottomPriceLabel: {
     fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
   },
   bottomPriceValue: {
     fontSize: typography.sizes.md,
+    fontFamily: typography.fontFamilies.extraBold,
     fontWeight: "800",
     color: colors.primary,
   },
   inquireBtn: {
-    flex: 1.2,
+    flex: 1.3,
   },
 });
 

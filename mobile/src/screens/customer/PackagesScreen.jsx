@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
-import { Sparkles, Utensils, Users, ChevronRight } from "lucide-react-native";
+import { Sparkles, Utensils, Users, ChevronRight, Plus } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
@@ -99,26 +99,25 @@ export const PackagesScreen = ({ navigation }) => {
         <View style={styles.inclusionsRow}>
           {item.min_guests ? (
             <View style={styles.tag}>
-              <Users size={12} color={colors.foregroundMuted} />
+              <Users size={12} color={colors.primary} />
               <Text style={styles.tagText}>Min: {item.min_guests} pax</Text>
             </View>
           ) : item.combo_guest_count ? (
             <View style={styles.tag}>
-              <Users size={12} color={colors.foregroundMuted} />
+              <Users size={12} color={colors.primary} />
               <Text style={styles.tagText}>{item.combo_guest_count} pax fixed</Text>
             </View>
           ) : null}
 
           {Array.isArray(item.inclusions) && item.inclusions.length > 0 && (
             <View style={styles.tag}>
-              <Utensils size={12} color={colors.foregroundMuted} />
+              <Utensils size={12} color={colors.primary} />
               <Text style={styles.tagText}>{item.inclusions.length} Inclusions</Text>
             </View>
           )}
 
-          <View style={styles.learnMore}>
-            <Text style={styles.learnMoreText}>View Details</Text>
-            <ChevronRight size={14} color={colors.primary} />
+          <View style={styles.addBtnCircle}>
+            <Plus size={16} color={colors.primary} />
           </View>
         </View>
       </Card>
@@ -190,38 +189,44 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     flexDirection: "row",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: colors.border,
   },
   filterChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceAlt,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1.2,
+    borderColor: colors.border,
     marginRight: spacing.sm,
   },
   filterChipActive: {
     backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterText: {
     fontSize: typography.sizes.xs,
-    fontWeight: "600",
-    color: colors.foregroundMuted,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
   },
   filterTextActive: {
     color: colors.white,
   },
   listContent: {
-    padding: spacing.xl,
+    padding: spacing.base,
+    paddingBottom: 96,
   },
   packageCard: {
     padding: spacing.base,
     marginBottom: spacing.base,
+    borderRadius: radius.lg,
   },
   cardHeader: {
     flexDirection: "row",
@@ -236,30 +241,32 @@ const styles = StyleSheet.create({
   specialBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
-    borderColor: colors.accent,
-    borderRadius: radius.sm,
-    paddingHorizontal: 6,
+    borderColor: colors.primaryBorder,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     alignSelf: "flex-start",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   specialBadgeText: {
     fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
-    color: colors.accentDark,
+    color: colors.primary,
     marginLeft: 3,
   },
   packageName: {
     fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
   },
   packageCategory: {
     fontSize: typography.sizes.xs,
-    color: colors.secondary,
-    fontWeight: "600",
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
   priceContainer: {
@@ -267,15 +274,18 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: typography.sizes.md,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "800",
     color: colors.primary,
   },
   priceUnit: {
     fontSize: 10,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
   description: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     lineHeight: 18,
     marginVertical: spacing.xs,
@@ -291,28 +301,29 @@ const styles = StyleSheet.create({
   tag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    paddingVertical: 3,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.sm,
+    backgroundColor: colors.primaryLight,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.pill,
     marginRight: spacing.sm,
   },
   tagText: {
     fontSize: 11,
-    color: colors.foregroundMuted,
-    fontWeight: "600",
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primaryDark,
+    fontWeight: "700",
     marginLeft: 4,
   },
-  learnMore: {
-    flexDirection: "row",
+  addBtnCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1.2,
+    borderColor: colors.primaryBorder,
     alignItems: "center",
+    justifyContent: "center",
     marginLeft: "auto",
-  },
-  learnMoreText: {
-    fontSize: typography.sizes.xs,
-    color: colors.primary,
-    fontWeight: "700",
-    marginRight: 2,
   },
 });
 

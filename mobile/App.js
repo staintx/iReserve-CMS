@@ -3,6 +3,14 @@ import { View, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
+  useFonts as usePlusJakarta,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from "@expo-google-fonts/plus-jakarta-sans";
+import {
   useFonts as useWorkSans,
   WorkSans_400Regular,
   WorkSans_500Medium,
@@ -23,6 +31,14 @@ import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/constants/theme";
 
 export default function App() {
+  const [fontsLoaded] = usePlusJakarta({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+  });
+
   useWorkSans({
     WorkSans_400Regular,
     WorkSans_500Medium,

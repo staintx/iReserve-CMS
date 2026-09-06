@@ -71,9 +71,9 @@ export const StatusBadge = ({ status, size = "md", showDot = true, style }) => {
   } else if (
     normalized.includes("revision")
   ) {
-    bgColor = colors.secondaryLight;
-    textColor = colors.secondary;
-    borderColor = colors.cream;
+    bgColor = colors.primaryLight;
+    textColor = colors.primaryHover;
+    borderColor = colors.primaryBorder;
     isLive = true;
   }
 

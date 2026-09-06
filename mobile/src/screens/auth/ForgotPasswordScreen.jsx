@@ -66,17 +66,20 @@ export const ForgotPasswordScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <ChevronLeft size={24} color={colors.foreground} />
-          <Text style={styles.backText}>Back to Sign In</Text>
+          <ChevronLeft size={22} color={colors.foreground} />
         </TouchableOpacity>
 
         <View style={styles.iconCircle}>
-          <KeyRound size={36} color={colors.secondary} />
+          <KeyRound size={34} color={colors.primary} />
         </View>
 
-        <Text style={styles.title}>Forgot Password</Text>
+        <Text style={styles.title}>
+          {submitted ? "Check your email" : "Reset your password"}
+        </Text>
         <Text style={styles.subtitle}>
-          Enter your registered email address and we'll send you instructions to reset your password.
+          {submitted
+            ? "We've sent a link to reset your password. Can't find the email? Check your spam folder or request a new link."
+            : "Enter your registered email address and we'll send you instructions to reset your password."}
         </Text>
 
         {Boolean(error) && (
@@ -87,22 +90,26 @@ export const ForgotPasswordScreen = ({ navigation }) => {
 
         {submitted ? (
           <View style={styles.successCard}>
-            <Text style={styles.successTitle}>Check Your Inbox</Text>
-            <Text style={styles.successDesc}>
-              If that email is in our system, we've sent password reset instructions to{"\n"}
-              <Text style={styles.emailHighlight}>{email}</Text>.
-            </Text>
+            <Text style={styles.emailHighlight}>{email}</Text>
             <AppButton
-              title="Return to Sign In"
+              title="Go to Login"
               onPress={() => navigation.navigate("Login")}
-              style={{ marginTop: spacing.lg }}
+              size="lg"
+              style={{ marginTop: spacing.xl, width: "100%" }}
             />
+            <TouchableOpacity
+              onPress={() => setSubmitted(false)}
+              style={styles.resendLinkBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resendLinkText}>Resend link</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.form}>
             <AppInput
               label="Email Address"
-              placeholder="juan@example.com"
+              placeholder="name@example.com"
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
@@ -116,7 +123,7 @@ export const ForgotPasswordScreen = ({ navigation }) => {
             />
 
             <AppButton
-              title="Send Reset Instructions"
+              title="Send Instructions"
               onPress={handleSubmit}
               loading={loading}
               size="lg"
@@ -140,37 +147,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backButton: {
-    flexDirection: "row",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.powder,
     alignItems: "center",
-    marginBottom: spacing.xl,
+    justifyContent: "center",
+    marginBottom: spacing.lg,
     alignSelf: "flex-start",
-  },
-  backText: {
-    fontSize: typography.sizes.sm,
-    color: colors.foreground,
-    fontWeight: "600",
-    marginLeft: spacing.xs,
   },
   iconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.base,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderWidth: 1.5,
+    borderColor: colors.primaryBorder,
   },
   title: {
     fontSize: typography.sizes.title,
-    fontWeight: "800",
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     textAlign: "center",
     marginBottom: spacing.xs,
+    letterSpacing: -0.4,
   },
   subtitle: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,
@@ -187,8 +195,8 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.error,
-    fontWeight: "500",
     textAlign: "center",
   },
   form: {
@@ -196,27 +204,26 @@ const styles = StyleSheet.create({
   },
   successCard: {
     width: "100%",
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     padding: spacing.xl,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  successTitle: {
-    fontSize: typography.sizes.lg,
-    fontWeight: "700",
-    color: colors.foreground,
-    marginBottom: spacing.sm,
-  },
-  successDesc: {
-    fontSize: typography.sizes.sm,
-    color: colors.foregroundMuted,
-    textAlign: "center",
-    lineHeight: 20,
+    borderWidth: 1.2,
+    borderColor: colors.border,
   },
   emailHighlight: {
-    fontWeight: "700",
+    fontFamily: typography.fontFamilies.bold,
+    fontSize: typography.sizes.base,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  resendLinkBtn: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  resendLinkText: {
+    fontFamily: typography.fontFamilies.bold,
+    fontSize: typography.sizes.sm,
     color: colors.primary,
   },
 });

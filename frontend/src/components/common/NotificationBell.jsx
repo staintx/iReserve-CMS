@@ -13,7 +13,7 @@ import {
 } from "../ui/dropdown-menu";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { getNotificationMeta, groupNotificationsByDay } from "./notificationMeta";
+import { formatCustomerNotification, groupNotificationsByDay } from "./notificationMeta";
 
 const formatTime = (value) => {
   if (!value) return "";
@@ -200,8 +200,8 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
                   </div>
                   <div className="divide-y divide-slate-100">
                     {groupItems.map((item) => {
-                      const meta = getNotificationMeta(item.type);
-                      const Icon = meta.icon;
+                      const formatted = formatCustomerNotification(item);
+                      const Icon = formatted.icon;
                       return (
                         <DropdownMenuItem asChild key={item._id}>
                           <button
@@ -212,20 +212,20 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
                             )}
                             onClick={() => handleItemClick(item)}
                           >
-                            <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md", meta.chipClass)}>
-                              <Icon className={cn("w-3.5 h-3.5", meta.iconClass)} />
+                            <div className={cn("mt-0.5 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-md", formatted.chipClass)}>
+                              <Icon className={cn("w-3.5 h-3.5", formatted.iconClass)} />
                             </div>
                             <div className="flex-1 min-w-0 space-y-0.5">
                               <div className="flex items-start justify-between gap-2">
                                 <p className={cn("text-xs leading-snug", !item.is_read ? "font-bold text-slate-900" : "font-medium text-slate-700")}>
-                                  {item.title}
+                                  {formatted.formattedTitle}
                                 </p>
                                 {!item.is_read && (
                                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#2C4B8A] shrink-0" aria-hidden="true" />
                                 )}
                               </div>
                               <p className="text-xs leading-relaxed text-slate-500 line-clamp-2">
-                                {item.body}
+                                {formatted.formattedBody}
                               </p>
                               <p className="text-[10px] text-slate-400 font-medium pt-0.5">
                                 {formatTime(item.createdAt)}

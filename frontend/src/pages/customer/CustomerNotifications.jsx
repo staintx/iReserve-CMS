@@ -6,7 +6,7 @@ import { NotificationAPI } from "../../api/notifications";
 import { getSocket } from "../../api/socket";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { getNotificationMeta, groupNotificationsByDay } from "../../components/common/notificationMeta";
+import { formatCustomerNotification, groupNotificationsByDay } from "../../components/common/notificationMeta";
 
 const PAGE_SIZE = 20;
 const FILTERS = [
@@ -178,8 +178,8 @@ export default function CustomerNotifications() {
                     {label}
                   </div>
                   {groupItems.map((item) => {
-                    const meta = getNotificationMeta(item.type);
-                    const Icon = meta.icon;
+                    const formatted = formatCustomerNotification(item);
+                    const Icon = formatted.icon;
                     return (
                       <button
                         key={item._id}
@@ -192,10 +192,10 @@ export default function CustomerNotifications() {
                         <div
                           className={cn(
                             "mt-0.5 flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full",
-                            meta.chipClass
+                            formatted.chipClass
                           )}
                         >
-                          <Icon className={cn("w-4 h-4", meta.iconClass)} />
+                          <Icon className={cn("w-4 h-4", formatted.iconClass)} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
@@ -207,15 +207,20 @@ export default function CustomerNotifications() {
                                   : "font-semibold text-foreground/80"
                               )}
                             >
-                              {item.title}
+                              {formatted.formattedTitle}
                             </p>
                             <span className="text-xs text-muted-foreground whitespace-nowrap">
                               {formatDate(item.createdAt)}
                             </span>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {item.body}
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
+                            {formatted.formattedBody}
                           </p>
+                          {formatted.cta && (
+                            <div className="mt-2 text-xs font-semibold text-[#2C4B8A] hover:text-[#1e3461] inline-block transition-colors">
+                              {formatted.cta}
+                            </div>
+                          )}
                         </div>
                         {!item.is_read && (
                           <span

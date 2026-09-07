@@ -33,6 +33,9 @@ import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
+import { getEligibleOcularBookings } from "../../utils/ocularEligibility";
+import AdminOcularDateTimePicker from "../../components/admin/ui/AdminOcularDateTimePicker";
+import { formatDateToYYYYMMDD, formatEventDate } from "../../utils/format";
 
 export default function AdminOcular() {
   const navigate = useNavigate();
@@ -92,6 +95,25 @@ export default function AdminOcular() {
     });
   }, [bookings]);
 
+  // Eligible bookings for ocular scheduling modal (Schedule New vs Reschedule mode)
+  const scheduleEligibleBookings = useMemo(() => {
+    const mode = selectedBookingId ? "reschedule" : "schedule_new";
+    const eligible = getEligibleOcularBookings(bookings, mode);
+    
+    // Ensure selectedBookingId remains in the list if pre-selected from table
+    if (selectedBookingId && !eligible.some(b => String(b._id) === String(selectedBookingId))) {
+      const selectedObj = bookings.find(b => String(b._id) === String(selectedBookingId));
+      if (selectedObj) {
+        return [selectedObj, ...eligible];
+      }
+    }
+    return eligible;
+  }, [bookings, selectedBookingId]);
+
+  const currentSelectedBooking = useMemo(() => {
+    return bookings.find(b => String(b._id) === String(selectedBookingId)) || null;
+  }, [bookings, selectedBookingId]);
+
   // Formatted Ocular List
   const formattedOculars = useMemo(() => {
     return ocularBookings.map((b) => {
@@ -131,8 +153,8 @@ export default function AdminOcular() {
         eventType: b.event_type || "Catering Event",
         venue: [b.venue_type, b.municipality, b.province].filter(Boolean).join(", ") || "Venue TBA",
         coordinator: b.event_manager_id?.full_name || "Unassigned",
-        date: o.scheduled_date ? new Date(o.scheduled_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBA",
-        rawDate: o.scheduled_date ? new Date(o.scheduled_date) : null,
+        date: formatEventDate(o.scheduled_date, { fallback: "TBA" }),
+        rawDate: o.scheduled_date || null,
         time: o.scheduled_time || "TBA",
         status: statusLabel,
         rawStatus: o.status,
@@ -336,7 +358,7 @@ export default function AdminOcular() {
     ...(o.status === "Requested"
       ? [{ key: "confirm", label: "Confirm Date & Schedule", icon: Calendar, onSelect: () => {
           setSelectedBookingId(o._id);
-          setScheduleDate(o.rawDate ? o.rawDate.toISOString().split('T')[0] : "");
+          setScheduleDate(formatDateToYYYYMMDD(o.rawDate));
           setScheduleTime(o.time !== "TBA" ? o.time : "");
           setShowScheduleModal(true);
         }}]
@@ -526,7 +548,7 @@ export default function AdminOcular() {
                   size="sm" 
                   onClick={() => {
                     setSelectedBookingId(drawerRow._id);
-                    setScheduleDate(drawerRow.rawDate ? drawerRow.rawDate.toISOString().split('T')[0] : "");
+                    setScheduleDate(formatDateToYYYYMMDD(drawerRow.rawDate));
                     setScheduleTime(drawerRow.time !== "TBA" ? drawerRow.time : "");
                     setShowScheduleModal(true);
                   }}
@@ -580,57 +602,59 @@ export default function AdminOcular() {
 
       {/* Schedule Ocular Dialog */}
       <Dialog open={showScheduleModal} onOpenChange={setShowScheduleModal}>
-        <DialogContent className="sm:max-w-[450px]">
+        <DialogContent className="sm:max-w-[490px] max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleConfirmSchedule}>
             <DialogHeader>
-              <DialogTitle>Schedule Ocular Visit</DialogTitle>
-              <DialogDescription>Set or confirm the site inspection date and time.</DialogDescription>
+              <DialogTitle className="text-base font-bold text-slate-900">Schedule Ocular Visit</DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Set or confirm the site inspection date and time.
+              </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              {!selectedBookingId && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Select Event Booking</label>
-                  <select
-                    value={selectedBookingId}
-                    onChange={(e) => setSelectedBookingId(e.target.value)}
-                    required
-                    className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
-                  >
-                    <option value="">-- Select Booking --</option>
-                    {bookings.filter(b => b.service_type !== "Food Only").map(b => (
-                      <option key={b._id} value={b._id}>
-                        {b.reference || b._id} - {b.contact_first_name} {b.contact_last_name} ({b.event_type})
-                      </option>
-                    ))}
-                  </select>
+            <div className="space-y-3.5 py-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Select Event Booking</label>
+                <select
+                  value={selectedBookingId}
+                  onChange={(e) => setSelectedBookingId(e.target.value)}
+                  required
+                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                >
+                  <option value="">-- Select Booking --</option>
+                  {scheduleEligibleBookings.map((b) => (
+                    <option key={b._id} value={b._id}>
+                      {b.reference || `BK-${b._id.substring(b._id.length - 6).toUpperCase()}`} - {b.contact_first_name || ""} {b.contact_last_name || ""} ({b.event_type || "Event"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {scheduleEligibleBookings.length === 0 && (
+                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-blue-900 leading-relaxed space-y-1">
+                  <span className="font-bold">No eligible upcoming events available</span>
+                  <p className="text-[11px] text-blue-700">
+                    Ocular visits are intended for upcoming bookings requiring on-site setup or physical site inspection.
+                  </p>
                 </div>
               )}
 
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Ocular Visit Date</label>
-                <Input 
-                  type="date" 
-                  value={scheduleDate}
-                  onChange={(e) => setScheduleDate(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Ocular Visit Time</label>
-                <Input 
-                  type="time" 
-                  value={scheduleTime}
-                  onChange={(e) => setScheduleTime(e.target.value)}
-                  required
-                />
-              </div>
+              {/* Interactive Calendar & Time Picker */}
+              <AdminOcularDateTimePicker
+                selectedBooking={currentSelectedBooking}
+                dateValue={scheduleDate}
+                timeValue={scheduleTime}
+                onDateChange={setScheduleDate}
+                onTimeChange={setScheduleTime}
+              />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="pt-2 border-t border-slate-100">
               <Btn type="button" variant="secondary" onClick={() => setShowScheduleModal(false)}>Cancel</Btn>
-              <Btn type="submit" variant="primary" disabled={isSubmittingSchedule}>
+              <Btn 
+                type="submit" 
+                variant="primary" 
+                disabled={isSubmittingSchedule || !selectedBookingId || !scheduleDate || !scheduleTime || scheduleEligibleBookings.length === 0}
+              >
                 {isSubmittingSchedule ? "Saving..." : "Confirm Schedule"}
               </Btn>
             </DialogFooter>
@@ -643,37 +667,37 @@ export default function AdminOcular() {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleConfirmRevision}>
             <DialogHeader>
-              <div className="flex items-center gap-2 text-amber-700">
-                <Edit3 className="w-5 h-5" />
-                <DialogTitle>Request Booking Revision from Ocular Review</DialogTitle>
+              <div className="flex items-center gap-2 text-blue-700">
+                <Edit3 className="w-5 h-5 text-blue-600" />
+                <DialogTitle className="text-base font-bold text-slate-900">Request Booking Revision from Ocular Review</DialogTitle>
               </div>
-              <DialogDescription>
+              <DialogDescription className="text-xs text-slate-500">
                 Log inspection findings and propose booking adjustments (e.g. scaffold sizing, guest count, place dimensions) to the customer.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-3">
               {revisionBooking && (
-                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-md shadow-2xs text-xs space-y-1">
-                  <div className="flex justify-between font-bold text-amber-900">
+                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg shadow-2xs text-xs space-y-1">
+                  <div className="flex justify-between font-bold text-blue-950">
                     <span>Booking: {revisionBooking.id} ({revisionBooking.customer})</span>
                     <span>{revisionBooking.eventType}</span>
                   </div>
-                  <div className="text-slate-600">
+                  <div className="text-blue-800">
                     Venue: <strong>{revisionBooking.venue}</strong> | Current Guests: <strong>{revisionBooking.rawBooking?.guest_count || "—"}</strong>
                   </div>
                 </div>
               )}
 
               {/* Preset Helper Button */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-md border border-slate-200 shadow-2xs gap-2">
-                <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
-                  <Sparkles size={13} className="text-amber-500 shrink-0" /> Fast preset helper for site measurements:
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-2xs gap-2">
+                <span className="text-[11px] text-slate-600 font-medium flex items-center gap-1">
+                  <Sparkles size={13} className="text-blue-600 shrink-0" /> Fast preset helper for site measurements:
                 </span>
                 <button
                   type="button"
                   onClick={applyScaffoldPreset}
-                  className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors border border-amber-300 shrink-0 cursor-pointer shadow-2xs"
+                  className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200 shrink-0 cursor-pointer shadow-2xs"
                 >
                   ⚡ Scaffold Resize Example (20x20 → 30x40)
                 </button>
@@ -688,7 +712,7 @@ export default function AdminOcular() {
                   value={ocularNotes}
                   onChange={(e) => setOcularNotes(e.target.value)}
                   placeholder="Record venue dimensions, terrain checks, scaffold size requirements (e.g. 20x20 needs to be 30x40)..."
-                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                   required
                 />
               </div>
@@ -701,6 +725,7 @@ export default function AdminOcular() {
                     value={revisedGuestCount}
                     onChange={(e) => setRevisedGuestCount(e.target.value)}
                     placeholder="e.g. 150"
+                    className="text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
 
@@ -711,6 +736,7 @@ export default function AdminOcular() {
                     value={revisedTotalPrice}
                     onChange={(e) => setRevisedTotalPrice(e.target.value)}
                     placeholder="Leave blank to keep current price"
+                    className="text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -722,7 +748,7 @@ export default function AdminOcular() {
                   value={revisedSetupNotes}
                   onChange={(e) => setRevisedSetupNotes(e.target.value)}
                   placeholder="e.g. Upgraded scaffold structure size from 20x20 to 30x40 to fit venue area"
-                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                 />
               </div>
 
@@ -735,7 +761,7 @@ export default function AdminOcular() {
                   value={revisionMessage}
                   onChange={(e) => setRevisionMessage(e.target.value)}
                   placeholder="Explain why this revision is required based on the ocular site inspection..."
-                  className="w-full text-xs rounded-md border border-slate-200 p-2.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
+                  className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
                   required
                 />
               </div>

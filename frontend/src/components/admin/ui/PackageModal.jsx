@@ -861,8 +861,8 @@ export default function PackageModal({
     // differs, because what they are priced on differs: an offer is sold at a
     // fixed rate per pax against its own guest count, a regular package at a
     // base setup price.
-    if (!formData.name.trim() || !formData.event_type) {
-      notify("Package name and event type are required.", "error");
+    if (!formData.name.trim() || (!isOffer && !formData.event_type)) {
+      notify(isOffer ? "Combo name is required." : "Package name and event type are required.", "error");
       return;
     }
 
@@ -890,7 +890,7 @@ export default function PackageModal({
       return;
     }
 
-    if (formData.event_type === "Other" && !String(formData.event_type_other || "").trim()) {
+    if (!isOffer && formData.event_type === "Other" && !String(formData.event_type_other || "").trim()) {
       notify("Please specify the custom event type.", "error");
       return;
     }
@@ -945,8 +945,9 @@ export default function PackageModal({
 
       const normalizedFormData = {
         ...formData,
-        event_type:
-          formData.event_type === "Other"
+        event_type: isOffer
+          ? ""
+          : formData.event_type === "Other"
             ? String(formData.event_type_other || "").trim() || "Other"
             : formData.event_type,
         // The event-space build, which only a regular package has.
@@ -1178,43 +1179,45 @@ export default function PackageModal({
                 />
               </div>
 
-              {/* Event Type */}
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Event Type <span className="text-red-400">*</span>
-                </label>
-                <select
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  value={formData.event_type}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      event_type: e.target.value,
-                      event_type_other:
-                        e.target.value === "Other" ? formData.event_type_other : "",
-                    })
-                  }
-                >
-                  <option value="">Select Event Type</option>
-                  <option value="Wedding">Wedding</option>
-                  <option value="Birthday">Birthday</option>
-                  <option value="Corporate">Corporate</option>
-                  <option value="Christening">Christening</option>
-                  <option value="Anniversary">Anniversary</option>
-                  <option value="Other">Other</option>
-                </select>
-                {formData.event_type === "Other" && (
-                  <input
-                    type="text"
-                    className="w-full mt-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                    placeholder="Specify custom event type"
-                    value={formData.event_type_other}
+              {/* Event Type (Regular Package Only) */}
+              {!isOffer && (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">
+                    Event Type <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                    value={formData.event_type}
                     onChange={(e) =>
-                      setFormData({ ...formData, event_type_other: e.target.value })
+                      setFormData({
+                        ...formData,
+                        event_type: e.target.value,
+                        event_type_other:
+                          e.target.value === "Other" ? formData.event_type_other : "",
+                      })
                     }
-                  />
-                )}
-              </div>
+                  >
+                    <option value="">Select Event Type</option>
+                    <option value="Wedding">Wedding</option>
+                    <option value="Birthday">Birthday</option>
+                    <option value="Corporate">Corporate</option>
+                    <option value="Christening">Christening</option>
+                    <option value="Anniversary">Anniversary</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  {formData.event_type === "Other" && (
+                    <input
+                      type="text"
+                      className="w-full mt-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                      placeholder="Specify custom event type"
+                      value={formData.event_type_other}
+                      onChange={(e) =>
+                        setFormData({ ...formData, event_type_other: e.target.value })
+                      }
+                    />
+                  )}
+                </div>
+              )}
 
 
               {/* Availability Toggle */}

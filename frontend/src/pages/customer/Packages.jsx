@@ -19,6 +19,8 @@ import {
   offerFoodByCategory,
 } from "../../lib/specialOffers";
 
+import { ChevronDown } from "lucide-react";
+
 const peso = (amount) =>
   "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
 
@@ -498,74 +500,16 @@ export default function Packages() {
               {offers.map((offer) => {
                 const perPax = offerPricePerPax(offer);
                 const pax = offerGuestCount(offer);
-                // The meal itself, grouped by course, straight from the combo's
-                // own food list — no dish list is written here.
-                const courses = offerFoodByCategory(offer);
 
                 return (
-                  <article className="ls-pkg ls-offer" key={offer._id || offer.name}>
-                    <div className="ls-pkg-media">
-                      {offer.image_url ? (
-                        <img
-                          src={offer.image_url}
-                          alt={`${offer.name} combo pack`}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="ls-pkg-media-empty">{offer.name}</div>
-                      )}
-                      <span className="ls-offer-tag">Combo pack</span>
-                    </div>
-
-                    <div className="ls-pkg-body">
-                      <h3>{offer.name}</h3>
-
-                      {/* Nothing is printed when the rate is unset: a ₱0
-                          reads as a price, and no one set one. */}
-                      {perPax > 0 && (
-                        <p className="ls-offer-price">
-                          <strong>{peso(perPax)}</strong>
-                          <span>per pax</span>
-                        </p>
-                      )}
-
-                      <div className="ls-offer-chips">
-                        {pax > 0 && (
-                          <span className="ls-offer-chip">{pax} guests</span>
-                        )}
-                        {offer.badge_text && (
-                          <span className="ls-offer-chip">{offer.badge_text}</span>
-                        )}
-                      </div>
-
-                      {offer.description && (
-                        <p className="ls-pkg-desc">{offer.description}</p>
-                      )}
-
-                      {/* Grouped by course, so a seven-dish combo reads as a
-                          meal rather than as a list. */}
-                      {courses.length > 0 && (
-                        <ul className="ls-offer-includes">
-                          {courses.map((course) => (
-                            <li key={course.category}>
-                              <strong>{course.category}</strong> ·{" "}
-                              {course.items.join(", ")}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      <div className="ls-pkg-actions">
-                        <button
-                          type="button"
-                          className="ls-btn ls-btn--primary ls-btn--block"
-                          onClick={() => navigate(`/packages/${offer._id}`)}
-                        >
-                          View combo
-                        </button>
-                      </div>
-                    </div>
-                  </article>
+                  <ComboCard
+                    key={offer._id || offer.name}
+                    offer={offer}
+                    perPax={perPax}
+                    pax={pax}
+                    peso={peso}
+                    navigate={navigate}
+                  />
                 );
               })}
             </div>
@@ -608,5 +552,58 @@ export default function Packages() {
 
       <CustomerFooter businessInfo={businessInfo} />
     </CustomerLayout>
+  );
+}
+
+function ComboCard({ offer, perPax, pax, peso, navigate }) {
+  return (
+    <article className="ls-pkg ls-offer" key={offer._id || offer.name}>
+      <div className="ls-pkg-media">
+        {offer.image_url ? (
+          <img
+            src={offer.image_url}
+            alt={`${offer.name} combo pack`}
+            loading="lazy"
+          />
+        ) : (
+          <div className="ls-pkg-media-empty">{offer.name}</div>
+        )}
+        <span className="ls-offer-tag">Combo pack</span>
+      </div>
+
+      <div className="ls-pkg-body">
+        <h3>{offer.name}</h3>
+
+        {perPax > 0 && (
+          <p className="ls-offer-price">
+            <strong>{peso(perPax)}</strong>
+            <span>per pax</span>
+          </p>
+        )}
+
+        <div className="ls-offer-chips">
+          {pax > 0 && (
+            <span className="ls-offer-chip">{pax} guests</span>
+          )}
+          {offer.badge_text && (
+            <span className="ls-offer-chip">{offer.badge_text}</span>
+          )}
+        </div>
+
+        {offer.description && (
+          <p className="ls-pkg-desc">{offer.description}</p>
+        )}
+
+        <div className="ls-pkg-actions">
+          <button
+            type="button"
+            className="ls-btn ls-btn--primary ls-btn--block"
+            onClick={() => navigate(`/packages/${offer._id}`)}
+          >
+            View Combo
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }

@@ -168,12 +168,6 @@ exports.create = async (req, res) => {
   // without them the offer has no price and no size, and every surface that
   // renders it would have to invent one.
   if (isOffer) {
-    const guestCount = Math.floor(Number(req.body.guest_count) || 0);
-    if (guestCount < 1) {
-      return res.status(400).json({
-        message: "Set how many guests this combo serves. It must be at least 1.",
-      });
-    }
     if (!(Number(req.body.price_per_guest) >= 0)) {
       return res.status(400).json({
         message: "Set this combo's price per pax.",
@@ -185,9 +179,7 @@ exports.create = async (req, res) => {
     ...req.body,
     package_type: req.body.package_type || "Event Setup Only",
     offer_type,
-    // The guest count belongs to a combo, where it is the number the price is
-    // built from. A regular package carries a guest range instead.
-    guest_count: isOffer ? Math.floor(Number(req.body.guest_count)) : undefined,
+    guest_count: isOffer && req.body.guest_count ? Math.floor(Number(req.body.guest_count)) : undefined,
     offer_food_items: isOffer
       ? normalizeOfferFoodItems(req.body.offer_food_items)
       : [],
@@ -328,14 +320,11 @@ exports.update = async (req, res) => {
   data.offer_type = offerType;
 
   if (isOffer) {
-    if (req.body.guest_count !== undefined) {
+    if (req.body.guest_count !== undefined && req.body.guest_count !== null && req.body.guest_count !== "") {
       const guestCount = Math.floor(Number(req.body.guest_count) || 0);
-      if (guestCount < 1) {
-        return res.status(400).json({
-          message: "Set how many guests this combo serves. It must be at least 1.",
-        });
+      if (guestCount >= 1) {
+        data.guest_count = guestCount;
       }
-      data.guest_count = guestCount;
     }
     if (
       req.body.price_per_guest !== undefined &&

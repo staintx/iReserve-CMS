@@ -190,7 +190,7 @@ export default function AdminPackages() {
         // number an admin is most likely to read as the total.
         detail: pax
           ? `${fmt(offerBaseFoodPrice(pkg))} for ${pax} guests — set-up and extras quoted separately`
-          : "Set a guest count so this combo can be booked",
+          : "Set-up and extras quoted separately",
       };
     }
     if (pkg.setup_price) {

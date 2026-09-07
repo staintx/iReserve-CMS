@@ -86,7 +86,7 @@ const OFFERS = [
 
 const run = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI);
 
     for (const offer of OFFERS) {
       const existing = await Package.findOne({

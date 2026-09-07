@@ -268,12 +268,6 @@ export default function PackageModal({
 
   const isOffer = formData.offer_type === OFFER_TYPES.SPECIAL;
 
-  // What the combo's food costs, from the two numbers the admin just typed.
-  // The same arithmetic the customer, the booking and the quotation all use.
-  const comboTotal =
-    Math.max(0, Math.floor(Number(formData.guest_count) || 0)) *
-    Math.max(0, Number(formData.price_per_guest) || 0);
-
   const scaffoldOptions = formData.scaffold_size_options || [];
   const foodItems = useMemo(
     () => formData.offer_food_items || [],
@@ -776,15 +770,7 @@ export default function PackageModal({
 
     if (isOffer && !(Number(formData.price_per_guest) >= 0)) {
       notify(
-        "Set the price per pax. A combo is priced from that rate times its guest count.",
-        "error",
-      );
-      return;
-    }
-
-    if (isOffer && !(Number(formData.guest_count) >= 1)) {
-      notify(
-        "Set how many guests this combo serves. It must be at least 1.",
+        "Set the price per pax. A combo is priced from that rate times guest count.",
         "error",
       );
       return;
@@ -1203,17 +1189,15 @@ export default function PackageModal({
               uses are shown, so neither reads as half-filled. */}
           <section>
             <h3 className="font-bold text-foreground mb-1">
-              {isOffer ? "Pricing & Guest Count" : "Pricing & Guest Rules"}
+              {isOffer ? "Pricing" : "Pricing & Guest Rules"}
             </h3>
             <p className="mb-4 text-xs text-gray-500">
               {isOffer
-                ? "Combo price = guest count × price per pax. Set-up, equipment and extras stay with the quotation."
+                ? "Special Offers are priced per pax. Customers will specify their guest count when booking."
                 : "The starting price for this package. The quotation remains the final pricing authority."}
             </p>
             <div className="grid grid-cols-2 gap-4">
-              {/* Base Setup Price — regular packages only. An offer is sold at
-                  a rate per pax; what its set-up costs is settled on the
-                  quotation, so asking for a figure here would invent one. */}
+              {/* Base Setup Price — regular packages only */}
               {!isOffer && (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">
@@ -1233,34 +1217,10 @@ export default function PackageModal({
                 </div>
               )}
 
-              {/* ---- Combo pricing ----------------------------------------
-                  A combo's own two numbers, and the total that follows from
-                  them. All three are configuration: no figure lives in code. */}
+              {/* Combo pricing */}
               {isOffer && (
                 <>
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Guest Count (pax) <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      placeholder="e.g. 10"
-                      value={formData.guest_count}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) return;
-                        setFormData({ ...formData, guest_count: e.target.value });
-                      }}
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      How many guests this combo serves. Customers book it for
-                      exactly this number.
-                    </p>
-                  </div>
-
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-sm text-gray-600 mb-1">
                       Price Per Pax (₱) <span className="text-red-400">*</span>
                     </label>
@@ -1280,17 +1240,9 @@ export default function PackageModal({
                     />
                   </div>
 
-                  {/* The number the customer actually pays for the food, shown
-                      as it is typed — the two fields above are easy to read as
-                      a total when they are not one. */}
-                  {comboTotal > 0 && (
+                  {Number(formData.price_per_guest) > 0 && (
                     <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
-                      Combo food price:{" "}
-                      <strong>₱{comboTotal.toLocaleString("en-PH")}</strong> ·{" "}
-                      {Number(formData.guest_count)} guests × ₱
-                      {Number(formData.price_per_guest).toLocaleString("en-PH")}{" "}
-                      per pax. Set-up, equipment and extras are quoted
-                      separately.
+                      Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
                     </p>
                   )}
                 </>

@@ -48,7 +48,7 @@ const positive = (value) => {
 };
 
 const run = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
+  await mongoose.connect(process.env.MONGO_URI || process.env.MONGODB_URI);
 
   // The stored documents, not hydrated ones: `offer_menu_rules` is no longer in
   // the schema, so mongoose would strip it before this could read it.

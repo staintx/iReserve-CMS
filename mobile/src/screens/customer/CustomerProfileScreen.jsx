@@ -22,6 +22,8 @@ import {
   Sparkles,
   MessageSquare,
   HelpCircle,
+  Utensils,
+  Camera,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppButton from "../../components/common/AppButton";
@@ -257,7 +259,33 @@ export const CustomerProfileScreen = ({ navigation }) => {
               <ChevronRight size={18} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 3. Sign Out */}
+            {/* 3. Banquet Menu */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={() => navigation.navigate("Menu")}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <Utensils size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>Banquet Menu & Dishes</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 4. Event Gallery */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={() => navigation.navigate("Gallery")}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <Camera size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>Event Styling & Gallery</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 5. Sign Out */}
             <TouchableOpacity
               style={[styles.menuItemRow, styles.logoutRow]}
               onPress={handleLogout}

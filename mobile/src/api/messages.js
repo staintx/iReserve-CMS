@@ -16,8 +16,13 @@ export const messagesApi = {
     return response.data;
   },
 
-  sendMessage: async (id, bodyOrPayload) => {
-    const payload = typeof bodyOrPayload === "string" ? { body: bodyOrPayload } : bodyOrPayload;
+  sendMessage: async (id, bodyOrPayload, options = {}) => {
+    let payload;
+    if (typeof bodyOrPayload === "string") {
+      payload = { body: bodyOrPayload, ...options };
+    } else {
+      payload = { ...bodyOrPayload, ...options };
+    }
     const response = await client.post(`/messages/conversations/${id}/messages`, payload);
     return response.data;
   },

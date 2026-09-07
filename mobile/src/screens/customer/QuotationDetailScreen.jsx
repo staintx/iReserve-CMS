@@ -22,9 +22,11 @@ import {
   Edit3,
   ShieldCheck,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
+import messagesApi from "../../api/messages";
 import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
@@ -47,6 +49,53 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   // Revision Modal
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
+
+  const handleOpenChat = async () => {
+    const targetInquiryId =
+      quotation?.inquiry_id?._id || quotation?.inquiry_id || inquiryId;
+    if (!targetInquiryId) return;
+
+    try {
+      setActionLoading(true);
+      const conv = await messagesApi.createConversation({
+        inquiry_id: targetInquiryId,
+      });
+
+      navigation.navigate("CustomerChatThread", {
+        conversationId: conv?._id || conv?.id,
+        title: quotation?.event_type
+          ? `Inquiry: ${quotation.event_type}`
+          : "Caezelle's Event Support",
+        conversation: conv,
+      });
+    } catch (err) {
+      try {
+        const convList = await messagesApi.listConversations();
+        const existing = Array.isArray(convList)
+          ? convList.find((c) => {
+              const inq = c.inquiry_id?._id || c.inquiry_id;
+              return String(inq) === String(targetInquiryId);
+            })
+          : null;
+        if (existing) {
+          navigation.navigate("CustomerChatThread", {
+            conversationId: existing._id,
+            title: existing.inquiry_id?.event_type
+              ? `Inquiry: ${existing.inquiry_id.event_type}`
+              : "Caezelle's Event Support",
+            conversation: existing,
+          });
+          return;
+        }
+      } catch {}
+      Alert.alert(
+        "Chat Unavailable",
+        "Could not start chat session for this inquiry."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const loadQuotation = async () => {
     setError("");
@@ -210,6 +259,16 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
         title={`Quotation #${quotation.quotation_number || String(quotation._id).slice(-6).toUpperCase()}`}
         subtitle={`Version ${quotation.version_number || 1}`}
         onBack={() => navigation.goBack()}
+        rightElement={
+          <TouchableOpacity
+            onPress={handleOpenChat}
+            style={styles.headerChatBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <MessageSquare size={20} color={colors.primary} />
+          </TouchableOpacity>
+        }
       />
 
       <ScrollView
@@ -385,6 +444,24 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
             </View>
           </View>
         </View>
+
+        {/* Chat / Inquiry Helper Card */}
+        <TouchableOpacity
+          style={styles.chatHelperCard}
+          onPress={handleOpenChat}
+          activeOpacity={0.8}
+        >
+          <View style={styles.chatHelperIconWrap}>
+            <MessageSquare size={18} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.chatHelperTitle}>Questions about this quotation?</Text>
+            <Text style={styles.chatHelperSubtitle}>
+              Chat directly with our banquet team about menus, guest count, or schedule.
+            </Text>
+          </View>
+          <ChevronRight size={16} color={colors.foregroundMuted} />
+        </TouchableOpacity>
 
         {/* Secure Checkout Notice */}
         <View style={styles.securityNoticeCard}>
@@ -721,6 +798,42 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
+  },
+  headerChatBtn: {
+    padding: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+  },
+  chatHelperCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    marginBottom: spacing.base,
+    gap: spacing.sm,
+  },
+  chatHelperIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatHelperTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  chatHelperSubtitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
   },
   securityNoticeCard: {
     flexDirection: "row",

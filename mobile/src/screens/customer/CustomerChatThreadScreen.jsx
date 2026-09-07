@@ -18,19 +18,33 @@ import {
   ChevronLeft,
   Utensils,
   ShieldCheck,
+  FileText,
+  Calendar,
+  ExternalLink,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import messagesApi from "../../api/messages";
 import { useAuth } from "../../context/AuthContext";
 import { useSocket } from "../../context/SocketContext";
 import { formatTime } from "../../utils/format";
+import {
+  getConversationTitle,
+  getThreadSubtitle,
+  getCodeBadge,
+  mergeMessageIntoList,
+} from "../../utils/chatHelpers";
 
 export const CustomerChatThreadScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { conversationId, title = "Caezelle's Banquet Team" } = route.params;
+  const {
+    conversationId,
+    title: initialTitle = "Caezelle's Banquet Team",
+    conversation: initialConversation = null,
+  } = route.params || {};
   const { user, token } = useAuth();
   const { socket, setActiveConversationId } = useSocket();
 
+  const [conversation, setConversation] = useState(initialConversation);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -50,30 +64,38 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
     };
   }, [conversationId, setActiveConversationId]);
 
-  // Load initial message history
+  // Load conversation details & initial message history
   useEffect(() => {
     let isMounted = true;
 
-    const fetchMessages = async () => {
+    const fetchDetailsAndMessages = async () => {
       try {
-        const data = await messagesApi.getMessages(conversationId);
+        const [convData, msgData] = await Promise.all([
+          !initialConversation
+            ? messagesApi.getConversation(conversationId).catch(() => null)
+            : Promise.resolve(initialConversation),
+          messagesApi.getMessages(conversationId).catch(() => []),
+        ]);
+
         if (isMounted) {
-          setMessages(Array.isArray(data) ? data : []);
+          if (convData) setConversation(convData);
+          setMessages(Array.isArray(msgData) ? msgData.filter(Boolean) : []);
           messagesApi.markAsRead(conversationId).catch(() => {});
         }
       } catch (err) {
-        console.warn("Error fetching chat messages", err);
+        console.warn("Error fetching chat data", err);
+        if (isMounted) setMessages([]);
       } finally {
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchMessages();
+    fetchDetailsAndMessages();
 
     return () => {
       isMounted = false;
     };
-  }, [conversationId]);
+  }, [conversationId, initialConversation]);
 
   // Socket room listener & real-time message handler
   useEffect(() => {
@@ -83,22 +105,7 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
 
     const handleNewMessage = (payload) => {
       if (String(payload.conversation_id) === String(conversationId)) {
-        setMessages((prev) => {
-          const existingIdx = prev.findIndex(
-            (m) =>
-              String(m._id) === String(payload._id) ||
-              (payload.client_message_id &&
-                m.client_message_id === payload.client_message_id)
-          );
-
-          if (existingIdx >= 0) {
-            const copy = [...prev];
-            copy[existingIdx] = payload;
-            return copy;
-          }
-          return [...prev, payload];
-        });
-
+        setMessages((prev) => mergeMessageIntoList(prev, payload));
         messagesApi.markAsRead(conversationId).catch(() => {});
       }
     };
@@ -131,7 +138,7 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
     };
 
     setInputText("");
-    setMessages((prev) => [...prev, optimisticMessage]);
+    setMessages((prev) => mergeMessageIntoList(prev, optimisticMessage));
     flatListRef.current?.scrollToEnd({ animated: true });
     setSending(true);
 
@@ -141,18 +148,17 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
       });
 
       setMessages((prev) =>
-        prev.map((m) =>
-          m.client_message_id === clientMsgId
-            ? { ...savedMsg, client_message_id: clientMsgId }
-            : m
-        )
+        mergeMessageIntoList(prev, {
+          ...savedMsg,
+          client_message_id: clientMsgId,
+        })
       );
     } catch (err) {
       console.warn("Failed to send chat message", err);
       setMessages((prev) =>
         prev.map((m) =>
           m.client_message_id === clientMsgId
-            ? { ...m, isFailed: true }
+            ? { ...m, isFailed: true, isOptimistic: false }
             : m
         )
       );
@@ -162,8 +168,16 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
   };
 
   const renderMessageBubble = ({ item }) => {
-    const isMe =
-      String(item.sender_id?._id || item.sender_id) === String(user?._id);
+    if (!item) return null;
+
+    const senderId = item.sender_id?._id || item.sender_id;
+    const isMe = String(senderId || "") === String(user?._id || "");
+    const bodyText =
+      typeof item.body === "string"
+        ? item.body
+        : item.body
+        ? String(item.body)
+        : "";
 
     return (
       <View
@@ -192,7 +206,7 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
               isMe ? styles.myBubbleText : styles.theirBubbleText,
             ]}
           >
-            {item.body}
+            {bodyText}
           </Text>
 
           <View style={styles.bubbleFooter}>
@@ -219,6 +233,15 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
       </View>
     );
   };
+
+  const displayTitle =
+    getConversationTitle(conversation, user) ||
+    initialTitle ||
+    "Caezelle's Banquet Team";
+  const displaySubtitle = conversation
+    ? getThreadSubtitle(conversation, user)
+    : "Banquet Coordinator · Online";
+  const badge = conversation ? getCodeBadge(conversation) : null;
 
   return (
     <KeyboardAvoidingView
@@ -249,22 +272,80 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              {title}
+              {displayTitle}
             </Text>
-            <Text style={styles.headerSubtitle}>
-              Banquet Coordinator · Online
+            <Text style={styles.headerSubtitle} numberOfLines={1}>
+              {displaySubtitle}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Catering Inquiry Context Strip */}
-      <View style={styles.contextStrip}>
-        <ShieldCheck size={14} color={colors.primary} style={{ marginRight: 6 }} />
-        <Text style={styles.contextStripText} numberOfLines={1}>
-          Official Caezelle Catering Reservation Support Channel
-        </Text>
-      </View>
+      {/* Dynamic Linked Context Strip */}
+      {conversation?.inquiry_id ? (
+        <TouchableOpacity
+          style={[styles.contextStrip, styles.contextStripInquiry]}
+          onPress={() => {
+            const inqId =
+              conversation.inquiry_id?._id || conversation.inquiry_id;
+            if (inqId) {
+              navigation.navigate("QuotationDetail", { inquiryId: inqId });
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.contextLeft}>
+            <FileText size={14} color="#D97706" style={{ marginRight: 6 }} />
+            <View style={styles.badgePillInquiry}>
+              <Text style={styles.badgePillInquiryText}>
+                {badge?.text || "INQUIRY"}
+              </Text>
+            </View>
+            <Text style={styles.contextStripTextInquiry} numberOfLines={1}>
+              {conversation.inquiry_id?.event_type || "Event Inquiry"}
+            </Text>
+          </View>
+          <View style={styles.contextActionBtn}>
+            <Text style={styles.contextActionText}>View Quotation</Text>
+            <ExternalLink size={12} color={colors.primary} />
+          </View>
+        </TouchableOpacity>
+      ) : conversation?.booking_id ? (
+        <TouchableOpacity
+          style={[styles.contextStrip, styles.contextStripBooking]}
+          onPress={() => {
+            const bkgId =
+              conversation.booking_id?._id || conversation.booking_id;
+            if (bkgId) {
+              navigation.navigate("BookingDetail", { id: bkgId });
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.contextLeft}>
+            <Calendar size={14} color={colors.primary} style={{ marginRight: 6 }} />
+            <View style={styles.badgePillBooking}>
+              <Text style={styles.badgePillBookingText}>
+                {badge?.text || "EVENT"}
+              </Text>
+            </View>
+            <Text style={styles.contextStripTextBooking} numberOfLines={1}>
+              {conversation.booking_id?.event_type || "Event Booking"}
+            </Text>
+          </View>
+          <View style={styles.contextActionBtn}>
+            <Text style={styles.contextActionText}>View Booking</Text>
+            <ExternalLink size={12} color={colors.primary} />
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.contextStrip}>
+          <ShieldCheck size={14} color={colors.primary} style={{ marginRight: 6 }} />
+          <Text style={styles.contextStripText} numberOfLines={1}>
+            Official Caezelle Catering Reservation Support Channel
+          </Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -273,13 +354,21 @@ export const CustomerChatThreadScreen = ({ route, navigation }) => {
       ) : (
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={Array.isArray(messages) ? messages : []}
           renderItem={renderMessageBubble}
-          keyExtractor={(item, idx) => item._id || String(idx)}
-          contentContainerStyle={styles.listContent}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
+          keyExtractor={(item, idx) =>
+            item?._id
+              ? String(item._id)
+              : item?.client_message_id
+              ? String(item.client_message_id)
+              : String(idx)
           }
+          contentContainerStyle={styles.listContent}
+          onContentSizeChange={() => {
+            if (Array.isArray(messages) && messages.length > 0) {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -382,6 +471,79 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.primaryBorder,
+  },
+  contextStripInquiry: {
+    backgroundColor: "#FEF3C7",
+    borderBottomColor: "#FDE68A",
+    justifyContent: "space-between",
+  },
+  contextStripBooking: {
+    backgroundColor: "#EFF6FF",
+    borderBottomColor: "#DBEAFE",
+    justifyContent: "space-between",
+  },
+  contextLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 8,
+  },
+  badgePillInquiry: {
+    backgroundColor: "#FDE68A",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  badgePillInquiryText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: "#92400E",
+  },
+  badgePillBooking: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  badgePillBookingText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  contextStripTextInquiry: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
+    color: "#78350F",
+    flex: 1,
+  },
+  contextStripTextBooking: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "600",
+    color: "#1E3A8A",
+    flex: 1,
+  },
+  contextActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 4,
+  },
+  contextActionText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.primary,
   },
   contextStripText: {
     fontSize: 11,

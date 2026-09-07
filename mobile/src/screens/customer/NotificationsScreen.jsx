@@ -24,9 +24,11 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import { formatRelativeTime } from "../../utils/format";
+import { useAuth } from "../../context/AuthContext";
 
 export const NotificationsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { socket, decrementUnreadCount, clearUnreadCount } = useSocket();
 
   const [notifications, setNotifications] = useState([]);
@@ -48,7 +50,7 @@ export const NotificationsScreen = ({ navigation }) => {
       if (Array.isArray(cached) && cached.length > 0) {
         setNotifications(cached);
       } else {
-        setError("Unable to load notifications. Please check your connection.");
+        setError("Unable to load notifications.");
       }
     } finally {
       setLoading(false);
@@ -102,14 +104,28 @@ export const NotificationsScreen = ({ navigation }) => {
       );
     }
 
+    const role = user?.role;
+    const isManager = role === "manager" || role === "admin";
+    const isStaff = role === "staff";
+
     if (item.meta?.booking_id) {
-      navigation.navigate("BookingDetail", { id: item.meta.booking_id });
+      if (isManager) {
+        navigation.navigate("ManagerBookingDetail", { bookingId: item.meta.booking_id, id: item.meta.booking_id });
+      } else if (isStaff) {
+        navigation.navigate("StaffEventDetail", { bookingId: item.meta.booking_id, id: item.meta.booking_id });
+      } else {
+        navigation.navigate("BookingDetail", { id: item.meta.booking_id, bookingId: item.meta.booking_id });
+      }
     } else if (item.meta?.inquiry_id) {
-      navigation.navigate("QuotationDetail", { inquiryId: item.meta.inquiry_id });
+      if (isManager) {
+        navigation.navigate("ManagerBookings", { tab: "all" });
+      } else {
+        navigation.navigate("QuotationDetail", { inquiryId: item.meta.inquiry_id });
+      }
     } else if (item.meta?.conversation_id) {
       navigation.navigate("CustomerChatThread", {
         conversationId: item.meta.conversation_id,
-        title: "Caezelle's Banquet Team",
+        title: isManager ? "Event Client" : isStaff ? "Event Team" : "Caezelle's Banquet Team",
       });
     }
   };

@@ -19,6 +19,7 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import { navigateGlobal } from "../../navigation/RootNavigator";
+import { useAuth } from "../../context/AuthContext";
 
 // Event bus for app-wide notification toast triggers
 const listeners = new Set();
@@ -29,6 +30,7 @@ export const showInAppNotification = (notification) => {
 
 export const InAppNotificationBanner = () => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [currentNotif, setCurrentNotif] = useState(null);
 
   const translateY = useRef(new Animated.Value(-120)).current;
@@ -94,14 +96,28 @@ export const InAppNotificationBanner = () => {
     const meta = currentNotif.meta || {};
     dismiss();
 
+    const role = user?.role;
+    const isManager = role === "manager" || role === "admin";
+    const isStaff = role === "staff";
+
     if (meta.booking_id) {
-      navigateGlobal("BookingDetail", { id: meta.booking_id });
+      if (isManager) {
+        navigateGlobal("ManagerBookingDetail", { bookingId: meta.booking_id, id: meta.booking_id });
+      } else if (isStaff) {
+        navigateGlobal("StaffEventDetail", { bookingId: meta.booking_id, id: meta.booking_id });
+      } else {
+        navigateGlobal("BookingDetail", { id: meta.booking_id, bookingId: meta.booking_id });
+      }
     } else if (meta.inquiry_id) {
-      navigateGlobal("QuotationDetail", { inquiryId: meta.inquiry_id });
+      if (isManager) {
+        navigateGlobal("ManagerBookings", { tab: "all" });
+      } else {
+        navigateGlobal("QuotationDetail", { inquiryId: meta.inquiry_id });
+      }
     } else if (meta.conversation_id) {
       navigateGlobal("CustomerChatThread", {
         conversationId: meta.conversation_id,
-        title: "Catering Team",
+        title: isManager ? "Event Client" : isStaff ? "Event Team" : "Catering Team",
       });
     } else {
       navigateGlobal("Notifications");

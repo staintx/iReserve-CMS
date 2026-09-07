@@ -10,11 +10,42 @@ export const formatCurrency = (value, { fallback = "₱0.00" } = {}) => {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+export const parseLocalDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const str = String(value).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    const year = Number(y);
+    const month = Number(m) - 1;
+    const day = Number(d);
+    const dateObj = new Date(year, month, day);
+    return Number.isNaN(dateObj.getTime()) ? null : dateObj;
+  }
+  const fallback = new Date(value);
+  if (!Number.isNaN(fallback.getTime())) {
+    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+  }
+  return null;
+};
+
+export const formatDateToYYYYMMDD = (value) => {
+  const parsed = parseLocalDate(value);
+  if (!parsed) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const formatEventDate = (value, { fallback = "Date to be confirmed" } = {}) => {
   if (!value) return fallback;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return fallback;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const parsed = parseLocalDate(value);
+  if (!parsed) return fallback;
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
 /** "Aug 12, 2026 · 11:00 AM" — one readable string for a card headline. */
@@ -39,9 +70,9 @@ export const formatTime = (value) => {
 
 export const formatShortDate = (value, fallback = "—") => {
   if (!value) return fallback;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return fallback;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const parsed = parseLocalDate(value);
+  if (!parsed) return fallback;
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
 /**

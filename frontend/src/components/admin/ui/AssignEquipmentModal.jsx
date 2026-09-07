@@ -4,6 +4,7 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../ui/dialog";
+import { formatDateToYYYYMMDD } from "../../../utils/format";
 
 export default function AssignEquipmentModal({ booking, open, onClose, onSave }) {
   const { notify } = useToast();
@@ -24,7 +25,7 @@ export default function AssignEquipmentModal({ booking, open, onClose, onSave })
     if (!booking) return;
     setLoading(true);
     try {
-      const dateStr = booking.event_date ? new Date(booking.event_date).toISOString().split('T')[0] : "";
+      const dateStr = formatDateToYYYYMMDD(booking.event_date);
       const res = await AdminAPI.getInventoryAvailability(dateStr, booking._id);
       const items = res.data || [];
       setInventoryList(items);

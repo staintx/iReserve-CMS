@@ -82,26 +82,18 @@ export default function RevisionProposalModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-2xl">
         <DialogHeader className="border-b border-slate-100 pb-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8.5 h-8.5 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-              <Sparkles className="w-4.5 h-4.5 text-amber-600" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-bold text-slate-900">
-                Revised Booking Proposal
-              </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 mt-0.5">
-                Proposed by {proposal.proposed_by === "admin" ? "Catering Manager / Admin" : "Customer"} on {proposal.requested_at ? new Date(proposal.requested_at).toLocaleDateString() : "Recently"}
-              </DialogDescription>
-
-            </div>
-          </div>
+          <DialogTitle className="text-base font-bold text-slate-900">
+            Revised Booking Proposal
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mt-0.5">
+            Proposed by {proposal.proposed_by === "admin" ? "Catering Manager / Admin" : "Customer"} on {proposal.requested_at ? new Date(proposal.requested_at).toLocaleDateString() : "Recently"}
+          </DialogDescription>
         </DialogHeader>
 
         {proposal.message && (
-          <div className="bg-amber-50 border border-amber-200/70 rounded-md shadow-2xs p-3.5 my-3 flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-900 leading-relaxed font-medium">
+          <div className="bg-blue-50/80 border border-blue-200/80 rounded-xl shadow-2xs p-3.5 my-3 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-950 leading-relaxed font-medium">
               "{proposal.message}"
             </p>
           </div>
@@ -116,7 +108,7 @@ export default function RevisionProposalModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
             {/* Current Terms */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-md shadow-2xs p-4 space-y-3 text-xs">
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl shadow-2xs p-4 space-y-3 text-xs">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Current Booking</span>
                 <span className="bg-slate-200 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-slate-300/60">Active</span>
@@ -147,32 +139,32 @@ export default function RevisionProposalModal({
             </div>
 
             {/* Proposed Terms */}
-            <div className="bg-amber-50/50 border border-amber-200 rounded-md shadow-2xs p-4 space-y-3 text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-amber-200">
-                <span className="font-bold text-amber-900 uppercase tracking-wider text-[10px]">Proposed Revision</span>
-                <span className="bg-amber-200 text-amber-900 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-amber-300">New Deal</span>
+            <div className="bg-blue-50/50 border border-blue-200 rounded-xl shadow-2xs p-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-blue-200">
+                <span className="font-bold text-blue-900 uppercase tracking-wider text-[10px]">Proposed Revision</span>
+                <span className="bg-blue-200 text-blue-900 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-blue-300">New Deal</span>
               </div>
 
               <div className="space-y-2 text-slate-700">
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Date: <strong className={formattedProposedDate !== formattedCurrentDate ? "text-amber-800 font-bold" : ""}>{formattedProposedDate}</strong></span>
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Date: <strong className={formattedProposedDate !== formattedCurrentDate ? "text-blue-900 font-bold" : ""}>{formattedProposedDate}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Time: <strong className={snapshot.start_time && snapshot.start_time !== booking.start_time ? "text-amber-800 font-bold" : ""}>{snapshot.start_time || booking.start_time || "TBA"}</strong></span>
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Time: <strong className={snapshot.start_time && snapshot.start_time !== booking.start_time ? "text-blue-900 font-bold" : ""}>{snapshot.start_time || booking.start_time || "TBA"}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Users className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Guests: <strong className={snapshot.guest_count !== undefined && snapshot.guest_count !== booking.guest_count ? "text-amber-800 font-bold" : ""}>{snapshot.guest_count ?? booking.guest_count} pax</strong></span>
+                  <Users className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Guests: <strong className={snapshot.guest_count !== undefined && snapshot.guest_count !== booking.guest_count ? "text-blue-900 font-bold" : ""}>{snapshot.guest_count ?? booking.guest_count} pax</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  <MapPin className="w-3.5 h-3.5 text-blue-600" />
                   <span>Venue: <strong>{snapshot.venue_type || booking.venue_type || "N/A"}</strong></span>
                 </div>
-                <div className="flex items-center gap-2 pt-1 border-t border-amber-200/80 font-medium">
-                  <DollarSign className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Total Price: <strong className="text-amber-950 font-bold font-mono">{fmtCurrency(proposedPrice)}</strong></span>
+                <div className="flex items-center gap-2 pt-1 border-t border-blue-200/80 font-medium">
+                  <DollarSign className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Total Price: <strong className="text-blue-950 font-bold font-mono">{fmtCurrency(proposedPrice)}</strong></span>
                 </div>
               </div>
             </div>
@@ -180,10 +172,10 @@ export default function RevisionProposalModal({
           </div>
 
           {/* Financial Summary Impact */}
-          <div className="bg-white border border-slate-200 rounded-md shadow-2xs p-4 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-2xs p-4 flex items-center justify-between flex-wrap gap-2 text-xs">
             <span className="font-medium text-slate-600">Price Adjustment:</span>
             {priceDiff > 0 ? (
-              <span className="font-mono font-bold text-amber-700 bg-amber-100/80 px-2.5 py-1 rounded-md border border-amber-200">
+              <span className="font-mono font-bold text-blue-800 bg-blue-100/80 px-2.5 py-1 rounded-md border border-blue-200">
                 + {fmtCurrency(priceDiff)} increase in total balance
               </span>
             ) : priceDiff < 0 ? (
@@ -205,7 +197,7 @@ export default function RevisionProposalModal({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Explain why you are declining these proposed terms..."
-                className="text-xs bg-slate-50 border-slate-200"
+                className="text-xs bg-slate-50 border-slate-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
               />
             </div>
           )}
@@ -230,7 +222,7 @@ export default function RevisionProposalModal({
                 className="text-xs bg-rose-600 hover:bg-rose-700 text-white"
                 disabled={loading}
               >
-                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Confirm Recline"}
+                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Confirm Decline"}
               </Button>
             </>
           ) : (
@@ -247,7 +239,7 @@ export default function RevisionProposalModal({
               <Button 
                 size="sm" 
                 onClick={handleConfirmAccept} 
-                className="text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold"
                 disabled={loading}
               >
                 {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}

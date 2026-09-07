@@ -75,6 +75,11 @@ export default function AdminOcularDateTimePicker({
   timeValue = "",
   onDateChange,
   onTimeChange,
+  dateLabel = "1. Ocular Visit Date",
+  timeLabel = "2. Ocular Visit Time",
+  hideContextPill = false,
+  hideSummaryBanner = false,
+  disableEventDateLimit = false
 }) {
   const startOfToday = useMemo(() => {
     const d = new Date();
@@ -139,8 +144,8 @@ export default function AdminOcularDateTimePicker({
     // 1. Never allow dates before today
     if (d < startOfToday) return true;
 
-    // 2. Never allow dates after event date
-    if (eventDateObj && d > eventDateObj) return true;
+    // 2. Never allow dates after event date (unless disabled for event date selection)
+    if (!disableEventDateLimit && eventDateObj && d > eventDateObj) return true;
 
     return false;
   };
@@ -242,7 +247,7 @@ export default function AdminOcularDateTimePicker({
     <div className="space-y-3 font-sans">
       
       {/* Compact Event Context Pill */}
-      {selectedBooking && (
+      {!hideContextPill && selectedBooking && (
         <div className="p-2.5 bg-blue-50/80 border border-blue-200/80 rounded-lg text-xs space-y-1 text-slate-800 shadow-2xs">
           <div className="flex items-center justify-between font-bold text-blue-950">
             <span className="truncate">
@@ -267,7 +272,7 @@ export default function AdminOcularDateTimePicker({
       <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <CalendarIcon size={13} className="text-blue-600" /> 1. Ocular Visit Date
+            <CalendarIcon size={13} className="text-blue-600" /> {dateLabel}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -336,7 +341,7 @@ export default function AdminOcularDateTimePicker({
       <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <Clock size={13} className="text-blue-600" /> 2. Ocular Visit Time
+            <Clock size={13} className="text-blue-600" /> {timeLabel}
           </span>
           <button
             type="button"
@@ -387,30 +392,32 @@ export default function AdminOcularDateTimePicker({
       </div>
 
       {/* Same-Day Time Conflict Alert */}
-      {sameDayEventTimeConflict && (
+      {!disableEventDateLimit && sameDayEventTimeConflict && (
         <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start gap-2">
           <AlertCircle size={14} className="text-rose-600 shrink-0 mt-0.5" />
           <span>
-            <strong>Invalid Schedule Time:</strong> On the event date, ocular inspection must occur <em>earlier</em> than event start time ({selectedBooking.start_time}).
+            <strong>Invalid Schedule Time:</strong> On the event date, ocular inspection must occur <em>earlier</em> than event start time ({selectedBooking?.start_time}).
           </span>
         </div>
       )}
 
       {/* Selection Summary Banner */}
-      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs text-slate-700 shadow-2xs">
-        <div className="flex items-center gap-2">
-          <CalendarIcon size={14} className="text-blue-600 shrink-0" />
-          <span>
-            {dateValue && timeValue ? (
-              <>
-                <strong className="text-slate-900">Scheduled:</strong> {formattedSelectedDate} @ <strong className="text-blue-700">{timeValue}</strong>
-              </>
-            ) : (
-              <span className="text-slate-400 italic">Select an inspection date and time slot above.</span>
-            )}
-          </span>
+      {!hideSummaryBanner && (
+        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs text-slate-700 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CalendarIcon size={14} className="text-blue-600 shrink-0" />
+            <span>
+              {dateValue && timeValue ? (
+                <>
+                  <strong className="text-slate-900">Scheduled:</strong> {formattedSelectedDate} @ <strong className="text-blue-700">{timeValue}</strong>
+                </>
+              ) : (
+                <span className="text-slate-400 italic">Select an inspection date and time slot above.</span>
+              )}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );

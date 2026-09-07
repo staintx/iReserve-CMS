@@ -31,7 +31,8 @@ import {
   Truck,
   Sparkles,
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  DollarSign
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -42,6 +43,7 @@ import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipme
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
+import AdminOcularDateTimePicker from "../../components/admin/ui/AdminOcularDateTimePicker";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -1389,86 +1391,171 @@ export default function AdminBookingDetails() {
 
         {/* Modal: Edit Details */}
         <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent className="sm:max-w-[450px]">
+          <DialogContent className="sm:max-w-[540px] max-h-[90vh] overflow-y-auto p-5">
             <form onSubmit={handleUpdateDetails}>
-              <DialogHeader>
-                <DialogTitle>Edit / Propose Booking Revisions</DialogTitle>
-                <DialogDescription>Modify booking terms or propose a revised deal to customer.</DialogDescription>
+              <DialogHeader className="border-b border-slate-100 pb-3">
+                <DialogTitle className="text-base font-bold text-slate-900">Edit / Propose Booking Revisions</DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Modify booking terms or propose updated terms to the customer.
+                </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 py-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Target Event Date</label>
-                  <Input 
-                    type="date" 
-                    value={editForm.event_date} 
-                    onChange={(e) => setEditForm({ ...editForm, event_date: e.target.value })} 
-                  />
+              <div className="space-y-4 py-3 text-xs">
+                {/* Compact Current Booking Reference Summary */}
+                {booking && (
+                  <div className="p-2.5 bg-blue-50/70 border border-blue-200/70 rounded-lg text-xs space-y-1 text-slate-800 shadow-2xs">
+                    <div className="flex items-center justify-between font-bold text-blue-950">
+                      <span className="truncate text-xs">
+                        {booking.reference || `BK-${booking._id.substring(booking._id.length - 6).toUpperCase()}`} — {booking.contact_first_name || ""} {booking.contact_last_name || ""}
+                      </span>
+                      <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded shrink-0">
+                        Active Terms
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between text-[11px] text-blue-900 gap-x-3 gap-y-0.5 pt-0.5 border-t border-blue-200/50 mt-1">
+                      <span>Date: <strong>{booking.event_date ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}</strong></span>
+                      <span>Time: <strong>{booking.start_time || "TBA"}</strong></span>
+                      <span>Guests: <strong>{booking.guest_count || 0} pax</strong></span>
+                      <span>Total: <strong className="font-mono font-bold">₱{Number(booking.total_price || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</strong></span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Proposed Changes Section Divider */}
+                <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                    Proposed Revision Parameters
+                  </span>
                 </div>
 
+                {/* Full-width Row 1 & 2: Interactive Date & Time Picker */}
+                <AdminOcularDateTimePicker
+                  selectedBooking={booking}
+                  dateValue={editForm.event_date}
+                  timeValue={editForm.start_time}
+                  onDateChange={(d) => setEditForm({ ...editForm, event_date: d })}
+                  onTimeChange={(t) => setEditForm({ ...editForm, start_time: t })}
+                  dateLabel="Target Event Date"
+                  timeLabel="Start Time"
+                  hideContextPill={true}
+                  hideSummaryBanner={true}
+                  disableEventDateLimit={true}
+                />
+
+                {/* Full-width Row 3: Capacity */}
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Start Time</label>
-                  <Input 
-                    type="time" 
-                    value={editForm.start_time} 
-                    onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} 
-                  />
+                  <label className="text-xs font-semibold text-slate-700 block mb-1 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-blue-600" /> Guest Count (pax)
+                  </label>
+                  <div className="relative flex items-center">
+                    <Input 
+                      type="number" 
+                      value={editForm.guest_count} 
+                      onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} 
+                      className="text-xs bg-white rounded-lg border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold h-9.5 w-full pr-12"
+                    />
+                    <span className="absolute right-3 text-xs font-semibold text-slate-400 pointer-events-none">pax</span>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Guest Count</label>
-                  <Input 
-                    type="number" 
-                    value={editForm.guest_count} 
-                    onChange={(e) => setEditForm({ ...editForm, guest_count: e.target.value })} 
-                  />
+                {/* Pricing & Location Grid (2-Column) */}
+                <div className="space-y-2 pt-1 border-t border-slate-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Pricing & Venue
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1 flex items-center gap-1">
+                        <DollarSign className="w-3.5 h-3.5 text-blue-600" /> Total Price
+                      </label>
+                      <Input 
+                        type="text" 
+                        value={editForm.total_price !== "" && editForm.total_price !== undefined ? "₱ " + Number(editForm.total_price).toLocaleString("en-US") : ""} 
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9.]/g, "");
+                          setEditForm({ ...editForm, total_price: raw });
+                        }} 
+                        placeholder="₱ 0"
+                        className="text-xs font-semibold text-slate-900 rounded-lg border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-9.5 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-blue-600" /> Venue / Location
+                      </label>
+                      <Input 
+                        type="text" 
+                        value={editForm.venue_type} 
+                        onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} 
+                        className="text-xs bg-white rounded-lg border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold h-9.5"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Total Price (₱)</label>
-                  <Input 
-                    type="number" 
-                    value={editForm.total_price} 
-                    onChange={(e) => setEditForm({ ...editForm, total_price: e.target.value })} 
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Venue Type / Location</label>
-                  <Input 
-                    type="text" 
-                    value={editForm.venue_type} 
-                    onChange={(e) => setEditForm({ ...editForm, venue_type: e.target.value })} 
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Revision Note / Reason for Proposal</label>
-                  <Input 
-                    type="text" 
-                    placeholder="e.g. Added +20 guests and updated schedule"
+                {/* Customer-Facing Revision Note */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-blue-600" /> Revision Note / Reason for Proposal
+                    </label>
+                    {proposeToCustomer && (
+                      <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded border border-blue-200/80">
+                        Required for Proposal
+                      </span>
+                    )}
+                  </div>
+                  <textarea 
+                    rows={3}
+                    placeholder="Explain why terms are changing (e.g. Added +20 guests, updated start schedule to 2:00 PM, or revised setup package)..."
                     value={revisionNote} 
                     onChange={(e) => setRevisionNote(e.target.value)} 
+                    className="w-full text-xs rounded-lg border border-slate-200 p-2.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium placeholder:text-slate-400 leading-relaxed shadow-2xs"
                   />
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
-                  <input 
-                    type="checkbox"
-                    id="proposeToggle"
-                    checked={proposeToCustomer}
-                    onChange={(e) => setProposeToCustomer(e.target.checked)}
-                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
-                  />
-                  <label htmlFor="proposeToggle" className="text-xs font-semibold text-slate-800 cursor-pointer">
-                    Send as Revised Proposal (Requires Customer Confirmation)
+                {/* Proposal Choice Action */}
+                <div className="pt-1 border-t border-slate-100">
+                  <label
+                    htmlFor="proposeToggle"
+                    className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all cursor-pointer select-none ${
+                      proposeToCustomer 
+                        ? "bg-blue-50/70 border-blue-200 text-blue-950" 
+                        : "bg-slate-50/50 border-slate-200 text-slate-700 hover:bg-slate-100/50"
+                    }`}
+                  >
+                    <input 
+                      type="checkbox"
+                      id="proposeToggle"
+                      checked={proposeToCustomer}
+                      onChange={(e) => setProposeToCustomer(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-900">
+                          Send as Revised Proposal
+                        </span>
+                        {proposeToCustomer && (
+                          <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded shrink-0">
+                            Customer Confirmation Required
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-normal">
+                        Customer confirmation is required before the revision takes effect.
+                      </p>
+                    </div>
                   </label>
                 </div>
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="border-t border-slate-100 pt-3">
                 <Btn type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Btn>
-                <Btn type="submit" variant="primary">{proposeToCustomer ? "Send Proposal" : "Apply Instantly"}</Btn>
+                <Btn type="submit" variant="primary">
+                  {proposeToCustomer ? "Send Proposal" : "Apply Instantly"}
+                </Btn>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -1498,7 +1585,7 @@ export default function AdminBookingDetails() {
                   <label className="text-xs font-semibold text-slate-700 block mb-1">Notes / Terms</label>
                   <textarea 
                     rows={4}
-                    className="w-full text-xs rounded-xl border border-slate-200 p-3 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full text-xs rounded-xl border border-slate-200 p-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="Include terms e.g. Requires 20% deposit to lock date..."
                     value={quoteForm.notes} 
                     onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })} 
@@ -1516,42 +1603,32 @@ export default function AdminBookingDetails() {
 
         {/* Modal: Schedule / Reschedule Ocular Visit */}
         <Dialog open={showRescheduleModal} onOpenChange={setShowRescheduleModal}>
-          <DialogContent className="sm:max-w-[450px]">
+          <DialogContent className="sm:max-w-[560px]">
             <form onSubmit={handleScheduleOcular}>
-              <DialogHeader>
-                <DialogTitle>
-                  {booking.ocular_visit?.scheduled_date ? "Reschedule Ocular Visit" : "Schedule Ocular Visit"}
+              <DialogHeader className="border-b border-slate-100 pb-3">
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  {booking?.ocular_visit?.scheduled_date ? "Reschedule Ocular Visit" : "Schedule Ocular Visit"}
                 </DialogTitle>
-                <DialogDescription>
-                  Set the inspection date and time for venue place measurements and site verification.
+                <DialogDescription className="text-xs text-slate-500">
+                  Set the inspection date and time slot for venue place measurements and site verification.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 py-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Ocular Visit Date</label>
-                  <Input 
-                    type="date" 
-                    required
-                    value={ocularDate} 
-                    onChange={(e) => setOcularDate(e.target.value)} 
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Visit Time</label>
-                  <Input 
-                    type="time" 
-                    required
-                    value={ocularTime} 
-                    onChange={(e) => setOcularTime(e.target.value)} 
-                  />
-                </div>
+              <div className="py-3">
+                <AdminOcularDateTimePicker
+                  selectedBooking={booking}
+                  dateValue={ocularDate}
+                  timeValue={ocularTime}
+                  onDateChange={setOcularDate}
+                  onTimeChange={setOcularTime}
+                />
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="border-t border-slate-100 pt-3">
                 <Btn type="button" variant="secondary" onClick={() => setShowRescheduleModal(false)}>Cancel</Btn>
-                <Btn type="submit" variant="primary">Save Schedule</Btn>
+                <Btn type="submit" variant="primary" disabled={!ocularDate || !ocularTime}>
+                  Confirm Schedule
+                </Btn>
               </DialogFooter>
             </form>
           </DialogContent>

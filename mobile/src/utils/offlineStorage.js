@@ -4,6 +4,8 @@ const PREFIX = "@ireserve_cache_";
 
 export const CACHE_KEYS = {
   PACKAGES: "packages",
+  MENU: "customer_menu",
+  GALLERY: "customer_gallery",
   BOOKINGS: "customer_bookings",
   INQUIRIES: "customer_inquiries",
   STAFF_SHIFTS: "staff_shifts_active",

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
@@ -29,6 +29,24 @@ import OfflineBanner from "./src/components/common/OfflineBanner";
 import InAppNotificationBanner from "./src/components/common/InAppNotificationBanner";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/constants/theme";
+
+// Remove default browser focus outline on React Native Web
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input, textarea, select, [contenteditable="true"] {
+      outline: none !important;
+      outline-width: 0 !important;
+      box-shadow: none !important;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none !important;
+      outline-width: 0 !important;
+      box-shadow: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 export default function App() {
   const [fontsLoaded] = usePlusJakarta({

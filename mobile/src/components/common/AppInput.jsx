@@ -159,6 +159,12 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontFamily: typography.fontFamilies.medium,
     paddingVertical: 0,
+    ...Platform.select({
+      web: {
+        outlineStyle: "none",
+        outlineWidth: 0,
+      },
+    }),
   },
   rightIconWrapper: {
     padding: spacing.xs,

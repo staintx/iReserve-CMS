@@ -6,10 +6,12 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  Image,
 } from "react-native";
 import { Sparkles, Utensils, Users, ChevronRight, Plus } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
+import { resolvePackageCover } from "../../constants/cateringData";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
 import Card from "../../components/common/Card";
 import Header from "../../components/common/Header";
@@ -65,59 +67,81 @@ export const PackagesScreen = ({ navigation }) => {
 
   const renderPackageItem = ({ item }) => {
     const isCombo = item.is_combo || item.package_type === "Special Offer" || item.combo_guest_count;
+    const coverUrl = resolvePackageCover(item);
 
     return (
       <Card
         style={styles.packageCard}
         onPress={() => navigation.navigate("PackageDetail", { id: item._id })}
       >
-        <View style={styles.cardHeader}>
-          <View style={styles.titleContainer}>
-            {isCombo && (
-              <View style={styles.specialBadge}>
-                <Sparkles size={12} color={colors.accentDark} />
-                <Text style={styles.specialBadgeText}>Special Offer</Text>
+        {coverUrl ? (
+          <View style={styles.cardCoverContainer}>
+            <Image source={{ uri: coverUrl }} style={styles.cardCoverImage} resizeMode="cover" />
+            <View style={styles.coverBadgeRow}>
+              {item.event_type ? (
+                <View style={styles.eventBadge}>
+                  <Text style={styles.eventBadgeText}>{item.event_type}</Text>
+                </View>
+              ) : null}
+              {isCombo && (
+                <View style={styles.comboCoverBadge}>
+                  <Sparkles size={11} color={colors.white} />
+                  <Text style={styles.comboCoverBadgeText}>Combo Pack</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardHeader}>
+            <View style={styles.titleContainer}>
+              {isCombo && !coverUrl && (
+                <View style={styles.specialBadge}>
+                  <Sparkles size={12} color={colors.accentDark} />
+                  <Text style={styles.specialBadgeText}>Special Offer</Text>
+                </View>
+              )}
+              <Text style={styles.packageName}>{item.name}</Text>
+              <Text style={styles.packageCategory}>{item.package_type || "Event Setup & Catering"}</Text>
+            </View>
+            <View style={styles.priceContainer}>
+              <Text style={styles.price}>
+                {item.price_per_guest
+                  ? formatCurrency(item.price_per_guest)
+                  : formatCurrency(item.setup_price || item.price || 0)}
+              </Text>
+              <Text style={styles.priceUnit}>{item.price_per_guest ? "per guest" : "base rate"}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.description} numberOfLines={2}>
+            {item.description || "Complete catering solution with tables, chairs, centerpieces, and customizable menu choices."}
+          </Text>
+
+          <View style={styles.inclusionsRow}>
+            {item.min_guests ? (
+              <View style={styles.tag}>
+                <Users size={12} color={colors.primary} />
+                <Text style={styles.tagText}>Min: {item.min_guests} pax</Text>
+              </View>
+            ) : item.combo_guest_count ? (
+              <View style={styles.tag}>
+                <Users size={12} color={colors.primary} />
+                <Text style={styles.tagText}>{item.combo_guest_count} pax fixed</Text>
+              </View>
+            ) : null}
+
+            {Array.isArray(item.inclusions) && item.inclusions.length > 0 && (
+              <View style={styles.tag}>
+                <Utensils size={12} color={colors.primary} />
+                <Text style={styles.tagText}>{item.inclusions.length} Inclusions</Text>
               </View>
             )}
-            <Text style={styles.packageName}>{item.name}</Text>
-            <Text style={styles.packageCategory}>{item.package_type || "Event Setup & Catering"}</Text>
-          </View>
-          <View style={styles.priceContainer}>
-            <Text style={styles.price}>
-              {item.price_per_guest
-                ? formatCurrency(item.price_per_guest)
-                : formatCurrency(item.setup_price || item.price || 0)}
-            </Text>
-            <Text style={styles.priceUnit}>{item.price_per_guest ? "per guest" : "base rate"}</Text>
-          </View>
-        </View>
 
-        <Text style={styles.description} numberOfLines={2}>
-          {item.description || "Complete catering solution with tables, chairs, centerpieces, and customizable menu choices."}
-        </Text>
-
-        <View style={styles.inclusionsRow}>
-          {item.min_guests ? (
-            <View style={styles.tag}>
-              <Users size={12} color={colors.primary} />
-              <Text style={styles.tagText}>Min: {item.min_guests} pax</Text>
+            <View style={styles.addBtnCircle}>
+              <Plus size={16} color={colors.primary} />
             </View>
-          ) : item.combo_guest_count ? (
-            <View style={styles.tag}>
-              <Users size={12} color={colors.primary} />
-              <Text style={styles.tagText}>{item.combo_guest_count} pax fixed</Text>
-            </View>
-          ) : null}
-
-          {Array.isArray(item.inclusions) && item.inclusions.length > 0 && (
-            <View style={styles.tag}>
-              <Utensils size={12} color={colors.primary} />
-              <Text style={styles.tagText}>{item.inclusions.length} Inclusions</Text>
-            </View>
-          )}
-
-          <View style={styles.addBtnCircle}>
-            <Plus size={16} color={colors.primary} />
           </View>
         </View>
       </Card>
@@ -224,9 +248,57 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
   },
   packageCard: {
-    padding: spacing.base,
+    padding: 0,
+    overflow: "hidden",
     marginBottom: spacing.base,
     borderRadius: radius.lg,
+  },
+  cardCoverContainer: {
+    width: "100%",
+    height: 160,
+    backgroundColor: colors.surfaceAlt,
+    position: "relative",
+  },
+  cardCoverImage: {
+    width: "100%",
+    height: "100%",
+  },
+  coverBadgeRow: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  eventBadge: {
+    backgroundColor: "rgba(10, 15, 29, 0.8)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  eventBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+  comboCoverBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: colors.accentDark,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  comboCoverBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+  cardBody: {
+    padding: spacing.base,
   },
   cardHeader: {
     flexDirection: "row",

@@ -400,6 +400,54 @@ export const CustomerHomeScreen = ({ navigation }) => {
           />
         </View>
 
+        {/* Custom Event Services Strip (Matches Website) */}
+        <View style={styles.customServicesSection}>
+          <View style={styles.sectionHeaderRow}>
+            <View>
+              <Text style={styles.sectionHeading}>Custom Event Services</Text>
+              <Text style={styles.sectionSub}>Tailored catering, staging, or full banquet</Text>
+            </View>
+          </View>
+
+          <View style={styles.customServicesGrid}>
+            <TouchableOpacity
+              style={styles.customServiceCard}
+              onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Food Only" })}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.customServiceIconBox, { backgroundColor: "#FEF3C7" }]}>
+                <Utensils size={18} color="#D97706" />
+              </View>
+              <Text style={styles.customServiceTitle}>Food Only</Text>
+              <Text style={styles.customServiceDesc}>Buffet delivery or pickup</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.customServiceCard}
+              onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Event Setup Only" })}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.customServiceIconBox, { backgroundColor: "#EDE9FE" }]}>
+                <Layers size={18} color="#7C3AED" />
+              </View>
+              <Text style={styles.customServiceTitle}>Setup Only</Text>
+              <Text style={styles.customServiceDesc}>Scaffolding & styling</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.customServiceCard}
+              onPress={() => navigation.navigate("InquiryWizard", { serviceType: "Food and Event Setup" })}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.customServiceIconBox, { backgroundColor: colors.primaryLight }]}>
+                <Sparkles size={18} color={colors.primary} />
+              </View>
+              <Text style={styles.customServiceTitle}>Full Service</Text>
+              <Text style={styles.customServiceDesc}>Banquet & complete setup</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ══════════════════════════════════════════════════════════════════════
             TAB 1: PACKAGES BROWSER (Matches Website with real Hero Covers)
            ══════════════════════════════════════════════════════════════════════ */}
@@ -1420,6 +1468,46 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+  },
+  customServicesSection: {
+    marginBottom: spacing.lg,
+  },
+  customServicesGrid: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  customServiceCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    alignItems: "center",
+    ...shadows.xs,
+  },
+  customServiceIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  customServiceTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
+    textAlign: "center",
+  },
+  customServiceDesc: {
+    fontSize: 10,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
+    textAlign: "center",
+    marginTop: 2,
+    lineHeight: 13,
   },
 });
 

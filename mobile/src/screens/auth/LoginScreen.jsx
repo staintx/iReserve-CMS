@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mail, Lock, Sparkles, Utensils, User, ShieldCheck, ChefHat } from "lucide-react-native";
+import { Mail, Lock, Utensils } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
@@ -68,21 +68,7 @@ export const LoginScreen = ({ navigation }) => {
     }
   };
 
-  const handleQuickDemo = async (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword("Test1234!");
-    setError("");
-    setLoading(true);
-    try {
-      await login(demoEmail, "Test1234!");
-    } catch (err) {
-      const msg =
-        err.response?.data?.message || "Unable to sign in with demo account.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   return (
     <KeyboardAvoidingView
@@ -187,47 +173,6 @@ export const LoginScreen = ({ navigation }) => {
             size="lg"
             style={styles.submitBtn}
           />
-
-          {/* Quick Demo Access Pills */}
-          <View style={styles.demoSection}>
-            <View style={styles.demoDividerRow}>
-              <View style={styles.demoDividerLine} />
-              <Text style={styles.demoDividerText}>OR QUICK DEMO LOGIN</Text>
-              <View style={styles.demoDividerLine} />
-            </View>
-
-            <View style={styles.demoPillsRow}>
-              <TouchableOpacity
-                style={styles.demoPill}
-                onPress={() => handleQuickDemo("mobile_tester@example.com")}
-                disabled={loading}
-                activeOpacity={0.7}
-              >
-                <User size={14} color={colors.primary} />
-                <Text style={styles.demoPillText}>Customer</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.demoPill}
-                onPress={() => handleQuickDemo("test_manager@example.com")}
-                disabled={loading}
-                activeOpacity={0.7}
-              >
-                <ShieldCheck size={14} color={colors.primary} />
-                <Text style={styles.demoPillText}>Manager</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.demoPill}
-                onPress={() => handleQuickDemo("test_staff@example.com")}
-                disabled={loading}
-                activeOpacity={0.7}
-              >
-                <ChefHat size={14} color={colors.primary} />
-                <Text style={styles.demoPillText}>Staff</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
 
         {/* Footer Link */}
@@ -355,48 +300,6 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: spacing.xs,
-  },
-  demoSection: {
-    marginTop: spacing.xl,
-  },
-  demoDividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  demoDividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.borderLight,
-  },
-  demoDividerText: {
-    fontSize: 10,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foregroundMuted,
-    marginHorizontal: spacing.sm,
-    letterSpacing: 0.5,
-  },
-  demoPillsRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  demoPill: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: spacing.xs,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: radius.pill,
-    gap: 6,
-  },
-  demoPillText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
   },
   footer: {
     flexDirection: "row",

@@ -24,6 +24,8 @@ import PaymentCheckoutScreen from "../screens/customer/PaymentCheckoutScreen";
 import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
 import PackagesScreen from "../screens/customer/PackagesScreen";
 import PackageDetailScreen from "../screens/customer/PackageDetailScreen";
+import MenuScreen from "../screens/customer/MenuScreen";
+import GalleryScreen from "../screens/customer/GalleryScreen";
 import CustomerChatThreadScreen from "../screens/customer/CustomerChatThreadScreen";
 import ZelleChatScreen from "../screens/customer/ZelleChatScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
@@ -128,6 +130,8 @@ export const CustomerNavigator = () => {
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
       <Stack.Screen name="Packages" component={PackagesScreen} />
       <Stack.Screen name="PackageDetail" component={PackageDetailScreen} />
+      <Stack.Screen name="Menu" component={MenuScreen} />
+      <Stack.Screen name="Gallery" component={GalleryScreen} />
       <Stack.Screen name="CustomerChatThread" component={CustomerChatThreadScreen} />
       <Stack.Screen
         name="ZelleChat"

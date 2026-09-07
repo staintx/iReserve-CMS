@@ -121,6 +121,31 @@ export const customerApi = {
     return response.data;
   },
 
+  proposeRevision: async (id, data) => {
+    const response = await client.post(`/bookings/${id}/propose-revision`, data);
+    return response.data;
+  },
+
+  acceptRevision: async (id) => {
+    const response = await client.post(`/bookings/${id}/accept-revision`);
+    return response.data;
+  },
+
+  rejectRevision: async (id, reason) => {
+    const response = await client.post(`/bookings/${id}/reject-revision`, { reason });
+    return response.data;
+  },
+
+  addGuests: async (id, guest_count) => {
+    const response = await client.post(`/bookings/${id}/add-guests`, { guest_count });
+    return response.data;
+  },
+
+  upgradeBooking: async (id, package_id) => {
+    const response = await client.post(`/bookings/${id}/upgrade-booking`, { package_id });
+    return response.data;
+  },
+
   requestCancellation: async (id) => {
     const response = await client.post(`/bookings/${id}/request-cancellation`);
     return response.data;
@@ -133,6 +158,17 @@ export const customerApi = {
 
   skipOcular: async (id) => {
     const response = await client.post(`/bookings/${id}/ocular/skip`);
+    return response.data;
+  },
+
+  // Ratings & Reviews
+  getRatingByBooking: async (bookingId) => {
+    const response = await client.get(`/ratings/booking/${bookingId}`);
+    return response.data;
+  },
+
+  submitRating: async (payload) => {
+    const response = await client.post("/ratings", payload);
     return response.data;
   },
 

@@ -148,6 +148,9 @@ export default function AppRoutes() {
         <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
         <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
         <Route path="/customer/bookings/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+        <Route path="/customer/bookings/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+        <Route path="/customer/events/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
+        <Route path="/customer/events/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
         <Route path="/customer/checkout" element={<ProtectedRoute allowedRoles={customerOnly}><CustomCheckout /></ProtectedRoute>} />
         <Route path="/customer/messages" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessages /></ProtectedRoute>} />
         <Route path="/customer/messages/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerMessageThread /></ProtectedRoute>} />

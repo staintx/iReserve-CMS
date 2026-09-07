@@ -90,6 +90,14 @@ export default function NotificationBell({ isSidebarItem, isCollapsed, onCloseSi
     if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
     if (state.booking_id) state.openBookingId = state.booking_id;
 
+    const rawText = `${notification.title || ""} ${notification.body || ""} ${notification.link || ""}`.toLowerCase();
+    if (rawText.includes("revision") || rawText.includes("proposal") || rawText.includes("revis")) {
+      state.openRevisionModal = true;
+      if (targetLink && !targetLink.includes("view=revision")) {
+        targetLink += (targetLink.includes("?") ? "&" : "?") + "view=revision";
+      }
+    }
+
     if (user?.role === "manager") {
       const bId = state.booking_id || (targetLink && targetLink.match(/\/bookings\/([a-f0-9]+)/i)?.[1]);
       if (bId) {

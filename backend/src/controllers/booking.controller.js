@@ -2130,8 +2130,12 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
   // Build changes dictionary
   const changes = proposed_changes || {};
   if (!proposed_changes) {
-    if (event_date && new Date(event_date).toISOString() !== new Date(booking.event_date).toISOString()) {
-      changes.event_date = { from: booking.event_date, to: event_date };
+    if (event_date) {
+      const fromIso = booking.event_date ? new Date(booking.event_date).toISOString() : null;
+      const toIso = new Date(event_date).toISOString();
+      if (fromIso !== toIso) {
+        changes.event_date = { from: booking.event_date, to: event_date };
+      }
     }
     if (guest_count !== undefined && Number(guest_count) !== Number(booking.guest_count)) {
       changes.guest_count = { from: booking.guest_count, to: guest_count };
@@ -2200,7 +2204,7 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
         title: "Revised Booking Proposal",
         body: `Catering management sent a revised proposal for your booking (${booking.reference || booking._id}). Please review and confirm.`,
         type: "warning",
-        link: `/customer/events/${booking._id}`,
+        link: `/customer/bookings/${booking._id}?view=revision`,
         meta: { booking_id: booking._id },
       },
       io,

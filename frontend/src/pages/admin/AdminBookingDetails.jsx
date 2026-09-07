@@ -417,7 +417,7 @@ export default function AdminBookingDetails() {
     setShowEditModal(true);
   };
 
-  const handleUpdateDetails = (e) => {
+  const handleUpdateDetails = async (e) => {
     e.preventDefault();
 
     if (!editForm.event_date) {
@@ -450,34 +450,28 @@ export default function AdminBookingDetails() {
       return;
     }
 
-    if (proposeToCustomer) {
-      AdminAPI.proposeRevision(booking._id, {
-        ...editForm,
-        guest_count: Number(editForm.guest_count),
-        total_price: Number(editForm.total_price),
-        message: revisionNote.trim()
-      })
-      .then(() => {
+    try {
+      if (proposeToCustomer) {
+        await AdminAPI.proposeRevision(booking._id, {
+          ...editForm,
+          guest_count: Number(editForm.guest_count),
+          total_price: Number(editForm.total_price),
+          message: revisionNote.trim()
+        });
         notify("Revised booking proposal sent to customer for confirmation!", "success");
-        setShowEditModal(false);
-        if (showChangeModal) setShowChangeModal(false);
-        loadData();
-      })
-      .catch((err) => notify(err.response?.data?.message || "Failed to propose revision.", "error"));
-    } else {
-      AdminAPI.updateBooking(booking._id, { 
-        ...editForm, 
-        guest_count: Number(editForm.guest_count),
-        total_price: Number(editForm.total_price),
-        revision_note: revisionNote ? revisionNote.trim() : undefined 
-      })
-        .then(() => {
-          notify("Booking details updated successfully.", "success");
-          setShowEditModal(false);
-          if (showChangeModal) setShowChangeModal(false);
-          loadData();
-        })
-        .catch((err) => notify(err.response?.data?.message || "Failed to update booking.", "error"));
+      } else {
+        await AdminAPI.updateBooking(booking._id, { 
+          ...editForm, 
+          guest_count: Number(editForm.guest_count),
+          total_price: Number(editForm.total_price),
+          revision_note: revisionNote ? revisionNote.trim() : undefined 
+        });
+        notify("Booking details updated successfully.", "success");
+      }
+      setShowEditModal(false);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.message || (proposeToCustomer ? "Failed to propose revision." : "Failed to update booking."), "error");
     }
   };
 

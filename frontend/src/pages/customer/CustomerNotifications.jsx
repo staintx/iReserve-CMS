@@ -92,10 +92,20 @@ export default function CustomerNotifications() {
       }
     }
     if (item.link) {
+      let targetLink = item.link;
       const state = { ...item.meta };
       if (state.inquiry_id) state.openQuoteId = state.inquiry_id;
       if (state.booking_id) state.openBookingId = state.booking_id;
-      navigate(item.link, { state });
+
+      const rawText = `${item.title || ""} ${item.body || ""} ${item.link || ""}`.toLowerCase();
+      if (rawText.includes("revision") || rawText.includes("proposal") || rawText.includes("revis")) {
+        state.openRevisionModal = true;
+        if (!targetLink.includes("view=revision")) {
+          targetLink += (targetLink.includes("?") ? "&" : "?") + "view=revision";
+        }
+      }
+
+      navigate(targetLink, { state });
     }
   };
 

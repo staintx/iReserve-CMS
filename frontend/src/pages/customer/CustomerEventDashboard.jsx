@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
 import { CustomerAPI } from "../../api/customer";
@@ -165,6 +165,28 @@ export default function CustomerEventDashboard() {
       notify(err.response?.data?.message || "Failed to decline revision proposal", "error");
     }
   };
+
+  const handleCounterPropose = async (payload) => {
+    try {
+      await CustomerAPI.proposeRevision(booking._id, payload);
+      notify("Your counter-proposal was submitted to catering management for review!", "success");
+      fetchBooking();
+    } catch (err) {
+      notify(err.response?.data?.message || "Failed to submit counter-proposal", "error");
+      throw err;
+    }
+  };
+
+  const location = useLocation();
+  useEffect(() => {
+    if (booking?.pending_revision && booking.pending_revision.status === "pending_customer_approval") {
+      const isRevisionParam = searchParams.get("view") === "revision";
+      const isRevisionState = location.state?.openRevisionModal || location.state?.action === "revision" || location.state?.booking_id;
+      if (isRevisionParam || isRevisionState) {
+        setShowProposalModal(true);
+      }
+    }
+  }, [booking, searchParams, location.state]);
 
   const verifyingPaymentRef = useRef(new Set());
 
@@ -355,7 +377,7 @@ export default function CustomerEventDashboard() {
   const fetchBooking = () => {
     CustomerAPI.getBookings()
       .then((res) => {
-        const found = res.data.find(b => b._id === id);
+        const found = (res.data || []).find(b => String(b._id) === String(id));
         setBooking(found || null);
         if (found) {
           fetchSourceQuotation(found);
@@ -891,9 +913,9 @@ export default function CustomerEventDashboard() {
             {booking.pending_revision.status === "pending_customer_approval" && (
               <Button 
                 onClick={() => setShowProposalModal(true)}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-1.5 h-8 rounded-md shrink-0 shadow-2xs"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-1.5 h-8 rounded-md shrink-0 shadow-2xs cursor-pointer"
               >
-                Review & Confirm Deal
+                Review &amp; Respond to Proposal →
               </Button>
             )}
           </div>
@@ -1644,6 +1666,7 @@ export default function CustomerEventDashboard() {
           booking={booking}
           onAccept={handleAcceptRevision}
           onReject={handleRejectRevision}
+          onCounterPropose={handleCounterPropose}
           isCustomer={true}
         />
       </div>

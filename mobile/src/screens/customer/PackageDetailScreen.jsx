@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Image,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -15,9 +17,12 @@ import {
   ChevronRight,
   Shield,
   Clock,
+  Camera,
+  X,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
+import { resolvePackageCover } from "../../constants/cateringData";
 import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
 import LoadingState from "../../components/common/LoadingState";
@@ -32,6 +37,7 @@ export const PackageDetailScreen = ({ route, navigation }) => {
   const [packageData, setPackageData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   useEffect(() => {
     const fetchPackage = async () => {
@@ -71,6 +77,9 @@ export const PackageDetailScreen = ({ route, navigation }) => {
     packageData.package_type === "Special Offer" ||
     packageData.combo_guest_count;
 
+  const packageCover = resolvePackageCover(packageData);
+  const packageGallery = Array.isArray(packageData.gallery) ? packageData.gallery.filter(Boolean) : [];
+
   return (
     <View style={styles.container}>
       <Header title="Package Details" onBack={() => navigation.goBack()} />
@@ -82,6 +91,26 @@ export const PackageDetailScreen = ({ route, navigation }) => {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Cover Photo */}
+        {packageCover ? (
+          <TouchableOpacity
+            style={styles.heroMediaCard}
+            onPress={() => setLightboxImage(packageCover)}
+            activeOpacity={0.9}
+          >
+            <Image
+              source={{ uri: packageCover }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            {packageData.event_type ? (
+              <View style={styles.coverBadge}>
+                <Text style={styles.coverBadgeText}>{packageData.event_type}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+
         {/* Title Header */}
         <View style={styles.titleSection}>
           {isCombo && (
@@ -177,6 +206,35 @@ export const PackageDetailScreen = ({ route, navigation }) => {
             ))}
           </Card>
         )}
+
+        {/* Package Gallery Photos (matches Website) */}
+        {packageGallery.length > 0 && (
+          <Card style={styles.sectionCard}>
+            <View style={styles.galleryHeaderRow}>
+              <Camera size={16} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Photos from this package ({packageGallery.length})</Text>
+            </View>
+            <Text style={styles.sectionSubtitle}>
+              Actual event setup and styling captures:
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.galleryScroll}
+            >
+              {packageGallery.map((imgUrl, gIdx) => (
+                <TouchableOpacity
+                  key={gIdx}
+                  style={styles.galleryThumb}
+                  onPress={() => setLightboxImage(imgUrl)}
+                  activeOpacity={0.8}
+                >
+                  <Image source={{ uri: imgUrl }} style={styles.galleryThumbImage} resizeMode="cover" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Card>
+        )}
       </ScrollView>
 
       {/* Sticky Bottom Action Bar */}
@@ -201,6 +259,31 @@ export const PackageDetailScreen = ({ route, navigation }) => {
           size="md"
         />
       </View>
+
+      {/* Lightbox Preview Modal */}
+      <Modal
+        visible={Boolean(lightboxImage)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxImage(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={[styles.modalCloseBtn, { top: insets.top + spacing.sm }]}
+            onPress={() => setLightboxImage(null)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <X size={24} color={colors.white} />
+          </TouchableOpacity>
+          {lightboxImage && (
+            <Image
+              source={{ uri: lightboxImage }}
+              style={styles.modalImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -212,6 +295,76 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.xl,
+  },
+  heroMediaCard: {
+    width: "100%",
+    height: 220,
+    borderRadius: radius.xl,
+    overflow: "hidden",
+    marginBottom: spacing.base,
+    backgroundColor: colors.surfaceAlt,
+    position: "relative",
+    ...shadows.sm,
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  coverBadge: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    backgroundColor: "rgba(10, 15, 29, 0.8)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  coverBadgeText: {
+    color: colors.white,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+  galleryHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: 4,
+  },
+  galleryScroll: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  galleryThumb: {
+    width: 120,
+    height: 90,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  galleryThumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCloseBtn: {
+    position: "absolute",
+    right: spacing.lg,
+    zIndex: 10,
+    padding: spacing.sm,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: radius.pill,
+  },
+  modalImage: {
+    width: "92%",
+    height: "80%",
   },
   titleSection: {
     marginBottom: spacing.base,

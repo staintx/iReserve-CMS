@@ -48,8 +48,8 @@ import GalleryLightboxModal from "../../components/common/GalleryLightboxModal";
 import DishDetailModal from "../../components/common/DishDetailModal";
 import {
   resolveDishImage,
+  resolvePackageCover,
   resolvePackagePreviewDishes,
-  CURATED_GALLERY_ITEMS,
 } from "../../constants/cateringData";
 import { formatCurrency, formatDate } from "../../utils/format";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
@@ -60,27 +60,8 @@ const PACKAGE_CATEGORIES = [
   { id: "all", label: "All Packages" },
   { id: "wedding", label: "Weddings" },
   { id: "birthday", label: "Birthdays & Debuts" },
-  { id: "corporate", label: "Corporate" },
-  { id: "buffet", label: "Buffet Style" },
+  { id: "food", label: "Food Only" },
   { id: "special", label: "Special Offers" },
-];
-
-const MENU_CATEGORIES = [
-  { id: "all", label: "All Dishes" },
-  { id: "Main Course", label: "Main Course" },
-  { id: "Pasta", label: "Pasta & Noodles" },
-  { id: "Appetizer", label: "Appetizers" },
-  { id: "Dessert", label: "Desserts" },
-  { id: "Rice", label: "Rice" },
-  { id: "Soup", label: "Soups" },
-];
-
-const GALLERY_CATEGORIES = [
-  { id: "all", label: "All Setups" },
-  { id: "Weddings", label: "Weddings" },
-  { id: "Debuts & Birthdays", label: "Debuts & Birthdays" },
-  { id: "Corporate", label: "Corporate" },
-  { id: "Buffet Setup", label: "Buffet & Floral" },
 ];
 
 export const CustomerHomeScreen = ({ navigation }) => {
@@ -100,7 +81,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
   // Data States
   const [packages, setPackages] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [galleryItems, setGalleryItems] = useState(CURATED_GALLERY_ITEMS);
+  const [galleryItems, setGalleryItems] = useState([]);
   const [activeBooking, setActiveBooking] = useState(null);
   const [activeInquiry, setActiveInquiry] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -131,12 +112,19 @@ export const CustomerHomeScreen = ({ navigation }) => {
 
       if (Array.isArray(menuData) && menuData.length > 0) {
         setMenuItems(menuData);
+        cacheData(CACHE_KEYS.MENU, menuData);
+      } else {
+        const cachedM = await getCachedData(CACHE_KEYS.MENU);
+        if (cachedM) setMenuItems(cachedM);
       }
 
       if (Array.isArray(galData) && galData.length > 0) {
-        setGalleryItems([...galData, ...CURATED_GALLERY_ITEMS]);
+        const validGallery = galData.filter((item) => item?.image_url);
+        setGalleryItems(validGallery);
+        cacheData(CACHE_KEYS.GALLERY, validGallery);
       } else {
-        setGalleryItems(CURATED_GALLERY_ITEMS);
+        const cachedG = await getCachedData(CACHE_KEYS.GALLERY);
+        if (cachedG) setGalleryItems(cachedG);
       }
 
       // Check for active booking
@@ -171,6 +159,34 @@ export const CustomerHomeScreen = ({ navigation }) => {
     loadAllData();
   };
 
+  // Dynamically derive unique categories from live menu items
+  const menuCategories = useMemo(() => {
+    const byKey = new Map();
+    menuItems.forEach((item) => {
+      const raw = String(item?.category || "").trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!byKey.has(key)) {
+        byKey.set(key, { id: raw, label: raw });
+      }
+    });
+    return [{ id: "all", label: "All Dishes" }, ...Array.from(byKey.values())];
+  }, [menuItems]);
+
+  // Dynamically derive unique categories from live gallery items
+  const galleryCategories = useMemo(() => {
+    const byKey = new Map();
+    galleryItems.forEach((item) => {
+      const raw = String(item?.category || "").trim();
+      if (!raw) return;
+      const key = raw.toLowerCase();
+      if (!byKey.has(key)) {
+        byKey.set(key, { id: raw, label: raw });
+      }
+    });
+    return [{ id: "all", label: "All Setups" }, ...Array.from(byKey.values())];
+  }, [galleryItems]);
+
   // Filtered Packages
   const filteredPackages = useMemo(() => {
     return packages.filter((pkg) => {
@@ -185,8 +201,11 @@ export const CustomerHomeScreen = ({ navigation }) => {
       if (activePackageCat === "special") {
         return pkg.offer_type === "special" || pkg.is_combo || pkg.package_type === "Special Offer";
       }
+      if (activePackageCat === "food") {
+        return pkg.package_type === "Food Only";
+      }
       const nameLower = String(pkg.name || "").toLowerCase();
-      const typeLower = String(pkg.event_type || pkg.service_type || "").toLowerCase();
+      const typeLower = String(pkg.event_type || pkg.service_type || pkg.package_type || "").toLowerCase();
       return nameLower.includes(activePackageCat) || typeLower.includes(activePackageCat);
     });
   }, [packages, searchQuery, activePackageCat]);
@@ -202,7 +221,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
       if (!matchesSearch) return false;
 
       if (activeMenuCat === "all") return true;
-      return item.category === activeMenuCat;
+      return String(item.category || "").trim().toLowerCase() === activeMenuCat.toLowerCase();
     });
   }, [menuItems, searchQuery, activeMenuCat]);
 
@@ -212,12 +231,13 @@ export const CustomerHomeScreen = ({ navigation }) => {
       const matchesSearch =
         !searchQuery ||
         item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.venue?.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
       if (activeGalleryCat === "all") return true;
-      return item.category === activeGalleryCat;
+      return String(item.category || "").trim().toLowerCase() === activeGalleryCat.toLowerCase();
     });
   }, [galleryItems, searchQuery, activeGalleryCat]);
 
@@ -241,7 +261,11 @@ export const CustomerHomeScreen = ({ navigation }) => {
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.iconBtn}
-              onPress={() => navigation.navigate("Notifications")}
+              onPress={() =>
+                navigation.navigate("CustomerMessages", {
+                  initialTab: "notifications",
+                })
+              }
               activeOpacity={0.7}
             >
               <Bell size={20} color={colors.foreground} />
@@ -369,7 +393,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
 
           <Image
             source={{
-              uri: "https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=400&q=80",
+              uri: "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=800",
             }}
             style={styles.heroPromoImage}
             resizeMode="cover"
@@ -377,7 +401,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
         </View>
 
         {/* ══════════════════════════════════════════════════════════════════════
-            TAB 1: PACKAGES BROWSER (Baemin Reference 2 + Glovo Reference 3)
+            TAB 1: PACKAGES BROWSER (Matches Website with real Hero Covers)
            ══════════════════════════════════════════════════════════════════════ */}
         {activeTab === "packages" && (
           <View style={styles.sectionContainer}>
@@ -404,7 +428,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
               })}
             </ScrollView>
 
-            {/* Featured / Best Seller Highlight (Glovo Reference 3) */}
+            {/* Featured / Best Seller Highlight */}
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionHeading}>Signature Packages</Text>
@@ -433,7 +457,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
             ) : (
               <View style={styles.packageList}>
                 {filteredPackages.map((pkg) => {
-                  const previewDishes = resolvePackagePreviewDishes(pkg);
+                  const packageCover = resolvePackageCover(pkg);
                   const priceLabel =
                     pkg.price_per_guest > 0
                       ? `${formatCurrency(pkg.price_per_guest)} / pax`
@@ -445,28 +469,45 @@ export const CustomerHomeScreen = ({ navigation }) => {
                       ? `${pkg.guest_count} Pax Combo`
                       : "Flexible Pax";
 
+                  const displayInclusions = Array.isArray(pkg.inclusions) && pkg.inclusions.length > 0
+                    ? pkg.inclusions.slice(0, 3).map((inc) => String(inc).replace(/^\[[^\]]+\]\s*/, ""))
+                    : ["Full Table Setup", "Waitstaff", "Chafing Dishes"];
+
                   return (
                     <Card
                       key={pkg._id}
                       style={styles.packageCard}
                       onPress={() => navigation.navigate("PackageDetail", { id: pkg._id })}
                     >
-                      {/* 3-Dish Photo Preview Strip (Baemin Reference 2) */}
-                      <View style={styles.dishPreviewRow}>
-                        {previewDishes.map((dish, dIdx) => (
-                          <View key={dIdx} style={styles.dishPreviewTile}>
-                            <Image
-                              source={{ uri: dish.image }}
-                              style={styles.dishPreviewImage}
-                              resizeMode="cover"
-                            />
-                            <View style={styles.dishGradientOverlay}>
-                              <Text style={styles.dishOverlayText} numberOfLines={1}>
-                                {dish.name}
-                              </Text>
-                            </View>
+                      {/* Package Cover Photo (matches Website) */}
+                      <View style={styles.packageMediaContainer}>
+                        {packageCover ? (
+                          <Image
+                            source={{ uri: packageCover }}
+                            style={styles.packageHeroImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.packageImageFallback}>
+                            <Utensils size={28} color={colors.primary} />
+                            <Text style={styles.packageImageFallbackText}>{pkg.name}</Text>
                           </View>
-                        ))}
+                        )}
+
+                        {/* Event & Offer Badges Overlay */}
+                        <View style={styles.packageBadgeRow}>
+                          {pkg.event_type ? (
+                            <View style={styles.packageEventBadge}>
+                              <Text style={styles.packageEventBadgeText}>{pkg.event_type}</Text>
+                            </View>
+                          ) : null}
+                          {(pkg.offer_type === "special" || pkg.is_combo || pkg.package_type === "Special Offer") && (
+                            <View style={styles.packageOfferBadge}>
+                              <Sparkles size={11} color={colors.white} />
+                              <Text style={styles.packageOfferBadgeText}>Combo Pack</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
 
                       {/* Package Info */}
@@ -500,23 +541,19 @@ export const CustomerHomeScreen = ({ navigation }) => {
 
                         {/* Inclusions Strip */}
                         <View style={styles.inclusionsRow}>
-                          <View style={styles.inclusionItem}>
-                            <CheckCircle2 size={12} color={colors.success} />
-                            <Text style={styles.inclusionText}>Full Table Setup</Text>
-                          </View>
-                          <View style={styles.inclusionItem}>
-                            <CheckCircle2 size={12} color={colors.success} />
-                            <Text style={styles.inclusionText}>Waitstaff</Text>
-                          </View>
-                          <View style={styles.inclusionItem}>
-                            <CheckCircle2 size={12} color={colors.success} />
-                            <Text style={styles.inclusionText}>Chafing Dishes</Text>
-                          </View>
+                          {displayInclusions.map((inc, iIdx) => (
+                            <View key={iIdx} style={styles.inclusionItem}>
+                              <CheckCircle2 size={12} color={colors.success} />
+                              <Text style={styles.inclusionText} numberOfLines={1}>
+                                {inc}
+                              </Text>
+                            </View>
+                          ))}
                         </View>
 
                         {/* Full-width Pill View CTA */}
                         <View style={styles.packageActionBtn}>
-                          <Text style={styles.packageActionText}>View Package Details & Menu</Text>
+                          <Text style={styles.packageActionText}>View Package Details & Gallery</Text>
                           <ChevronRight size={15} color={colors.white} />
                         </View>
                       </View>
@@ -539,7 +576,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.filterPillsScroll}
             >
-              {MENU_CATEGORIES.map((cat) => {
+              {menuCategories.map((cat) => {
                 const isSelected = activeMenuCat === cat.id;
                 return (
                   <TouchableOpacity
@@ -636,7 +673,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.filterPillsScroll}
             >
-              {GALLERY_CATEGORIES.map((cat) => {
+              {galleryCategories.map((cat) => {
                 const isSelected = activeGalleryCat === cat.id;
                 return (
                   <TouchableOpacity
@@ -694,7 +731,7 @@ export const CustomerHomeScreen = ({ navigation }) => {
                       </View>
                       <Text style={styles.galleryTitle}>{item.title}</Text>
                       <Text style={styles.galleryVenue} numberOfLines={1}>
-                        📍 {item.venue || "Batangas Venue"}
+                        {item.description || item.venue || "Caezelle's Catered Event"}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1043,35 +1080,62 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     ...shadows.sm,
   },
-  dishPreviewRow: {
-    flexDirection: "row",
-    height: 110,
+  packageMediaContainer: {
+    height: 175,
     width: "100%",
-    backgroundColor: colors.surfaceAlt,
-    gap: 2,
-  },
-  dishPreviewTile: {
-    flex: 1,
     position: "relative",
+    backgroundColor: colors.surfaceAlt,
   },
-  dishPreviewImage: {
+  packageHeroImage: {
     width: "100%",
     height: "100%",
   },
-  dishGradientOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(10, 15, 29, 0.75)",
-    paddingVertical: 3,
-    paddingHorizontal: 4,
+  packageImageFallback: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryLight,
+    padding: spacing.md,
   },
-  dishOverlayText: {
-    fontSize: 9,
+  packageImageFallbackText: {
+    fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamily.bold,
-    color: colors.white,
+    color: colors.primary,
+    marginTop: spacing.xs,
     textAlign: "center",
+  },
+  packageBadgeRow: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  packageEventBadge: {
+    backgroundColor: "rgba(10, 15, 29, 0.8)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  packageEventBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontFamily: typography.fontFamily.bold,
+  },
+  packageOfferBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: colors.accentDark,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  packageOfferBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontFamily: typography.fontFamily.bold,
   },
   packageBody: {
     padding: spacing.md,

@@ -75,7 +75,7 @@ const CustomerTabs = () => {
         name="CustomerMessages"
         component={CustomerMessagesScreen}
         options={{
-          tabBarLabel: "Messages",
+          tabBarLabel: "Inbox",
           tabBarBadge:
             unreadMessagesCount > 0
               ? unreadMessagesCount > 99

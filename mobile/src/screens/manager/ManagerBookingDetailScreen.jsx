@@ -44,7 +44,7 @@ import { formatCurrency, formatDate, formatTime } from "../../utils/format";
 
 export const ManagerBookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { bookingId } = route.params;
+  const bookingId = route?.params?.bookingId || route?.params?.id;
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);

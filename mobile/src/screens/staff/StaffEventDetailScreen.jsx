@@ -52,7 +52,7 @@ const QUICK_TAGS = [
 
 export const StaffEventDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { bookingId } = route.params;
+  const bookingId = route?.params?.bookingId || route?.params?.id;
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);

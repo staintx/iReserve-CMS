@@ -189,6 +189,12 @@ export const MenuScreen = ({ navigation }) => {
         visible={Boolean(selectedDish)}
         dish={selectedDish}
         onClose={() => setSelectedDish(null)}
+        onSelectDish={(dish) => {
+          setSelectedDish(null);
+          navigation.navigate("InquiryWizard", {
+            favoriteDish: dish.name,
+          });
+        }}
       />
     </View>
   );

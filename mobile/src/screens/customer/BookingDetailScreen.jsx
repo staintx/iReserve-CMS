@@ -47,7 +47,7 @@ import { formatCurrency, formatDate, formatTime } from "../../utils/format";
 
 export const BookingDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { id } = route.params;
+  const id = route?.params?.id || route?.params?.bookingId;
 
   const [booking, setBooking] = useState(null);
   const [packages, setPackages] = useState([]);
@@ -59,6 +59,8 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showAddGuestsModal, setShowAddGuestsModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showRejectRevisionModal, setShowRejectRevisionModal] = useState(false);
+  const [rejectRevisionReason, setRejectRevisionReason] = useState("");
 
   // Change Request Form State
   const [changeDate, setChangeDate] = useState("");
@@ -237,31 +239,28 @@ export const BookingDetailScreen = ({ route, navigation }) => {
     );
   };
 
-  // Reject Management Revision Proposal
+  // Reject Management Revision Proposal (Cross-platform modal)
   const handleRejectRevision = () => {
-    Alert.prompt(
-      "Reject Revisions",
-      "Please enter the reason for declining the proposed revision:",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Decline",
-          style: "destructive",
-          onPress: async (reason) => {
-            setActionLoading(true);
-            try {
-              await customerApi.rejectRevision(booking._id, reason || "Customer declined revision");
-              Alert.alert("Declined", "The revision proposal has been declined.");
-              loadBooking();
-            } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to decline revision.");
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    setRejectRevisionReason("");
+    setShowRejectRevisionModal(true);
+  };
+
+  const confirmRejectRevision = async () => {
+    setActionLoading(true);
+    try {
+      await customerApi.rejectRevision(
+        booking._id,
+        rejectRevisionReason.trim() || "Customer declined revision"
+      );
+      Alert.alert("Declined", "The revision proposal has been declined.");
+      setShowRejectRevisionModal(false);
+      setRejectRevisionReason("");
+      loadBooking();
+    } catch (err) {
+      Alert.alert("Error", err.response?.data?.message || "Failed to decline revision.");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Add Additional Guests
@@ -1053,6 +1052,50 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 style={{ marginTop: spacing.md }}
               />
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL 4: Reject Revision ── */}
+      <Modal visible={showRejectRevisionModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Decline Revision Proposal</Text>
+              <TouchableOpacity onPress={() => setShowRejectRevisionModal(false)}>
+                <X size={20} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSub}>
+              Please let management know why this proposed revision does not meet your needs.
+            </Text>
+
+            <Text style={styles.inputLabel}>Reason for Declining</Text>
+            <TextInput
+              style={[styles.modalInput, { minHeight: 80, textAlignVertical: "top" }]}
+              multiline
+              placeholder="e.g. Schedule conflict, budget mismatch, prefer previous package..."
+              placeholderTextColor={colors.textDisabled}
+              value={rejectRevisionReason}
+              onChangeText={setRejectRevisionReason}
+            />
+
+            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg }}>
+              <AppButton
+                title="Cancel"
+                variant="outline"
+                onPress={() => setShowRejectRevisionModal(false)}
+                style={{ flex: 1 }}
+              />
+              <AppButton
+                title="Decline"
+                variant="destructive"
+                loading={actionLoading}
+                onPress={confirmRejectRevision}
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
         </View>
       </Modal>

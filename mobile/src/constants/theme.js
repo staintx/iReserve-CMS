@@ -1,54 +1,58 @@
 /**
- * Caezelle's Food, Catering & Services — Mobile Design System Tokens
- * Source of truth: frontend/src/styles/globals.css & customer.css
+ * iReserve — Catering Management System Design System Tokens
+ * Style: Crisp White & Royal Blue with Pure Black Typography
+ * Inspired by Glovo geometric aesthetics & Baemin navigation
  */
 import { Platform } from "react-native";
 
 export const colors = {
-  // Brand Palette
-  primary: "#2C4B8A",
-  primaryHover: "#1E3563",
-  primaryLight: "#EEF3FB",
-  powder: "#F1F5F9",
-  powderBlue: "#D6E4F7",
-  
-  secondary: "#7B583C",
-  secondaryLight: "#F7F4EE",
-  
-  accent: "#D2B67C",
-  accentLight: "#E8D4A8",
-  accentDark: "#B8994E",
-  
-  brownDark: "#5C402B",
-  brownMedium: "#7B583C",
-  
-  cream: "#E0CFAD",
-  creamLight: "#F7F4EE",
+  // Brand Palette (White & Royal Blue)
+  primary: "#2563EB",
+  primaryHover: "#1D4ED8",
+  primaryDark: "#1E40AF",
+  primaryLight: "#EFF6FF",
+  primaryBorder: "#BFDBFE",
 
-  // Functional / Customer Portal Neutrals
+  secondary: "#1E3A8A",
+  secondaryLight: "#F0F7FF",
+
+  accent: "#3B82F6",
+  accentLight: "#DBEAFE",
+  accentDark: "#1D4ED8",
+  accentGold: "#D2B67C", // Brand logo gold accent
+
+  powder: "#F1F5F9",
+  powderBlue: "#DBEAFE",
+
+  // Core Surfaces & Backgrounds
   background: "#F8FAFC",
   backgroundWhite: "#FFFFFF",
   surface: "#FFFFFF",
   surfaceAlt: "#F8FAFC",
   card: "#FFFFFF",
   cardBorder: "#E2E8F0",
-  
-  foreground: "#0F172A",
-  foregroundMuted: "#64748B",
-  foregroundBrown: "#5C402B",
-  textSubtle: "#94A3B8",
-  textDisabled: "#CBD5E1",
 
+  // Typography (Pure Black & Crisp Neutrals)
+  foreground: "#000000",
+  foregroundDark: "#0F172A",
+  foregroundMuted: "#4B5563",
+  foregroundBrown: "#000000",
+  textSubtle: "#6B7280",
+  textDisabled: "#9CA3AF",
+
+  // Borders & Inputs
   border: "#E2E8F0",
   borderLight: "#F1F5F9",
-  borderBrand: "rgba(92, 64, 43, 0.12)",
-  borderFocus: "#2C4B8A",
+  borderBrand: "rgba(37, 99, 235, 0.12)",
+  borderFocus: "#2563EB",
 
-  inputBackground: "#F8FAFC",
+  inputBackground: "#FFFFFF",
   inputBorder: "#E2E8F0",
+  disabled: "#E2E8F0",
+  disabledText: "#9CA3AF",
 
   // Status: Emerald / Confirmed / Paid
-  success: "#05603A",
+  success: "#059669",
   successLight: "#ECFDF5",
   successBorder: "#A7F3D0",
   successText: "#065F46",
@@ -61,34 +65,66 @@ export const colors = {
   warningDark: "#B45309",
 
   // Status: Error / Rejected / Cancelled
-  error: "#C0392B",
-  errorLight: "#FDEDEC",
-  errorBorder: "#F5B7B1",
+  error: "#DC2626",
+  errorLight: "#FEF2F2",
+  errorBorder: "#FECACA",
 
   // Status: Info / Quotation Ready
-  info: "#2C4B8A",
-  infoLight: "#EEF3FB",
+  info: "#2563EB",
+  infoLight: "#EFF6FF",
   infoBorder: "#BFDBFE",
 
   white: "#FFFFFF",
   black: "#000000",
-  overlay: "rgba(15, 23, 42, 0.45)",
+  overlay: "rgba(15, 23, 42, 0.5)",
 };
 
 export const typography = {
   fontFamilies: {
-    regular: Platform.select({ ios: "WorkSans_400Regular", android: "WorkSans_400Regular", default: "System" }),
-    medium: Platform.select({ ios: "WorkSans_500Medium", android: "WorkSans_500Medium", default: "System" }),
-    semiBold: Platform.select({ ios: "WorkSans_600SemiBold", android: "WorkSans_600SemiBold", default: "System" }),
-    bold: Platform.select({ ios: "WorkSans_700Bold", android: "WorkSans_700Bold", default: "System" }),
-    serif: Platform.select({ ios: "PlayfairDisplay_600SemiBold", android: "PlayfairDisplay_600SemiBold", default: "Georgia" }),
-    serifBold: Platform.select({ ios: "PlayfairDisplay_700Bold", android: "PlayfairDisplay_700Bold", default: "Georgia" }),
+    regular: Platform.select({
+      ios: "PlusJakartaSans_400Regular",
+      android: "PlusJakartaSans_400Regular",
+      default: "PlusJakartaSans_400Regular, WorkSans_400Regular, system-ui, sans-serif",
+    }),
+    medium: Platform.select({
+      ios: "PlusJakartaSans_500Medium",
+      android: "PlusJakartaSans_500Medium",
+      default: "PlusJakartaSans_500Medium, WorkSans_500Medium, system-ui, sans-serif",
+    }),
+    semiBold: Platform.select({
+      ios: "PlusJakartaSans_600SemiBold",
+      android: "PlusJakartaSans_600SemiBold",
+      default: "PlusJakartaSans_600SemiBold, WorkSans_600SemiBold, system-ui, sans-serif",
+    }),
+    bold: Platform.select({
+      ios: "PlusJakartaSans_700Bold",
+      android: "PlusJakartaSans_700Bold",
+      default: "PlusJakartaSans_700Bold, WorkSans_700Bold, system-ui, sans-serif",
+    }),
+    extraBold: Platform.select({
+      ios: "PlusJakartaSans_800ExtraBold",
+      android: "PlusJakartaSans_800ExtraBold",
+      default: "PlusJakartaSans_800ExtraBold, WorkSans_700Bold, system-ui, sans-serif",
+    }),
+    serif: Platform.select({
+      ios: "PlayfairDisplay_600SemiBold",
+      android: "PlayfairDisplay_600SemiBold",
+      default: "Georgia",
+    }),
+    serifBold: Platform.select({
+      ios: "PlayfairDisplay_700Bold",
+      android: "PlayfairDisplay_700Bold",
+      default: "Georgia",
+    }),
+  },
+  get fontFamily() {
+    return this.fontFamilies;
   },
   sizes: {
     xxs: 10,
-    xs: 11,
+    xs: 12,
     sm: 13,
-    base: 14,
+    base: 15,
     md: 16,
     lg: 18,
     xl: 20,
@@ -116,45 +152,57 @@ export const spacing = {
 };
 
 export const radius = {
-  xs: 4,
-  sm: 8,
-  md: 12,
+  xs: 6,
+  sm: 10,
+  md: 14,
   lg: 16,
   xl: 20,
   xxl: 24,
+  pill: 9999,
+  dock: 32,
   full: 9999,
 };
 
 export const shadows = {
   none: {},
   sm: Platform.select({
-    web: { boxShadow: "0 1px 3px rgba(15, 23, 42, 0.05)" },
+    web: { boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)" },
     default: {
       shadowColor: "#0F172A",
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
+      shadowOpacity: 0.05,
       shadowRadius: 3,
-      elevation: 1,
+      elevation: 2,
     },
   }),
   md: Platform.select({
-    web: { boxShadow: "0 4px 12px rgba(15, 23, 42, 0.07)" },
+    web: { boxShadow: "0 4px 16px rgba(37, 99, 235, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04)" },
     default: {
       shadowColor: "#0F172A",
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.06,
+      shadowOpacity: 0.07,
       shadowRadius: 10,
-      elevation: 3,
+      elevation: 4,
     },
   }),
   lg: Platform.select({
-    web: { boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)" },
+    web: { boxShadow: "0 10px 28px rgba(15, 23, 42, 0.10)" },
     default: {
       shadowColor: "#0F172A",
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.10,
       shadowRadius: 20,
-      elevation: 6,
+      elevation: 8,
+    },
+  }),
+  dock: Platform.select({
+    web: { boxShadow: "0 12px 36px rgba(15, 23, 42, 0.14)" },
+    default: {
+      shadowColor: "#0F172A",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.12,
+      shadowRadius: 24,
+      elevation: 10,
     },
   }),
 };

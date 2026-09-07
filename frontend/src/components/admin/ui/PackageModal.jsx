@@ -8,7 +8,9 @@ import {
   Sparkles,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   Tag,
+  FolderPlus,
 } from "lucide-react";
 import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
@@ -196,6 +198,14 @@ export default function PackageModal({
     free_setup: false,
   });
 
+  // ============ COMBO FOOD CATEGORY GROUPING STATE ============
+  const [customCategoryHeaders, setCustomCategoryHeaders] = useState([]);
+  const [collapsedCategories, setCollapsedCategories] = useState({});
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editCategoryNameValue, setEditCategoryNameValue] = useState("");
+
   // ============ MEDIA STATE ============
   const [imageFile, setImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
@@ -267,18 +277,38 @@ export default function PackageModal({
   }, []);
 
   const isOffer = formData.offer_type === OFFER_TYPES.SPECIAL;
-
-  // What the combo's food costs, from the two numbers the admin just typed.
-  // The same arithmetic the customer, the booking and the quotation all use.
-  const comboTotal =
-    Math.max(0, Math.floor(Number(formData.guest_count) || 0)) *
-    Math.max(0, Number(formData.price_per_guest) || 0);
-
   const scaffoldOptions = formData.scaffold_size_options || [];
+
   const foodItems = useMemo(
     () => formData.offer_food_items || [],
     [formData.offer_food_items],
   );
+
+  // Group food items dynamically by menu category
+  const categoryGroups = useMemo(() => {
+    const items = formData.offer_food_items || [];
+    const categoryMap = new Map();
+
+    items.forEach((item, globalIndex) => {
+      const cat = String(item.menu_category || "").trim() || "Uncategorized";
+      if (!categoryMap.has(cat)) {
+        categoryMap.set(cat, []);
+      }
+      categoryMap.get(cat).push({ ...item, globalIndex });
+    });
+
+    customCategoryHeaders.forEach((cat) => {
+      const trimmed = String(cat || "").trim();
+      if (trimmed && !categoryMap.has(trimmed)) {
+        categoryMap.set(trimmed, []);
+      }
+    });
+
+    return Array.from(categoryMap.entries()).map(([name, catItems]) => ({
+      name,
+      items: catItems,
+    }));
+  }, [formData.offer_food_items, customCategoryHeaders]);
 
   // A newly added row is scrolled to and focused, so "Add" from the foot of a
   // long list lands the admin on the thing they just created rather than
@@ -643,19 +673,99 @@ export default function PackageModal({
     }));
   };
 
-  // ============ HANDLERS - Combo food & inclusions ============
-  // A combo's food is a written list: one row per dish, each naming the course
-  // it belongs to. There is nothing to compute — what the admin types is what
-  // the customer is served, which is the whole point of a combo.
-  const handleAddFoodItem = () => {
+  // ============ HANDLERS - Combo food & category grouping ============
+  const handleAddFoodItemToCategory = (catName) => {
+    const realCategory = catName === "Uncategorized" ? "" : catName;
     setFormData((prev) => {
       const items = prev.offer_food_items || [];
-      pendingFoodFocus.current = items.length;
       return {
         ...prev,
-        offer_food_items: [...items, { menu_category: "", item_name: "" }],
+        offer_food_items: [...items, { menu_category: realCategory, item_name: "" }],
       };
     });
+    setCollapsedCategories((prev) => ({ ...prev, [catName]: false }));
+  };
+
+  const handleAddNewCategory = (catName) => {
+    const name = String(catName || "").trim();
+    if (!name) return;
+    if (!customCategoryHeaders.includes(name)) {
+      setCustomCategoryHeaders((prev) => [...prev, name]);
+    }
+    setFormData((prev) => ({
+      ...prev,
+      offer_food_items: [
+        ...(prev.offer_food_items || []),
+        { menu_category: name, item_name: "" },
+      ],
+    }));
+    setCollapsedCategories((prev) => ({ ...prev, [name]: false }));
+    setNewCategoryName("");
+    setIsAddingCategory(false);
+  };
+
+  const handleMoveFoodItemWithinCategory = (catName, itemInCatIndex, direction) => {
+    const categoryGroup = categoryGroups.find((g) => g.name === catName);
+    if (!categoryGroup) return;
+
+    const catItems = categoryGroup.items;
+    const targetInCatIndex = itemInCatIndex + direction;
+    if (targetInCatIndex < 0 || targetInCatIndex >= catItems.length) return;
+
+    const currentGlobalIdx = catItems[itemInCatIndex].globalIndex;
+    const targetGlobalIdx = catItems[targetInCatIndex].globalIndex;
+
+    setFormData((prev) => {
+      const items = [...(prev.offer_food_items || [])];
+      [items[currentGlobalIdx], items[targetGlobalIdx]] = [
+        items[targetGlobalIdx],
+        items[currentGlobalIdx],
+      ];
+      return { ...prev, offer_food_items: items };
+    });
+  };
+
+  const handleRemoveCategoryGroup = (catName) => {
+    setFormData((prev) => ({
+      ...prev,
+      offer_food_items: (prev.offer_food_items || []).filter(
+        (item) => (String(item.menu_category || "").trim() || "Uncategorized") !== catName,
+      ),
+    }));
+    setCustomCategoryHeaders((prev) => prev.filter((c) => c !== catName));
+  };
+
+  const handleRenameCategoryGroup = (oldCatName, newCatName) => {
+    const trimmedNew = String(newCatName || "").trim();
+    if (!trimmedNew || oldCatName === trimmedNew) {
+      setEditingCategory(null);
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      offer_food_items: (prev.offer_food_items || []).map((item) => {
+        const currentCat = String(item.menu_category || "").trim() || "Uncategorized";
+        if (currentCat === oldCatName) {
+          return { ...item, menu_category: trimmedNew };
+        }
+        return item;
+      }),
+    }));
+    setCustomCategoryHeaders((prev) =>
+      prev.map((c) => (c === oldCatName ? trimmedNew : c)),
+    );
+    setEditingCategory(null);
+  };
+
+  const toggleCollapseCategory = (catName) => {
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [catName]: !prev[catName],
+    }));
+  };
+
+  const handleAddFoodItem = () => {
+    handleAddFoodItemToCategory(categoryGroups[0]?.name || "Viand");
   };
 
   const handleUpdateFoodItem = (index, patch) => {
@@ -675,13 +785,6 @@ export default function PackageModal({
     }));
   };
 
-  /**
-   * Moves a dish one place up or down.
-   *
-   * Order is stored (`sort_order`) and is the order the combo reads in
-   * everywhere else, so it is worth being able to correct without deleting and
-   * retyping the row.
-   */
   const handleMoveFoodItem = (index, direction) => {
     setFormData((prev) => {
       const items = [...(prev.offer_food_items || [])];
@@ -776,15 +879,7 @@ export default function PackageModal({
 
     if (isOffer && !(Number(formData.price_per_guest) >= 0)) {
       notify(
-        "Set the price per pax. A combo is priced from that rate times its guest count.",
-        "error",
-      );
-      return;
-    }
-
-    if (isOffer && !(Number(formData.guest_count) >= 1)) {
-      notify(
-        "Set how many guests this combo serves. It must be at least 1.",
+        "Set the price per pax. A combo is priced from that rate times guest count.",
         "error",
       );
       return;
@@ -1203,17 +1298,15 @@ export default function PackageModal({
               uses are shown, so neither reads as half-filled. */}
           <section>
             <h3 className="font-bold text-foreground mb-1">
-              {isOffer ? "Pricing & Guest Count" : "Pricing & Guest Rules"}
+              {isOffer ? "Pricing" : "Pricing & Guest Rules"}
             </h3>
             <p className="mb-4 text-xs text-gray-500">
               {isOffer
-                ? "Combo price = guest count × price per pax. Set-up, equipment and extras stay with the quotation."
+                ? "Special Offers are priced per pax. Customers will specify their guest count when booking."
                 : "The starting price for this package. The quotation remains the final pricing authority."}
             </p>
             <div className="grid grid-cols-2 gap-4">
-              {/* Base Setup Price — regular packages only. An offer is sold at
-                  a rate per pax; what its set-up costs is settled on the
-                  quotation, so asking for a figure here would invent one. */}
+              {/* Base Setup Price — regular packages only */}
               {!isOffer && (
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">
@@ -1233,34 +1326,10 @@ export default function PackageModal({
                 </div>
               )}
 
-              {/* ---- Combo pricing ----------------------------------------
-                  A combo's own two numbers, and the total that follows from
-                  them. All three are configuration: no figure lives in code. */}
+              {/* Combo pricing */}
               {isOffer && (
                 <>
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Guest Count (pax) <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      className="w-full border border-amber-300 bg-amber-50/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      placeholder="e.g. 10"
-                      value={formData.guest_count}
-                      onChange={(e) => {
-                        if (Number(e.target.value) < 0) return;
-                        setFormData({ ...formData, guest_count: e.target.value });
-                      }}
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      How many guests this combo serves. Customers book it for
-                      exactly this number.
-                    </p>
-                  </div>
-
-                  <div>
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="block text-sm text-gray-600 mb-1">
                       Price Per Pax (₱) <span className="text-red-400">*</span>
                     </label>
@@ -1280,17 +1349,9 @@ export default function PackageModal({
                     />
                   </div>
 
-                  {/* The number the customer actually pays for the food, shown
-                      as it is typed — the two fields above are easy to read as
-                      a total when they are not one. */}
-                  {comboTotal > 0 && (
+                  {Number(formData.price_per_guest) > 0 && (
                     <p className="col-span-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm text-amber-900">
-                      Combo food price:{" "}
-                      <strong>₱{comboTotal.toLocaleString("en-PH")}</strong> ·{" "}
-                      {Number(formData.guest_count)} guests × ₱
-                      {Number(formData.price_per_guest).toLocaleString("en-PH")}{" "}
-                      per pax. Set-up, equipment and extras are quoted
-                      separately.
+                      Pricing: <strong>₱{Number(formData.price_per_guest).toLocaleString("en-PH")} / pax</strong> · Customer will specify guest count during booking.
                     </p>
                   )}
                 </>
@@ -1307,22 +1368,29 @@ export default function PackageModal({
               the live menu — a combo may serve something the standing menu does
               not list, but the usual case is one keystroke and names that match
               the rest of the product. */}
+          {/* SECTION 4: Combo Food — Grouped by Category --------------------- */}
           {isOffer && (
             <section>
-              <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="flex items-center gap-2 font-bold text-foreground">
                     <Tag size={15} className="text-amber-500" />
                     Combo Food <span className="text-red-400">*</span>
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Every dish this combo serves. Customers see exactly this
-                    list — they choose nothing.
+                    Dishes grouped by category. Customers see items organized by course.
                   </p>
                 </div>
-                <Btn variant="secondary" size="sm" onClick={handleAddFoodItem}>
-                  <Plus size={12} /> Add item
-                </Btn>
+
+                <div className="flex items-center gap-2">
+                  <Btn
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setIsAddingCategory(true)}
+                  >
+                    <FolderPlus size={14} /> Add Category
+                  </Btn>
+                </div>
               </div>
 
               <datalist id="combo-course-suggestions">
@@ -1331,110 +1399,280 @@ export default function PackageModal({
                 ))}
               </datalist>
 
-              <div className="space-y-2 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
-                {foodItems.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-amber-200 bg-white/60 py-6 text-center text-sm italic text-gray-400">
-                    No food yet. Add the dishes this combo serves — e.g. Main
-                    Course, Chicken BBQ.
-                  </p>
-                ) : (
-                  foodItems.map((item, index) => (
-                    <div
-                      key={index}
-                      ref={(node) => registerFoodRow(index, node)}
-                      className="flex flex-wrap items-end gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2.5 shadow-2xs"
-                    >
-                      {/* Reordering: the stored order is the order the combo
-                          reads in everywhere, so it is worth correcting in
-                          place rather than by retyping the rows. */}
-                      <div className="flex flex-col">
+              <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                {categoryGroups.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-amber-300 bg-white/80 p-6 text-center">
+                    <p className="mb-3 text-sm italic text-gray-500">
+                      No food categories yet. Choose a category below or add a custom one to start listing dishes.
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {["Viand", "Fried", "Pasta", "Soup", "Dessert", "Drinks"].map((presetCat) => (
                         <button
+                          key={presetCat}
                           type="button"
-                          onClick={() => handleMoveFoodItem(index, -1)}
-                          disabled={index === 0}
-                          aria-label={`Move ${item.item_name || "item"} up`}
-                          className="rounded px-1 text-gray-400 transition-colors hover:text-primary disabled:opacity-30"
+                          onClick={() => handleAddNewCategory(presetCat)}
+                          className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 hover:border-amber-400"
                         >
-                          <ChevronUp size={14} />
+                          <Plus size={12} /> {presetCat}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveFoodItem(index, 1)}
-                          disabled={index === foodItems.length - 1}
-                          aria-label={`Move ${item.item_name || "item"} down`}
-                          className="rounded px-1 text-gray-400 transition-colors hover:text-primary disabled:opacity-30"
-                        >
-                          <ChevronDown size={14} />
-                        </button>
-                      </div>
-
-                      <div className="min-w-[9rem] flex-1">
-                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                          Menu category
-                        </label>
-                        <input
-                          type="text"
-                          list="combo-course-suggestions"
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                          placeholder="e.g. Main Course"
-                          value={item.menu_category || ""}
-                          onChange={(e) =>
-                            handleUpdateFoodItem(index, {
-                              menu_category: e.target.value,
-                            })
-                          }
-                        />
-                      </div>
-
-                      <div className="min-w-[11rem] flex-[2]">
-                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-                          Item name <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          list={`combo-dish-suggestions-${index}`}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm focus:outline-none ${
-                            String(item.item_name || "").trim()
-                              ? "border-gray-200 focus:border-amber-500"
-                              : "border-red-300 focus:border-red-400"
-                          }`}
-                          placeholder="e.g. Chicken BBQ"
-                          value={item.item_name || ""}
-                          onChange={(e) =>
-                            handleUpdateFoodItem(index, {
-                              item_name: e.target.value,
-                            })
-                          }
-                        />
-                        <datalist id={`combo-dish-suggestions-${index}`}>
-                          {dishSuggestionsFor(item.menu_category).map((name) => (
-                            <option key={name} value={name} />
-                          ))}
-                        </datalist>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFoodItem(index)}
-                        className="mb-1 rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Remove item"
-                        aria-label={`Remove ${item.item_name || "item"}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      ))}
                     </div>
-                  ))
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {categoryGroups.map((group) => {
+                      const isCollapsed = Boolean(collapsedCategories[group.name]);
+                      const isEditingThisCat = editingCategory === group.name;
+
+                      return (
+                        <div
+                          key={group.name}
+                          className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-2xs transition-all"
+                        >
+                          {/* Category Header */}
+                          <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50/80 px-4 py-2.5">
+                            <div className="flex flex-1 items-center gap-2 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => toggleCollapseCategory(group.name)}
+                                className="rounded p-1 text-amber-800 transition-colors hover:bg-amber-100 hover:text-amber-950"
+                                title={isCollapsed ? "Expand category" : "Collapse category"}
+                              >
+                                {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                              </button>
+
+                              {isEditingThisCat ? (
+                                <div className="flex flex-1 items-center gap-1.5 max-w-xs">
+                                  <input
+                                    type="text"
+                                    list="combo-course-suggestions"
+                                    autoFocus
+                                    className="w-full rounded border border-amber-400 bg-white px-2 py-1 text-xs font-bold text-amber-950 focus:outline-none"
+                                    value={editCategoryNameValue}
+                                    onChange={(e) => setEditCategoryNameValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleRenameCategoryGroup(group.name, editCategoryNameValue);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRenameCategoryGroup(group.name, editCategoryNameValue)}
+                                    className="rounded p-1 text-amber-700 hover:bg-amber-100"
+                                    title="Save name"
+                                  >
+                                    <Check size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingCategory(null)}
+                                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                                    title="Cancel"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="truncate text-xs font-bold uppercase tracking-wider text-amber-950">
+                                    {group.name}
+                                  </span>
+                                  <span className="rounded-full bg-amber-200/70 px-2 py-0.5 text-[11px] font-extrabold text-amber-900">
+                                    {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 ml-2">
+                              {!isEditingThisCat && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingCategory(group.name);
+                                    setEditCategoryNameValue(group.name);
+                                  }}
+                                  className="rounded p-1 text-gray-400 transition-colors hover:bg-amber-100 hover:text-amber-700"
+                                  title="Rename category"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCategoryGroup(group.name)}
+                                className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                title="Delete category"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Category Items List */}
+                          {!isCollapsed && (
+                            <div className="space-y-2 bg-amber-50/20 p-3">
+                              {group.items.length === 0 ? (
+                                <p className="py-3 text-center text-xs italic text-gray-400">
+                                  No items under {group.name} yet. Click "+ Add {group.name} Item" below.
+                                </p>
+                              ) : (
+                                group.items.map((item, catIdx) => (
+                                  <div
+                                    key={item.globalIndex}
+                                    className="flex items-center gap-2 rounded-lg border border-amber-200/80 bg-white px-2.5 py-2 shadow-2xs"
+                                  >
+                                    <div className="flex flex-col">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, -1)}
+                                        disabled={catIdx === 0}
+                                        aria-label={`Move ${item.item_name || "item"} up`}
+                                        className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20"
+                                      >
+                                        <ChevronUp size={13} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveFoodItemWithinCategory(group.name, catIdx, 1)}
+                                        disabled={catIdx === group.items.length - 1}
+                                        aria-label={`Move ${item.item_name || "item"} down`}
+                                        className="rounded px-0.5 text-gray-400 transition-colors hover:text-amber-600 disabled:opacity-20"
+                                      >
+                                        <ChevronDown size={13} />
+                                      </button>
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                      <input
+                                        type="text"
+                                        list={`combo-dish-suggestions-${group.name}-${catIdx}`}
+                                        className={`w-full rounded-md border px-3 py-1.5 text-sm focus:outline-none ${
+                                          String(item.item_name || "").trim()
+                                            ? "border-gray-200 focus:border-amber-500"
+                                            : "border-red-300 focus:border-red-400"
+                                        }`}
+                                        placeholder={`e.g. Dish name under ${group.name}`}
+                                        value={item.item_name || ""}
+                                        onChange={(e) =>
+                                          handleUpdateFoodItem(item.globalIndex, {
+                                            item_name: e.target.value,
+                                          })
+                                        }
+                                      />
+                                      <datalist id={`combo-dish-suggestions-${group.name}-${catIdx}`}>
+                                        {dishSuggestionsFor(group.name).map((name) => (
+                                          <option key={name} value={name} />
+                                        ))}
+                                      </datalist>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFoodItem(item.globalIndex)}
+                                      className="rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                      title="Remove item"
+                                      aria-label={`Remove ${item.item_name || "item"}`}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleAddFoodItemToCategory(group.name)}
+                                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-white py-2 text-xs font-semibold text-amber-700 transition-colors hover:border-amber-500 hover:bg-amber-50/60"
+                              >
+                                <Plus size={13} /> Add {group.name} Item
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
 
-                {/* The add control the admin actually reaches: right where the
-                    last row ends, however many there are. */}
-                <button
-                  type="button"
-                  onClick={handleAddFoodItem}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 bg-white/70 py-2.5 text-sm font-semibold text-amber-700 transition-colors hover:border-amber-500 hover:bg-white"
-                >
-                  <Plus size={14} /> Add food item
-                </button>
+                {/* Bottom Add Category Bar */}
+                <div className="pt-2 border-t border-amber-200/60">
+                  {isAddingCategory ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50/90 p-3 shadow-2xs">
+                      <span className="text-xs font-bold uppercase text-amber-900">New Category:</span>
+                      <input
+                        type="text"
+                        list="combo-course-suggestions"
+                        autoFocus
+                        placeholder="e.g. Viand, Fried, Pasta, Drinks, Dessert..."
+                        className="flex-1 min-w-[160px] rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddNewCategory(newCategoryName);
+                          }
+                        }}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleAddNewCategory(newCategoryName)}
+                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-amber-700"
+                        >
+                          Add Group
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddingCategory(false);
+                            setNewCategoryName("");
+                          }}
+                          className="rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCategory(true)}
+                        className="flex items-center gap-1.5 rounded-lg border border-dashed border-amber-400 bg-amber-50/80 px-4 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100"
+                      >
+                        <FolderPlus size={15} /> + Add Category
+                      </button>
+
+                      {categoryGroups.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const allCollapsed = {};
+                              categoryGroups.forEach((g) => (allCollapsed[g.name] = true));
+                              setCollapsedCategories(allCollapsed);
+                            }}
+                            className="text-xs font-medium text-amber-700 hover:underline"
+                          >
+                            Collapse All
+                          </button>
+                          <span className="text-gray-300">·</span>
+                          <button
+                            type="button"
+                            onClick={() => setCollapsedCategories({})}
+                            className="text-xs font-medium text-amber-700 hover:underline"
+                          >
+                            Expand All
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </section>
           )}

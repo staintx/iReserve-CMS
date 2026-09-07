@@ -115,19 +115,19 @@ export const ZelleChatScreen = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       enabled={Platform.OS === "ios"}
     >
-      {/* Header */}
+      {/* Header (Glovo Circular Back Button) */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           activeOpacity={0.7}
         >
-          <ChevronLeft size={24} color={colors.foreground} />
+          <ChevronLeft size={20} color={colors.foreground} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleCenter}>
-          <Text style={styles.headerTitle}>Caezelle Agent</Text>
-          <Text style={styles.headerSubtitle}>AI Catering Assistant</Text>
+          <Text style={styles.headerTitle}>iReserve Assistant</Text>
+          <Text style={styles.headerSubtitle}>Powered by Caezelle AI</Text>
         </View>
 
         <TouchableOpacity
@@ -252,23 +252,37 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderLight,
   },
   backBtn: {
-    padding: 4,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  clearBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   headerTitleCenter: {
     alignItems: "center",
   },
   headerTitle: {
     fontSize: typography.sizes.md,
-    fontFamily: typography.fontFamilies.bold,
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   headerSubtitle: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamilies.regular,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
-  },
-  clearBtn: {
-    padding: 4,
   },
   welcomeContainer: {
     flex: 1,
@@ -287,7 +301,7 @@ const styles = StyleSheet.create({
   },
   welcomeTitle: {
     fontSize: 22,
-    fontFamily: typography.fontFamilies.serifBold,
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
     textAlign: "center",
     marginBottom: spacing.xs,
@@ -295,7 +309,7 @@ const styles = StyleSheet.create({
   },
   welcomeDesc: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamilies.regular,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,
@@ -306,18 +320,18 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   promptChip: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: spacing.base,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.borderLight,
     alignItems: "center",
     ...shadows.sm,
   },
   promptChipText: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamilies.medium,
+    fontFamily: typography.fontFamily.medium,
     color: colors.foreground,
     textAlign: "center",
   },

@@ -16,11 +16,55 @@ import customerApi from "../../api/customer";
 import { formatCurrency } from "../../utils/format";
 
 export const PaymentCheckoutScreen = ({ route, navigation }) => {
-  const { checkoutUrl, paymentId, depositAmount } = route.params;
+  const params = route.params || {};
+
+  const [currentCheckoutUrl, setCurrentCheckoutUrl] = useState(params.checkoutUrl || null);
+  const [currentPaymentId, setCurrentPaymentId] = useState(params.paymentId || null);
+  const [currentAmount, setCurrentAmount] = useState(params.depositAmount || params.amount || null);
+  const [loadingSession, setLoadingSession] = useState(!params.checkoutUrl);
+  const [initError, setInitError] = useState("");
 
   const [verifying, setVerifying] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [confirmedBookingId, setConfirmedBookingId] = useState(null);
+  const [confirmedBookingId, setConfirmedBookingId] = useState(params.bookingId || null);
+
+  useEffect(() => {
+    if (currentCheckoutUrl) return;
+
+    const initCheckout = async () => {
+      setLoadingSession(true);
+      setInitError("");
+      try {
+        const payload = {
+          payment_type: params.bookingId ? "balance" : "deposit",
+          payment_method_types: ["gcash", "paymaya", "card"],
+        };
+        if (params.bookingId) payload.booking_id = params.bookingId;
+        if (params.inquiryId) payload.inquiry_id = params.inquiryId;
+        if (params.amount) payload.amount = params.amount;
+
+        const res = await customerApi.createCheckoutSession(payload);
+        if (res?.checkout_url) {
+          setCurrentCheckoutUrl(res.checkout_url);
+          if (res.payment?._id) setCurrentPaymentId(res.payment._id);
+          if (res.payment?.booking_id) setConfirmedBookingId(res.payment.booking_id);
+        } else {
+          setInitError("Could not generate a checkout link. Please try again.");
+        }
+      } catch (err) {
+        setInitError(err.response?.data?.message || "Failed to initialize payment gateway.");
+      } finally {
+        setLoadingSession(false);
+      }
+    };
+
+    if (params.bookingId || params.inquiryId) {
+      initCheckout();
+    } else {
+      setInitError("Payment session details are missing.");
+      setLoadingSession(false);
+    }
+  }, [params.bookingId, params.inquiryId, params.amount, currentCheckoutUrl]);
 
   const handleNavigationStateChange = async (navState) => {
     const url = navState.url || "";
@@ -29,8 +73,8 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     if (url.includes("payment=success") || url.includes("status=success")) {
       setVerifying(true);
       try {
-        if (paymentId) {
-          const res = await customerApi.verifyPayment(paymentId);
+        if (currentPaymentId) {
+          const res = await customerApi.verifyPayment(currentPaymentId);
           if (res?.payment?.booking_id) {
             setConfirmedBookingId(res.payment.booking_id);
           }
@@ -46,7 +90,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     } else if (url.includes("payment=cancelled") || url.includes("status=cancelled")) {
       Alert.alert(
         "Payment Cancelled",
-        "Your payment transaction was cancelled. You can retry paying the deposit at any time.",
+        "Your payment transaction was cancelled. You can retry paying at any time.",
         [
           {
             text: "Return to Inquiries",
@@ -56,6 +100,33 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
       );
     }
   };
+
+  if (loadingSession) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.verifyingTitle}>Preparing Secure Checkout...</Text>
+        <Text style={styles.verifyingDesc}>
+          Connecting to PayMongo payment gateway.
+        </Text>
+      </View>
+    );
+  }
+
+  if (initError) {
+    return (
+      <View style={styles.centerContainer}>
+        <AlertTriangle size={52} color={colors.error} />
+        <Text style={styles.verifyingTitle}>Checkout Error</Text>
+        <Text style={styles.verifyingDesc}>{initError}</Text>
+        <AppButton
+          title="Go Back"
+          onPress={() => navigation.goBack()}
+          style={{ marginTop: spacing.lg, minWidth: 160 }}
+        />
+      </View>
+    );
+  }
 
   if (verifying) {
     return (
@@ -75,9 +146,9 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         <View style={styles.successIconCircle}>
           <CheckCircle size={52} color={colors.success} />
         </View>
-        <Text style={styles.successTitle}>Deposit Paid Successfully! 🎉</Text>
+        <Text style={styles.successTitle}>Payment Successful! 🎉</Text>
         <Text style={styles.successDesc}>
-          Thank you! Your event deposit of {depositAmount ? formatCurrency(depositAmount) : "payment"} has been verified. Your booking is now officially confirmed and your equipment has been reserved.
+          Thank you! Your event payment of {currentAmount ? formatCurrency(currentAmount) : "amount"} has been verified. Your booking is confirmed.
         </Text>
 
         <AppButton
@@ -114,7 +185,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
       />
 
       <WebView
-        source={{ uri: checkoutUrl }}
+        source={{ uri: currentCheckoutUrl }}
         onNavigationStateChange={handleNavigationStateChange}
         startInLoadingState
         renderLoading={() => (
@@ -161,13 +232,14 @@ const styles = StyleSheet.create({
   },
   verifyingTitle: {
     fontSize: typography.sizes.lg,
-    fontWeight: "800",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     marginTop: spacing.base,
     marginBottom: spacing.xs,
   },
   verifyingDesc: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,
@@ -181,16 +253,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.success,
   },
   successTitle: {
     fontSize: typography.sizes.xxl,
-    fontWeight: "800",
+    fontFamily: typography.fontFamily.extrabold,
     color: colors.foreground,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
   successDesc: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 22,

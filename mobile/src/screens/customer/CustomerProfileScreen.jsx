@@ -6,46 +6,94 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
+  Modal,
+  KeyboardAvoidingView,
+  Dimensions,
+  StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   User,
-  Mail,
-  Phone,
-  MapPin,
   Lock,
   LogOut,
   ChevronRight,
-  Shield,
-  FileText,
+  X,
+  Sparkles,
+  MessageSquare,
+  HelpCircle,
+  Utensils,
+  Camera,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
-import Header from "../../components/common/Header";
-import Card from "../../components/common/Card";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
 import { useAuth } from "../../context/AuthContext";
 import authApi from "../../api/auth";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 export const CustomerProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, logout, updateUser } = useAuth();
 
-  const [isEditing, setIsEditing] = useState(false);
+  // Profile Edit State
+  const [showEditModal, setShowEditModal] = useState(false);
   const [firstName, setFirstName] = useState(user?.first_name || "");
   const [lastName, setLastName] = useState(user?.last_name || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [address, setAddress] = useState(user?.address || "");
   const [saving, setSaving] = useState(false);
 
-  // Change Password
+  // Change Password State
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
 
+  // Help Modal State
+  const [showHelpModal, setShowHelpModal] = useState(false);
+
+  // User Initials Calculation
+  const userInitials = React.useMemo(() => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    }
+    if (user?.first_name) {
+      return user.first_name.slice(0, 2).toUpperCase();
+    }
+    if (user?.full_name) {
+      const parts = user.full_name.trim().split(" ");
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return "CU";
+  }, [user]);
+
+  const displayName = React.useMemo(() => {
+    if (user?.first_name) {
+      return `${user.first_name} ${user.last_name || ""}`.trim();
+    }
+    return user?.full_name || "Valued Customer";
+  }, [user]);
+
+  const handleOpenEdit = () => {
+    setFirstName(user?.first_name || "");
+    setLastName(user?.last_name || "");
+    setPhone(user?.phone || "");
+    setAddress(user?.address || "");
+    setShowEditModal(true);
+  };
+
   const handleSaveProfile = async () => {
+    if (!firstName.trim()) {
+      Alert.alert("Validation", "First name is required.");
+      return;
+    }
+
     setSaving(true);
     try {
       const updated = await authApi.updateProfile({
@@ -55,10 +103,13 @@ export const CustomerProfileScreen = ({ navigation }) => {
         address: address.trim(),
       });
       updateUser(updated);
-      setIsEditing(false);
+      setShowEditModal(false);
       Alert.alert("Success", "Your profile details have been updated.");
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to update profile.");
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Failed to update profile details."
+      );
     } finally {
       setSaving(false);
     }
@@ -90,155 +141,342 @@ export const CustomerProfileScreen = ({ navigation }) => {
       setConfirmPassword("");
       Alert.alert("Password Updated", "Your password has been changed successfully.");
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to change password.");
+      Alert.alert(
+        "Error",
+        err.response?.data?.message || "Failed to change password."
+      );
     } finally {
       setPasswordSaving(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    if (Platform.OS === "web") {
+      logout();
+      return;
+    }
+    Alert.alert("Sign Out", "Are you sure you want to sign out of iReserve?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Sign Out", style: "destructive", onPress: logout },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: logout,
+      },
     ]);
   };
 
   return (
     <View style={styles.container}>
-      <Header title="My Profile" showBack={false} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
 
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
-        showsVerticalScrollIndicator={false}
+      {/* 1. Caezelle's Signature Royal Blue Header Banner */}
+      <View
+        style={[
+          styles.headerBanner,
+          { paddingTop: insets.top + (Platform.OS === "ios" ? 10 : 16) },
+        ]}
       >
-        {/* User Hero Badge */}
-        <Card style={styles.heroCard} variant="flat">
-          <View style={styles.avatarCircle}>
-            <User size={36} color={colors.primary} />
+        {/* Top Bar with Brand & Help Pill */}
+        <View style={styles.headerTopRow}>
+          <View style={styles.brandTitleWrap}>
+            <View style={styles.goldBrandDot} />
+            <Text style={styles.headerBrandText}>iReserve • Caezelle's</Text>
           </View>
-          <Text style={styles.heroName}>
-            {user?.first_name ? `${user.first_name} ${user.last_name || ""}` : user?.full_name || "Customer"}
-          </Text>
-          <Text style={styles.heroEmail}>{user?.email}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{user?.role?.toUpperCase()}</Text>
-          </View>
-        </Card>
 
-        {/* Profile Details Card */}
-        <Card style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Account Details</Text>
-            <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
-              <Text style={styles.editBtnText}>{isEditing ? "Cancel" : "Edit"}</Text>
+          <TouchableOpacity
+            style={styles.helpPill}
+            onPress={() => setShowHelpModal(true)}
+            activeOpacity={0.8}
+          >
+            <HelpCircle size={14} color={colors.primaryDark} style={{ marginRight: 4 }} />
+            <Text style={styles.helpPillText}>Help</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* User Card Area (Initials Avatar + Name + Subtitle + Chevron) */}
+        <TouchableOpacity
+          style={styles.userBannerRow}
+          onPress={handleOpenEdit}
+          activeOpacity={0.85}
+        >
+          {/* Avatar Circle with Luxury Gold Border & Initials */}
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarInitials}>{userInitials}</Text>
+          </View>
+
+          {/* User Name & Details */}
+          <View style={styles.userInfoWrap}>
+            <Text style={styles.userNameText} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={styles.userSubtitleText} numberOfLines={1}>
+              {user?.email || "Manage catering account & preferences"}
+            </Text>
+          </View>
+
+          {/* Right Chevron */}
+          <ChevronRight size={22} color="rgba(255, 255, 255, 0.85)" />
+        </TouchableOpacity>
+      </View>
+
+      {/* 2. White Curved Profile Sheet */}
+      <View style={styles.sheetContainer}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 96 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Sheet Header */}
+          <Text style={styles.sheetTitle}>Profile</Text>
+
+          {/* Navigation Rows List */}
+          <View style={styles.menuList}>
+            {/* 1. Account */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={handleOpenEdit}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <User size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>Account</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 2. Password & Security */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={() => setShowPasswordModal(true)}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <Lock size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>Password & Security</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 3. Banquet Menu */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={() => navigation.navigate("Menu")}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <Utensils size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>Banquet Menu & Dishes</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 4. Event Gallery */}
+            <TouchableOpacity
+              style={styles.menuItemRow}
+              onPress={() => navigation.navigate("Gallery")}
+              activeOpacity={0.65}
+            >
+              <View style={styles.menuIconWrap}>
+                <Camera size={20} color={colors.primary} />
+              </View>
+              <Text style={styles.menuItemLabel}>Event Styling & Gallery</Text>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            {/* 5. Sign Out */}
+            <TouchableOpacity
+              style={[styles.menuItemRow, styles.logoutRow]}
+              onPress={handleLogout}
+              activeOpacity={0.65}
+            >
+              <View style={[styles.menuIconWrap, styles.logoutIconWrap]}>
+                <LogOut size={20} color={colors.error} />
+              </View>
+              <Text style={styles.logoutLabel}>Sign Out</Text>
+              <ChevronRight size={18} color={colors.error} />
             </TouchableOpacity>
           </View>
+        </ScrollView>
+      </View>
 
-          {isEditing ? (
-            <View style={{ marginTop: spacing.sm }}>
-              <AppInput label="First Name" value={firstName} onChangeText={setFirstName} />
-              <AppInput label="Last Name" value={lastName} onChangeText={setLastName} />
-              <AppInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-              <AppInput label="Address" value={address} onChangeText={setAddress} />
+      {/* --- MODAL: Edit Profile --- */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Account Details</Text>
+              <TouchableOpacity
+                onPress={() => setShowEditModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={22} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <AppInput
+                label="First Name"
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Enter first name"
+              />
+              <AppInput
+                label="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Enter last name"
+              />
+              <AppInput
+                label="Phone Number"
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="e.g. 0917 123 4567"
+                keyboardType="phone-pad"
+              />
+              <AppInput
+                label="Event / Billing Address"
+                value={address}
+                onChangeText={setAddress}
+                placeholder="Enter street, city, province"
+                multiline
+              />
+
               <AppButton
                 title="Save Changes"
                 onPress={handleSaveProfile}
                 loading={saving}
-                size="md"
-                style={{ marginTop: spacing.xs }}
+                style={{ marginTop: spacing.md }}
               />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* --- MODAL: Change Password --- */}
+      <Modal
+        visible={showPasswordModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Change Password</Text>
+              <TouchableOpacity
+                onPress={() => setShowPasswordModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={22} color={colors.foreground} />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.detailsList}>
-              <View style={styles.detailRow}>
-                <Mail size={16} color={colors.foregroundMuted} />
-                <View style={styles.detailTextWrapper}>
-                  <Text style={styles.detailLabel}>Email</Text>
-                  <Text style={styles.detailValue}>{user?.email || "N/A"}</Text>
-                </View>
-              </View>
 
-              <View style={styles.detailRow}>
-                <Phone size={16} color={colors.foregroundMuted} />
-                <View style={styles.detailTextWrapper}>
-                  <Text style={styles.detailLabel}>Phone</Text>
-                  <Text style={styles.detailValue}>{user?.phone || "Not set"}</Text>
-                </View>
-              </View>
-
-              <View style={styles.detailRow}>
-                <MapPin size={16} color={colors.foregroundMuted} />
-                <View style={styles.detailTextWrapper}>
-                  <Text style={styles.detailLabel}>Address</Text>
-                  <Text style={styles.detailValue}>{user?.address || "Not set"}</Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </Card>
-
-        {/* Security / Password Card */}
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Security & Credentials</Text>
-          {showPasswordModal ? (
-            <View style={{ marginTop: spacing.sm }}>
+            <ScrollView showsVerticalScrollIndicator={false}>
               <AppInput
                 label="Current Password"
-                placeholder="Enter current password"
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
+                placeholder="Enter current password"
                 secureTextEntry
               />
               <AppInput
                 label="New Password"
-                placeholder="At least 6 characters"
                 value={newPassword}
                 onChangeText={setNewPassword}
+                placeholder="At least 6 characters"
                 secureTextEntry
               />
               <AppInput
                 label="Confirm New Password"
-                placeholder="Repeat new password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                placeholder="Re-enter new password"
                 secureTextEntry
               />
-              <View style={{ flexDirection: "row", marginTop: spacing.sm }}>
-                <AppButton
-                  title="Cancel"
-                  variant="outline"
-                  onPress={() => setShowPasswordModal(false)}
-                  style={{ flex: 1, marginRight: spacing.sm }}
-                  size="md"
-                />
-                <AppButton
-                  title="Update"
-                  onPress={handleChangePassword}
-                  loading={passwordSaving}
-                  style={{ flex: 1 }}
-                  size="md"
-                />
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.menuActionRow}
-              onPress={() => setShowPasswordModal(true)}
-              activeOpacity={0.7}
-            >
-              <Lock size={18} color={colors.foreground} />
-              <Text style={styles.menuActionText}>Change Password</Text>
-              <ChevronRight size={18} color={colors.foregroundMuted} />
-            </TouchableOpacity>
-          )}
-        </Card>
 
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <LogOut size={18} color={colors.error} style={{ marginRight: spacing.sm }} />
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </ScrollView>
+              <AppButton
+                title="Update Password"
+                onPress={handleChangePassword}
+                loading={passwordSaving}
+                style={{ marginTop: spacing.md }}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* --- MODAL: Help & Support Menu --- */}
+      <Modal
+        visible={showHelpModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowHelpModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>How can we help you?</Text>
+              <TouchableOpacity
+                onPress={() => setShowHelpModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={22} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.helpActionCard}
+              onPress={() => {
+                setShowHelpModal(false);
+                navigation.navigate("CustomerMessages");
+              }}
+            >
+              <View style={[styles.helpIconCircle, { backgroundColor: colors.primaryLight }]}>
+                <MessageSquare size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.helpActionTitle}>Chat with Banquet Team</Text>
+                <Text style={styles.helpActionSub}>
+                  Direct messaging with our reservation specialists
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.helpActionCard}
+              onPress={() => {
+                setShowHelpModal(false);
+                navigation.navigate("ZelleChat");
+              }}
+            >
+              <View style={[styles.helpIconCircle, { backgroundColor: colors.primaryLight }]}>
+                <Sparkles size={20} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.helpActionTitle}>Ask Zelle AI Assistant</Text>
+                <Text style={styles.helpActionSub}>
+                  Instant answers on pricing, dishes & packages
+                </Text>
+              </View>
+              <ChevronRight size={18} color={colors.textDisabled} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -246,125 +484,228 @@ export const CustomerProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.primaryDark,
   },
-  scrollContent: {
-    padding: spacing.xl,
+
+  // --- Header Banner (Crisp Royal Blue & Gold Brand) ---
+  headerBanner: {
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
   },
-  heroCard: {
-    alignItems: "center",
-    padding: spacing.xl,
-    backgroundColor: colors.surfaceAlt,
-    marginBottom: spacing.base,
-  },
-  avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-    borderWidth: 1.5,
-    borderColor: colors.powder,
-  },
-  heroName: {
-    fontSize: typography.sizes.lg,
-    fontWeight: "800",
-    color: colors.foreground,
-  },
-  heroEmail: {
-    fontSize: typography.sizes.sm,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-  },
-  roleBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 3,
-    marginTop: spacing.sm,
-  },
-  roleText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: colors.white,
-    letterSpacing: 0.5,
-  },
-  sectionCard: {
-    padding: spacing.lg,
-    marginBottom: spacing.base,
-  },
-  sectionHeader: {
+  headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing.sm,
+    marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    color: colors.secondary,
-    letterSpacing: 0.5,
+  brandTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
   },
-  editBtnText: {
-    fontSize: typography.sizes.xs,
-    color: colors.primary,
+  goldBrandDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.accentGold,
+    marginRight: 8,
+  },
+  headerBrandText: {
+    fontSize: 16,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
+    color: colors.white,
+    letterSpacing: -0.2,
   },
-  detailsList: {
-    marginTop: spacing.xs,
-  },
-  detailRow: {
+  helpPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  detailTextWrapper: {
-    marginLeft: spacing.md,
-    flex: 1,
+  helpPillText: {
+    color: colors.primaryDark,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    fontSize: 12,
   },
-  detailLabel: {
-    fontSize: 10,
-    color: colors.foregroundMuted,
-    textTransform: "uppercase",
-  },
-  detailValue: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "600",
-    color: colors.foreground,
-    marginTop: 1,
-  },
-  menuActionRow: {
+
+  // User Card Row
+  userBannerRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.md,
+    paddingVertical: 4,
   },
-  menuActionText: {
-    fontSize: typography.sizes.base,
-    fontWeight: "600",
-    color: colors.foreground,
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  logoutBtn: {
-    flexDirection: "row",
+  avatarCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.errorLight,
-    borderWidth: 1,
-    borderColor: colors.errorBorder,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    marginTop: spacing.sm,
+    borderWidth: 2.5,
+    borderColor: colors.accentGold,
   },
-  logoutText: {
-    fontSize: typography.sizes.base,
+  avatarInitials: {
+    fontSize: 20,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "800",
+    color: colors.primaryDark,
+    letterSpacing: -0.5,
+  },
+  userInfoWrap: {
+    flex: 1,
+    marginLeft: 14,
+    marginRight: 8,
+  },
+  userNameText: {
+    fontSize: 20,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "800",
+    color: colors.white,
+    lineHeight: 24,
+  },
+  userSubtitleText: {
+    fontSize: 13,
+    fontFamily: typography.fontFamilies.regular,
+    color: "rgba(255, 255, 255, 0.82)",
+    marginTop: 2,
+  },
+
+  // --- Curved White Sheet ---
+  sheetContainer: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+  },
+  scrollContent: {
+    paddingHorizontal: 22,
+    paddingTop: 24,
+  },
+  sheetTitle: {
+    fontSize: 26,
+    fontFamily: typography.fontFamilies.extraBold,
+    fontWeight: "800",
+    color: colors.foregroundDark,
+    marginBottom: 12,
+  },
+
+  // --- Menu Rows ---
+  menuList: {
+    marginTop: 4,
+  },
+  menuItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderLight,
+  },
+  menuIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  menuItemLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: typography.fontFamilies.medium,
+    fontWeight: "500",
+    color: colors.foregroundDark,
+  },
+  logoutRow: {
+    borderBottomWidth: 0,
+    marginTop: 12,
+    paddingVertical: 16,
+  },
+  logoutIconWrap: {
+    backgroundColor: colors.errorLight,
+  },
+  logoutLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.error,
+  },
+
+  // --- Modal Overlay & Box ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+
+  // Help Action Cards
+  helpActionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.xl,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  helpIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  helpActionTitle: {
+    fontSize: 15,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: colors.foreground,
+    marginBottom: 2,
+  },
+  helpActionSub: {
+    fontSize: 12,
+    color: colors.foregroundMuted,
   },
 });
 

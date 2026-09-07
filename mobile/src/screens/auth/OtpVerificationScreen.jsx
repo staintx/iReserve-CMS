@@ -123,17 +123,16 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <ChevronLeft size={24} color={colors.foreground} />
-          <Text style={styles.backText}>Back</Text>
+          <ChevronLeft size={22} color={colors.foreground} />
         </TouchableOpacity>
 
         <View style={styles.iconCircle}>
-          <ShieldCheck size={36} color={colors.primary} />
+          <ShieldCheck size={34} color={colors.primary} />
         </View>
 
-        <Text style={styles.title}>Enter Verification Code</Text>
+        <Text style={styles.title}>Enter the code</Text>
         <Text style={styles.subtitle}>
-          We sent a 6-digit verification code to{"\n"}
+          Insert the 6-digit verification code that we sent to{"\n"}
           <Text style={styles.emailHighlight}>{email || "your email"}</Text>
         </Text>
 
@@ -176,7 +175,7 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
         <View style={styles.resendSection}>
           <Text style={styles.resendText}>Didn't receive the code? </Text>
           {countdown > 0 ? (
-            <Text style={styles.countdownText}>Resend in {countdown}s</Text>
+            <Text style={styles.countdownText}>Resend code in {countdown}s</Text>
           ) : (
             <TouchableOpacity onPress={handleResend} disabled={resending}>
               <Text style={styles.resendLink}>
@@ -201,16 +200,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backButton: {
-    flexDirection: "row",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.powder,
     alignItems: "center",
-    marginBottom: spacing.xl,
+    justifyContent: "center",
+    marginBottom: spacing.lg,
     alignSelf: "flex-start",
-  },
-  backText: {
-    fontSize: typography.sizes.sm,
-    color: colors.foreground,
-    fontWeight: "600",
-    marginLeft: spacing.xs,
   },
   iconCircle: {
     width: 72,
@@ -220,24 +217,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.base,
-    borderWidth: 1,
-    borderColor: colors.powder,
+    borderWidth: 1.5,
+    borderColor: colors.primaryBorder,
   },
   title: {
     fontSize: typography.sizes.title,
-    fontWeight: "800",
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     textAlign: "center",
     marginBottom: spacing.xs,
+    letterSpacing: -0.4,
   },
   subtitle: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: spacing.xl,
   },
   emailHighlight: {
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.primary,
   },
@@ -252,8 +253,8 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.error,
-    fontWeight: "500",
     textAlign: "center",
   },
   otpRow: {
@@ -264,18 +265,19 @@ const styles = StyleSheet.create({
   },
   otpBox: {
     width: 48,
-    height: 54,
-    borderRadius: radius.md,
+    height: 58,
+    borderRadius: radius.lg,
     borderWidth: 1.5,
     borderColor: colors.inputBorder,
-    backgroundColor: colors.inputBackground,
+    backgroundColor: colors.surface,
     fontSize: typography.sizes.xl,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
   },
   otpBoxFilled: {
     borderColor: colors.primary,
-    backgroundColor: colors.white,
+    backgroundColor: colors.primaryLight,
   },
   otpBoxError: {
     borderColor: colors.error,
@@ -292,17 +294,18 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
   countdownText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.textSubtle,
-    fontWeight: "600",
   },
   resendLink: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
-    fontWeight: "700",
   },
 });
 

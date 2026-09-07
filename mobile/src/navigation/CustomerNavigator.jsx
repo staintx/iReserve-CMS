@@ -24,11 +24,14 @@ import PaymentCheckoutScreen from "../screens/customer/PaymentCheckoutScreen";
 import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
 import PackagesScreen from "../screens/customer/PackagesScreen";
 import PackageDetailScreen from "../screens/customer/PackageDetailScreen";
+import MenuScreen from "../screens/customer/MenuScreen";
+import GalleryScreen from "../screens/customer/GalleryScreen";
 import CustomerChatThreadScreen from "../screens/customer/CustomerChatThreadScreen";
 import ZelleChatScreen from "../screens/customer/ZelleChatScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
 
 import { useSocket } from "../context/SocketContext";
+import FloatingTabBar from "../components/common/FloatingTabBar";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -39,12 +42,9 @@ const CustomerTabs = () => {
   return (
     <Tab.Navigator
       initialRouteName="CustomerHome"
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSubtle,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen
@@ -77,7 +77,7 @@ const CustomerTabs = () => {
         name="CustomerMessages"
         component={CustomerMessagesScreen}
         options={{
-          tabBarLabel: "Messages",
+          tabBarLabel: "Inbox",
           tabBarBadge:
             unreadMessagesCount > 0
               ? unreadMessagesCount > 99
@@ -130,6 +130,8 @@ export const CustomerNavigator = () => {
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
       <Stack.Screen name="Packages" component={PackagesScreen} />
       <Stack.Screen name="PackageDetail" component={PackageDetailScreen} />
+      <Stack.Screen name="Menu" component={MenuScreen} />
+      <Stack.Screen name="Gallery" component={GalleryScreen} />
       <Stack.Screen name="CustomerChatThread" component={CustomerChatThreadScreen} />
       <Stack.Screen
         name="ZelleChat"

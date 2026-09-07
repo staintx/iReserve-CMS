@@ -20,9 +20,13 @@ import {
   CreditCard,
   XCircle,
   Edit3,
+  ShieldCheck,
+  ChevronRight,
+  MessageSquare,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
+import messagesApi from "../../api/messages";
 import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
@@ -30,6 +34,7 @@ import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
+import SerratedDivider from "../../components/common/SerratedDivider";
 import { formatCurrency, formatDate, formatTime } from "../../utils/format";
 
 export const QuotationDetailScreen = ({ route, navigation }) => {
@@ -44,6 +49,53 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   // Revision Modal
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
+
+  const handleOpenChat = async () => {
+    const targetInquiryId =
+      quotation?.inquiry_id?._id || quotation?.inquiry_id || inquiryId;
+    if (!targetInquiryId) return;
+
+    try {
+      setActionLoading(true);
+      const conv = await messagesApi.createConversation({
+        inquiry_id: targetInquiryId,
+      });
+
+      navigation.navigate("CustomerChatThread", {
+        conversationId: conv?._id || conv?.id,
+        title: quotation?.event_type
+          ? `Inquiry: ${quotation.event_type}`
+          : "Caezelle's Event Support",
+        conversation: conv,
+      });
+    } catch (err) {
+      try {
+        const convList = await messagesApi.listConversations();
+        const existing = Array.isArray(convList)
+          ? convList.find((c) => {
+              const inq = c.inquiry_id?._id || c.inquiry_id;
+              return String(inq) === String(targetInquiryId);
+            })
+          : null;
+        if (existing) {
+          navigation.navigate("CustomerChatThread", {
+            conversationId: existing._id,
+            title: existing.inquiry_id?.event_type
+              ? `Inquiry: ${existing.inquiry_id.event_type}`
+              : "Caezelle's Event Support",
+            conversation: existing,
+          });
+          return;
+        }
+      } catch {}
+      Alert.alert(
+        "Chat Unavailable",
+        "Could not start chat session for this inquiry."
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const loadQuotation = async () => {
     setError("");
@@ -207,6 +259,16 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
         title={`Quotation #${quotation.quotation_number || String(quotation._id).slice(-6).toUpperCase()}`}
         subtitle={`Version ${quotation.version_number || 1}`}
         onBack={() => navigation.goBack()}
+        rightElement={
+          <TouchableOpacity
+            onPress={handleOpenChat}
+            style={styles.headerChatBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <MessageSquare size={20} color={colors.primary} />
+          </TouchableOpacity>
+        }
       />
 
       <ScrollView
@@ -327,44 +389,109 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           )}
         </Card>
 
-        {/* Financial Summary */}
-        <Card style={styles.totalCard}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>{formatCurrency(quotation.subtotal || quotation.total_cost)}</Text>
+        {/* Financial Ticket Receipt */}
+        <View style={styles.ticketCard}>
+          <View style={styles.ticketHeader}>
+            <Text style={styles.ticketTitle}>Cost Breakdown</Text>
+            <Text style={styles.ticketSub}>Official Estimate</Text>
           </View>
-          <View style={[styles.totalRow, styles.grandTotalRow]}>
-            <Text style={styles.grandTotalLabel}>Total Event Cost</Text>
-            <Text style={styles.grandTotalValue}>{formatCurrency(quotation.total_cost)}</Text>
+
+          <View style={styles.ticketBody}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Base Package ({quotation.guest_count || 0} pax)</Text>
+              <Text style={styles.totalValue}>{formatCurrency(quotation.package_price || quotation.subtotal || 0)}</Text>
+            </View>
+
+            {quotation.transportation_fee > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Transportation & Logistics</Text>
+                <Text style={styles.totalValue}>{formatCurrency(quotation.transportation_fee)}</Text>
+              </View>
+            )}
+
+            {quotation.discounts > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={[styles.totalLabel, { color: colors.success }]}>Discount Applied</Text>
+                <Text style={[styles.totalValue, { color: colors.success }]}>-{formatCurrency(quotation.discounts)}</Text>
+              </View>
+            )}
+
+            <View style={[styles.totalRow, styles.grandTotalRow]}>
+              <Text style={styles.grandTotalLabel}>Total Event Cost</Text>
+              <Text style={styles.grandTotalValue}>{formatCurrency(quotation.total_cost)}</Text>
+            </View>
           </View>
-          <View style={[styles.totalRow, styles.depositRow]}>
-            <Text style={styles.depositLabel}>Required Initial Deposit</Text>
-            <Text style={styles.depositValue}>{formatCurrency(quotation.deposit_amount)}</Text>
+
+          <SerratedDivider color={colors.background} />
+
+          <View style={styles.ticketFooter}>
+            <View style={styles.depositBox}>
+              <View style={styles.depositBadge}>
+                <Text style={styles.depositBadgeText}>DOWNPAYMENT</Text>
+              </View>
+              <View style={styles.depositRowContent}>
+                <View>
+                  <Text style={styles.depositLabel}>Required Initial Deposit</Text>
+                  <Text style={styles.depositSubtext}>Locks in your reserved date</Text>
+                </View>
+                <Text style={styles.depositValue}>{formatCurrency(quotation.deposit_amount)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.balanceRow}>
+              <Text style={styles.balanceLabel}>Remaining Balance (Due before event):</Text>
+              <Text style={styles.balanceValue}>{formatCurrency(quotation.remaining_balance)}</Text>
+            </View>
           </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.balanceLabel}>Remaining Balance Due Before Event</Text>
-            <Text style={styles.balanceValue}>{formatCurrency(quotation.remaining_balance)}</Text>
+        </View>
+
+        {/* Chat / Inquiry Helper Card */}
+        <TouchableOpacity
+          style={styles.chatHelperCard}
+          onPress={handleOpenChat}
+          activeOpacity={0.8}
+        >
+          <View style={styles.chatHelperIconWrap}>
+            <MessageSquare size={18} color={colors.primary} />
           </View>
-        </Card>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.chatHelperTitle}>Questions about this quotation?</Text>
+            <Text style={styles.chatHelperSubtitle}>
+              Chat directly with our banquet team about menus, guest count, or schedule.
+            </Text>
+          </View>
+          <ChevronRight size={16} color={colors.foregroundMuted} />
+        </TouchableOpacity>
+
+        {/* Secure Checkout Notice */}
+        <View style={styles.securityNoticeCard}>
+          <ShieldCheck size={20} color={colors.primary} />
+          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+            <Text style={styles.securityTitle}>Secure Online Downpayment</Text>
+            <Text style={styles.securityDesc}>
+              Powered by PayMongo. GCash, Maya, and Visa/Mastercard accepted with instant receipt.
+            </Text>
+          </View>
+        </View>
       </ScrollView>
 
-      {/* Action Bar */}
+      {/* Action Bar (Glovo Dual Pill Buttons) */}
       {isActionable && (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.sm }]}>
           <AppButton
-            title="Request Revision"
+            title="Revision"
             onPress={() => setShowRevisionModal(true)}
-            variant="outline"
-            style={{ flex: 1, marginRight: spacing.sm }}
-            size="md"
+            variant="secondary"
+            style={styles.revisionBtn}
+            size="lg"
             disabled={actionLoading}
           />
           <AppButton
-            title={`Accept & Pay ${formatCurrency(quotation.deposit_amount)}`}
+            title={`Pay Deposit ${formatCurrency(quotation.deposit_amount)}`}
             onPress={handleAcceptAndPay}
             loading={actionLoading}
-            style={{ flex: 1.5 }}
-            size="md"
+            style={styles.payBtn}
+            size="lg"
           />
         </View>
       )}
@@ -540,12 +667,47 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.foreground,
   },
-  totalCard: {
-    padding: spacing.xl,
-    backgroundColor: colors.surfaceAlt,
+  ticketCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
     marginBottom: spacing.base,
+    overflow: "hidden",
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  ticketHeader: {
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  ticketTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  ticketSub: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foregroundMuted,
+  },
+  ticketBody: {
+    padding: spacing.lg,
+  },
+  ticketFooter: {
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
   },
   totalRow: {
     flexDirection: "row",
@@ -554,54 +716,146 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
   },
   totalValue: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   grandTotalRow: {
     paddingTop: spacing.md,
     marginTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottom: spacing.sm,
+    borderTopColor: colors.borderLight,
+    marginBottom: spacing.xs,
   },
   grandTotalLabel: {
     fontSize: typography.sizes.md,
-    fontWeight: "800",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   grandTotalValue: {
-    fontSize: typography.sizes.lg,
-    fontWeight: "900",
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fontFamily.extrabold,
     color: colors.primary,
   },
-  depositRow: {
+  depositBox: {
     backgroundColor: colors.primaryLight,
     padding: spacing.md,
-    borderRadius: radius.md,
-    marginVertical: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderFocus,
+    marginBottom: spacing.md,
+  },
+  depositBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    marginBottom: spacing.xs,
+  },
+  depositBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.white,
+    letterSpacing: 0.5,
+  },
+  depositRowContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   depositLabel: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
+  depositSubtext: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.primaryDark,
+    marginTop: 2,
+  },
   depositValue: {
-    fontSize: typography.sizes.md,
-    fontWeight: "800",
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fontFamily.extrabold,
     color: colors.primary,
+  },
+  balanceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   balanceLabel: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
     color: colors.foregroundMuted,
   },
   balanceValue: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
+  },
+  headerChatBtn: {
+    padding: 6,
+    borderRadius: radius.full,
+    backgroundColor: colors.primaryLight,
+  },
+  chatHelperCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    marginBottom: spacing.base,
+    gap: spacing.sm,
+  },
+  chatHelperIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatHelperTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.bold,
     fontWeight: "700",
-    color: colors.secondary,
+    color: colors.foreground,
+  },
+  chatHelperSubtitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
+  securityNoticeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    marginBottom: spacing.base,
+  },
+  securityTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
+  },
+  securityDesc: {
+    fontSize: 11,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+    lineHeight: 15,
   },
   bottomBar: {
     position: "absolute",
@@ -609,11 +863,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: "row",
+    gap: spacing.md,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
+  },
+  revisionBtn: {
+    flex: 1,
+  },
+  payBtn: {
+    flex: 2,
   },
   emptyContainer: {
     flex: 1,

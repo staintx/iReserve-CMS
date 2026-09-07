@@ -253,25 +253,26 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
     marginBottom: spacing.sm,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.inputBackground,
-    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
-    height: 42,
+    height: 44,
     borderWidth: 1,
-    borderColor: colors.inputBorder,
+    borderColor: colors.borderLight,
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
   searchInput: {
     flex: 1,
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foreground,
   },
   tabsContainer: {
@@ -280,9 +281,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   tabBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm + 2,
-    borderRadius: radius.full,
+    paddingVertical: 7,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.borderLight,
@@ -293,21 +294,25 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: typography.sizes.xs,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.medium,
     color: colors.foregroundMuted,
   },
   activeTabText: {
     color: colors.white,
+    fontFamily: typography.fontFamily.bold,
   },
   listContent: {
     padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: 120,
   },
   loadingWrapper: {
     padding: spacing.base,
   },
   card: {
     marginBottom: spacing.md,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   cardHeader: {
     flexDirection: "row",
@@ -316,12 +321,13 @@ const styles = StyleSheet.create({
   },
   eventTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   referenceText: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontSize: 11,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
   clientRow: {
@@ -332,12 +338,13 @@ const styles = StyleSheet.create({
   },
   clientName: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
-    color: colors.foregroundMuted,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.foreground,
   },
   guestCount: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
   },
   divider: {
     height: 1,
@@ -357,6 +364,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     flex: 1,
   },
@@ -371,13 +379,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
     borderRadius: radius.full,
   },
   staffBadgeText: {
     fontSize: typography.sizes.xs,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.bold,
   },
 });
 

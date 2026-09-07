@@ -5,14 +5,17 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
   LayoutDashboard,
   CalendarCheck,
+  Users,
   Calendar,
   User,
 } from "lucide-react-native";
 import { colors } from "../constants/theme";
+import FloatingTabBar from "../components/common/FloatingTabBar";
 
 // Screens
 import ManagerDashboardScreen from "../screens/manager/ManagerDashboardScreen";
 import ManagerBookingsScreen from "../screens/manager/ManagerBookingsScreen";
+import ManagerStaffScreen from "../screens/manager/ManagerStaffScreen";
 import ManagerCalendarScreen from "../screens/manager/ManagerCalendarScreen";
 import ManagerProfileScreen from "../screens/manager/ManagerProfileScreen";
 import ManagerBookingDetailScreen from "../screens/manager/ManagerBookingDetailScreen";
@@ -28,12 +31,9 @@ const ManagerTabs = () => {
   return (
     <Tab.Navigator
       initialRouteName="ManagerDashboard"
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSubtle,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen
@@ -53,6 +53,16 @@ const ManagerTabs = () => {
           tabBarLabel: "Operations",
           tabBarIcon: ({ color, size }) => (
             <CalendarCheck size={size || 22} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ManagerStaff"
+        component={ManagerStaffScreen}
+        options={{
+          tabBarLabel: "Staff",
+          tabBarIcon: ({ color, size }) => (
+            <Users size={size || 22} color={color} />
           ),
         }}
       />
@@ -88,7 +98,9 @@ export const ManagerNavigator = () => {
       }}
     >
       <Stack.Screen name="ManagerTabs" component={ManagerTabs} />
+      <Stack.Screen name="ManagerStaff" component={ManagerStaffScreen} />
       <Stack.Screen name="ManagerBookingDetail" component={ManagerBookingDetailScreen} />
+      <Stack.Screen name="BookingDetail" component={ManagerBookingDetailScreen} />
       <Stack.Screen
         name="AssignStaffModal"
         component={AssignStaffModal}

@@ -8,6 +8,7 @@ import {
   User,
 } from "lucide-react-native";
 import { colors } from "../constants/theme";
+import FloatingTabBar from "../components/common/FloatingTabBar";
 
 // Screens
 import StaffTodayScreen from "../screens/staff/StaffTodayScreen";
@@ -16,6 +17,7 @@ import StaffProfileScreen from "../screens/staff/StaffProfileScreen";
 import StaffEventDetailScreen from "../screens/staff/StaffEventDetailScreen";
 import EquipmentChecklistScreen from "../screens/staff/EquipmentChecklistScreen";
 import NotificationsScreen from "../screens/customer/NotificationsScreen";
+import CustomerChatThreadScreen from "../screens/customer/CustomerChatThreadScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -24,12 +26,9 @@ const StaffTabs = () => {
   return (
     <Tab.Navigator
       initialRouteName="StaffToday"
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.secondary,
-        tabBarInactiveTintColor: colors.textSubtle,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen
@@ -73,12 +72,14 @@ export const StaffNavigator = () => {
     >
       <Stack.Screen name="StaffTabs" component={StaffTabs} />
       <Stack.Screen name="StaffEventDetail" component={StaffEventDetailScreen} />
+      <Stack.Screen name="BookingDetail" component={StaffEventDetailScreen} />
       <Stack.Screen
         name="EquipmentChecklist"
         component={EquipmentChecklistScreen}
         options={{ presentation: "modal" }}
       />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="CustomerChatThread" component={CustomerChatThreadScreen} />
     </Stack.Navigator>
   );
 };

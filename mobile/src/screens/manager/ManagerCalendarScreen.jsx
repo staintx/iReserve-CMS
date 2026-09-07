@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
   },
   monthNavRow: {
@@ -354,21 +354,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: spacing.sm,
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   arrowBtn: {
     padding: 6,
   },
   monthLabelText: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: 120,
   },
   calendarCard: {
     padding: spacing.base,
@@ -384,7 +386,7 @@ const styles = StyleSheet.create({
   },
   weekdayText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.textSubtle,
     width: 40,
     textAlign: "center",
@@ -402,22 +404,22 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
   },
   cellSelected: {
     backgroundColor: colors.primary,
   },
   cellUnavailable: {
-    backgroundColor: "#FDEAEA",
+    backgroundColor: "#FEE2E2",
   },
   cellText: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.semiBold,
     color: colors.foreground,
   },
   cellTextSelected: {
     color: colors.white,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   cellTextUnavailable: {
     color: colors.error,
@@ -430,15 +432,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   eventDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: colors.primary,
   },
   unavailDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: colors.error,
   },
   legendRow: {
@@ -458,10 +460,11 @@ const styles = StyleSheet.create({
   legendDot: {
     width: 8,
     height: 8,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
   },
   legendLabel: {
     fontSize: 11,
+    fontFamily: typography.fontFamily.medium,
     color: colors.textSubtle,
   },
   selectedHeader: {
@@ -472,7 +475,7 @@ const styles = StyleSheet.create({
   },
   selectedDateTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   availToggleBtn: {
@@ -481,7 +484,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingVertical: 6,
     paddingHorizontal: spacing.sm + 2,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
   },
   availToggleBtnRed: {
     backgroundColor: colors.error,
@@ -491,7 +494,7 @@ const styles = StyleSheet.create({
   },
   availToggleBtnText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.white,
   },
   noEventsCard: {
@@ -502,6 +505,7 @@ const styles = StyleSheet.create({
   },
   noEventsText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textSubtle,
   },
   eventItemCard: {
@@ -515,11 +519,12 @@ const styles = StyleSheet.create({
   },
   eventItemTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   eventItemRef: {
     fontSize: 11,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textSubtle,
     marginTop: 1,
   },
@@ -531,6 +536,7 @@ const styles = StyleSheet.create({
   },
   eventMetaText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.medium,
     color: colors.foregroundMuted,
   },
 });

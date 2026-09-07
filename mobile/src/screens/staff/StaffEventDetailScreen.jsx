@@ -27,9 +27,13 @@ import {
   FileText,
   AlertTriangle,
   UserCheck,
+  Utensils,
+  MessageSquare,
+  ShieldAlert,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import staffApi from "../../api/staff";
+import messagesApi from "../../api/messages";
 import Header from "../../components/common/Header";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
@@ -37,9 +41,18 @@ import AppButton from "../../components/common/AppButton";
 import SkeletonLoader from "../../components/common/SkeletonLoader";
 import { formatDate, formatTime } from "../../utils/format";
 
+const QUICK_TAGS = [
+  "All Smooth ✓",
+  "Late Start ⏰",
+  "Missing Gear ⚠️",
+  "Damaged Items 💥",
+  "Leftover Food 🍲",
+  "Extra Hours ⏱️",
+];
+
 export const StaffEventDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { bookingId } = route.params;
+  const bookingId = route?.params?.bookingId || route?.params?.id;
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,6 +106,43 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  const handleChatWithManager = async () => {
+    if (!booking.event_manager_id) {
+      Alert.alert("No Manager Assigned", "An operations lead will be assigned shortly.");
+      return;
+    }
+
+    const managerId = booking.event_manager_id._id || booking.event_manager_id;
+    try {
+      const conv = await messagesApi.createConversation({
+        participant_id: managerId,
+        booking_id: booking._id,
+      });
+
+      navigation.navigate("CustomerChatThread", {
+        conversationId: conv?._id || conv?.id,
+        title: booking.event_manager_id.full_name || "Event Manager",
+      });
+    } catch (err) {
+      try {
+        const convList = await messagesApi.listConversations();
+        const existing = Array.isArray(convList)
+          ? convList.find((c) => String(c.booking_id) === String(booking._id))
+          : null;
+        if (existing) {
+          navigation.navigate("CustomerChatThread", {
+            conversationId: existing._id,
+            title: booking.event_manager_id.full_name || "Event Manager",
+          });
+          return;
+        }
+      } catch {
+        // Ignored
+      }
+      Alert.alert("Chat Unavailable", "Please call the manager directly using the phone shortcut.");
+    }
+  };
+
   const isEventStarted = () => {
     if (!booking) return false;
     if (["completed", "Completed", "ongoing"].includes(booking.status)) return true;
@@ -110,6 +160,14 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
     }
     const startDateTime = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hours, minutes);
     return new Date() >= startDateTime;
+  };
+
+  const handleSelectQuickTag = (tag) => {
+    if (reportNote.includes(tag)) {
+      setReportNote((prev) => prev.replace(`[${tag}] `, "").replace(`[${tag}]`, "").trim());
+    } else {
+      setReportNote((prev) => `[${tag}] ${prev}`.trim());
+    }
   };
 
   const handleSubmitReport = async () => {
@@ -195,11 +253,15 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
   }
 
   const manager = booking.event_manager_id;
-  const customer = booking.customer_id;
   const staffAssignments = booking.staff_assignments || [];
   const reports = booking.staff_reports || [];
   const started = isEventStarted();
   const isCompleted = ["Completed", "completed"].includes(booking.status);
+
+  const menuItems = Array.isArray(booking.menu_items) ? booking.menu_items : [];
+  const selectedDishes = Array.isArray(booking.selected_dishes) ? booking.selected_dishes : [];
+  const displayDishes = menuItems.length > 0 ? menuItems : selectedDishes;
+  const hasDietaryWarning = Boolean(booking.dietary_notes || booking.allergies);
 
   return (
     <View style={styles.screen}>
@@ -211,7 +273,7 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.xxl }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -221,6 +283,22 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
           />
         }
       >
+        {/* CRITICAL SAFETY ALERT: Food Allergies & Dietary Restrictions */}
+        {hasDietaryWarning && (
+          <Card style={styles.allergyAlertCard}>
+            <View style={styles.allergyAlertHeader}>
+              <AlertTriangle size={18} color="#b45309" />
+              <Text style={styles.allergyAlertTitle}>ALLERGY & DIETARY ALERT</Text>
+            </View>
+            <Text style={styles.allergyAlertText}>
+              {booking.dietary_notes || booking.allergies}
+            </Text>
+            <Text style={styles.allergyAlertFooter}>
+              Please inform the Head Cook and exercise strict cross-contamination safety during plating and buffet service.
+            </Text>
+          </Card>
+        )}
+
         {/* Schedule & Overview Card */}
         <Card style={styles.card}>
           <View style={styles.cardHeaderRow}>
@@ -250,6 +328,11 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
           )}
 
           <View style={styles.infoRow}>
+            <Users size={15} color={colors.foregroundMuted} />
+            <Text style={styles.infoText}>{booking.guest_count || 0} Expected Guests</Text>
+          </View>
+
+          <View style={styles.infoRow}>
             <MapPin size={15} color={colors.foregroundMuted} />
             <Text style={styles.infoText} numberOfLines={2}>
               {[booking.street, booking.barangay, booking.municipality, "Batangas"]
@@ -266,6 +349,33 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
             onPress={handleOpenMaps}
             style={{ marginTop: spacing.sm }}
           />
+        </Card>
+
+        {/* Assigned Catering Food Menu */}
+        <Card style={styles.card}>
+          <Text style={styles.sectionHeading}>Banquet Menu Breakdown</Text>
+          <Text style={styles.sectionSub}>
+            Courses and dishes being served for this event
+          </Text>
+
+          {displayDishes.length === 0 ? (
+            <Text style={styles.emptyMenuText}>Standard buffet menu package assigned.</Text>
+          ) : (
+            <View style={styles.dishesGrid}>
+              {displayDishes.map((dish, idx) => {
+                const dishName = dish.name || dish.item_name || (typeof dish === "string" ? dish : `Dish #${idx + 1}`);
+                const course = dish.category || dish.course || "";
+                return (
+                  <View key={idx} style={styles.dishPill}>
+                    <Utensils size={12} color={colors.primary} />
+                    <Text style={styles.dishPillText} numberOfLines={1}>
+                      {dishName} {course ? `(${course})` : ""}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </Card>
 
         {/* Equipment Verification Action */}
@@ -325,16 +435,25 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
           <Card style={styles.card}>
             <Text style={styles.sectionHeading}>Event Operations Manager</Text>
             <View style={styles.contactBlock}>
-              <Text style={styles.contactName}>{manager.full_name || "Manager"}</Text>
-              {manager.phone ? (
-                <TouchableOpacity
-                  style={styles.callRow}
-                  onPress={() => handleCall(manager.phone)}
-                >
-                  <Phone size={14} color={colors.primary} />
-                  <Text style={styles.callText}>{manager.phone}</Text>
-                </TouchableOpacity>
-              ) : null}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.contactName}>{manager.full_name || "Manager"}</Text>
+                {manager.phone ? (
+                  <TouchableOpacity
+                    style={styles.callRow}
+                    onPress={() => handleCall(manager.phone)}
+                  >
+                    <Phone size={13} color={colors.primary} />
+                    <Text style={styles.callText}>{manager.phone}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              <TouchableOpacity
+                style={styles.chatIconBtn}
+                onPress={handleChatWithManager}
+              >
+                <MessageSquare size={16} color={colors.primary} />
+              </TouchableOpacity>
             </View>
           </Card>
         )}
@@ -382,12 +501,32 @@ export const StaffEventDetailScreen = ({ route, navigation }) => {
           </Card>
         )}
 
-        {/* Shift Reports & Incident Notes */}
+        {/* Shift Reports & Incident Notes with Quick Tags */}
         <Card style={styles.card}>
           <Text style={styles.sectionHeading}>Shift Incident & Service Reports</Text>
           <Text style={styles.sectionSub}>
             Document any damages, client feedback, or notable service details.
           </Text>
+
+          {/* Quick Tags Pills */}
+          <Text style={styles.quickTagsLabel}>Quick Incident Tags (Tap to Add):</Text>
+          <View style={styles.quickTagsContainer}>
+            {QUICK_TAGS.map((tag, idx) => {
+              const isSelected = reportNote.includes(tag);
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[styles.quickTagPill, isSelected && styles.quickTagPillActive]}
+                  onPress={() => handleSelectQuickTag(tag)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.quickTagText, isSelected && styles.quickTagTextActive]}>
+                    {tag}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <View style={styles.reportInputRow}>
             <TextInput
@@ -450,10 +589,41 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
   },
   card: {
     marginBottom: spacing.md,
+  },
+  allergyAlertCard: {
+    backgroundColor: "#fffbeb",
+    borderWidth: 1.5,
+    borderColor: "#fde68a",
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
+  },
+  allergyAlertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginBottom: 4,
+  },
+  allergyAlertTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#b45309",
+    letterSpacing: 0.5,
+  },
+  allergyAlertText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: "700",
+    color: "#78350f",
+    marginVertical: 2,
+  },
+  allergyAlertFooter: {
+    fontSize: 10,
+    color: "#92400e",
+    marginTop: 4,
+    fontStyle: "italic",
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -461,41 +631,64 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   eventTypeTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.base,
     fontWeight: "700",
     color: colors.foreground,
   },
   refText: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
   divider: {
     height: 1,
     backgroundColor: colors.borderLight,
-    marginVertical: spacing.sm,
+    marginVertical: spacing.md,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    marginBottom: 6,
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   infoText: {
     fontSize: typography.sizes.xs,
     color: colors.foreground,
-    fontWeight: "500",
-    flex: 1,
   },
   sectionHeading: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.sm,
     fontWeight: "700",
     color: colors.foreground,
   },
   sectionSub: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    color: colors.foregroundMuted,
     marginTop: 2,
+    marginBottom: spacing.sm,
+  },
+  emptyMenuText: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    fontStyle: "italic",
+  },
+  dishesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  dishPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radius.sm,
+  },
+  dishPillText: {
+    fontSize: 11,
+    color: colors.foreground,
+    fontWeight: "500",
   },
   lockBadge: {
     flexDirection: "row",
@@ -510,23 +703,34 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   contactBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: spacing.xs,
   },
   contactName: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.foreground,
   },
   callRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 3,
+    marginTop: 2,
   },
   callText: {
     fontSize: typography.sizes.xs,
     color: colors.primary,
     fontWeight: "600",
+  },
+  chatIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rosterList: {
     gap: spacing.xs,
@@ -543,93 +747,114 @@ const styles = StyleSheet.create({
   rosterAvatar: {
     width: 32,
     height: 32,
-    borderRadius: radius.full,
-    backgroundColor: colors.powder,
+    borderRadius: 16,
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
   rosterInitials: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     fontWeight: "700",
     color: colors.primary,
   },
   rosterName: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontSize: typography.sizes.xs,
+    fontWeight: "700",
     color: colors.foreground,
   },
   rosterRole: {
-    fontSize: 11,
+    fontSize: 10,
     color: colors.foregroundMuted,
   },
   phoneIconBtn: {
-    width: 28,
-    height: 28,
+    padding: 6,
+  },
+  quickTagsLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.foregroundMuted,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  quickTagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  quickTagPill: {
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
+  },
+  quickTagPillActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  quickTagText: {
+    fontSize: 10,
+    color: colors.foregroundMuted,
+    fontWeight: "600",
+  },
+  quickTagTextActive: {
+    color: colors.primary,
+    fontWeight: "800",
   },
   reportInputRow: {
     flexDirection: "row",
-    alignItems: "center",
     gap: spacing.xs,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
   },
   reportInput: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 80,
-    backgroundColor: colors.inputBackground,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 8,
+    backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
-    borderColor: colors.inputBorder,
+    borderColor: colors.borderLight,
+    borderRadius: radius.md,
+    padding: spacing.sm,
     fontSize: typography.sizes.xs,
     color: colors.foreground,
+    minHeight: 44,
   },
   sendReportBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
   sendReportBtnDisabled: {
-    backgroundColor: colors.textDisabled,
+    opacity: 0.5,
   },
   reportsList: {
+    marginTop: spacing.sm,
     gap: spacing.xs,
   },
   reportCard: {
     backgroundColor: colors.surfaceAlt,
     padding: spacing.sm,
-    borderRadius: radius.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+    borderRadius: radius.md,
   },
   reportNoteText: {
     fontSize: typography.sizes.xs,
     color: colors.foreground,
-    lineHeight: 18,
   },
   reportDate: {
     fontSize: 10,
-    color: colors.textSubtle,
-    marginTop: 4,
+    color: colors.foregroundMuted,
+    marginTop: 2,
   },
   emptyReportsText: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    color: colors.foregroundMuted,
     fontStyle: "italic",
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   completeBtn: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   errorCenter: {
     flex: 1,
@@ -638,7 +863,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   errorTitle: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.base,
     fontWeight: "700",
     color: colors.foreground,
     marginTop: spacing.md,

@@ -116,14 +116,13 @@ export const RegisterScreen = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
-          <ChevronLeft size={24} color={colors.foreground} />
-          <Text style={styles.backText}>Back to Sign In</Text>
+          <ChevronLeft size={22} color={colors.foreground} />
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>Create your account</Text>
           <Text style={styles.subtitle}>
-            Join Caezelle's Catering to book events, customize menus, and request quotes.
+            Join iReserve to browse catering packages, customize event menus, and track quotations.
           </Text>
         </View>
 
@@ -137,7 +136,7 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={firstNameRef}
             label="First Name"
-            placeholder="Juan"
+            placeholder="e.g. Juan"
             value={firstName}
             onChangeText={(text) => {
               setFirstName(text);
@@ -152,7 +151,7 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={lastNameRef}
             label="Last Name"
-            placeholder="Dela Cruz"
+            placeholder="e.g. Dela Cruz"
             value={lastName}
             onChangeText={(text) => {
               setLastName(text);
@@ -167,7 +166,7 @@ export const RegisterScreen = ({ navigation }) => {
           <AppInput
             ref={emailRef}
             label="Email Address"
-            placeholder="juan@example.com"
+            placeholder="name@example.com"
             value={email}
             onChangeText={(text) => {
               setEmail(text);
@@ -242,28 +241,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   backButton: {
-    flexDirection: "row",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.powder,
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: spacing.lg,
     alignSelf: "flex-start",
-  },
-  backText: {
-    fontSize: typography.sizes.sm,
-    color: colors.foreground,
-    fontWeight: "600",
-    marginLeft: spacing.xs,
   },
   header: {
     marginBottom: spacing.xl,
   },
   title: {
     fontSize: typography.sizes.title,
-    fontWeight: "800",
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.foreground,
     letterSpacing: -0.4,
   },
   subtitle: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: spacing.xs,
     lineHeight: 20,
@@ -278,8 +277,8 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.error,
-    fontWeight: "500",
   },
   form: {
     marginBottom: spacing.lg,
@@ -295,12 +294,13 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
   loginLink: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
-    fontWeight: "700",
   },
 });
 

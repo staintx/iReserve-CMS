@@ -1,7 +1,15 @@
 import React from "react";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  useFonts as usePlusJakarta,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from "@expo-google-fonts/plus-jakarta-sans";
 import {
   useFonts as useWorkSans,
   WorkSans_400Regular,
@@ -22,7 +30,33 @@ import InAppNotificationBanner from "./src/components/common/InAppNotificationBa
 import RootNavigator from "./src/navigation/RootNavigator";
 import { colors } from "./src/constants/theme";
 
+// Remove default browser focus outline on React Native Web
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    input, textarea, select, [contenteditable="true"] {
+      outline: none !important;
+      outline-width: 0 !important;
+      box-shadow: none !important;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none !important;
+      outline-width: 0 !important;
+      box-shadow: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 export default function App() {
+  const [fontsLoaded] = usePlusJakarta({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+  });
+
   useWorkSans({
     WorkSans_400Regular,
     WorkSans_500Medium,

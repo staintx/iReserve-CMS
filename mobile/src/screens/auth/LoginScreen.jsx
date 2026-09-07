@@ -10,7 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mail, Lock, Sparkles, Utensils } from "lucide-react-native";
+import { Mail, Lock, Utensils } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
@@ -68,6 +68,8 @@ export const LoginScreen = ({ navigation }) => {
     }
   };
 
+
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -88,17 +90,19 @@ export const LoginScreen = ({ navigation }) => {
         {/* Brand Header */}
         <View style={styles.brandHeader}>
           <View style={styles.logoBadge}>
-            <Utensils size={32} color={colors.primary} />
+            <Utensils size={30} color={colors.primary} />
           </View>
-          <Text style={styles.brandName}>Caezelle's</Text>
-          <Text style={styles.brandSubtitle}>Catering & Event Services</Text>
+          <Text style={styles.brandName}>
+            iReserve<Text style={styles.brandDot}>.</Text>
+          </Text>
+          <Text style={styles.brandSubtitle}>Caezelle's Food, Catering & Services</Text>
         </View>
 
         {/* Welcome Text */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeTitle}>Welcome Back</Text>
           <Text style={styles.welcomeDesc}>
-            Sign in to manage your reservations, quotations, and events.
+            Sign in to manage your reservations, catering quotations, and events.
           </Text>
         </View>
 
@@ -201,40 +205,46 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 24,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm,
     borderWidth: 1.5,
-    borderColor: colors.powder,
+    borderColor: colors.primaryBorder,
   },
   brandName: {
     fontSize: typography.sizes.title,
+    fontFamily: typography.fontFamilies.extraBold,
     fontWeight: "800",
-    color: colors.primary,
+    color: colors.foreground,
     letterSpacing: -0.5,
   },
+  brandDot: {
+    color: colors.primary,
+  },
   brandSubtitle: {
-    fontSize: typography.sizes.sm,
-    color: colors.secondary,
-    fontWeight: "500",
-    marginTop: 2,
-    letterSpacing: 0.3,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+    marginTop: 4,
+    letterSpacing: 0.2,
   },
   welcomeSection: {
     marginBottom: spacing.xl,
   },
   welcomeTitle: {
     fontSize: typography.sizes.xxl,
+    fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   welcomeDesc: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 4,
     lineHeight: 20,
@@ -252,14 +262,14 @@ const styles = StyleSheet.create({
   },
   expiredBannerText: {
     fontSize: typography.sizes.sm,
-    color: colors.warning,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.warningText,
     flex: 1,
-    fontWeight: "500",
   },
   expiredBannerDismiss: {
     fontSize: typography.sizes.xs,
-    color: colors.warning,
-    fontWeight: "700",
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.warningDark,
     marginLeft: spacing.sm,
   },
   errorBanner: {
@@ -272,8 +282,8 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.error,
-    fontWeight: "500",
     lineHeight: 18,
   },
   form: {
@@ -285,8 +295,8 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
-    fontWeight: "600",
   },
   submitBtn: {
     marginTop: spacing.xs,
@@ -299,12 +309,13 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
   registerLink: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.primary,
-    fontWeight: "700",
   },
 });
 

@@ -1,5 +1,13 @@
-import React, { useRef } from "react";
-import { View, Text, StyleSheet, Pressable, Animated } from "react-native";
+import React, { useRef, useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Pressable,
+  Animated,
+  Platform,
+} from "react-native";
 import { Plus, Minus } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 
@@ -17,6 +25,16 @@ export const AnimatedStepper = ({
   const minusScale = useRef(new Animated.Value(1)).current;
   const plusScale = useRef(new Animated.Value(1)).current;
   const valueScale = useRef(new Animated.Value(1)).current;
+  const inputRef = useRef(null);
+
+  const [textValue, setTextValue] = useState(String(value ?? 0));
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setTextValue(String(value ?? 0));
+    }
+  }, [value, isFocused]);
 
   const animatePress = (anim) => {
     Animated.sequence([
@@ -54,14 +72,39 @@ export const AnimatedStepper = ({
     if (disabled || value <= min) return;
     animatePress(minusScale);
     bumpValue();
-    onChange(Math.max(min, value - step));
+    const nextVal = Math.max(min, value - step);
+    setTextValue(String(nextVal));
+    onChange(nextVal);
   };
 
   const handlePlus = () => {
     if (disabled || value >= max) return;
     animatePress(plusScale);
     bumpValue();
-    onChange(Math.min(max, value + step));
+    const nextVal = Math.min(max, value + step);
+    setTextValue(String(nextVal));
+    onChange(nextVal);
+  };
+
+  const handleChangeText = (text) => {
+    const cleaned = text.replace(/[^0-9]/g, "");
+    setTextValue(cleaned);
+    const parsed = parseInt(cleaned, 10);
+    if (!isNaN(parsed)) {
+      onChange(parsed);
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    let parsed = parseInt(textValue, 10);
+    if (isNaN(parsed) || parsed < min) {
+      parsed = min;
+    } else if (parsed > max) {
+      parsed = max;
+    }
+    setTextValue(String(parsed));
+    onChange(parsed);
   };
 
   const canMinus = !disabled && value > min;
@@ -71,7 +114,7 @@ export const AnimatedStepper = ({
   const iconSize = size === "sm" ? 14 : size === "lg" ? 20 : 16;
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, disabled && styles.containerDisabled, style]}>
       <Animated.View style={{ transform: [{ scale: minusScale }] }}>
         <Pressable
           onPress={handleMinus}
@@ -87,19 +130,39 @@ export const AnimatedStepper = ({
         </Pressable>
       </Animated.View>
 
-      <View style={styles.valueWrapper}>
-        <Animated.Text
-          style={[
-            styles.valueText,
-            size === "sm" && styles.valueSmall,
-            size === "lg" && styles.valueLarge,
-            { transform: [{ scale: valueScale }] },
-          ]}
-        >
-          {value}
-        </Animated.Text>
-        {Boolean(unit) && <Text style={styles.unitText}>{unit}</Text>}
-      </View>
+      <Pressable
+        onPress={() => {
+          if (!disabled && inputRef.current) {
+            inputRef.current.focus();
+          }
+        }}
+        style={[
+          styles.valueWrapper,
+          isFocused && styles.valueWrapperFocused,
+        ]}
+      >
+        <Animated.View style={{ transform: [{ scale: valueScale }], flexDirection: "row", alignItems: "center" }}>
+          <TextInput
+            ref={inputRef}
+            style={[
+              styles.valueInput,
+              size === "sm" && styles.valueSmall,
+              size === "lg" && styles.valueLarge,
+              disabled && styles.valueDisabled,
+            ]}
+            value={textValue}
+            onChangeText={handleChangeText}
+            onFocus={() => setIsFocused(true)}
+            onBlur={handleBlur}
+            keyboardType="number-pad"
+            returnKeyType="done"
+            editable={!disabled}
+            selectTextOnFocus
+            underlineColorAndroid="transparent"
+          />
+          {Boolean(unit) && <Text style={styles.unitText}>{unit}</Text>}
+        </Animated.View>
+      </Pressable>
 
       <Animated.View style={{ transform: [{ scale: plusScale }] }}>
         <Pressable
@@ -129,6 +192,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
+  containerDisabled: {
+    opacity: 0.6,
+  },
   button: {
     alignItems: "center",
     justifyContent: "center",
@@ -143,28 +209,44 @@ const styles = StyleSheet.create({
   },
   valueWrapper: {
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.md,
-    minWidth: 44,
+    paddingHorizontal: spacing.sm,
+    minWidth: 54,
+    height: "100%",
+    borderRadius: radius.md,
   },
-  valueText: {
+  valueWrapperFocused: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  valueInput: {
     fontSize: typography.sizes.base,
     fontWeight: "700",
     color: colors.foreground,
     textAlign: "center",
+    minWidth: 32,
+    paddingVertical: Platform.OS === "ios" ? 4 : 0,
+    paddingHorizontal: 2,
+    margin: 0,
+    includeFontPadding: false,
   },
   valueSmall: {
     fontSize: typography.sizes.sm,
   },
   valueLarge: {
-    fontSize: typography.sizes.xl,
+    fontSize: typography.sizes.lg,
+    fontWeight: "800",
+  },
+  valueDisabled: {
+    color: colors.foregroundMuted,
   },
   unitText: {
     fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
     marginLeft: 3,
-    fontWeight: "500",
+    fontWeight: "600",
   },
 });
 

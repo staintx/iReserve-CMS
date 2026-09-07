@@ -4,7 +4,7 @@ import authApi from "../api/auth";
 
 import { ROLES } from "../constants/config";
 
-const ALLOWED_MOBILE_ROLES = [ROLES.CUSTOMER, ROLES.MANAGER, ROLES.STAFF];
+const ALLOWED_MOBILE_ROLES = [ROLES.CUSTOMER, ROLES.MANAGER, ROLES.STAFF, "admin"];
 
 const AuthContext = createContext(null);
 

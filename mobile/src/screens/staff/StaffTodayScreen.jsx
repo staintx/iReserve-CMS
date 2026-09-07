@@ -423,19 +423,21 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: 120,
   },
   heroCard: {
     marginBottom: spacing.base,
     padding: spacing.base,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   heroCardToday: {
-    borderColor: colors.successBorder,
+    borderColor: colors.primary,
     borderWidth: 1.5,
   },
   heroCardUpcoming: {
-    borderColor: colors.cardBorder,
+    borderColor: colors.borderLight,
   },
   heroTopBadgeRow: {
     flexDirection: "row",
@@ -450,16 +452,17 @@ const styles = StyleSheet.create({
   },
   dayStatusText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
   },
   heroTitle: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
   },
   heroRef: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontSize: 11,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
   divider: {
@@ -475,8 +478,8 @@ const styles = StyleSheet.create({
   },
   metaValue: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamily.medium,
     color: colors.foreground,
-    fontWeight: "500",
     flex: 1,
   },
   actionGrid: {
@@ -489,21 +492,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.base,
+    borderRadius: radius.xl,
   },
   noShiftTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     marginBottom: 4,
   },
   noShiftSub: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 18,
   },
   menuCard: {
     marginBottom: spacing.base,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   menuCardContent: {
     flexDirection: "row",
@@ -513,24 +521,25 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 40,
     height: 40,
-    borderRadius: radius.md,
+    borderRadius: 20,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
   },
   menuCardTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   menuCardSub: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
     marginTop: 1,
   },
   sectionHeading: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foregroundMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,

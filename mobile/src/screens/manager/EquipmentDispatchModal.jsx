@@ -223,11 +223,12 @@ const styles = StyleSheet.create({
   },
   bannerTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   bannerSub: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
@@ -240,12 +241,12 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   selectAllText: {
     fontSize: typography.sizes.xs,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.semiBold,
     color: colors.primary,
   },
   emptyCard: {
@@ -256,11 +257,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.semiBold,
     color: colors.foreground,
   },
   emptySub: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textSubtle,
     textAlign: "center",
     marginTop: 2,
@@ -282,14 +284,14 @@ const styles = StyleSheet.create({
   },
   checkItemChecked: {
     borderColor: colors.primary,
-    backgroundColor: "#F4F7FC",
+    backgroundColor: colors.primaryLight,
   },
   checkboxWrapper: {
     padding: 2,
   },
   itemName: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.semiBold,
     color: colors.foreground,
   },
   itemNameChecked: {
@@ -297,6 +299,7 @@ const styles = StyleSheet.create({
   },
   itemCategory: {
     fontSize: 10,
+    fontFamily: typography.fontFamily.regular,
     color: colors.textSubtle,
     marginTop: 1,
   },
@@ -304,13 +307,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
   qtyText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foregroundMuted,
   },
   notesCard: {
@@ -324,7 +327,7 @@ const styles = StyleSheet.create({
   },
   notesHeading: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   notesInput: {
@@ -333,6 +336,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.sm,
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foreground,
     borderWidth: 1,
     borderColor: colors.inputBorder,

@@ -6,19 +6,29 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  Platform,
 } from "react-native";
-import { Bell, CheckCheck, ChevronRight, Inbox } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Bell,
+  CheckCheck,
+  ChevronLeft,
+  Calendar,
+  FileText,
+} from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import notificationsApi from "../../api/notifications";
 import { useSocket } from "../../context/SocketContext";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
-import Header from "../../components/common/Header";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import { formatRelativeTime } from "../../utils/format";
+import { useAuth } from "../../context/AuthContext";
 
 export const NotificationsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { socket, decrementUnreadCount, clearUnreadCount } = useSocket();
 
   const [notifications, setNotifications] = useState([]);
@@ -36,12 +46,11 @@ export const NotificationsScreen = ({ navigation }) => {
       setNotifications(items);
       cacheData(CACHE_KEYS.NOTIFICATIONS, items);
     } catch (err) {
-      // Offline fallback: try reading cached notifications
       const cached = await getCachedData(CACHE_KEYS.NOTIFICATIONS);
       if (Array.isArray(cached) && cached.length > 0) {
         setNotifications(cached);
       } else {
-        setError("Unable to load notifications. Please check your connection.");
+        setError("Unable to load notifications.");
       }
     } finally {
       setLoading(false);
@@ -95,15 +104,28 @@ export const NotificationsScreen = ({ navigation }) => {
       );
     }
 
-    // Dynamic Navigation Routing based on notification payload
+    const role = user?.role;
+    const isManager = role === "manager" || role === "admin";
+    const isStaff = role === "staff";
+
     if (item.meta?.booking_id) {
-      navigation.navigate("BookingDetail", { id: item.meta.booking_id });
+      if (isManager) {
+        navigation.navigate("ManagerBookingDetail", { bookingId: item.meta.booking_id, id: item.meta.booking_id });
+      } else if (isStaff) {
+        navigation.navigate("StaffEventDetail", { bookingId: item.meta.booking_id, id: item.meta.booking_id });
+      } else {
+        navigation.navigate("BookingDetail", { id: item.meta.booking_id, bookingId: item.meta.booking_id });
+      }
     } else if (item.meta?.inquiry_id) {
-      navigation.navigate("QuotationDetail", { inquiryId: item.meta.inquiry_id });
+      if (isManager) {
+        navigation.navigate("ManagerBookings", { tab: "all" });
+      } else {
+        navigation.navigate("QuotationDetail", { inquiryId: item.meta.inquiry_id });
+      }
     } else if (item.meta?.conversation_id) {
       navigation.navigate("CustomerChatThread", {
         conversationId: item.meta.conversation_id,
-        title: "Catering Team",
+        title: isManager ? "Event Client" : isStaff ? "Event Team" : "Caezelle's Banquet Team",
       });
     }
   };
@@ -111,21 +133,56 @@ export const NotificationsScreen = ({ navigation }) => {
   const renderNotification = ({ item }) => {
     return (
       <TouchableOpacity
-        style={[styles.notifCard, !item.is_read && styles.notifCardUnread]}
+        style={[
+          styles.notifRow,
+          !item.is_read && styles.notifRowUnread,
+        ]}
         onPress={() => handleNotificationPress(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.contentRow}>
-          <View style={[styles.dot, !item.is_read && styles.dotUnread]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, !item.is_read && styles.titleUnread]}>
+        <View
+          style={[
+            styles.notifIconCircle,
+            !item.is_read && styles.notifIconCircleUnread,
+          ]}
+        >
+          {item.meta?.booking_id ? (
+            <Calendar size={18} color={colors.primary} />
+          ) : item.meta?.inquiry_id ? (
+            <FileText size={18} color="#D97706" />
+          ) : (
+            <Bell size={18} color={colors.primary} />
+          )}
+        </View>
+
+        <View style={styles.notifBody}>
+          <View style={styles.notifHeaderRow}>
+            <Text
+              style={[
+                styles.notifTitle,
+                !item.is_read && styles.notifTitleUnread,
+              ]}
+              numberOfLines={1}
+            >
               {item.title}
             </Text>
-            <Text style={styles.body}>{item.body || item.message}</Text>
-            <Text style={styles.time}>{formatRelativeTime(item.createdAt)}</Text>
+            <Text style={styles.notifTime}>
+              {formatRelativeTime(item.createdAt)}
+            </Text>
           </View>
-          <ChevronRight size={16} color={colors.foregroundMuted} />
+
+          <Text
+            style={[
+              styles.notifMessage,
+              !item.is_read && styles.notifMessageUnread,
+            ]}
+            numberOfLines={2}
+          >
+            {item.body || item.message}
+          </Text>
         </View>
+
+        {!item.is_read && <View style={styles.notifUnreadDot} />}
       </TouchableOpacity>
     );
   };
@@ -134,22 +191,34 @@ export const NotificationsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header
-        title="Notifications"
-        onBack={() => navigation.goBack()}
-        rightElement={
-          hasUnread ? (
-            <TouchableOpacity
-              onPress={handleMarkAllRead}
-              style={styles.markAllBtn}
-              activeOpacity={0.7}
-            >
-              <CheckCheck size={18} color={colors.primary} />
-              <Text style={styles.markAllText}>Mark read</Text>
-            </TouchableOpacity>
-          ) : null
-        }
-      />
+      {/* Airbnb Header Bar */}
+      <View
+        style={[
+          styles.headerBar,
+          { paddingTop: insets.top + (Platform.OS === "ios" ? 8 : 12) },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ChevronLeft size={24} color="#0F172A" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Notifications</Text>
+
+        {hasUnread && (
+          <TouchableOpacity
+            onPress={handleMarkAllRead}
+            style={styles.markAllBtn}
+            activeOpacity={0.7}
+          >
+            <CheckCheck size={14} color={colors.primary} />
+            <Text style={styles.markAllText}>Mark read</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {loading ? (
         <LoadingState message="Loading notifications..." />
@@ -166,7 +235,10 @@ export const NotificationsScreen = ({ navigation }) => {
           data={notifications}
           renderItem={renderNotification}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + 24 },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -184,70 +256,111 @@ export const NotificationsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#FFFFFF",
   },
-  listContent: {
-    padding: spacing.base,
-  },
-  notifCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  notifCardUnread: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.cardBorder,
-  },
-  contentRow: {
+  headerBar: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E2E8F0",
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "transparent",
-    marginRight: spacing.md,
+  backBtn: {
+    padding: 4,
   },
-  dotUnread: {
-    backgroundColor: colors.primary,
-  },
-  title: {
-    fontSize: typography.sizes.sm,
-    color: colors.foregroundMuted,
-    fontWeight: "600",
-  },
-  titleUnread: {
-    color: colors.foreground,
-    fontWeight: "800",
-  },
-  body: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  time: {
-    fontSize: 10,
-    color: colors.textSubtle,
-    marginTop: 4,
+  headerTitle: {
+    fontSize: 17,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: "#0F172A",
+    flex: 1,
+    marginLeft: 8,
   },
   markAllBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceAlt,
     gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryLight,
   },
   markAllText: {
-    fontSize: typography.sizes.xs,
-    fontWeight: "600",
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
     color: colors.primary,
+  },
+  listContent: {
+    paddingTop: 8,
+  },
+  notifRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#F1F5F9",
+  },
+  notifRowUnread: {
+    backgroundColor: "rgba(239, 246, 255, 0.4)",
+  },
+  notifIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  notifIconCircleUnread: {
+    backgroundColor: colors.primaryLight,
+  },
+  notifBody: {
+    flex: 1,
+    marginRight: 8,
+  },
+  notifHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  notifTitle: {
+    fontSize: 14,
+    fontFamily: typography.fontFamilies.medium,
+    color: "#374151",
+    flex: 1,
+    marginRight: 8,
+  },
+  notifTitleUnread: {
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  notifTime: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontFamily: typography.fontFamilies.regular,
+  },
+  notifMessage: {
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 18,
+  },
+  notifMessageUnread: {
+    color: "#1F2937",
+    fontFamily: typography.fontFamilies.medium,
+  },
+  notifUnreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
   },
 });
 

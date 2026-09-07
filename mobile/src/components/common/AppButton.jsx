@@ -43,32 +43,33 @@ export const AppButton = ({
   const isDanger = variant === "danger";
 
   const getBackgroundColor = () => {
-    if (disabled) return "#E0D7D0";
+    if (disabled) return colors.disabled;
     if (isPrimary) return colors.primary;
-    if (isSecondary) return colors.secondary;
+    if (isSecondary) return colors.powder;
     if (isDanger) return colors.error;
     if (isOutline || isGhost) return "transparent";
     return colors.primary;
   };
 
   const getBorderColor = () => {
-    if (disabled) return "#E0D7D0";
+    if (disabled) return colors.disabled;
     if (isOutline) return colors.primary;
     if (isDanger) return colors.error;
     return "transparent";
   };
 
   const getTextColor = () => {
-    if (disabled) return "#9E8F84";
-    if (isPrimary || isSecondary || isDanger) return colors.white;
+    if (disabled) return colors.disabledText;
+    if (isPrimary || isDanger) return colors.white;
+    if (isSecondary) return colors.foreground;
     if (isOutline || isGhost) return colors.primary;
     return colors.white;
   };
 
   const getHeight = () => {
-    if (size === "sm") return 38;
+    if (size === "sm") return 40;
     if (size === "lg") return 54;
-    return 46;
+    return 48;
   };
 
   const getFontSize = () => {
@@ -110,6 +111,7 @@ export const AppButton = ({
                 {
                   color: getTextColor(),
                   fontSize: getFontSize(),
+                  fontFamily: typography.fontFamilies.bold,
                 },
                 textStyle,
               ]}
@@ -130,7 +132,7 @@ export const AppButton = ({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -142,8 +144,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   text: {
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontWeight: "700",
+    letterSpacing: 0.1,
   },
   iconLeft: {
     marginRight: spacing.sm,

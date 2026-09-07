@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: spacing.xxl * 2,
+    paddingBottom: 120,
   },
   loadingContainer: {
     marginTop: spacing.md,
@@ -354,35 +354,38 @@ const styles = StyleSheet.create({
   statBox: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.sm + 2,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.borderLight,
     borderLeftWidth: 4,
     ...shadows.sm,
   },
   statIconWrap: {
     width: 32,
     height: 32,
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.xs,
   },
   statNumber: {
     fontSize: typography.sizes.xl,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.extraBold,
     color: colors.foreground,
   },
   statLabel: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
   calendarBanner: {
     marginBottom: spacing.lg,
     backgroundColor: colors.primaryLight,
-    borderColor: colors.powder,
+    borderColor: colors.borderFocus,
+    borderRadius: radius.xl,
+    borderWidth: 1,
   },
   calendarBannerContent: {
     flexDirection: "row",
@@ -392,18 +395,21 @@ const styles = StyleSheet.create({
   calendarIconContainer: {
     width: 44,
     height: 44,
-    borderRadius: radius.md,
+    borderRadius: 22,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   calendarBannerTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   calendarBannerSubtitle: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
@@ -420,34 +426,37 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   viewAllText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.bold,
     color: colors.primary,
-    fontWeight: "600",
   },
   emptyCard: {
     padding: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.md,
+    borderRadius: radius.xl,
   },
   emptyTitle: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontFamily: typography.fontFamily.regular,
+    color: colors.foregroundMuted,
     textAlign: "center",
   },
   actionCard: {
     marginBottom: spacing.md,
-    borderColor: colors.warningBorder,
+    borderRadius: radius.xl,
+    borderColor: colors.borderLight,
   },
   cardTopRow: {
     flexDirection: "row",
@@ -461,16 +470,18 @@ const styles = StyleSheet.create({
   },
   cardEventType: {
     fontSize: typography.sizes.base,
-    fontWeight: "700",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   cardReference: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSubtle,
+    fontSize: 11,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.foregroundMuted,
     marginTop: 2,
   },
   cardCustomerName: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
@@ -482,6 +493,7 @@ const styles = StyleSheet.create({
   },
   cardInfoText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
     flex: 1,
   },
@@ -496,11 +508,14 @@ const styles = StyleSheet.create({
   },
   guestCount: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamily.bold,
     color: colors.foreground,
   },
   eventCard: {
     marginBottom: spacing.sm,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   eventMetaRow: {
     flexDirection: "row",
@@ -515,6 +530,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamily.regular,
     color: colors.foregroundMuted,
   },
 });

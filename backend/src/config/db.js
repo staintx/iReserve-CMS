@@ -3,7 +3,11 @@ const User = require("../models/User");
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+    if (!mongoUri) {
+      throw new Error("Neither MONGO_URI nor MONGODB_URI is defined in environment variables.");
+    }
+    await mongoose.connect(mongoUri);
     console.log(" MongoDB Connected");
 
     // Clean up legacy null usernames before enforcing sparse unique index.

@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   Platform,
@@ -32,6 +33,11 @@ import ErrorState from "../../components/common/ErrorState";
 import EmptyState from "../../components/common/EmptyState";
 import { formatRelativeTime } from "../../utils/format";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
+import {
+  getConversationTitle,
+  getThreadSubtitle,
+  getCodeBadge,
+} from "../../utils/chatHelpers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -49,6 +55,9 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
   const initialTab =
     route?.params?.initialTab || route?.params?.tab || "messages";
   const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Sub-category filter inside Messages tab: "all" | "inquiry" | "event" | "support"
+  const [messageCategory, setMessageCategory] = useState("all");
 
   // Messages State
   const [conversations, setConversations] = useState([]);
@@ -172,6 +181,38 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
     return notifications.filter((n) => !n.is_read).length;
   }, [notifications]);
 
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts = { all: conversations.length, inquiry: 0, event: 0, support: 0 };
+    conversations.forEach((c) => {
+      if (c.booking_id || c.type === "event") {
+        counts.event += 1;
+      } else if (c.inquiry_id || c.type === "inquiry") {
+        counts.inquiry += 1;
+      } else {
+        counts.support += 1;
+      }
+    });
+    return counts;
+  }, [conversations]);
+
+  // Filtered conversations by selected sub-category
+  const filteredConversations = useMemo(() => {
+    if (messageCategory === "all") return conversations;
+    if (messageCategory === "inquiry") {
+      return conversations.filter((c) => c.inquiry_id || c.type === "inquiry");
+    }
+    if (messageCategory === "event") {
+      return conversations.filter((c) => c.booking_id || c.type === "event");
+    }
+    if (messageCategory === "support") {
+      return conversations.filter(
+        (c) => (!c.booking_id && !c.inquiry_id) || c.type === "support"
+      );
+    }
+    return conversations;
+  }, [conversations, messageCategory]);
+
   // Actions
   const onRefreshMessages = () => {
     setRefreshingMessages(true);
@@ -190,9 +231,11 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
       )
     );
 
+    const title = getConversationTitle(item, user);
     navigation.navigate("CustomerChatThread", {
       conversationId: item._id,
-      title: item.event_manager_id?.full_name || "Caezelle's Banquet Team",
+      title,
+      conversation: item,
     });
   };
 
@@ -201,7 +244,8 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
       const newConv = await messagesApi.createConversation({});
       navigation.navigate("CustomerChatThread", {
         conversationId: newConv._id,
-        title: "Caezelle's Banquet Team",
+        title: "Caezelle's Event Support",
+        conversation: newConv,
       });
     } catch (err) {
       loadConversations();
@@ -234,17 +278,17 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
     } else if (item.meta?.conversation_id) {
       navigation.navigate("CustomerChatThread", {
         conversationId: item.meta.conversation_id,
-        title: "Caezelle's Banquet Team",
+        title: "Caezelle's Event Support",
       });
     }
   };
 
-  // --- Render Item: Airbnb Message Thread Row ---
+  // --- Render Item: Conversation Thread Row ---
   const renderMessageItem = ({ item }) => {
     const unread = item.unread_customer_count || 0;
-    const recipientName =
-      item.event_manager_id?.full_name || "Caezelle's Banquet Team";
-    const contextTag = item.package_name || "Catering Services";
+    const title = getConversationTitle(item, user);
+    const subtitle = getThreadSubtitle(item, user);
+    const badge = getCodeBadge(item);
 
     return (
       <TouchableOpacity
@@ -252,27 +296,50 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
         onPress={() => handleOpenConversation(item)}
         activeOpacity={0.7}
       >
-        {/* Left Avatar (52px round) */}
+        {/* Left Avatar (52px round) with type-specific color and icon */}
         <View style={styles.avatarContainer}>
-          <View style={styles.avatarCircle}>
-            <Utensils size={22} color={colors.primary} />
+          <View
+            style={[
+              styles.avatarCircle,
+              badge.type === "inquiry" && styles.avatarCircleInquiry,
+              badge.type === "event" && styles.avatarCircleEvent,
+            ]}
+          >
+            {badge.type === "inquiry" ? (
+              <FileText size={20} color="#D97706" />
+            ) : badge.type === "event" ? (
+              <Calendar size={20} color={colors.primary} />
+            ) : (
+              <Utensils size={20} color={colors.primary} />
+            )}
           </View>
           {unread > 0 && <View style={styles.unreadBadgeDot} />}
         </View>
 
         {/* Center Content */}
         <View style={styles.threadBody}>
-          {/* Top Line: Sender Name · Context (Airbnb Reference) */}
+          {/* Top Line: Title & Time */}
           <View style={styles.senderLine}>
-            <Text style={styles.senderName} numberOfLines={1}>
-              {recipientName}
+            <Text
+              style={[
+                styles.senderName,
+                unread > 0 && styles.senderNameUnread,
+              ]}
+              numberOfLines={1}
+            >
+              {title}
             </Text>
-            <Text style={styles.senderContext} numberOfLines={1}>
-              {" · "}{contextTag}
+            <Text style={styles.timestampText}>
+              {formatRelativeTime(item.last_message_at || item.updatedAt)}
             </Text>
           </View>
 
-          {/* Headline / Snippet: Bold if unread (Airbnb Reference) */}
+          {/* Subtitle: Support Team / Manager */}
+          <Text style={styles.senderSubtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+
+          {/* Headline / Snippet */}
           <Text
             style={[
               styles.messageSnippet,
@@ -280,19 +347,30 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
             ]}
             numberOfLines={1}
           >
-            {item.last_message || "Start a conversation with our catering team..."}
+            {item.last_message || "No messages yet"}
           </Text>
 
-          {/* Bottom Line: Status / Timestamp Tag */}
-          <View style={styles.statusLine}>
-            <Text style={styles.statusText}>
-              {unread > 0 ? "New message received" : "Catering support"}
-            </Text>
-            {item.last_message_at && (
-              <Text style={styles.timestampText}>
-                {" · "}{formatRelativeTime(item.last_message_at)}
+          {/* Bottom Line: Badge Chip */}
+          <View style={styles.bottomMetaRow}>
+            <View
+              style={[
+                styles.badgeChip,
+                badge.type === "inquiry" && styles.badgeChipInquiry,
+                badge.type === "event" && styles.badgeChipEvent,
+                badge.type === "support" && styles.badgeChipSupport,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.badgeChipText,
+                  badge.type === "inquiry" && styles.badgeChipTextInquiry,
+                  badge.type === "event" && styles.badgeChipTextEvent,
+                  badge.type === "support" && styles.badgeChipTextSupport,
+                ]}
+              >
+                {badge.text}
               </Text>
-            )}
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -444,6 +522,63 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Category Filter Pills (When Messages tab is active) */}
+        {activeTab === "messages" && (
+          <View style={styles.categoryPillsWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryPillsScroll}
+            >
+              {[
+                { key: "all", label: "All", count: categoryCounts.all },
+                { key: "inquiry", label: "Inquiries", count: categoryCounts.inquiry },
+                { key: "event", label: "Events", count: categoryCounts.event },
+                { key: "support", label: "Support", count: categoryCounts.support },
+              ].map((cat) => {
+                const isSelected = messageCategory === cat.key;
+                return (
+                  <TouchableOpacity
+                    key={cat.key}
+                    style={[
+                      styles.categoryPill,
+                      isSelected && styles.categoryPillSelected,
+                    ]}
+                    onPress={() => setMessageCategory(cat.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        isSelected && styles.categoryPillTextSelected,
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                    {cat.count > 0 && (
+                      <View
+                        style={[
+                          styles.categoryPillBadge,
+                          isSelected && styles.categoryPillBadgeSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryPillBadgeText,
+                            isSelected && styles.categoryPillBadgeTextSelected,
+                          ]}
+                        >
+                          {cat.count}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* 3. Tab Content View */}
@@ -460,9 +595,17 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
             actionLabel="Message Catering Team"
             onAction={handleStartNewChat}
           />
+        ) : filteredConversations.length === 0 ? (
+          <EmptyState
+            icon={MessageSquare}
+            title={`No ${messageCategory} chats found`}
+            description="There are currently no conversations matching this category filter."
+            actionLabel="Show All Messages"
+            onAction={() => setMessageCategory("all")}
+          />
         ) : (
           <FlatList
-            data={conversations}
+            data={filteredConversations}
             renderItem={renderMessageItem}
             keyExtractor={(item) => item._id}
             contentContainerStyle={[
@@ -608,6 +751,61 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
 
+  // --- Category Filter Pills ---
+  categoryPillsWrap: {
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#F1F5F9",
+  },
+  categoryPillsScroll: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 10,
+  },
+  categoryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  categoryPillSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryPillText: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.medium,
+    color: "#475569",
+    fontWeight: "600",
+  },
+  categoryPillTextSelected: {
+    color: colors.white,
+    fontWeight: "700",
+  },
+  categoryPillBadge: {
+    backgroundColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    marginLeft: 5,
+  },
+  categoryPillBadgeSelected: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  categoryPillBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: "#475569",
+    fontWeight: "700",
+  },
+  categoryPillBadgeTextSelected: {
+    color: colors.white,
+  },
+
   // --- Airbnb Message Thread Item ---
   threadRow: {
     flexDirection: "row",
@@ -634,6 +832,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.borderLight,
   },
+  avatarCircleInquiry: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+  },
+  avatarCircleEvent: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#DBEAFE",
+  },
   unreadBadgeDot: {
     position: "absolute",
     top: 0,
@@ -651,6 +857,7 @@ const styles = StyleSheet.create({
   senderLine: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 2,
   },
   senderName: {
@@ -658,34 +865,68 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: "#0F172A",
-    maxWidth: "60%",
-  },
-  senderContext: {
-    fontSize: 13,
-    fontFamily: typography.fontFamilies.regular,
-    color: "#6B7280",
     flex: 1,
+    marginRight: 8,
+  },
+  senderNameUnread: {
+    color: "#0F172A",
+    fontWeight: "800",
+  },
+  senderSubtitle: {
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.medium,
+    color: "#64748B",
+    marginBottom: 3,
   },
   messageSnippet: {
     fontSize: 14,
     fontFamily: typography.fontFamilies.regular,
     color: "#374151",
     lineHeight: 19,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   messageSnippetUnread: {
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: "#0F172A",
   },
-  statusLine: {
+  bottomMetaRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 2,
   },
-  statusText: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontFamily: typography.fontFamilies.regular,
+  badgeChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  badgeChipInquiry: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FDE68A",
+  },
+  badgeChipEvent: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#DBEAFE",
+  },
+  badgeChipSupport: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
+  },
+  badgeChipText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: "700",
+  },
+  badgeChipTextInquiry: {
+    color: "#92400E",
+  },
+  badgeChipTextEvent: {
+    color: colors.primary,
+  },
+  badgeChipTextSupport: {
+    color: "#475569",
   },
   timestampText: {
     fontSize: 12,

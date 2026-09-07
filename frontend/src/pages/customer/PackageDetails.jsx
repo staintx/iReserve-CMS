@@ -4,7 +4,7 @@ import CustomerLayout from "../../components/layout/CustomerLayout";
 import CustomerFooter from "../../components/layout/CustomerFooter";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, X, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, X, Sparkles, Utensils } from "lucide-react";
 import {
   capacityLabel,
   eventTypeForPackage,
@@ -263,19 +263,19 @@ export default function PackageDetails() {
               <div className="ls-detail-head">
                 <div>
                   <p className="ls-eyebrow">
-                    {[service, event].filter(Boolean).join(" · ") || "Catering package"}
+                    {offer ? "Special Offer" : ([service, event].filter(Boolean).join(" · ") || "Catering package")}
                   </p>
                   <h1>{data.name}</h1>
                   {data.description && <p className="ls-lede">{data.description}</p>}
+                  {data.fullDescription && data.fullDescription !== data.description && (
+                    <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                      {data.fullDescription}
+                    </p>
+                  )}
 
-                  {/* A combo says what it is and how many it feeds, and
-                      leads with both rather than burying them in the facts. */}
-                  {offer && (
+                  {offer && data.badge_text && (
                     <div className="ls-offer-chips" style={{ marginBottom: 4 }}>
-                      <span className="ls-offer-chip">Combo pack</span>
-                      {data.badge_text && (
-                        <span className="ls-offer-chip">{data.badge_text}</span>
-                      )}
+                      <span className="ls-offer-chip">{data.badge_text}</span>
                     </div>
                   )}
 
@@ -288,20 +288,13 @@ export default function PackageDetails() {
                           : priceLabel(data)}
                       </dd>
                     </div>
-                    {offer ? (
+                    {!offer && capacity && (
                       <div>
-                        <dt>Guest count</dt>
-                        <dd>{offerPax ? `From ${offerPax} guests (flexible)` : "Flexible guest count"}</dd>
+                        <dt>Guests</dt>
+                        <dd>{capacity}</dd>
                       </div>
-                    ) : (
-                      capacity && (
-                        <div>
-                          <dt>Guests</dt>
-                          <dd>{capacity}</dd>
-                        </div>
-                      )
                     )}
-                    {(inclusionGroups.length > 0 || comboInclusions.length > 0) && (
+                    {!offer && (inclusionGroups.length > 0 || comboInclusions.length > 0) && (
                       <div>
                         <dt>Includes</dt>
                         <dd>
@@ -365,19 +358,66 @@ export default function PackageDetails() {
                     </div>
                   )}
 
-                  {/* The meal itself, grouped by course, from the combo's
-                      own food list. Nothing here is written into the page. */}
+                  {/* The meal itself, grouped by course/category, from the combo's own food list */}
                   {offerCourses.length > 0 && (
-                    <div className="ls-detail-sizes">
-                      <p className="ls-detail-sizes-label">What this combo serves</p>
-                      <ul className="ls-offer-includes">
-                        {offerCourses.map((course) => (
-                          <li key={course.category}>
-                            <strong>{course.category}</strong> ·{" "}
-                            {course.items.join(", ")}
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mt-8 space-y-5">
+                      <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                            <Utensils className="w-4.5 h-4.5" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-base text-gray-900 uppercase tracking-wider">
+                              What This Combo Serves
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              Included dishes & choices organized by course category
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {offerCourses.map((course, idx) => {
+                          const isLargeCategory = course.items.length > 8;
+                          return (
+                            <div
+                              key={course.category || idx}
+                              className={`bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-amber-300 ${
+                                isLargeCategory ? "lg:col-span-2" : ""
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                  <h4 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
+                                    {course.category || "Included Items"}
+                                  </h4>
+                                </div>
+                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60">
+                                  {course.items.length} {course.items.length === 1 ? "item" : "items"}
+                                </span>
+                              </div>
+
+                              <ul className={`grid gap-2.5 ${
+                                isLargeCategory 
+                                  ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" 
+                                  : "grid-cols-1 sm:grid-cols-2"
+                              }`}>
+                                {course.items.map((item, itemIdx) => (
+                                  <li
+                                    key={itemIdx}
+                                    className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-amber-50/40 hover:border-amber-200"
+                                  >
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                    <span className="leading-snug">{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

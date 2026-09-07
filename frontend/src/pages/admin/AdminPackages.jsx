@@ -53,7 +53,7 @@ const TABS = [
     label: "Special Offers",
     title: "Combo Packs",
     blurb:
-      "Fixed combo meals. Each one serves a set number of guests at a set price per pax, and the food that comes with it is decided here.",
+      "Combo meals with set servings and per pax pricing, suitable for various events and occasions.",
     cta: "New Combo",
     empty: "Create your first combo pack to get started",
   },

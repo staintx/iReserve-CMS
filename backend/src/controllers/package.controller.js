@@ -273,6 +273,8 @@ exports.update = async (req, res) => {
   const current = await Package.findById(req.params.id);
   if (!current) return res.status(404).json({ message: "Package not found" });
 
+  const offerType = normalizeOfferType(req.body.offer_type ?? current.offer_type);
+  const isOffer = offerType === OFFER_TYPES.SPECIAL;
   const isFoodOnly = (req.body.package_type ?? current.package_type) === "Food Only";
 
   let data = {

@@ -100,7 +100,10 @@ export default function CustomerInquiryDetails() {
   const meta = useMemo(() => inquiryStatusMeta(inquiry), [inquiry]);
 
   const openQuotationView = async () => {
-    if (!inquiry?._id) return;
+    if (!inquiry?._id) {
+      notify("Inquiry details are not available.", "error");
+      return;
+    }
     try {
       setIsLoadingQuotation(true);
       const res = await CustomerAPI.getQuotationsForInquiry(inquiry._id);
@@ -110,10 +113,10 @@ export default function CustomerInquiryDetails() {
         setQuotationVersions(quotes);
         setIsQuotationModalOpen(true);
       } else {
-        notify("No quotation details found for this inquiry.", "error");
+        notify("No quotation has been issued for this inquiry yet.", "info");
       }
     } catch (err) {
-      notify("Failed to retrieve quotation details.", "error");
+      notify(err.response?.data?.message || "Failed to load quotation.", "error");
     } finally {
       setIsLoadingQuotation(false);
     }
@@ -358,9 +361,10 @@ export default function CustomerInquiryDetails() {
                 <Button
                   onClick={openQuotationView}
                   disabled={isLoadingQuotation}
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer"
+                  className="bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer gap-1.5 shadow-2xs"
                 >
-                  <FileCheck2 className="w-4 h-4 mr-1.5" /> Review Quote
+                  <FileCheck2 className="w-4 h-4" />
+                  <span>Review Quote</span>
                 </Button>
               )}
 
@@ -589,8 +593,11 @@ export default function CustomerInquiryDetails() {
       {/* REUSED MODALS */}
       {isQuotationModalOpen && activeQuotation && (
         <CustomerQuotationModal
-          isOpen={isQuotationModalOpen}
-          onClose={() => setIsQuotationModalOpen(false)}
+          open={isQuotationModalOpen}
+          onClose={() => {
+            setIsQuotationModalOpen(false);
+            setActiveQuotation(null);
+          }}
           quotation={activeQuotation}
           versions={quotationVersions}
           inquiry={inquiry}

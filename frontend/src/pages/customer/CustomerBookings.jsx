@@ -217,7 +217,7 @@ export default function CustomerBookings() {
     }
   };
 
-  // Status Badge Rendering without Dot
+  // Modern Compact Dotless Status Badge
   const renderStatusBadge = (bkg) => {
     const bal = balanceOf(bkg);
     const meta = bookingStatusMeta(bkg, { balance: bal });
@@ -306,29 +306,46 @@ export default function CustomerBookings() {
   return (
     <CustomerDashboardLayout fullBleed>
       <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
-        {/* RESTORED MAIN PAGE TITLE & TOP CONTROL BAR */}
-        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 space-y-3 shadow-2xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">
-                My Bookings
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Track confirmed event reservations, monitor preparation progress, and access event details.
-              </p>
-            </div>
+        {/* CLEAN TOP PAGE HEADER */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">
+              My Bookings
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Track confirmed event reservations, monitor preparation progress, and access event details.
+            </p>
+          </div>
 
-            {/* Filter Controls & Sort */}
-            <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
+          <Button
+            onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-lg font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            <span>New Request</span>
+          </Button>
+        </div>
+
+        {/* WORKSPACE AREA: FULL CONTENT WIDTH */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row p-6 gap-6 w-full">
+          {/* LEFT MAIN SECTION: UNBOXED LIST AREA WITH SEARCH & FILTERS ABOVE */}
+          <div
+            className={cn(
+              "flex-1 min-w-0 flex flex-col space-y-4 overflow-hidden",
+              mobileView === "detail" ? "hidden md:flex" : "flex"
+            )}
+          >
+            {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
               {/* Search Bar */}
-              <div className="relative flex-1 sm:w-64">
+              <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search by event name or reference..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-1.5 bg-slate-50 focus:bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-lg border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all"
+                  className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-lg border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
                 />
                 {searchQuery && (
                   <button
@@ -340,161 +357,144 @@ export default function CustomerBookings() {
                 )}
               </div>
 
-              {/* Status Filter Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="h-8 sm:h-9 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
-                  >
-                    <span>
-                      {statusFilter === "all"
-                        ? "All bookings"
-                        : statusFilter === "confirmed"
-                        ? "Confirmed"
-                        : statusFilter === "deposit_needed"
-                        ? "Deposit Needed"
-                        : statusFilter === "completed"
-                        ? "Completed"
-                        : "Cancelled"}
-                    </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
-                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                    Filter Status
-                  </DropdownMenuLabel>
-                  {[
-                    { id: "all", label: "All bookings" },
-                    { id: "confirmed", label: "Confirmed" },
-                    { id: "deposit_needed", label: "Deposit Needed" },
-                    { id: "completed", label: "Completed" },
-                    { id: "cancelled", label: "Cancelled" },
-                  ].map((item) => (
-                    <DropdownMenuItem
-                      key={item.id}
-                      onClick={() => setStatusFilter(item.id)}
+              {/* Filter Controls */}
+              <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
+                {/* Status Dropdown Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <span>
+                        {statusFilter === "all"
+                          ? "All bookings"
+                          : statusFilter === "confirmed"
+                          ? "Confirmed"
+                          : statusFilter === "deposit_needed"
+                          ? "Deposit Needed"
+                          : statusFilter === "completed"
+                          ? "Completed"
+                          : "Cancelled"}
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
+                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                      Filter Status
+                    </DropdownMenuLabel>
+                    {[
+                      { id: "all", label: "All bookings" },
+                      { id: "confirmed", label: "Confirmed" },
+                      { id: "deposit_needed", label: "Deposit Needed" },
+                      { id: "completed", label: "Completed" },
+                      { id: "cancelled", label: "Cancelled" },
+                    ].map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        onClick={() => setStatusFilter(item.id)}
+                        className={cn(
+                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span>{item.label}</span>
+                        {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Service Type Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
                       className={cn(
-                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                        serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
                       )}
                     >
-                      <span>{item.label}</span>
-                      {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                      <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200">
+                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                      Filter Service Type
+                    </DropdownMenuLabel>
+                    {[
+                      { id: "all", label: "All Services" },
+                      ...SERVICE_TYPES.map((t) => ({ id: t, label: t })),
+                    ].map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        onClick={() => setServiceTypeFilter(item.id)}
+                        className={cn(
+                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span>{item.label}</span>
+                        {serviceTypeFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-              {/* Service Type Filter */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "h-8 sm:h-9 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                      serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
-                    )}
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                    <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200">
-                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                    Filter Service Type
-                  </DropdownMenuLabel>
-                  {[
-                    { id: "all", label: "All Services" },
-                    ...SERVICE_TYPES.map((t) => ({ id: t, label: t })),
-                  ].map((item) => (
-                    <DropdownMenuItem
-                      key={item.id}
-                      onClick={() => setServiceTypeFilter(item.id)}
-                      className={cn(
-                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        serviceTypeFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                      )}
+                {/* Sort Order */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
                     >
-                      <span>{item.label}</span>
-                      {serviceTypeFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Sort Order */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="h-8 sm:h-9 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
-                  >
-                    <span>
-                      {sortBy === "newest"
-                        ? "Newest first"
-                        : sortBy === "oldest"
-                        ? "Oldest first"
-                        : "Event date"}
-                    </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
-                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                    Sort Order
-                  </DropdownMenuLabel>
-                  {[
-                    { id: "newest", label: "Newest first" },
-                    { id: "oldest", label: "Oldest first" },
-                    { id: "date", label: "Event date" },
-                  ].map((item) => (
-                    <DropdownMenuItem
-                      key={item.id}
-                      onClick={() => setSortBy(item.id)}
-                      className={cn(
-                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                      )}
-                    >
-                      <span>{item.label}</span>
-                      {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* New Request Button */}
-              <Button
-                onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-lg font-semibold text-xs h-8 sm:h-9 px-3.5 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                <span>New Request</span>
-              </Button>
+                      <span>
+                        {sortBy === "newest"
+                          ? "Newest first"
+                          : sortBy === "oldest"
+                          ? "Oldest first"
+                          : "Event date"}
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
+                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                      Sort Order
+                    </DropdownMenuLabel>
+                    {[
+                      { id: "newest", label: "Newest first" },
+                      { id: "oldest", label: "Oldest first" },
+                      { id: "date", label: "Event date" },
+                    ].map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        onClick={() => setSortBy(item.id)}
+                        className={cn(
+                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span>{item.label}</span>
+                        {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* WORKSPACE DUAL-PANE AREA - FULL CONTENT WIDTH */}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row p-6 gap-6 w-full">
-          {/* LEFT SECTION: WIDER SCANNABLE BOOKINGS LIST (12-Column Grid Row Alignment) */}
-          <div
-            className={cn(
-              "flex-1 bg-white border border-slate-200/90 rounded-xl flex flex-col min-h-0 overflow-hidden shadow-2xs",
-              mobileView === "detail" ? "hidden md:flex" : "flex"
-            )}
-          >
-            {/* Bookings List Container */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 [scrollbar-width:thin]">
+            {/* UNBOXED BOOKINGS CARDS LIST */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:thin]">
               {loading ? (
                 <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
                   Loading bookings...
                 </div>
               ) : filteredBookings.length === 0 ? (
-                <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4">
+                <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
                   <FileText className="w-10 h-10 text-slate-300 mb-2" />
                   <h3 className="text-sm font-bold text-slate-800 font-sans">No bookings found</h3>
                   <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
@@ -502,7 +502,7 @@ export default function CustomerBookings() {
                       ? "Try clearing active search or filters to see other bookings."
                       : "No active bookings yet. Convert an inquiry to book your event."}
                   </p>
-                  {isFiltered ? (
+                  {isFiltered && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -514,13 +514,6 @@ export default function CustomerBookings() {
                       className="mt-4 text-xs font-semibold rounded-lg border-slate-200"
                     >
                       Clear all filters
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                      className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-lg"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" /> Submit Event Request
                     </Button>
                   )}
                 </div>
@@ -539,13 +532,13 @@ export default function CustomerBookings() {
                       key={bkg._id}
                       onClick={() => handleSelectBooking(bkg._id)}
                       className={cn(
-                        "p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs",
+                        "p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs hover:border-slate-300 hover:shadow-xs",
                         isSelected
                           ? "bg-[#F4F7FC] border-l-4 border-l-[#2C4B8A] border-y border-r border-slate-300/90"
-                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/50"
+                          : "bg-white border-slate-200/90"
                       )}
                     >
-                      {/* STRICT 12-COLUMN GRID ALIGNMENT */}
+                      {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                         {/* Cols 1-5: Thumbnail Image & Core Specs */}
                         <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
@@ -591,7 +584,7 @@ export default function CustomerBookings() {
                           </div>
                         </div>
 
-                        {/* Cols 6-9: Status Badge & Notice Sentence */}
+                        {/* Cols 6-9: Modern Dotless Status Badge & Notice Sentence */}
                         <div className="md:col-span-4 space-y-1.5 min-w-0">
                           {renderStatusBadge(bkg)}
                           <p className="text-xs text-slate-500 leading-snug line-clamp-2">
@@ -611,15 +604,15 @@ export default function CustomerBookings() {
             </div>
           </div>
 
-          {/* RIGHT SECTION: NARROWER SURFACE-LEVEL OVERVIEW PANEL */}
+          {/* RIGHT OVERVIEW SIDE PANEL (ALWAYS VISIBLE ABOVE THE FOLD) */}
           <div
             className={cn(
-              "w-full md:w-[340px] lg:w-[380px] xl:w-[400px] shrink-0 bg-white border border-slate-200/90 rounded-xl flex flex-col min-h-0 overflow-y-auto shadow-2xs [scrollbar-width:thin]",
+              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs flex flex-col justify-between space-y-4 h-fit max-h-[calc(100vh-6.5rem)] overflow-y-auto [scrollbar-width:thin]",
               mobileView === "list" ? "hidden md:flex" : "flex"
             )}
           >
             {/* Mobile Back Button */}
-            <div className="md:hidden p-4 border-b border-slate-100">
+            <div className="md:hidden pb-2 border-b border-slate-100">
               <Button
                 variant="ghost"
                 size="sm"
@@ -631,9 +624,9 @@ export default function CustomerBookings() {
             </div>
 
             {selectedBooking ? (
-              <div className="p-5 space-y-5">
-                {/* Hero Package Thumbnail Header with Overlaid Status Badge */}
-                <div className="relative rounded-lg overflow-hidden border border-slate-200/80 bg-slate-100 h-44 sm:h-48 group shadow-2xs">
+              <div className="space-y-4">
+                {/* Compact Hero Package Thumbnail Header */}
+                <div className="relative rounded-lg overflow-hidden border border-slate-200/80 bg-slate-100 h-28 sm:h-32 group shadow-2xs shrink-0">
                   {getEventThumbnail(selectedBooking) ? (
                     <img
                       src={getEventThumbnail(selectedBooking)}
@@ -642,88 +635,84 @@ export default function CustomerBookings() {
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-[#2C4B8A]/10 via-blue-50 to-indigo-100/60 flex flex-col items-center justify-center text-[#2C4B8A]">
-                      <Utensils className="w-12 h-12 opacity-80 mb-1" />
-                      <span className="text-xs font-semibold opacity-70">Custom Event Package</span>
+                      <Utensils className="w-8 h-8 opacity-80 mb-0.5" />
+                      <span className="text-[11px] font-semibold opacity-70">Custom Event Package</span>
                     </div>
                   )}
 
                   {/* Overlaid Top-Left Status Pill */}
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-2.5 left-2.5">
                     {renderStatusBadge(selectedBooking)}
                   </div>
                 </div>
 
                 {/* Event Title & Ref */}
                 <div>
-                  <h3 className="font-bold text-xl text-slate-900 font-sans leading-snug">
+                  <h3 className="font-bold text-lg text-slate-900 font-sans leading-snug">
                     {recordTitle(selectedBooking)}
                   </h3>
-                  <div className="text-xs font-mono text-slate-400 mt-1">
+                  <div className="text-xs font-mono text-slate-400 mt-0.5">
                     Ref: {selectedBooking.reference || `BKG-${selectedBooking._id.substring(0, 6).toUpperCase()}`}
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-4 space-y-3.5">
-                  {/* Event Date Row */}
-                  <div className="flex items-start gap-3 text-xs">
-                    <Calendar className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                {/* Compact Spec Rows */}
+                <div className="border-t border-slate-100 pt-3 space-y-2.5">
+                  <div className="flex items-start gap-2.5 text-xs">
+                    <Calendar className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-slate-400 font-semibold text-[11px]">Event date</div>
-                      <div className="font-bold text-slate-800 mt-0.5">
+                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Event date</div>
+                      <div className="font-bold text-slate-800">
                         {formatEventDateWithDay(selectedBooking.event_date)}
                       </div>
                     </div>
                   </div>
 
-                  {/* Guest Count Row */}
-                  <div className="flex items-start gap-3 text-xs">
-                    <Users className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 text-xs">
+                    <Users className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-slate-400 font-semibold text-[11px]">Guest count</div>
-                      <div className="font-bold text-slate-800 mt-0.5">
+                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Guest count</div>
+                      <div className="font-bold text-slate-800">
                         {selectedBooking.guest_count ? `${selectedBooking.guest_count} guests` : "Guests TBD"}
                       </div>
                     </div>
                   </div>
 
-                  {/* Service Type Row */}
-                  <div className="flex items-start gap-3 text-xs">
-                    <Utensils className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 text-xs">
+                    <Utensils className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-slate-400 font-semibold text-[11px]">Service type</div>
-                      <div className="font-bold text-slate-800 mt-0.5">
+                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Service type</div>
+                      <div className="font-bold text-slate-800">
                         {resolveServiceType(selectedBooking)}
                       </div>
                     </div>
                   </div>
 
-                  {/* Venue Location Row */}
-                  <div className="flex items-start gap-3 text-xs">
-                    <MapPin className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 text-xs">
+                    <MapPin className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-slate-400 font-semibold text-[11px]">Venue</div>
-                      <div className="font-bold text-slate-800 mt-0.5">
+                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Venue</div>
+                      <div className="font-bold text-slate-800">
                         {[selectedBooking.municipality, selectedBooking.province].filter(Boolean).join(", ") || selectedBooking.venue_address || "Location TBD"}
                       </div>
                     </div>
                   </div>
 
-                  {/* Package Row */}
-                  <div className="flex items-start gap-3 text-xs">
-                    <Package className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 text-xs">
+                    <Package className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-slate-400 font-semibold text-[11px]">Package</div>
-                      <div className="font-bold text-slate-800 mt-0.5">
+                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Package</div>
+                      <div className="font-bold text-slate-800">
                         {selectedBooking.package_name || selectedBooking.package_id?.name || "Custom Event Package"}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Surface-Level NEXT STEP Callout Box */}
-                <div className="bg-blue-50/80 border border-blue-100/90 rounded-xl p-4 flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-full bg-[#2C4B8A] text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                    <ArrowRight className="w-4 h-4" />
+                {/* Compact Next Step Callout Box */}
+                <div className="bg-blue-50/80 border border-blue-100/90 rounded-lg p-3 flex items-start gap-2.5 text-xs">
+                  <div className="w-7 h-7 rounded-full bg-[#2C4B8A] text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </div>
                   <div>
                     <h4 className="font-bold text-[#1E3563] text-xs">Next step</h4>
@@ -733,11 +722,11 @@ export default function CustomerBookings() {
                   </div>
                 </div>
 
-                {/* Bottom Full-Width "View Full Details >" Button */}
+                {/* Bottom Full-Width "View Full Details >" Button - VISIBLE ABOVE THE FOLD */}
                 <Button
                   variant="outline"
                   onClick={() => navigate(`/customer/bookings/${selectedBooking._id}`)}
-                  className="w-full border-slate-200 hover:bg-slate-50 text-[#1E3563] font-bold text-xs h-10 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+                  className="w-full border-slate-200 hover:bg-slate-50 text-[#1E3563] font-bold text-xs h-9 rounded-lg cursor-pointer shadow-2xs gap-1.5 shrink-0"
                 >
                   <span>View full details</span>
                   <ChevronRight className="w-4 h-4 text-[#1E3563]" />

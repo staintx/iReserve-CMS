@@ -134,8 +134,14 @@
   body.booking-flow h3,
   body.booking-flow h4,
   body.booking-flow h5,
-  body.booking-flow h6 {
-    font-family: var(--font-sans);
+  body.booking-flow h6,
+  .customer-shell h1,
+  .customer-shell h2,
+  .customer-shell h3,
+  .customer-shell h4,
+  .customer-shell h5,
+  .customer-shell h6 {
+    font-family: var(--font-sans) !important;
     letter-spacing: -0.01em;
   }
 

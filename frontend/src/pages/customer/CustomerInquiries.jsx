@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
-import { createConversation } from "../../api/messages";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import CustomerQuotationModal from "../../components/customer/CustomerQuotationModal";
 import CustomerInquiryEditModal from "../../components/customer/CustomerInquiryEditModal";
-import CustomerInquiryDetailModal from "../../components/customer/CustomerInquiryDetailModal";
+import { getEventThumbnail } from "../../utils/eventThumbnails";
 import { Button } from "../../components/ui/button";
 import {
   Dialog,
@@ -18,33 +17,42 @@ import {
   DialogFooter,
 } from "../../components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+} from "../../components/ui/dropdown-menu";
+import {
   inquiryStatusGroup,
   inquiryStatusMeta,
   recordTitle,
   resolveServiceType,
-  serviceIcon,
 } from "../../components/customer/portal/statusMeta";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatEventDateTime, formatShortDate } from "../../utils/format";
+import { formatEventDateWithDay, formatShortDate } from "../../utils/format";
 import {
   FileText,
-  MessageSquare,
-  ArrowRight,
   Plus,
-  Eye,
   CreditCard,
   FileCheck2,
   XCircle,
-  Pencil,
   Clock,
   CheckCircle2,
   MapPin,
   Users,
   Calendar,
-  Sparkles,
   Search,
   ChevronRight,
-  AlertCircle,
+  Utensils,
+  ArrowLeft,
+  ChevronDown,
+  ArrowRight,
+  Package,
+  Check,
+  SlidersHorizontal,
+  Eye,
+  Pencil,
 } from "lucide-react";
 
 const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
@@ -52,16 +60,22 @@ const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
 export default function CustomerInquiries() {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams();
   const { notify } = useToast();
 
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Search, Filter, Sort State
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusTab, setStatusTab] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+
+  // Mobile View Toggle: 'list' | 'detail'
+  const [mobileView, setMobileView] = useState("list");
 
   // Modal State for viewing Quotation
-  const [selectedInquiryForModal, setSelectedInquiryForModal] = useState(null);
   const [activeQuotation, setActiveQuotation] = useState(null);
   const [quotationVersions, setQuotationVersions] = useState([]);
   const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
@@ -73,31 +87,25 @@ export default function CustomerInquiries() {
 
   // Edit Details Modal State
   const [editingInquiry, setEditingInquiry] = useState(null);
-  const [loadingEditInquiryId, setLoadingEditInquiryId] = useState(null);
 
-  // Full Details Modal State
-  const [viewingFullInquiry, setViewingFullInquiry] = useState(null);
-
-  // Track selected inquiry for desktop right detail pane
-  const [selectedInquiryId, setSelectedInquiryId] = useState(null);
+  // Selected inquiry ID for overview panel
+  const [selectedInquiryId, setSelectedInquiryId] = useState(params.id || null);
 
   const openEditModal = async (inq) => {
+    if (!inq?._id) return;
     try {
-      setLoadingEditInquiryId(inq._id);
       const res = await CustomerAPI.getInquiryById(inq._id);
       setEditingInquiry(res.data);
     } catch (err) {
       notify(err.response?.data?.message || "Failed to load your request details.", "error");
-    } finally {
-      setLoadingEditInquiryId(null);
     }
   };
 
   const fetchInquiries = async () => {
     try {
       setLoading(true);
-      const res = await CustomerAPI.getInquiries();
-      setInquiries(res.data || []);
+      const inqRes = await CustomerAPI.getInquiries();
+      setInquiries(inqRes.data || []);
     } catch (err) {
       notify("Failed to load inquiries.", "error");
       setInquiries([]);
@@ -110,13 +118,28 @@ export default function CustomerInquiries() {
     fetchInquiries();
   }, []);
 
+  // Handle URL parameters for deep-linking
+  useEffect(() => {
+    if (params.id) {
+      setSelectedInquiryId(params.id);
+      setMobileView("detail");
+    }
+    const isEditRoute = location.pathname.includes("/edit");
+    if (isEditRoute && params.id) {
+      const match = inquiries.find((i) => i._id === params.id);
+      if (match) {
+        openEditModal(match);
+      }
+    }
+  }, [params.id, location.pathname, inquiries]);
+
   const verifyingPaymentRef = useRef(new Set());
 
   // Automatic real-time confirmation on return from PayMongo checkout
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const paymentStatus = params.get("payment");
-    const paymentId = params.get("payment_id");
+    const searchParams = new URLSearchParams(location.search);
+    const paymentStatus = searchParams.get("payment");
+    const paymentId = searchParams.get("payment_id");
 
     if (paymentStatus === "success" && paymentId) {
       if (verifyingPaymentRef.current.has(paymentId)) return;
@@ -125,13 +148,12 @@ export default function CustomerInquiries() {
       const toastId = `payment-verify-${paymentId}`;
       const verify = async () => {
         try {
-          notify("Confirming your payment with the payment gateway...", "info", { id: toastId });
+          notify("Confirming your payment with gateway...", "info", { id: toastId });
           await CustomerAPI.verifyPayment(paymentId);
-          notify("Deposit payment confirmed in real time! Your booking is locked.", "success", { id: toastId });
+          notify("Deposit payment confirmed! Your booking is locked.", "success", { id: toastId });
           fetchInquiries();
         } catch (err) {
-          console.error("Payment auto-verification error:", err);
-          notify(err.response?.data?.message || "Failed to confirm payment with gateway.", "error", { id: toastId });
+          notify(err.response?.data?.message || "Failed to confirm payment.", "error", { id: toastId });
           fetchInquiries();
         }
       };
@@ -149,61 +171,48 @@ export default function CustomerInquiries() {
 
   useRealTimeRefresh(fetchInquiries);
 
-  const isRecentInquiry = (inq) => {
-    if (!inq.createdAt && !inq.updatedAt) return false;
-    const t = new Date(inq.createdAt || inq.updatedAt).getTime();
-    return Date.now() - t <= 7 * 24 * 60 * 60 * 1000;
-  };
-
-  const counts = useMemo(
-    () => ({
-      all: inquiries.length,
-      recent: inquiries.filter(isRecentInquiry).length,
-      quote_ready: inquiries.filter((i) => inquiryStatusGroup(i) === "quote_ready").length,
-      under_review: inquiries.filter((i) => inquiryStatusGroup(i) === "under_review").length,
-      accepted: inquiries.filter((i) => inquiryStatusGroup(i) === "accepted").length,
-      closed: inquiries.filter((i) => inquiryStatusGroup(i) === "closed").length,
-    }),
-    [inquiries]
-  );
-
-  // Filtered list
+  // Filtered & Sorted Inquiries
   const filteredInquiries = useMemo(() => {
-    const list = inquiries.filter((inq) => {
-      // 1. Status Filter
-      if (statusTab === "recent") {
-        if (!isRecentInquiry(inq)) return false;
-      } else if (statusTab !== "all" && inquiryStatusGroup(inq) !== statusTab) {
-        return false;
-      }
+    return inquiries
+      .filter((inq) => {
+        if (statusFilter !== "all" && inquiryStatusGroup(inq) !== statusFilter) {
+          return false;
+        }
+        if (serviceTypeFilter !== "all" && resolveServiceType(inq) !== serviceTypeFilter) {
+          return false;
+        }
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const ref = (inq.reference || "").toLowerCase();
+          const type = (inq.event_type || "").toLowerCase();
+          const name = `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.toLowerCase();
+          const city = (inq.municipality || inq.province || "").toLowerCase();
 
-      // 2. Service Type Filter
-      if (serviceTypeFilter !== "all" && resolveServiceType(inq) !== serviceTypeFilter) return false;
+          return ref.includes(q) || type.includes(q) || name.includes(q) || city.includes(q);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "oldest") {
+          const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+          const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+          return timeA - timeB;
+        }
+        if (sortBy === "date") {
+          const timeA = new Date(a.event_date || 0).getTime();
+          const timeB = new Date(b.event_date || 0).getTime();
+          return timeA - timeB;
+        }
+        // Default: newest
+        const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+        const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+        return timeB - timeA;
+      });
+  }, [inquiries, statusFilter, serviceTypeFilter, searchQuery, sortBy]);
 
-      // 3. Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const ref = (inq.reference || "").toLowerCase();
-        const type = (inq.event_type || "").toLowerCase();
-        const name = `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.toLowerCase();
-        const city = (inq.municipality || inq.province || "").toLowerCase();
+  const isFiltered = Boolean(searchQuery.trim()) || statusFilter !== "all" || serviceTypeFilter !== "all";
 
-        return ref.includes(q) || type.includes(q) || name.includes(q) || city.includes(q);
-      }
-
-      return true;
-    });
-
-    return list.sort((a, b) => {
-      const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
-      const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
-      return timeB - timeA;
-    });
-  }, [inquiries, statusTab, serviceTypeFilter, searchQuery]);
-
-  const isFiltered = Boolean(searchQuery.trim()) || statusTab !== "all" || serviceTypeFilter !== "all";
-
-  // Synchronize selection for desktop detail pane
+  // Auto-select first inquiry for desktop detail pane
   useEffect(() => {
     if (filteredInquiries.length > 0) {
       if (!selectedInquiryId || !filteredInquiries.some((i) => i._id === selectedInquiryId)) {
@@ -218,11 +227,15 @@ export default function CustomerInquiries() {
     return inquiries.find((i) => i._id === selectedInquiryId) || filteredInquiries[0] || null;
   }, [inquiries, filteredInquiries, selectedInquiryId]);
 
+  const handleSelectInquiry = (id) => {
+    setSelectedInquiryId(id);
+    setMobileView("detail");
+  };
+
   // Open Quotation Modal
   const openQuotationView = async (inquiry) => {
     try {
       setIsLoadingQuotation(true);
-      setSelectedInquiryForModal(inquiry);
       const res = await CustomerAPI.getQuotationsForInquiry(inquiry._id);
       const quotes = res.data || [];
       if (quotes.length > 0) {
@@ -239,25 +252,14 @@ export default function CustomerInquiries() {
     }
   };
 
-  // Open Chat
-  const handleOpenChat = async (inquiryId) => {
-    try {
-      const conversation = await createConversation({ inquiry_id: inquiryId });
-      navigate(`/customer/messages/${conversation._id}`);
-    } catch (err) {
-      notify("Could not initiate chat at this moment.", "error");
-    }
-  };
-
-  // Start Inquiry Deposit Checkout
+  // Start Deposit Checkout
   const startInquiryCheckout = async (inq) => {
     try {
       const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
       const isDepositPaid =
         inq.payment_status === "deposit_paid" ||
         inq.payment_status === "fully_paid" ||
-        inq.is_deposit_paid === true ||
-        ["confirmed", "deposit_paid"].includes((inq.status || "").toLowerCase());
+        inq.is_deposit_paid === true;
 
       if (isConverted || isDepositPaid) {
         notify("The deposit payment for this inquiry has already been completed.", "info");
@@ -288,7 +290,7 @@ export default function CustomerInquiries() {
       });
 
       if (checkoutRes.data?.checkout_url) {
-        notify("Redirecting to PayMongo payment checkout...", "success");
+        notify("Redirecting to PayMongo checkout...", "success");
         window.location.assign(checkoutRes.data.checkout_url);
       } else {
         notify("Could not generate payment checkout URL.", "error");
@@ -298,7 +300,7 @@ export default function CustomerInquiries() {
     }
   };
 
-  // Handle Cancel Inquiry
+  // Cancel Inquiry Handler
   const handleCancelInquiry = async () => {
     if (!cancellingInquiry) return;
     try {
@@ -314,1023 +316,605 @@ export default function CustomerInquiries() {
     }
   };
 
-  // Helper to compute milestone steps
-  const getMilestoneSteps = (inq) => {
+  // Modern Compact Status Pill without Dot
+  const renderStatusBadge = (inq) => {
+    const meta = inquiryStatusMeta(inq);
+    let badgeClass = "bg-blue-50 text-blue-700 border-blue-200/90";
+
+    if (meta.tone === "warning") {
+      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/90";
+    } else if (meta.tone === "success") {
+      badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/90";
+    } else if (meta.tone === "danger") {
+      badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
+    }
+
+    return (
+      <span className={cn("px-2.5 py-1 rounded-md text-xs font-semibold border tracking-tight inline-flex items-center shadow-2xs whitespace-nowrap shrink-0", badgeClass)}>
+        {meta.label}
+      </span>
+    );
+  };
+
+  // Dynamic Card Action Button renderer with explicit icons
+  const renderCardActionButton = (inq, isSelected) => {
+    const isQuotationSent = inq.status === "Quotation Sent";
     const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
     const isDepositPaid =
       inq.payment_status === "deposit_paid" ||
       inq.payment_status === "fully_paid" ||
       inq.is_deposit_paid === true;
-    const isQuotationSent =
-      ["Quotation Sent", "Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) ||
-      isConverted ||
-      isDepositPaid;
-    const isUnderReview =
-      ["Under Review", "Pending Review"].includes(inq.status) || isQuotationSent;
-    const isCancelled = ["Cancelled", "Quote Rejected", "Expired"].includes(inq.status);
 
-    let activeStepNum = 1;
-    let activeStepLabel = "Request Submitted";
+    if (isQuotationSent) {
+      return (
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            openQuotationView(inq);
+          }}
+          className="bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer shadow-2xs gap-1.5"
+        >
+          <FileCheck2 className="w-3.5 h-3.5" />
+          <span>Review quotation</span>
+        </Button>
+      );
+    }
+
+    if (inq.total_price > 0 && !isConverted && !isDepositPaid && !["Cancelled", "Quote Rejected"].includes(inq.status)) {
+      return (
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            startInquiryCheckout(inq);
+          }}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer shadow-2xs gap-1.5"
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Pay Deposit</span>
+        </Button>
+      );
+    }
 
     if (isConverted || isDepositPaid) {
-      activeStepNum = 4;
-      activeStepLabel = "Booking Confirmed";
-    } else if (isQuotationSent) {
-      activeStepNum = 3;
-      activeStepLabel = "Quotation Ready";
-    } else if (inq.status === "Under Review") {
-      activeStepNum = 2;
-      activeStepLabel = "Review & Pricing";
-    } else if (inq.status === "Pending Review") {
-      activeStepNum = 1;
-      activeStepLabel = "Request Submitted";
-    }
-
-    const steps = [
-      { id: 1, label: "Request Submitted", done: true, current: activeStepNum === 1 },
-      {
-        id: 2,
-        label: "Review & Pricing",
-        done: isUnderReview && inq.status !== "Pending Review",
-        current: activeStepNum === 2,
-      },
-      {
-        id: 3,
-        label: "Quotation Ready",
-        done: isQuotationSent && !["Pending Review", "Under Review"].includes(inq.status),
-        current: activeStepNum === 3,
-      },
-      {
-        id: 4,
-        label: "Booking Confirmed",
-        done: isConverted || isDepositPaid,
-        current: activeStepNum === 4,
-      },
-    ];
-
-    return { steps, isCancelled, activeStepNum, activeStepLabel };
-  };
-
-  // Milestone Stepper for Desktop
-  const renderDesktopMilestone = (inq) => {
-    const { steps, isCancelled } = getMilestoneSteps(inq);
-
-    if (isCancelled) {
       return (
-        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-800 flex items-center gap-2.5 shadow-2xs">
-          <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>
-            This inquiry has been <strong>cancelled</strong>. You can submit a new quote request anytime.
-          </span>
-        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (inq.converted_booking_id) {
+              navigate(`/customer/bookings/${inq.converted_booking_id}`);
+            } else {
+              navigate("/customer/bookings");
+            }
+          }}
+          className="border-slate-200 text-[#2C4B8A] hover:bg-blue-50 font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer gap-1.5"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>View booking</span>
+        </Button>
       );
     }
 
     return (
-      <div className="p-4 bg-white border border-slate-200 rounded-md shadow-2xs">
-        <div className="flex items-center justify-between relative px-2">
-          <div className="absolute left-6 right-6 top-3.5 h-0.5 bg-slate-200 -z-0" />
-          {steps.map((step) => {
-            const isCompleted = step.done && !step.current;
-            const isActive = step.current;
-
-            return (
-              <div key={step.id} className="relative z-10 flex flex-col items-center text-center">
-                <div
-                  className={cn(
-                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all border",
-                    isCompleted
-                      ? "bg-emerald-600 border-emerald-600 text-white shadow-2xs"
-                      : isActive
-                      ? "bg-[#2C4B8A] border-[#2C4B8A] text-white ring-4 ring-[#2C4B8A]/15 shadow-2xs"
-                      : "bg-white border-slate-300 text-slate-400"
-                  )}
-                >
-                  {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : step.id}
-                </div>
-                <span
-                  className={cn(
-                    "text-[11px] mt-1.5 font-medium whitespace-nowrap",
-                    isActive
-                      ? "text-slate-900 font-bold"
-                      : isCompleted
-                      ? "text-slate-700 font-semibold"
-                      : "text-slate-400"
-                  )}
-                >
-                  {step.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <Button
+        size="sm"
+        variant={isSelected ? "default" : "outline"}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleSelectInquiry(inq._id);
+        }}
+        className={cn(
+          "font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer transition-all gap-1.5",
+          isSelected
+            ? "bg-[#1E3563] hover:bg-[#152547] text-white shadow-2xs"
+            : "border-slate-200 text-slate-700 hover:bg-slate-50 bg-white"
+        )}
+      >
+        <Eye className="w-3.5 h-3.5" />
+        <span>View inquiry</span>
+      </Button>
     );
   };
 
-  // Milestone Progress Bar for Mobile Cards
-  const renderMobileMilestone = (inq) => {
-    const { isCancelled, activeStepNum, activeStepLabel } = getMilestoneSteps(inq);
-
-    if (isCancelled) {
-      return (
-        <div className="py-1 px-2.5 bg-rose-50 border border-rose-200/80 rounded-md text-[11px] text-rose-800 flex items-center gap-1.5">
-          <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-          <span>Request Cancelled</span>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-slate-500 font-medium">Stage {activeStepNum} of 4</span>
-          <span className="font-semibold text-slate-800 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2C4B8A]" />
-            {activeStepLabel}
-          </span>
-        </div>
-        {/* 4 Segment Progress Track */}
-        <div className="grid grid-cols-4 gap-1 h-1.5 w-full">
-          {[1, 2, 3, 4].map((step) => {
-            const isFilled = step <= activeStepNum;
-            const isCompleted = step < activeStepNum;
-            return (
-              <div
-                key={step}
-                className={cn(
-                  "h-full rounded-xs transition-all",
-                  isCompleted
-                    ? "bg-emerald-600"
-                    : isFilled
-                    ? "bg-[#2C4B8A]"
-                    : "bg-slate-200"
-                )}
-              />
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  const selectedMeta = useMemo(() => inquiryStatusMeta(selectedInquiry), [selectedInquiry]);
 
   return (
     <CustomerDashboardLayout fullBleed>
-      <div className="h-[calc(100vh-3.5rem)] w-full bg-slate-50 flex flex-col font-sans antialiased overflow-hidden">
-        {/* TOP APP BAR / TOOLBAR */}
-        <div className="shrink-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 space-y-2.5 shadow-2xs">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <h1 className="font-sans font-bold text-base sm:text-lg text-slate-900 leading-tight truncate">
+      <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
+        {/* RESTORED MAIN PAGE TITLE & TOP CONTROL BAR */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 space-y-3 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">
                 My Inquiries
               </h1>
-              {counts.all > 0 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 font-mono border border-slate-200">
-                  {counts.all}
-                </span>
-              )}
-              {counts.quote_ready > 0 && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
-                  <FileCheck2 className="w-3.5 h-3.5 text-emerald-600" />
-                  {counts.quote_ready} quote ready
-                </span>
-              )}
+              <p className="text-xs text-slate-500 mt-0.5">
+                View and manage your event inquiries, track request status, and review official quotations.
+              </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Filter Controls & Sort */}
+            <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
+              {/* Search Bar */}
+              <div className="relative flex-1 sm:w-64">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by event name or reference..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-1.5 bg-slate-50 focus:bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-lg border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-8 sm:h-9 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span>
+                      {statusFilter === "all"
+                        ? "All inquiries"
+                        : statusFilter === "under_review"
+                        ? "Under Review"
+                        : statusFilter === "quote_ready"
+                        ? "Quotation Ready"
+                        : statusFilter === "accepted"
+                        ? "Accepted"
+                        : "Closed"}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    Filter Status
+                  </DropdownMenuLabel>
+                  {[
+                    { id: "all", label: "All inquiries" },
+                    { id: "under_review", label: "Under Review" },
+                    { id: "quote_ready", label: "Quotation Ready" },
+                    { id: "accepted", label: "Accepted" },
+                    { id: "closed", label: "Closed" },
+                  ].map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => setStatusFilter(item.id)}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                      {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Service Type Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-8 sm:h-9 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                      serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                    )}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                    <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    Filter Service Type
+                  </DropdownMenuLabel>
+                  {[
+                    { id: "all", label: "All Services" },
+                    ...SERVICE_TYPES.map((t) => ({ id: t, label: t })),
+                  ].map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => setServiceTypeFilter(item.id)}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        serviceTypeFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                      {serviceTypeFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Sort Order */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-8 sm:h-9 border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span>
+                      {sortBy === "newest"
+                        ? "Newest first"
+                        : sortBy === "oldest"
+                        ? "Oldest first"
+                        : "Event date"}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    Sort Order
+                  </DropdownMenuLabel>
+                  {[
+                    { id: "newest", label: "Newest first" },
+                    { id: "oldest", label: "Oldest first" },
+                    { id: "date", label: "Event date" },
+                  ].map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => setSortBy(item.id)}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                      {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Submit New Request Button */}
               <Button
                 onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-md font-semibold text-xs h-8 sm:h-9 px-3 sm:px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+                className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-lg font-semibold text-xs h-8 sm:h-9 px-3.5 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
               >
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 <span>New Request</span>
               </Button>
             </div>
           </div>
-
-          {/* Search & Service Filter Row */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                placeholder="Search by event, reference, venue..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 bg-slate-100/90 focus:bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200 focus:border-[#2C4B8A]/40 focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Service filter selector */}
-            <div className="shrink-0">
-              <select
-                value={serviceTypeFilter}
-                onChange={(e) => setServiceTypeFilter(e.target.value)}
-                className="bg-slate-100/90 focus:bg-white border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-700 font-medium outline-none cursor-pointer"
-              >
-                <option value="all">All Services</option>
-                {SERVICE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
         </div>
 
-        {/* STATUS FILTER SEGMENTS BAR */}
-        <div className="shrink-0 px-4 sm:px-6 py-2 bg-white border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-          {[
-            { id: "all", label: "All", count: counts.all },
-            { id: "quote_ready", label: "Quote Ready", count: counts.quote_ready, badgeTone: "emerald" },
-            { id: "under_review", label: "Under Review", count: counts.under_review },
-            { id: "accepted", label: "Accepted", count: counts.accepted },
-            { id: "closed", label: "Closed", count: counts.closed },
-          ].map((tab) => {
-            const isActive = statusTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setStatusTab(tab.id)}
-                className={cn(
-                  "py-1 px-2.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap text-center cursor-pointer flex items-center gap-1.5 shrink-0",
-                  isActive
-                    ? "bg-[#2C4B8A] text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60"
-                )}
-              >
-                <span>{tab.label}</span>
-                <span
-                  className={cn(
-                    "text-[10px] font-mono px-1 py-0.2 rounded",
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : tab.badgeTone === "emerald" && tab.count > 0
-                      ? "bg-emerald-100 text-emerald-800 font-bold"
-                      : "bg-white text-slate-600 border border-slate-200/60"
-                  )}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* WORKSPACE AREA: DUAL ADAPTIVE (Mobile Card Feed vs Desktop Master-Detail) */}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row">
-          {/* ============================================================ */}
-          {/* MOBILE VIEW (< md): Mobile Cards List */}
-          {/* ============================================================ */}
-          <div className="md:hidden flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 [scrollbar-width:thin]">
-            {/* Quote Alert Banner on Mobile */}
-            {counts.quote_ready > 0 && statusTab !== "quote_ready" && (
-              <div
-                onClick={() => setStatusTab("quote_ready")}
-                className="p-3 bg-emerald-50 border border-emerald-200 rounded-md flex items-center justify-between text-xs text-emerald-900 cursor-pointer shadow-2xs active:bg-emerald-100/80 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileCheck2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="truncate">
-                    <strong>{counts.quote_ready} quote{counts.quote_ready > 1 ? "s" : ""}</strong> ready for your review!
-                  </span>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-700 flex items-center shrink-0">
-                  View <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-                </span>
-              </div>
+        {/* WORKSPACE DUAL-PANE AREA - FULL CONTENT WIDTH */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row p-6 gap-6 w-full">
+          {/* LEFT SECTION: WIDER SCANNABLE INQUIRIES LIST (12-Column Grid Row Alignment) */}
+          <div
+            className={cn(
+              "flex-1 bg-white border border-slate-200/90 rounded-xl flex flex-col min-h-0 overflow-hidden shadow-2xs",
+              mobileView === "detail" ? "hidden md:flex" : "flex"
             )}
-
-            {loading ? (
-              <div className="p-12 text-center text-xs text-slate-400 animate-pulse">
-                Loading your inquiries...
-              </div>
-            ) : filteredInquiries.length === 0 ? (
-              <div className="p-8 text-center bg-white rounded-md border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
-                <FileText className="w-10 h-10 text-slate-300 mb-2" />
-                <h3 className="text-sm font-bold text-slate-800">No quote requests found</h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
-                  {isFiltered
-                    ? "Try clearing filters or search term to see other inquiries."
-                    : "Ready to celebrate? Submit a new event inquiry to get started."}
-                </p>
-                {isFiltered ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setStatusTab("all");
-                      setServiceTypeFilter("all");
-                    }}
-                    className="mt-4 text-xs font-semibold rounded-md"
-                  >
-                    Clear all filters
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                    className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-md"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Submit Quote Request
-                  </Button>
-                )}
-              </div>
-            ) : (
-              filteredInquiries.map((inq) => {
-                const status = inquiryStatusMeta(inq);
-                const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
-                const locationStr =
-                  inq.municipality || inq.province || inq.venue_type || "Location TBD";
-                const isQuotationReady = inq.status === "Quotation Sent";
-                const isConverted =
-                  inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
-                const ServiceIcon = serviceIcon(resolveServiceType(inq));
-
-                return (
-                  <article
-                    key={inq._id}
-                    className="bg-white border border-slate-200 rounded-md p-4 shadow-2xs space-y-3 transition-all hover:border-slate-300"
-                  >
-                    {/* Top Row: Ref, Date, Status */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          {refCode}
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          {formatShortDate(inq.createdAt || inq.event_date)}
-                        </span>
-                      </div>
-
-                      <span
-                        className={cn(
-                          "text-[10px] px-2 py-0.5 rounded font-bold font-mono tracking-wide border flex items-center gap-1",
-                          status.tone === "info" && "bg-blue-50 text-blue-700 border-blue-200",
-                          status.tone === "warning" &&
-                            "bg-amber-50 text-amber-800 border-amber-200",
-                          status.tone === "success" &&
-                            "bg-emerald-50 text-emerald-800 border-emerald-200",
-                          status.tone === "neutral" &&
-                            "bg-slate-100 text-slate-600 border-slate-200",
-                          status.tone === "danger" && "bg-rose-50 text-rose-700 border-rose-200"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "w-1.5 h-1.5 rounded-full",
-                            status.tone === "info" && "bg-blue-600",
-                            status.tone === "warning" && "bg-amber-600",
-                            status.tone === "success" && "bg-emerald-600",
-                            status.tone === "neutral" && "bg-slate-400",
-                            status.tone === "danger" && "bg-rose-600"
-                          )}
-                        />
-                        {status.label}
-                      </span>
-                    </div>
-
-                    {/* Event Title & Service */}
-                    <div>
-                      <h2 className="font-sans font-bold text-base text-slate-900 leading-snug">
-                        {recordTitle(inq)}
-                      </h2>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
-                        <ServiceIcon className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />
-                        <span>{resolveServiceType(inq)}</span>
-                      </div>
-                    </div>
-
-                    {/* Key Specifications Chips */}
-                    <div className="grid grid-cols-3 gap-2 bg-slate-50/80 p-2.5 rounded-md border border-slate-200/80 text-xs">
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-slate-400 uppercase font-semibold block truncate">
-                          Event Date
-                        </span>
-                        <span className="font-semibold text-slate-800 text-[11px] truncate block mt-0.5">
-                          {formatShortDate(inq.event_date)}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-slate-400 uppercase font-semibold block truncate">
-                          Guests
-                        </span>
-                        <span className="font-semibold text-slate-800 text-[11px] truncate block mt-0.5">
-                          {inq.guest_count ? `${inq.guest_count} pax` : "TBD"}
-                        </span>
-                      </div>
-
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-slate-400 uppercase font-semibold block truncate">
-                          Location
-                        </span>
-                        <span className="font-semibold text-slate-800 text-[11px] truncate block mt-0.5">
-                          {locationStr}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Pricing / Stage Callout Box */}
-                    {isQuotationReady ? (
-                      <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-md space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-emerald-800">
-                            Quotation Prepared
-                          </span>
-                          <span className="font-mono text-sm font-bold text-emerald-900">
-                            {formatCurrency(inq.total_price)}
-                          </span>
-                        </div>
-                        <Button
-                          onClick={() => openQuotationView(inq)}
-                          disabled={isLoadingQuotation}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold text-xs h-9 cursor-pointer shadow-xs gap-1.5"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> Review &amp; Accept Quote
-                        </Button>
-                      </div>
-                    ) : isConverted ? (
-                      <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-md flex items-center justify-between gap-2">
-                        <div>
-                          <span className="text-xs font-bold text-blue-900 block">
-                            Event Reserved &amp; Confirmed
-                          </span>
-                          <span className="text-[11px] text-blue-700">Track under My Bookings</span>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => navigate(`/customer/bookings/${inq.converted_booking_id}`)}
-                          className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white rounded-md text-xs font-semibold h-8 shrink-0"
-                        >
-                          View Booking <ArrowRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      </div>
-                    ) : inq.total_price > 0 && !["Cancelled", "Quote Rejected"].includes(inq.status) ? (
-                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] text-slate-400 block uppercase font-bold">
-                            Total Quoted
-                          </span>
-                          <span className="font-mono font-bold text-xs text-slate-900">
-                            {formatCurrency(inq.total_price)}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => startInquiryCheckout(inq)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-semibold h-8"
-                        >
-                          <CreditCard className="w-3 h-3 mr-1" /> Pay Deposit
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-medium">Estimated Budget</span>
-                        <span className="font-mono font-bold text-slate-800">
-                          {inq.budget_range ? inq.budget_range : "Awaiting Quote"}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Milestone Progress Stepper */}
-                    {renderMobileMilestone(inq)}
-
-                    {/* Card Actions Footer */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setViewingFullInquiry(inq)}
-                          className="rounded-md border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-8 px-2.5 shadow-2xs gap-1 cursor-pointer"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                          <span>Full Details</span>
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenChat(inq._id)}
-                          className="rounded-md border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold h-8 px-2.5 shadow-2xs gap-1 cursor-pointer"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Chat</span>
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        {["Pending Review", "Under Review"].includes(inq.status) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditModal(inq)}
-                            disabled={loadingEditInquiryId === inq._id}
-                            className="rounded-md text-slate-600 hover:text-slate-900 text-xs font-semibold h-8 px-2 cursor-pointer"
-                          >
-                            <Pencil className="w-3.5 h-3.5 mr-1" />
-                            {loadingEditInquiryId === inq._id ? "..." : "Edit"}
-                          </Button>
-                        )}
-                        {["Pending Review", "Under Review"].includes(inq.status) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCancellingInquiry(inq)}
-                            className="rounded-md text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold h-8 px-2 cursor-pointer"
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-
-          {/* ============================================================ */}
-          {/* DESKTOP VIEW (>= md): Master-Detail 2-Column Split */}
-          {/* ============================================================ */}
-          <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
-            {/* LEFT COLUMN: Master Inquiry List */}
-            <div className="w-80 lg:w-96 border-r border-slate-200 bg-white flex flex-col shrink-0 min-h-0 overflow-y-auto divide-y divide-slate-100 [scrollbar-width:thin]">
+          >
+            {/* Inquiry Cards List Container */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 [scrollbar-width:thin]">
               {loading ? (
                 <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
                   Loading inquiries...
                 </div>
               ) : filteredInquiries.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 flex flex-col items-center">
-                  <FileText className="w-8 h-8 opacity-25 mb-2" />
-                  <p className="text-xs font-semibold text-slate-700">No quote requests found</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Try selecting a different filter.</p>
+                <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4">
+                  <FileText className="w-10 h-10 text-slate-300 mb-2" />
+                  <h3 className="text-sm font-bold text-slate-800 font-sans">No inquiries found</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
+                    {isFiltered
+                      ? "Try clearing active search or filters to see other inquiries."
+                      : "Ready to celebrate? Submit a new event inquiry to get started."}
+                  </p>
+                  {isFiltered ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setStatusFilter("all");
+                        setServiceTypeFilter("all");
+                      }}
+                      className="mt-4 text-xs font-semibold rounded-lg border-slate-200"
+                    >
+                      Clear all filters
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                      className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-lg"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Submit Quote Request
+                    </Button>
+                  )}
                 </div>
               ) : (
                 filteredInquiries.map((inq) => {
                   const isSelected = inq._id === selectedInquiryId;
-                  const status = inquiryStatusMeta(inq);
                   const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
-                  const locationStr =
-                    inq.municipality || inq.province || inq.venue_type || "Location TBD";
-                  const isQuotationReady = inq.status === "Quotation Sent";
-                  const isConverted =
-                    inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
+                  const thumbnail = getEventThumbnail(inq);
+                  const titleStr = recordTitle(inq);
+                  const meta = inquiryStatusMeta(inq);
+                  const locationStr = [inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_address || "Location TBD";
 
                   return (
                     <div
                       key={inq._id}
-                      onClick={() => setSelectedInquiryId(inq._id)}
+                      onClick={() => handleSelectInquiry(inq._id)}
                       className={cn(
-                        "p-4 cursor-pointer transition-colors text-left relative",
+                        "p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs",
                         isSelected
-                          ? "bg-slate-100/90 border-l-3 border-[#2C4B8A] text-slate-900"
-                          : "hover:bg-slate-50/80 text-slate-700"
+                          ? "bg-[#F4F7FC] border-l-4 border-l-[#2C4B8A] border-y border-r border-slate-300/90"
+                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/50"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={cn(
-                            "text-[10px] px-2 py-0.5 rounded font-semibold font-mono tracking-wide border",
-                            status.tone === "info" && "bg-blue-50 text-blue-700 border-blue-200",
-                            status.tone === "warning" &&
-                              "bg-amber-50 text-amber-800 border-amber-200",
-                            status.tone === "success" &&
-                              "bg-emerald-50 text-emerald-800 border-emerald-200",
-                            status.tone === "neutral" &&
-                              "bg-slate-100 text-slate-600 border-slate-200",
-                            status.tone === "danger" && "bg-rose-50 text-rose-700 border-rose-200"
+                      {/* STRICT 12-COLUMN GRID ALIGNMENT */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                        {/* Cols 1-5: Thumbnail Image & Core Event Specs */}
+                        <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
+                          {thumbnail ? (
+                            <img
+                              src={thumbnail}
+                              alt={titleStr}
+                              className="w-16 h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
+                              <Utensils className="w-7 h-7 opacity-80" />
+                            </div>
                           )}
-                        >
-                          {status.label}
-                        </span>
 
-                        <span className="text-xs font-bold text-slate-900 font-mono">
-                          {inq.total_price > 0
-                            ? formatCurrency(inq.total_price)
-                            : inq.budget_range
-                            ? inq.budget_range
-                            : isQuotationReady
-                            ? "Quote Ready"
-                            : "Pending Quote"}
-                        </span>
-                      </div>
+                          <div className="min-w-0 space-y-1">
+                            <h3 className="font-bold text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
+                              {titleStr}
+                            </h3>
 
-                      <h3 className="font-bold text-sm text-slate-900 truncate mt-2 font-sans">
-                        {recordTitle(inq)}
-                      </h3>
+                            <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                {resolveServiceType(inq)}
+                              </span>
+                              <span>•</span>
+                              <span>{formatShortDate(inq.event_date)}</span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5 text-slate-400" />
+                                {inq.guest_count ? `${inq.guest_count} guests` : "Guests TBD"}
+                              </span>
+                            </div>
 
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
-                        <span>{formatShortDate(inq.event_date)}</span>
-                        <span>·</span>
-                        <span>{inq.guest_count ? `${inq.guest_count} guests` : "Headcount TBD"}</span>
-                        <span>·</span>
-                        <span className="truncate">{locationStr}</span>
-                      </div>
+                            <div className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{locationStr}</span>
+                            </div>
 
-                      <div className="flex items-center justify-between mt-2.5 pt-1.5 border-t border-slate-100/80 text-[11px] text-slate-400">
-                        <span className="font-mono">{refCode}</span>
-                        {isQuotationReady && (
-                          <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                            <FileCheck2 className="w-3 h-3" /> Quote Ready
-                          </span>
-                        )}
-                        {isConverted && (
-                          <span className="text-[#2C4B8A] font-semibold flex items-center gap-1">
-                            <ArrowRight className="w-3 h-3" /> Booked
-                          </span>
-                        )}
+                            <div className="text-[11px] font-mono text-slate-400 pt-0.5">
+                              Ref: {refCode}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Cols 6-9: Status Badge & Notice Sentence */}
+                        <div className="md:col-span-4 space-y-1.5 min-w-0">
+                          {renderStatusBadge(inq)}
+                          <p className="text-xs text-slate-500 leading-snug line-clamp-2">
+                            {meta.notice?.text || "Our team is reviewing your event request details."}
+                          </p>
+                        </div>
+
+                        {/* Cols 10-12: Action Area (Right-Aligned) */}
+                        <div className="md:col-span-3 flex items-center justify-start md:justify-end shrink-0">
+                          {renderCardActionButton(inq, isSelected)}
+                        </div>
                       </div>
                     </div>
                   );
                 })
               )}
             </div>
+          </div>
 
-            {/* RIGHT COLUMN: Active Inquiry Canvas */}
-            <div className="flex-1 bg-slate-50/50 min-h-0 overflow-y-auto p-6 space-y-4 [scrollbar-width:thin]">
-              {selectedInquiry ? (
-                <div className="max-w-4xl mx-auto space-y-4">
-                  {/* Header Card */}
-                  <div className="p-5 bg-white border border-slate-200 rounded-md shadow-2xs flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/80">
-                          {selectedInquiry.reference ||
-                            `INQ-${selectedInquiry._id.substring(0, 6).toUpperCase()}`}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          Submitted {formatShortDate(selectedInquiry.createdAt)}
-                        </span>
-                      </div>
-                      <h2 className="font-bold text-xl text-slate-900 leading-tight font-sans">
-                        {recordTitle(selectedInquiry)}
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {resolveServiceType(selectedInquiry)} · {selectedInquiry.guest_count || 0} guests
-                      </p>
-                    </div>
+          {/* RIGHT SECTION: NARROWER SURFACE-LEVEL OVERVIEW PANEL */}
+          <div
+            className={cn(
+              "w-full md:w-[340px] lg:w-[380px] xl:w-[400px] shrink-0 bg-white border border-slate-200/90 rounded-xl flex flex-col min-h-0 overflow-y-auto shadow-2xs [scrollbar-width:thin]",
+              mobileView === "list" ? "hidden md:flex" : "flex"
+            )}
+          >
+            {/* Mobile Back Button */}
+            <div className="md:hidden p-4 border-b border-slate-100">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setMobileView("list")}
+                className="text-xs font-semibold text-[#2C4B8A] gap-1 p-0 hover:bg-transparent cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to Inquiries List
+              </Button>
+            </div>
 
-                    {/* Header Action Buttons */}
-                    <div className="shrink-0 flex items-center gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        onClick={() => setViewingFullInquiry(selectedInquiry)}
-                        className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md font-semibold text-xs h-9 px-3 cursor-pointer shadow-2xs gap-1.5"
-                      >
-                        <FileText className="h-3.5 w-3.5 text-[#2C4B8A]" />
-                        <span>Full Details</span>
-                      </Button>
-
-                      {selectedInquiry.status === "Converted to Booking" ||
-                      Boolean(selectedInquiry.converted_booking_id) ? (
-                        <Button
-                          onClick={() =>
-                            navigate(`/customer/bookings/${selectedInquiry.converted_booking_id}`)
-                          }
-                          className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-2xs rounded-md font-semibold text-xs h-9 px-4"
-                        >
-                          <ArrowRight className="h-4 w-4 mr-1.5" /> Go to booking
-                        </Button>
-                      ) : selectedInquiry.status === "Quotation Sent" ? (
-                        <Button
-                          onClick={() => openQuotationView(selectedInquiry)}
-                          disabled={isLoadingQuotation}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs rounded-md font-semibold text-xs h-9 px-4 cursor-pointer"
-                        >
-                          <Eye className="h-4 w-4 mr-1.5" /> Review &amp; accept quote
-                        </Button>
-                      ) : selectedInquiry.total_price > 0 &&
-                        !["Cancelled", "Quote Rejected"].includes(selectedInquiry.status) ? (
-                        <Button
-                          onClick={() => startInquiryCheckout(selectedInquiry)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs rounded-md font-semibold text-xs h-9 px-4 cursor-pointer"
-                        >
-                          <CreditCard className="h-4 w-4 mr-1.5" /> Pay deposit
-                        </Button>
-                      ) : ["Pending Review", "Under Review"].includes(selectedInquiry.status) ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => openEditModal(selectedInquiry)}
-                          disabled={loadingEditInquiryId === selectedInquiry._id}
-                          className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md font-semibold text-xs h-9 px-4 cursor-pointer"
-                        >
-                          <Pencil className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                          {loadingEditInquiryId === selectedInquiry._id
-                            ? "Loading..."
-                            : "Edit request"}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* Milestone Stepper */}
-                  {renderDesktopMilestone(selectedInquiry)}
-
-                  {/* Status Alert Prompt */}
-                  {selectedInquiry.status === "Quotation Sent" && (
-                    <div className="p-3.5 sm:p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="p-1.5 bg-emerald-600 text-white rounded-md shrink-0">
-                          <FileCheck2 size={15} />
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-emerald-950 text-xs sm:text-sm leading-tight">
-                            {selectedInquiry.total_price > 0
-                              ? `Your quotation is ready for ${formatCurrency(selectedInquiry.total_price)}`
-                              : "Your quotation is ready for review"}
-                          </h4>
-                          <p className="text-[11px] text-emerald-700 mt-0.5">
-                            Review pricing, dishes, and inclusions to lock in your date.
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => openQuotationView(selectedInquiry)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 font-semibold text-xs h-8 px-3.5 rounded-md cursor-pointer shadow-xs"
-                      >
-                        Review Quote
-                      </Button>
+            {selectedInquiry ? (
+              <div className="p-5 space-y-5">
+                {/* Hero Package Thumbnail Header with Overlaid Status Badge */}
+                <div className="relative rounded-lg overflow-hidden border border-slate-200/80 bg-slate-100 h-44 sm:h-48 group shadow-2xs">
+                  {getEventThumbnail(selectedInquiry) ? (
+                    <img
+                      src={getEventThumbnail(selectedInquiry)}
+                      alt={recordTitle(selectedInquiry)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-[#2C4B8A]/10 via-blue-50 to-indigo-100/60 flex flex-col items-center justify-center text-[#2C4B8A]">
+                      <Utensils className="w-12 h-12 opacity-80 mb-1" />
+                      <span className="text-xs font-semibold opacity-70">Custom Event Package</span>
                     </div>
                   )}
 
-                  {/* Event Specifications Card */}
-                  <div className="p-5 bg-white border border-slate-200 rounded-md shadow-2xs space-y-3.5">
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-[#2C4B8A]" /> Event Specifications
-                    </h4>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-                      {selectedInquiry.celebrant_name && (
-                        <div>
-                          <span className="text-[11px] text-slate-400 block font-medium">Celebrant / Honoree</span>
-                          <span className="font-semibold text-slate-900 block mt-0.5">
-                            {selectedInquiry.celebrant_name}
-                          </span>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Date &amp; Time</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">
-                          {formatEventDateTime(
-                            selectedInquiry.event_date,
-                            selectedInquiry.start_time
-                          )}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Duration</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">
-                          {selectedInquiry.duration_hours
-                            ? `${selectedInquiry.duration_hours} hours`
-                            : "Standard"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Guest Count</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">
-                          {selectedInquiry.guest_count || 0} pax
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Service Type</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">
-                          {resolveServiceType(selectedInquiry)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Theme</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">
-                          {selectedInquiry.event_theme || "Standard Event"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Package</span>
-                        <span className="font-semibold text-slate-900 block mt-0.5">
-                          {selectedInquiry.package_id?.name || "Customized Quote"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {selectedInquiry.event_palette && selectedInquiry.event_palette.length > 0 && (
-                      <div className="pt-3 border-t border-slate-100 text-xs">
-                        <span className="text-[11px] text-slate-400 block mb-1.5 font-medium">
-                          Color Palette
-                        </span>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {selectedInquiry.event_palette.filter(Boolean).map((color, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-medium"
-                            >
-                              {color}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Venue & Logistics Card */}
-                  <div className="p-5 bg-white border border-slate-200 rounded-md shadow-2xs space-y-3.5">
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#2C4B8A]" /> Venue &amp; Special Requests
-                    </h4>
-
-                    <div className="space-y-2.5 text-xs">
-                      <div>
-                        <span className="text-[11px] text-slate-400 block font-medium">Venue Address</span>
-                        <span className="font-semibold text-slate-900 leading-relaxed block mt-0.5">
-                          {[
-                            selectedInquiry.street,
-                            selectedInquiry.barangay,
-                            selectedInquiry.municipality,
-                            selectedInquiry.province,
-                            selectedInquiry.zip_code,
-                          ]
-                            .filter(Boolean)
-                            .join(", ") ||
-                            selectedInquiry.venue_type ||
-                            "Location to be confirmed"}
-                        </span>
-                      </div>
-
-                      {selectedInquiry.landmark && (
-                        <div>
-                          <span className="text-[11px] text-slate-400 block font-medium">Landmark</span>
-                          <span className="text-slate-700 block mt-0.5">{selectedInquiry.landmark}</span>
-                        </div>
-                      )}
-
-                      {selectedInquiry.special_requests && (
-                        <div>
-                          <span className="text-[11px] text-slate-400 block font-medium">
-                            Special Requests
-                          </span>
-                          <span className="text-slate-700 block mt-0.5">
-                            {selectedInquiry.special_requests}
-                          </span>
-                        </div>
-                      )}
-
-                      {(selectedInquiry.allergies ||
-                        selectedInquiry.dietary_restrictions ||
-                        selectedInquiry.dietary_requirements) && (
-                        <div>
-                          <span className="text-[11px] text-slate-400 block font-medium">
-                            Dietary &amp; Allergies
-                          </span>
-                          <span className="text-slate-700 block mt-0.5">
-                            {[
-                              selectedInquiry.allergies,
-                              selectedInquiry.dietary_restrictions,
-                              selectedInquiry.dietary_requirements,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Footer Secondary Action Toolbar */}
-                  <div className="p-4 bg-white border border-slate-200 rounded-md shadow-2xs flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setViewingFullInquiry(selectedInquiry)}
-                        className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md text-xs font-semibold h-8 gap-1.5 cursor-pointer shadow-2xs"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-[#2C4B8A]" /> View Full Details
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenChat(selectedInquiry._id)}
-                        className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md text-xs font-semibold h-8 gap-1.5 cursor-pointer shadow-2xs"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 text-[#2C4B8A]" /> Message Coordinator
-                      </Button>
-
-                      {["Pending Review", "Under Review"].includes(selectedInquiry.status) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditModal(selectedInquiry)}
-                          className="border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md text-xs font-semibold h-8 gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                          <Pencil className="w-3.5 h-3.5 text-slate-400" /> Edit Details
-                        </Button>
-                      )}
-                    </div>
-
-                    {["Pending Review", "Under Review"].includes(selectedInquiry.status) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCancellingInquiry(selectedInquiry)}
-                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-md text-xs font-semibold h-8 gap-1.5 cursor-pointer"
-                      >
-                        <XCircle className="w-3.5 h-3.5" /> Cancel Request
-                      </Button>
-                    )}
+                  {/* Overlaid Top-Left Status Pill */}
+                  <div className="absolute top-3 left-3">
+                    {renderStatusBadge(selectedInquiry)}
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full min-h-80 bg-white border border-slate-200 rounded-md text-center text-slate-400 p-12">
-                  <FileText className="w-10 h-10 opacity-20 mb-2" />
-                  <p className="font-semibold text-sm text-slate-700">No Inquiry Selected</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Select a request from the list on the left to view its full details.
-                  </p>
+
+                {/* Event Title & Ref */}
+                <div>
+                  <h3 className="font-bold text-xl text-slate-900 font-sans leading-snug">
+                    {recordTitle(selectedInquiry)}
+                  </h3>
+                  <div className="text-xs font-mono text-slate-400 mt-1">
+                    Ref: {selectedInquiry.reference || `INQ-${selectedInquiry._id.substring(0, 6).toUpperCase()}`}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                <div className="border-t border-slate-100 pt-4 space-y-3.5">
+                  {/* Event Date Row */}
+                  <div className="flex items-start gap-3 text-xs">
+                    <Calendar className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-slate-400 font-semibold text-[11px]">Event date</div>
+                      <div className="font-bold text-slate-800 mt-0.5">
+                        {formatEventDateWithDay(selectedInquiry.event_date)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Guest Count Row */}
+                  <div className="flex items-start gap-3 text-xs">
+                    <Users className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-slate-400 font-semibold text-[11px]">Guest count</div>
+                      <div className="font-bold text-slate-800 mt-0.5">
+                        {selectedInquiry.guest_count ? `${selectedInquiry.guest_count} guests` : "Guests TBD"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Service Type Row */}
+                  <div className="flex items-start gap-3 text-xs">
+                    <Utensils className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-slate-400 font-semibold text-[11px]">Service type</div>
+                      <div className="font-bold text-slate-800 mt-0.5">
+                        {resolveServiceType(selectedInquiry)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Venue Location Row */}
+                  <div className="flex items-start gap-3 text-xs">
+                    <MapPin className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-slate-400 font-semibold text-[11px]">Venue</div>
+                      <div className="font-bold text-slate-800 mt-0.5">
+                        {[selectedInquiry.municipality, selectedInquiry.province].filter(Boolean).join(", ") || selectedInquiry.venue_address || "Location TBD"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Package Row */}
+                  <div className="flex items-start gap-3 text-xs">
+                    <Package className="w-4 h-4 text-[#2C4B8A] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-slate-400 font-semibold text-[11px]">Package</div>
+                      <div className="font-bold text-slate-800 mt-0.5">
+                        {selectedInquiry.package_name || selectedInquiry.package_id?.name || "Custom Event Package"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Surface-Level NEXT STEP Callout Box */}
+                <div className="bg-blue-50/80 border border-blue-100/90 rounded-xl p-4 flex items-start gap-3.5">
+                  <div className="w-8 h-8 rounded-full bg-[#2C4B8A] text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-[#1E3563] text-xs">Next step</h4>
+                    <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                      {selectedMeta.notice?.text || "We're reviewing your request and preparing pricing. We'll notify you once it's ready."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Bottom Full-Width "View Full Details >" Button */}
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/customer/inquiries/${selectedInquiry._id}`)}
+                  className="w-full border-slate-200 hover:bg-slate-50 text-[#1E3563] font-bold text-xs h-10 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+                >
+                  <span>View full details</span>
+                  <ChevronRight className="w-4 h-4 text-[#1E3563]" />
+                </Button>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-slate-400 text-xs my-auto">
+                Select an inquiry to view summary.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Full Inquiry Details Comprehensive Modal */}
-      {viewingFullInquiry && (
-        <CustomerInquiryDetailModal
-          open={!!viewingFullInquiry}
-          onClose={() => setViewingFullInquiry(null)}
-          inquiryId={viewingFullInquiry._id}
-          initialInquiry={viewingFullInquiry}
-          onOpenEdit={openEditModal}
-          onOpenQuote={openQuotationView}
-          onOpenChat={handleOpenChat}
-        />
-      )}
-
-      {/* Quotation Viewer Modal */}
+      {/* REUSED MODALS */}
       {isQuotationModalOpen && activeQuotation && (
         <CustomerQuotationModal
-          open={isQuotationModalOpen}
+          isOpen={isQuotationModalOpen}
           onClose={() => setIsQuotationModalOpen(false)}
           quotation={activeQuotation}
           versions={quotationVersions}
-          inquiry={selectedInquiryForModal}
+          inquiry={selectedInquiry}
           onUpdated={fetchInquiries}
         />
       )}
 
-      {/* Edit Inquiry Details Modal */}
-      <CustomerInquiryEditModal
-        open={!!editingInquiry}
-        inquiry={editingInquiry}
-        onClose={() => setEditingInquiry(null)}
-        onSaved={fetchInquiries}
-      />
+      {editingInquiry && (
+        <CustomerInquiryEditModal
+          isOpen={Boolean(editingInquiry)}
+          onClose={() => setEditingInquiry(null)}
+          inquiry={editingInquiry}
+          onSaved={fetchInquiries}
+        />
+      )}
 
-      {/* Cancel Inquiry Confirmation Dialog */}
-      <Dialog
-        open={!!cancellingInquiry}
-        onOpenChange={(open) => !open && setCancellingInquiry(null)}
-      >
-        <DialogContent className="sm:max-w-[440px] rounded-md">
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={Boolean(cancellingInquiry)} onOpenChange={() => setCancellingInquiry(null)}>
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-sans font-bold text-slate-900">
-              Cancel this request?
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-xs text-slate-600">
-              We'll stop working on{" "}
-              <strong className="text-slate-900">
-                {cancellingInquiry ? recordTitle(cancellingInquiry) : "this request"}
-              </strong>
-              {cancellingInquiry?.reference ? ` (${cancellingInquiry.reference})` : ""}. This
-              cannot be undone, but you can always submit a new quote request.
+            <DialogTitle className="text-lg font-bold text-slate-900">Cancel Inquiry Request?</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Are you sure you want to cancel this event inquiry? You can submit a new request anytime.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => setCancellingInquiry(null)}
-              disabled={isSubmittingCancel}
-              className="rounded-md border-slate-200 text-xs"
+              className="text-xs font-semibold rounded-lg"
             >
-              Keep request
+              Keep Inquiry
             </Button>
             <Button
-              variant="destructive"
+              size="sm"
               onClick={handleCancelInquiry}
               disabled={isSubmittingCancel}
-              className="rounded-md text-xs"
+              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg"
             >
-              {isSubmittingCancel ? "Cancelling…" : "Yes, cancel it"}
+              {isSubmittingCancel ? "Cancelling..." : "Confirm Cancel"}
             </Button>
           </DialogFooter>
         </DialogContent>

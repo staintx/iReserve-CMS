@@ -320,28 +320,29 @@ export default function CustomerInquiries() {
     }
   };
 
-  // Modern Compact Dotless Status Pill
+  // Modern Compact Dotless Status Badge - Distinct from Buttons
   const renderStatusBadge = (inq) => {
     const meta = inquiryStatusMeta(inq);
-    let badgeClass = "bg-blue-50 text-blue-700 border-blue-200/90";
+    let badgeClass = "bg-blue-50 text-blue-700 border-blue-200/80";
 
     if (meta.tone === "warning") {
-      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/90";
+      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/80";
     } else if (meta.tone === "success") {
-      badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/90";
-    } else if (meta.tone === "danger") {
+      badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+    } else if (meta.tone === "danger" || meta.tone === "neutral") {
       badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
     }
 
     return (
-      <span className={cn("px-2.5 py-1 rounded-md text-xs font-semibold border tracking-tight inline-flex items-center shadow-2xs whitespace-nowrap shrink-0", badgeClass)}>
-        {meta.label}
+      <span className={cn("px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 shrink-0 select-none", badgeClass)}>
+        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+        <span>{meta.label}</span>
       </span>
     );
   };
 
-  // Audited Dynamic Action Button Renderer
-  const renderCardActionButton = (inq, isSelected) => {
+  // Audited Dynamic Action Button Renderer - Error prevention: only render valid customer actions
+  const renderCardActionButton = (inq) => {
     const isQuotationSent = inq.status === "Quotation Sent";
     const isConverted = inq.status === "Converted to Booking" || Boolean(inq.converted_booking_id);
     const isDepositPaid =
@@ -352,80 +353,67 @@ export default function CustomerInquiries() {
     // Review Quotation appears strictly when quotation is published & available to review
     if (isQuotationSent) {
       return (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            openQuotationView(inq);
-          }}
-          disabled={isLoadingQuotation}
-          className="bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer shadow-2xs gap-1.5"
-        >
-          <FileCheck2 className="w-3.5 h-3.5" />
-          <span>Review quotation</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              openQuotationView(inq);
+            }}
+            disabled={isLoadingQuotation}
+            className="bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1.5 active:scale-[0.98]"
+          >
+            <FileCheck2 className="w-3.5 h-3.5" />
+            <span>Review quotation</span>
+          </Button>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
+        </div>
       );
     }
 
     if (inq.total_price > 0 && !isConverted && !isDepositPaid && !["Cancelled", "Quote Rejected"].includes(inq.status)) {
       return (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            startInquiryCheckout(inq);
-          }}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer shadow-2xs gap-1.5"
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          <span>Pay Deposit</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              startInquiryCheckout(inq);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1.5 active:scale-[0.98]"
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Pay Deposit</span>
+          </Button>
+          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
+        </div>
       );
     }
 
-    if (isConverted || isDepositPaid) {
-      return (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (inq.converted_booking_id) {
-              navigate(`/customer/bookings/${inq.converted_booking_id}`);
-            } else {
-              navigate("/customer/bookings");
-            }
-          }}
-          className="border-slate-200 text-[#2C4B8A] hover:bg-blue-50 font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer gap-1.5"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          <span>View booking</span>
-        </Button>
-      );
-    }
-
+    // Explicit View Button when no secondary action is required
     return (
       <Button
         size="sm"
-        variant={isSelected ? "default" : "outline"}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleSelectInquiry(inq._id);
-        }}
-        className={cn(
-          "font-semibold text-xs h-9 px-3.5 rounded-lg shrink-0 cursor-pointer transition-all gap-1.5",
-          isSelected
-            ? "bg-[#1E3563] hover:bg-[#152547] text-white shadow-2xs"
-            : "border-slate-200 text-slate-700 hover:bg-slate-50 bg-white"
-        )}
+        variant="outline"
+        className="border-slate-200 text-[#2C4B8A] group-hover:border-[#2C4B8A] group-hover:bg-[#2C4B8A] group-hover:text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
       >
-        <Eye className="w-3.5 h-3.5" />
-        <span>View inquiry</span>
+        <span>View</span>
+        <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
       </Button>
     );
   };
 
   const selectedMeta = useMemo(() => inquiryStatusMeta(selectedInquiry), [selectedInquiry]);
+
+  // Determine active step index (0-3) for 4-Step Catering Journey Timeline
+  const activeInquiryStep = useMemo(() => {
+    if (!selectedInquiry) return 0;
+    const status = selectedInquiry.status;
+    if (status === "Converted to Booking" || selectedInquiry.converted_booking_id) return 3;
+    if (status === "Quote Accepted" || status === "Awaiting Final Confirmation" || selectedInquiry.is_deposit_paid) return 2;
+    if (status === "Quotation Sent" || status === "Revision Requested") return 1;
+    return 0; // Pending Review, Under Review, etc.
+  }, [selectedInquiry]);
 
   return (
     <CustomerDashboardLayout fullBleed>
@@ -443,7 +431,7 @@ export default function CustomerInquiries() {
 
           <Button
             onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-lg font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-md font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             <span>New Request</span>
@@ -469,7 +457,7 @@ export default function CustomerInquiries() {
                   placeholder="Search by event name or reference..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-lg border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
+                  className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
                 />
                 {searchQuery && (
                   <button
@@ -488,7 +476,7 @@ export default function CustomerInquiries() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
                     >
                       <span>
                         {statusFilter === "all"
@@ -536,7 +524,7 @@ export default function CustomerInquiries() {
                     <Button
                       variant="outline"
                       className={cn(
-                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
                         serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
                       )}
                     >
@@ -573,7 +561,7 @@ export default function CustomerInquiries() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
                     >
                       <span>
                         {sortBy === "newest"
@@ -611,7 +599,7 @@ export default function CustomerInquiries() {
               </div>
             </div>
 
-            {/* UNBOXED INQUIRY CARDS LIST (Occupy canvas naturally, subtle blue accent for selected) */}
+            {/* UNBOXED INQUIRIES CARDS LIST */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:thin]">
               {loading ? (
                 <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
@@ -623,10 +611,10 @@ export default function CustomerInquiries() {
                   <h3 className="text-sm font-bold text-slate-800 font-sans">No inquiries found</h3>
                   <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
                     {isFiltered
-                      ? "Try clearing active search or filters to see other inquiries."
-                      : "Ready to celebrate? Submit a new event inquiry to get started."}
+                      ? "Try clearing active search or filters to see other inquiry requests."
+                      : "No active quote requests yet. Create a new request to get started."}
                   </p>
-                  {isFiltered && (
+                  {isFiltered ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -635,9 +623,17 @@ export default function CustomerInquiries() {
                         setStatusFilter("all");
                         setServiceTypeFilter("all");
                       }}
-                      className="mt-4 text-xs font-semibold rounded-lg border-slate-200"
+                      className="mt-4 text-xs font-semibold rounded-md border-slate-200"
                     >
                       Clear all filters
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                      className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-md"
+                    >
+                      Create Quote Request
                     </Button>
                   )}
                 </div>
@@ -655,30 +651,30 @@ export default function CustomerInquiries() {
                       key={inq._id}
                       onClick={() => handleSelectInquiry(inq._id)}
                       className={cn(
-                        "p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs hover:border-slate-300 hover:shadow-xs",
+                        "group p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs",
                         isSelected
-                          ? "bg-[#F4F7FC] border-l-4 border-l-[#2C4B8A] border-y border-r border-slate-300/90"
-                          : "bg-white border-slate-200/90"
+                          ? "bg-blue-50/40 border-l-4 border-l-blue-600 border-y border-r border-blue-200/90 shadow-sm"
+                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-xs"
                       )}
                     >
                       {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
                         {/* Cols 1-5: Thumbnail Image & Core Event Specs */}
                         <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
                           {thumbnail ? (
                             <img
                               src={thumbnail}
                               alt={titleStr}
-                              className="w-16 h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
                             />
                           ) : (
-                            <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
-                              <Utensils className="w-7 h-7 opacity-80" />
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
+                              <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
                             </div>
                           )}
 
                           <div className="min-w-0 space-y-1">
-                            <h3 className="font-bold text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
+                            <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
                               {titleStr}
                             </h3>
 
@@ -707,7 +703,7 @@ export default function CustomerInquiries() {
                           </div>
                         </div>
 
-                        {/* Cols 6-9: Modern Dotless Status Badge & Notice Sentence */}
+                        {/* Cols 6-9: Modern Status Badge & Notice Sentence */}
                         <div className="md:col-span-4 space-y-1.5 min-w-0">
                           {renderStatusBadge(inq)}
                           <p className="text-xs text-slate-500 leading-snug line-clamp-2">
@@ -715,9 +711,12 @@ export default function CustomerInquiries() {
                           </p>
                         </div>
 
-                        {/* Cols 10-12: Action Area (Right-Aligned) */}
-                        <div className="md:col-span-3 flex items-center justify-start md:justify-end shrink-0">
-                          {renderCardActionButton(inq, isSelected)}
+                        {/* Cols 10-12: Action Area (Right-Aligned, Valid CTAs Only) */}
+                        <div className="md:col-span-3 flex items-center justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
+                          <span className="text-xs text-slate-400 font-medium md:hidden flex items-center gap-1">
+                            <span>Tap to view summary</span>
+                          </span>
+                          {renderCardActionButton(inq)}
                         </div>
                       </div>
                     </div>
@@ -727,15 +726,15 @@ export default function CustomerInquiries() {
             </div>
           </div>
 
-          {/* RIGHT OVERVIEW SIDE PANEL (ALWAYS VISIBLE ABOVE THE FOLD) */}
+          {/* RIGHT ACTION & GUIDANCE CENTER SIDE PANEL WITH ABOVE-THE-FOLD VIEWPORT LAYOUT */}
           <div
             className={cn(
-              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs flex flex-col justify-between space-y-4 h-fit max-h-[calc(100vh-6.5rem)] overflow-y-auto [scrollbar-width:thin]",
+              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-fit max-h-none md:max-h-[calc(100vh-6.5rem)] overflow-hidden",
               mobileView === "list" ? "hidden md:flex" : "flex"
             )}
           >
             {/* Mobile Back Button */}
-            <div className="md:hidden pb-2 border-b border-slate-100">
+            <div className="md:hidden pb-2 border-b border-slate-100 shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
@@ -747,125 +746,139 @@ export default function CustomerInquiries() {
             </div>
 
             {selectedInquiry ? (
-              <div className="space-y-4">
-                {/* Compact Hero Package Thumbnail Header */}
-                <div className="relative rounded-lg overflow-hidden border border-slate-200/80 bg-slate-100 h-28 sm:h-32 group shadow-2xs shrink-0">
-                  {getEventThumbnail(selectedInquiry) ? (
-                    <img
-                      src={getEventThumbnail(selectedInquiry)}
-                      alt={recordTitle(selectedInquiry)}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-[#2C4B8A]/10 via-blue-50 to-indigo-100/60 flex flex-col items-center justify-center text-[#2C4B8A]">
-                      <Utensils className="w-8 h-8 opacity-80 mb-0.5" />
-                      <span className="text-[11px] font-semibold opacity-70">Custom Event Package</span>
+              <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
+                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin]">
+                  {/* Header Card */}
+                  <div className="flex items-start justify-between gap-2.5 border-b border-slate-100 pb-2.5">
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Request</span>
+                      <h3 className="font-bold text-base text-slate-900 font-sans leading-snug truncate">
+                        {recordTitle(selectedInquiry)}
+                      </h3>
+                      <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                        Ref: {selectedInquiry.reference || `INQ-${selectedInquiry._id.substring(0, 6).toUpperCase()}`}
+                      </div>
                     </div>
-                  )}
-
-                  {/* Overlaid Top-Left Status Pill */}
-                  <div className="absolute top-2.5 left-2.5">
                     {renderStatusBadge(selectedInquiry)}
                   </div>
-                </div>
 
-                {/* Event Title & Ref */}
-                <div>
-                  <h3 className="font-bold text-lg text-slate-900 font-sans leading-snug">
-                    {recordTitle(selectedInquiry)}
-                  </h3>
-                  <div className="text-xs font-mono text-slate-400 mt-0.5">
-                    Ref: {selectedInquiry.reference || `INQ-${selectedInquiry._id.substring(0, 6).toUpperCase()}`}
-                  </div>
-                </div>
+                  {/* 4-STEP CATERING JOURNEY PROGRESSION TRACKER - COMPACT */}
+                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Catering Journey Progress
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-semibold relative pt-0.5 pb-0.5">
+                      {/* Connecting Background Line */}
+                      <div className="absolute top-3.5 left-3 right-3 h-0.5 bg-slate-200 -z-0" />
+                      {/* Active Filled Progress Line */}
+                      <div
+                        className="absolute top-3.5 left-3 h-0.5 bg-blue-600 transition-all duration-300 -z-0"
+                        style={{ width: `${(activeInquiryStep / 3) * 100}%` }}
+                      />
 
-                {/* Compact Spec Rows */}
-                <div className="border-t border-slate-100 pt-3 space-y-2.5">
-                  <div className="flex items-start gap-2.5 text-xs">
-                    <Calendar className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Event date</div>
-                      <div className="font-bold text-slate-800">
-                        {formatEventDateWithDay(selectedInquiry.event_date)}
-                      </div>
+                      {[
+                        { label: "Inquiry", step: 0 },
+                        { label: "Quotation", step: 1 },
+                        { label: "Booking", step: 2 },
+                        { label: "Event", step: 3 },
+                      ].map((s) => {
+                        const isDone = activeInquiryStep > s.step;
+                        const isCurrent = activeInquiryStep === s.step;
+
+                        return (
+                          <div key={s.label} className="flex flex-col items-center gap-0.5 z-10">
+                            <div
+                              className={cn(
+                                "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all shadow-2xs",
+                                isDone
+                                  ? "bg-emerald-600 text-white"
+                                  : isCurrent
+                                  ? "bg-blue-600 text-white ring-3 ring-blue-600/15 scale-105"
+                                  : "bg-white text-slate-400 border border-slate-300"
+                              )}
+                            >
+                              {isDone ? <Check className="w-3 h-3" /> : s.step + 1}
+                            </div>
+                            <span
+                              className={cn(
+                                "text-[10px] font-medium leading-tight",
+                                isCurrent ? "font-bold text-blue-900" : isDone ? "text-slate-700" : "text-slate-400"
+                              )}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2.5 text-xs">
-                    <Users className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Guest count</div>
-                      <div className="font-bold text-slate-800">
-                        {selectedInquiry.guest_count ? `${selectedInquiry.guest_count} guests` : "Guests TBD"}
-                      </div>
+                  {/* ACTION REQUIRED & NEXT STEP FOCUS CARD - COMPACT */}
+                  <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-2.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">
+                        <ArrowRight className="w-3 h-3" />
+                      </span>
+                      <h4 className="font-bold text-[#1E3563] text-[11px] uppercase tracking-wider font-sans">
+                        {selectedInquiry.status === "Quotation Sent" ? "Action Required" : "Current Status Guidance"}
+                      </h4>
                     </div>
-                  </div>
 
-                  <div className="flex items-start gap-2.5 text-xs">
-                    <Utensils className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Service type</div>
-                      <div className="font-bold text-slate-800">
-                        {resolveServiceType(selectedInquiry)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2.5 text-xs">
-                    <MapPin className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Venue</div>
-                      <div className="font-bold text-slate-800">
-                        {[selectedInquiry.municipality, selectedInquiry.province].filter(Boolean).join(", ") || selectedInquiry.venue_address || "Location TBD"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2.5 text-xs">
-                    <Package className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                    <div>
-                      <div className="text-slate-400 font-semibold text-[10px] uppercase">Package</div>
-                      <div className="font-bold text-slate-800">
-                        {selectedInquiry.package_name || selectedInquiry.package_id?.name || "Custom Event Package"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Compact Next Step Callout Box */}
-                <div className="bg-blue-50/80 border border-blue-100/90 rounded-lg p-3 flex items-start gap-2.5 text-xs">
-                  <div className="w-7 h-7 rounded-full bg-[#2C4B8A] text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[#1E3563] text-xs">Next step</h4>
-                    <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
-                      {selectedMeta.notice?.text || "We're reviewing your request and preparing pricing. We'll notify you once ready."}
+                    <p className="text-slate-700 text-xs leading-snug font-medium">
+                      {selectedMeta.notice?.text || "We're reviewing your request specifications and preparing your quote."}
                     </p>
+
+                    {/* Direct Action Button in Guidance Box */}
+                    {selectedInquiry.status === "Quotation Sent" && (
+                      <Button
+                        onClick={() => openQuotationView(selectedInquiry)}
+                        disabled={isLoadingQuotation}
+                        className="w-full bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-7.5 rounded-md cursor-pointer shadow-xs gap-1.5 mt-0.5 active:scale-[0.98]"
+                      >
+                        <FileCheck2 className="w-3.5 h-3.5" />
+                        <span>Review Official Quotation</span>
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* COMPACT KEY EVENT SPECS */}
+                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-2.5 space-y-1 text-xs">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                      Event Overview
+                    </div>
+                    <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
+                      <span className="text-slate-500 font-medium">Event Date</span>
+                      <span className="font-semibold text-slate-900">{formatEventDateWithDay(selectedInquiry.event_date)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
+                      <span className="text-slate-500 font-medium">Guest Count</span>
+                      <span className="font-semibold text-slate-900">{selectedInquiry.guest_count ? `${selectedInquiry.guest_count} guests` : "TBD"}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
+                      <span className="text-slate-500 font-medium">Service Type</span>
+                      <span className="font-semibold text-slate-900">{resolveServiceType(selectedInquiry)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-700 py-0.5 text-xs">
+                      <span className="text-slate-500 font-medium">Package</span>
+                      <span className="font-semibold text-slate-900 truncate max-w-[160px]">
+                        {selectedInquiry.package_name || selectedInquiry.package_id?.name || "Custom Event Package"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Overview Action Buttons */}
-                {selectedInquiry.status === "Quotation Sent" && (
+                {/* BOTTOM FULL SPECIFICATIONS CTA - PROMINENT & PINNED ACCESSIBLE ABOVE THE FOLD */}
+                <div className="pt-2 border-t border-slate-100 shrink-0">
                   <Button
-                    onClick={() => openQuotationView(selectedInquiry)}
-                    disabled={isLoadingQuotation}
-                    className="w-full bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-9 rounded-lg cursor-pointer shadow-2xs gap-1.5 shrink-0"
+                    variant="outline"
+                    onClick={() => navigate(`/customer/inquiries/${selectedInquiry._id}`)}
+                    className="w-full border-blue-200 bg-blue-50/40 hover:bg-blue-100/60 text-[#1E3563] font-bold text-xs h-8.5 rounded-md cursor-pointer shadow-2xs gap-1.5 shrink-0 transition-all"
                   >
-                    <FileCheck2 className="w-4 h-4" />
-                    <span>Review quotation</span>
+                    <Eye className="w-4 h-4 text-[#1E3563]" />
+                    <span>View Full Details</span>
+                    <ChevronRight className="w-4 h-4 text-[#1E3563]" />
                   </Button>
-                )}
-
-                {/* Bottom Full-Width "View Full Details >" Button - VISIBLE ABOVE THE FOLD */}
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(`/customer/inquiries/${selectedInquiry._id}`)}
-                  className="w-full border-slate-200 hover:bg-slate-50 text-[#1E3563] font-bold text-xs h-9 rounded-lg cursor-pointer shadow-2xs gap-1.5 shrink-0"
-                >
-                  <span>View full details</span>
-                  <ChevronRight className="w-4 h-4 text-[#1E3563]" />
-                </Button>
+                </div>
               </div>
             ) : (
               <div className="p-8 text-center text-slate-400 text-xs my-auto">

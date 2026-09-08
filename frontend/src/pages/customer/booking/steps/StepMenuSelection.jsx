@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, X, Search, UtensilsCrossed, RotateCcw } from "lucide-react";
+import { Check, X, Search, UtensilsCrossed, RotateCcw, ChevronDown } from "lucide-react";
 import {
   Card,
   SH,
@@ -134,10 +134,44 @@ export default function StepMenuSelection({
   const selected = useMemo(() => form.selected_menu || [], [form.selected_menu]);
   const [activeGroup, setActiveGroup] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [hasInitializedAccordion, setHasInitializedAccordion] = useState(false);
   const courses = useMemo(
     () => (offer ? offerFoodByCategory(offer) : []),
     [offer],
   );
+
+  useEffect(() => {
+    setHasInitializedAccordion(false);
+  }, [offer?._id, offer?.id]);
+
+  /**
+   * Initialize expanded category for Special Offer accordion.
+   * Expands the first incomplete category; if all are completed, leaves all collapsed.
+   */
+  useEffect(() => {
+    if (!offer || hasInitializedAccordion || courses.length === 0) return;
+
+    const snapshot = Array.isArray(form.offer_food_snapshot)
+      ? form.offer_food_snapshot
+      : [];
+
+    const firstIncomplete = courses.find((course) => {
+      if (course.items.length === 1) return false;
+      const req = offerCourseRequirement(course.category);
+      const selectedInCat = snapshot.filter(
+        (entry) => entry.menu_category === course.category,
+      );
+      return selectedInCat.length < req;
+    });
+
+    setExpandedCategory(firstIncomplete ? firstIncomplete.category : null);
+    setHasInitializedAccordion(true);
+  }, [offer, courses, form.offer_food_snapshot, hasInitializedAccordion]);
+
+  const handleToggleCategory = (category) => {
+    setExpandedCategory((prev) => (prev === category ? null : category));
+  };
 
   /**
    * Seeding single-item combo courses into snapshot.
@@ -418,43 +452,68 @@ export default function StepMenuSelection({
     const toggleComboDish = (category, itemName, requiredCount) => {
       const existingInCat = getSelectedForCategory(category);
       const isAlready = existingInCat.some((e) => e.item_name === itemName);
+      let nextSnapshot;
+      let isNowComplete = false;
 
       if (requiredCount === 1) {
         const otherCategories = currentSnapshot.filter(
           (entry) => entry.menu_category !== category,
         );
-        const next = [...otherCategories, { menu_category: category, item_name: itemName }];
-        setForm((prev) => ({
-          ...prev,
-          offer_food_snapshot: next,
-        }));
+        nextSnapshot = [...otherCategories, { menu_category: category, item_name: itemName }];
+        isNowComplete = true;
       } else {
         if (isAlready) {
-          const next = currentSnapshot.filter(
+          nextSnapshot = currentSnapshot.filter(
             (entry) =>
               !(entry.menu_category === category && entry.item_name === itemName),
           );
-          setForm((prev) => ({ ...prev, offer_food_snapshot: next }));
+          const remainingInCat = nextSnapshot.filter(
+            (entry) => entry.menu_category === category,
+          );
+          isNowComplete = remainingInCat.length >= requiredCount;
         } else {
           if (existingInCat.length < requiredCount) {
-            const next = [
+            nextSnapshot = [
               ...currentSnapshot,
               { menu_category: category, item_name: itemName },
             ];
-            setForm((prev) => ({ ...prev, offer_food_snapshot: next }));
+            isNowComplete = existingInCat.length + 1 >= requiredCount;
           } else {
             const otherInCat = existingInCat.slice(1);
             const otherCategories = currentSnapshot.filter(
               (entry) => entry.menu_category !== category,
             );
-            const next = [
+            nextSnapshot = [
               ...otherCategories,
               ...otherInCat,
               { menu_category: category, item_name: itemName },
             ];
-            setForm((prev) => ({ ...prev, offer_food_snapshot: next }));
+            isNowComplete = true;
           }
         }
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        offer_food_snapshot: nextSnapshot,
+      }));
+
+      if (isNowComplete) {
+        const currentIndex = courses.findIndex((c) => c.category === category);
+        const orderedCourses = [
+          ...courses.slice(currentIndex + 1),
+          ...courses.slice(0, currentIndex),
+        ];
+        const nextIncomplete = orderedCourses.find((c) => {
+          if (c.items.length === 1) return false;
+          const req = offerCourseRequirement(c.category);
+          const count = nextSnapshot.filter(
+            (entry) => entry.menu_category === c.category,
+          ).length;
+          return count < req;
+        });
+
+        setExpandedCategory(nextIncomplete ? nextIncomplete.category : null);
       }
     };
 
@@ -509,15 +568,37 @@ export default function StepMenuSelection({
             const isCategoryComplete =
               selectedInThis.length >= req ||
               (course.items.length === 1 && isDishSelected(course.category, course.items[0]));
+            const isExpanded = expandedCategory === course.category;
+
+            const selectedDishes =
+              selectedInThis.length > 0
+                ? selectedInThis.map((e) => e.item_name)
+                : course.items.length === 1 && isDishSelected(course.category, course.items[0])
+                  ? [course.items[0]]
+                  : [];
 
             return (
-              <Card key={course.category} className="p-3 sm:p-3.5">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+              <Card
+                key={course.category}
+                className={cn(
+                  "p-3 sm:p-3.5 transition-all duration-200",
+                  isExpanded
+                    ? "border-[#4C81E0]/60 ring-1 ring-[#4C81E0]/25 shadow-xs"
+                    : "hover:border-slate-300",
+                )}
+              >
+                {/* Clickable Accordion Header */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleCategory(course.category)}
+                  aria-expanded={isExpanded}
+                  className="w-full flex items-center justify-between gap-3 text-left cursor-pointer select-none group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 group-hover:text-[#4C81E0] transition-colors">
                       {course.category}
                     </h3>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-slate-400 mt-0.5">
                       {course.items.length === 1
                         ? "Automatically included with this combo"
                         : req === 1
@@ -526,64 +607,109 @@ export default function StepMenuSelection({
                     </p>
                   </div>
 
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors",
-                      isCategoryComplete
-                        ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                        : "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
-                    )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                        isCategoryComplete
+                          ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                          : "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+                      )}
+                    >
+                      {isCategoryComplete ? (
+                        <>
+                          <Check size={11} strokeWidth={3} />
+                          {selectedInThis.length > 0
+                            ? `${selectedInThis.length} selected`
+                            : "Included"}
+                        </>
+                      ) : (
+                        `Choose ${req} (${selectedInThis.length}/${req})`
+                      )}
+                    </span>
+
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-full text-slate-400 transition-all duration-200 group-hover:bg-slate-100 group-hover:text-slate-600",
+                        isExpanded && "rotate-180 text-slate-700 bg-slate-100",
+                      )}
+                    >
+                      <ChevronDown size={15} />
+                    </span>
+                  </div>
+                </button>
+
+                {/* Collapsed state: Show only the selected dish(es) */}
+                {!isExpanded && isCategoryComplete && selectedDishes.length > 0 && (
+                  <div
+                    onClick={() => handleToggleCategory(course.category)}
+                    className="mt-2.5 border-t border-slate-100 pt-2 flex flex-wrap items-center justify-between gap-2 cursor-pointer group/row"
                   >
-                    {isCategoryComplete ? (
-                      <>
-                        <Check size={11} strokeWidth={3} />
-                        {selectedInThis.length > 0 ? `${selectedInThis.length} selected` : "Included"}
-                      </>
-                    ) : (
-                      `Choose ${req} (${selectedInThis.length}/${req})`
-                    )}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-2">
-                  {course.items.map((dishName) => {
-                    const isSelected = isDishSelected(course.category, dishName);
-                    return (
-                      <button
-                        key={dishName}
-                        type="button"
-                        onClick={() => toggleComboDish(course.category, dishName, req)}
-                        className={cn(
-                          "group flex items-center justify-between rounded-lg border p-2 text-left transition-all cursor-pointer",
-                          isSelected
-                            ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-2xs"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
-                          focusRing,
-                        )}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400 border border-slate-200/50">
-                            <UtensilsCrossed size={13} />
-                          </span>
-                          <span className="font-bold text-slate-800 text-xs truncate">
-                            {dishName}
-                          </span>
-                        </div>
-
-                        <span
-                          className={cn(
-                            "flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ml-2",
-                            isSelected
-                              ? "bg-[#4C81E0] text-white shadow-2xs"
-                              : "border border-slate-300 bg-white text-transparent group-hover:border-slate-400",
-                          )}
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      {selectedDishes.map((dishName) => (
+                        <div
+                          key={dishName}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-[#4C81E0]/30 bg-[#4C81E0]/5 px-2.5 py-1 text-xs font-medium text-slate-800"
                         >
-                          <Check size={10} strokeWidth={3} />
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[#4C81E0] text-white">
+                            <Check size={9} strokeWidth={3} />
+                          </span>
+                          <span className="truncate">{dishName}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {course.items.length > 1 && (
+                      <span className="text-[11px] font-medium text-slate-400 group-hover/row:text-[#4C81E0] transition-colors ml-auto">
+                        Change dish
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Expanded state: Show all dish choices */}
+                {isExpanded && (
+                  <div className="mt-2.5 border-t border-slate-100 pt-2.5">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-2">
+                      {course.items.map((dishName) => {
+                        const isSelected = isDishSelected(course.category, dishName);
+                        return (
+                          <button
+                            key={dishName}
+                            type="button"
+                            onClick={() => toggleComboDish(course.category, dishName, req)}
+                            className={cn(
+                              "group flex items-center justify-between rounded-lg border p-2 text-left transition-all cursor-pointer",
+                              isSelected
+                                ? "border-[#4C81E0] bg-[#4C81E0]/5 ring-1 ring-[#4C81E0] shadow-2xs"
+                                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                              focusRing,
+                            )}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-400 border border-slate-200/50">
+                                <UtensilsCrossed size={13} />
+                              </span>
+                              <span className="font-bold text-slate-800 text-xs truncate">
+                                {dishName}
+                              </span>
+                            </div>
+
+                            <span
+                              className={cn(
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors ml-2",
+                                isSelected
+                                  ? "bg-[#4C81E0] text-white shadow-2xs"
+                                  : "border border-slate-300 bg-white text-transparent group-hover:border-slate-400",
+                              )}
+                            >
+                              <Check size={10} strokeWidth={3} />
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </Card>
             );
           })}

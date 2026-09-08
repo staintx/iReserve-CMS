@@ -49,7 +49,7 @@ export default function StepDeliveryDetails({
   ];
 
   return (
-    <StepShell aside={<EstimateSummary estimate={estimate} />}>
+    <StepShell aside={<EstimateSummary estimate={estimate} hideIncluded />}>
       <SH
         title="Guests & Delivery"
         sub="How many people you are feeding, and where the food goes."

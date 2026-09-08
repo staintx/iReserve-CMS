@@ -883,7 +883,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
                 </View>
                 <TextInput
                   style={styles.reviewInput}
-                  placeholder="Tell us about the food taste, table setup, and banquet crew..."
+                  placeholder="Tell us about the food taste, table setup, and banquet staff..."
                   placeholderTextColor={colors.textDisabled}
                   multiline
                   value={ratingReview}

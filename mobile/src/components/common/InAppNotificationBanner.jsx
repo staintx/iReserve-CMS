@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
-import { navigateGlobal } from "../../navigation/RootNavigator";
+import { navigateGlobal } from "../../navigation/navigationRef";
 import { useAuth } from "../../context/AuthContext";
 
 // Event bus for app-wide notification toast triggers

@@ -175,6 +175,8 @@ exports.create = async (req, res) => {
     }
   }
 
+  const rawInclusions = req.body.inclusions !== undefined ? req.body.inclusions : req.body["inclusions[]"];
+
   const basePayload = {
     ...req.body,
     package_type: req.body.package_type || "Event Setup Only",
@@ -187,8 +189,8 @@ exports.create = async (req, res) => {
     // the inventory class they came from, which normalizeList keeps intact.
     inclusions:
       isOffer || req.body.package_type === "Food Only"
-        ? normalizeOfferInclusions(req.body.inclusions)
-        : normalizeList(req.body.inclusions),
+        ? normalizeOfferInclusions(rawInclusions)
+        : normalizeList(rawInclusions),
     add_ons: isOffer || req.body.package_type === "Food Only" ? [] : add_ons,
     features,
     setup_equipment: isOffer || req.body.package_type === "Food Only" ? [] : setup_equipment,
@@ -277,12 +279,14 @@ exports.update = async (req, res) => {
   const isOffer = offerType === OFFER_TYPES.SPECIAL;
   const isFoodOnly = (req.body.package_type ?? current.package_type) === "Food Only";
 
+  const rawInclusions = req.body.inclusions !== undefined ? req.body.inclusions : req.body["inclusions[]"];
+
   let data = {
     ...req.body,
-    inclusions: req.body.inclusions
+    inclusions: rawInclusions !== undefined
       ? isOffer || isFoodOnly
-        ? normalizeOfferInclusions(req.body.inclusions)
-        : normalizeList(req.body.inclusions)
+        ? normalizeOfferInclusions(rawInclusions)
+        : normalizeList(rawInclusions)
       : undefined,
     gallery_to_remove: req.body.gallery_to_remove
       ? normalizeList(req.body.gallery_to_remove)

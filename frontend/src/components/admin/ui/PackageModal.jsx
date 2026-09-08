@@ -980,9 +980,7 @@ export default function PackageModal({
       };
 
       Object.keys(normalizedFormData).forEach((key) => {
-        if (key === "inclusions") {
-          normalizedFormData[key].forEach((val) => data.append(`${key}[]`, val));
-        } else if (key === "setup_equipment" || key === "add_ons") {
+        if (key === "inclusions" || key === "setup_equipment" || key === "add_ons") {
           data.append(key, JSON.stringify(normalizedFormData[key]));
         } else if (key === "scaffold_size_options" || key === "offer_food_items") {
           data.append(key, JSON.stringify(normalizedFormData[key]));

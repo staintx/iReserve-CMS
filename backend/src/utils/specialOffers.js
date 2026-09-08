@@ -411,7 +411,13 @@ function isSetupInclusion(str) {
 function normalizeOfferInclusions(raw) {
   let items = raw;
   if (typeof raw === "string") {
-    items = raw.split(",");
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) items = parsed;
+      else items = raw.split(",");
+    } catch {
+      items = raw.split(",");
+    }
   }
   if (!Array.isArray(items)) return [];
 

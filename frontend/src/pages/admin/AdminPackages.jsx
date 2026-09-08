@@ -31,6 +31,7 @@ import {
   offerPricePerPax,
   offerBaseFoodPrice,
   offerFoodItems,
+  offerFoodByCategory,
 } from "../../lib/specialOffers";
 
 /**
@@ -412,131 +413,104 @@ export default function AdminPackages() {
                 const offer = isSpecialOffer(pkg);
                 const price = priceLine(pkg);
                 const pax = offer ? offerGuestCount(pkg) : null;
-                const food = offer ? offerFoodItems(pkg) : [];
+                const offerCategories = offer ? offerFoodByCategory(pkg) : [];
 
                 return (
                   <AdminCard
                     key={pkg._id}
-                    // An offer reads as an offer at a glance: a warm border and
-                    // a tinted ground against the neutral package cards. Same
-                    // card, same actions — the distinction is deliberate rather
-                    // than a separate screen.
-                    className={`!p-5 transition-all duration-200 group ${
+                    className={`!p-5 transition-all duration-200 group flex flex-col justify-between ${
                       offer
                         ? "border-amber-200 bg-gradient-to-b from-amber-50/60 to-white hover:border-amber-400 hover:shadow-md"
                         : "hover:shadow-md hover:border-primary/30"
                     }`}
                   >
-                    {/* Card Header */}
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-bold text-foreground truncate">
-                          {pkg.name}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-xs text-muted-foreground font-mono">
-                            #{pkg._id.substring(pkg._id.length - 6).toUpperCase()}
-                          </p>
-                          {pkg.event_type && (
-                            <span className="text-[10px] font-bold font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
-                              {pkg.event_type}
-                            </span>
+                    <div>
+                      {/* Card Header */}
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-foreground truncate text-base">
+                            {pkg.name}
+                          </h3>
+                          {!offer && (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-muted-foreground font-mono">
+                                #{pkg._id.substring(pkg._id.length - 6).toUpperCase()}
+                              </p>
+                              {pkg.event_type && (
+                                <span className="text-[10px] font-bold font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
+                                  {pkg.event_type}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
+                        <Badge status={pkg.available ? "available" : "unavailable"} />
                       </div>
-                      <Badge status={pkg.available ? "available" : "unavailable"} />
-                    </div>
 
-                    {/* Package Image */}
-                    {pkg.image_url && (
-                      <div className="w-full h-36 mb-3 rounded-md overflow-hidden bg-gray-100 border border-slate-200/60">
-                        <img
-                          src={pkg.image_url}
-                          alt={pkg.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
-                    )}
-
-                    {/* Type badges */}
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      {offer ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500 text-white">
-                          <Tag size={11} /> Combo Pack
-                        </span>
-                      ) : (
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-                          Event Setup
-                        </span>
+                      {/* Package Image */}
+                      {pkg.image_url && (
+                        <div className="w-full h-36 mb-3 rounded-md overflow-hidden bg-gray-100 border border-slate-200/60">
+                          <img
+                            src={pkg.image_url}
+                            alt={pkg.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        </div>
                       )}
-                      {/* A combo without a guest count cannot be booked, so the
-                          gap is named rather than left blank. */}
-                      {offer && (
-                        <span
-                          className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                            pax
-                              ? "bg-white text-amber-700 border-amber-200"
-                              : "bg-red-50 text-red-600 border-red-200"
+
+                      {/* Type badges (for regular packages only) */}
+                      {!offer && (
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                            Event Setup
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Pricing */}
+                      <div className="mb-3">
+                        <p
+                          className={`text-lg font-bold ${
+                            offer ? "text-amber-700" : "text-foreground"
                           }`}
                         >
-                          <Users size={11} />{" "}
-                          {pax ? `Serves ${pax} guests` : "No guest count set"}
-                        </span>
-                      )}
-                    </div>
+                          {price.headline}
+                        </p>
+                        {!offer && price.detail && (
+                          <p className="text-xs text-gray-500 mt-0.5">{price.detail}</p>
+                        )}
+                      </div>
 
-                    {/* Pricing */}
-                    <div className="mb-3">
-                      <p
-                        className={`text-lg font-bold ${
-                          offer ? "text-amber-700" : "text-foreground"
-                        }`}
-                      >
-                        {price.headline}
-                      </p>
-                      {price.detail && (
-                        <p className="text-xs text-gray-500 mt-0.5">{price.detail}</p>
-                      )}
-                    </div>
-
-                    {/* What the customer gets: the dishes for a combo, the
-                        inclusion list for a regular package. */}
-                    <div>
-                      <p className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
-                        {offer ? "Food" : "Inclusions"}
-                      </p>
-                      <ul className="space-y-1 mb-4 h-24 overflow-y-auto">
+                      {/* What the customer gets: food category summary for a combo, inclusion list for regular package */}
+                      <div>
+                        <p className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
+                          {offer ? "Food Categories" : "Inclusions"}
+                        </p>
                         {offer ? (
-                          food.length > 0 ? (
-                            food.map((item, i) => (
-                              <li
-                                key={i}
-                                className="text-sm text-foreground flex items-center gap-2 truncate"
-                                title={
-                                  item.menu_category
-                                    ? `${item.menu_category} — ${item.item_name}`
-                                    : item.item_name
-                                }
-                              >
-                                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full flex-shrink-0" />
-                                <span className="truncate">
-                                  {item.item_name}
-                                  {item.menu_category ? (
-                                    <span className="text-gray-400">
-                                      {" "}
-                                      · {item.menu_category}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </li>
-                            ))
+                          offerCategories.length > 0 ? (
+                            <ul className="space-y-1.5 mb-4">
+                              {offerCategories.map((cat, i) => (
+                                <li
+                                  key={i}
+                                  className="text-sm text-foreground flex items-center gap-2 truncate"
+                                >
+                                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full flex-shrink-0" />
+                                  <span className="font-medium text-slate-800">
+                                    {cat.category || "Included"}
+                                  </span>
+                                  <span className="text-slate-400 font-normal">
+                                    — {cat.items.length} {cat.items.length === 1 ? "item" : "items"}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
                           ) : (
-                            <li className="text-sm text-gray-400 italic">
-                              No food items configured yet
-                            </li>
+                            <p className="text-xs text-gray-400 italic mb-4">
+                              No food categories configured yet
+                            </p>
                           )
                         ) : (
-                          <>
+                          <ul className="space-y-1 mb-4 h-24 overflow-y-auto">
                             {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
                               <li
                                 key={i}
@@ -557,13 +531,13 @@ export default function AdminPackages() {
                                 No inclusions specified
                               </li>
                             )}
-                          </>
+                          </ul>
                         )}
-                      </ul>
+                      </div>
                     </div>
 
                     {/* Card Actions */}
-                    <div className="flex gap-2 pt-3 border-t border-gray-100">
+                    <div className="flex gap-2 pt-3 border-t border-gray-100 mt-2">
                       <Btn
                         variant="secondary"
                         size="sm"

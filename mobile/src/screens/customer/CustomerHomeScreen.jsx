@@ -246,17 +246,12 @@ export const CustomerHomeScreen = ({ navigation }) => {
       {/* 1. Header (Baemin Reference 1) */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
         <View style={styles.brandRow}>
-          <TouchableOpacity
-            style={styles.brandLocationPill}
-            onPress={() => navigation.navigate("Packages")}
-            activeOpacity={0.7}
-          >
+          <View style={styles.brandBadge}>
             <View style={styles.brandLogoDot} />
-            <Text style={styles.brandLocationText} numberOfLines={1}>
+            <Text style={styles.brandText} numberOfLines={1}>
               iReserve • Caezelle's Catering
             </Text>
-            <ChevronDown size={14} color={colors.primary} />
-          </TouchableOpacity>
+          </View>
 
           <View style={styles.headerIcons}>
             <TouchableOpacity
@@ -880,7 +875,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.xs,
   },
-  brandLocationPill: {
+  brandBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -896,7 +891,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.primary,
   },
-  brandLocationText: {
+  brandText: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.bold,
     color: colors.primary,

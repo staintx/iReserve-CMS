@@ -43,7 +43,7 @@ import {
   FileText,
   CheckCircle2,
 } from "lucide-react-native";
-import { colors, radius, spacing, typography } from "../../constants/theme";
+import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import Header from "../../components/common/Header";
 import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";

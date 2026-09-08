@@ -115,7 +115,7 @@ export default function StepEventDetails({
   ];
 
   return (
-    <StepShell aside={<EstimateSummary estimate={estimate} />}>
+    <StepShell aside={<EstimateSummary estimate={estimate} hideIncluded={isOffer} />}>
       <SH
         title={isOffer ? "Service Option & Details" : "Event Details"}
         sub={

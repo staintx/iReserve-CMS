@@ -2,6 +2,7 @@ import { packageScaffoldSize } from "@/lib/packageDisplay";
 import {
   isSpecialOffer,
   offerBaseFoodPrice,
+  offerFoodByCategory,
   offerFoodItems,
   offerGuestCount,
   offerInclusions,
@@ -334,23 +335,43 @@ export function buildEstimate({
       });
     }
 
-    const selectedDishes = Array.isArray(form.offer_food_snapshot) && form.offer_food_snapshot.length > 0
-      ? form.offer_food_snapshot.map((item) =>
-          item.menu_category
-            ? `${item.item_name} (${item.menu_category})`
-            : item.item_name,
-        )
-      : null;
+    // Course order from the offer, so selected dishes are displayed in a clean,
+    // natural course sequence (e.g. Viand, then Fried, then Pasta, etc.)
+    const courseOrderMap = new Map();
+    offerFoodByCategory(packageDetails).forEach((course, idx) => {
+      courseOrderMap.set(String(course.category || "").toLowerCase().trim(), idx);
+    });
 
-    const included = [
-      ...(selectedDishes ||
-        offerFoodItems(packageDetails).map((item) =>
-          item.menu_category
-            ? `${item.item_name} (${item.menu_category})`
-            : item.item_name,
-        )),
-      ...offerInclusions(packageDetails),
-    ];
+    const formatCategory = (cat) => {
+      const trimmed = String(cat || "").trim();
+      if (!trimmed) return "";
+      if (trimmed === trimmed.toUpperCase() && trimmed.length > 1) {
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      }
+      return trimmed;
+    };
+
+    const selectedDishes = Array.isArray(form?.offer_food_snapshot)
+      ? [...form.offer_food_snapshot]
+          .filter((item) => item && String(item.item_name || "").trim())
+          .sort((a, b) => {
+            const orderA =
+              courseOrderMap.get(
+                String(a.menu_category || "").toLowerCase().trim(),
+              ) ?? 999;
+            const orderB =
+              courseOrderMap.get(
+                String(b.menu_category || "").toLowerCase().trim(),
+              ) ?? 999;
+            return orderA - orderB;
+          })
+          .map((item) => {
+            const cat = formatCategory(item.menu_category);
+            return cat ? `${item.item_name} (${cat})` : item.item_name;
+          })
+      : [];
+
+    const included = selectedDishes;
 
     const isWithSetup = form.service_type === SERVICE_TYPES.FULL_SERVICE;
     const quotedSeparately = isWithSetup

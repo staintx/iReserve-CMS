@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,35 +7,43 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   FileText,
   Calendar,
-  CheckCircle,
-  AlertCircle,
   Clock,
   MapPin,
   Utensils,
   CreditCard,
-  XCircle,
-  Edit3,
   ShieldCheck,
   ChevronRight,
   MessageSquare,
+  Sparkles,
+  Check,
+  Package,
+  Edit3,
+  X,
+  AlertCircle,
+  RefreshCw,
+  Layers,
+  Users,
+  CheckCircle2,
 } from "lucide-react-native";
-import { colors, radius, spacing, typography } from "../../constants/theme";
+import { colors, radius, spacing, typography, shadows } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import messagesApi from "../../api/messages";
 import Header from "../../components/common/Header";
-import AppButton from "../../components/common/AppButton";
-import AppInput from "../../components/common/AppInput";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
-import SerratedDivider from "../../components/common/SerratedDivider";
-import { formatCurrency, formatDate, formatTime } from "../../utils/format";
+import { formatCurrency, formatDate, formatShortDate, formatTime } from "../../utils/format";
+import { groupInclusions } from "../../utils/packageDisplay";
 
 export const QuotationDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -46,9 +54,16 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Revision Modal
+  // Revision Modal State
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
+
+  const quickTags = [
+    "Adjust Guest Count",
+    "Change Menu Items",
+    "Update Event Time",
+    "Modify Setup / Equipment",
+  ];
 
   const handleOpenChat = async () => {
     const targetInquiryId =
@@ -63,8 +78,8 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
 
       navigation.navigate("CustomerChatThread", {
         conversationId: conv?._id || conv?.id,
-        title: quotation?.event_type
-          ? `Inquiry: ${quotation.event_type}`
+        title: quotation?.event_type || quotation?.event_snapshot?.event_type
+          ? `Inquiry: ${quotation?.event_type || quotation?.event_snapshot?.event_type}`
           : "Caezelle's Event Support",
         conversation: conv,
       });
@@ -106,7 +121,6 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       } else if (inquiryId) {
         const quotes = await customerApi.getQuotationsForInquiry(inquiryId);
         if (Array.isArray(quotes) && quotes.length > 0) {
-          // Sort to find latest version
           quotes.sort((a, b) => (b.version_number || 1) - (a.version_number || 1));
           setQuotation(quotes[0]);
         } else {
@@ -129,7 +143,9 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
 
     Alert.alert(
       "Accept Quotation & Pay Deposit",
-      `Accept this quotation and proceed to pay the initial deposit of ${formatCurrency(quotation.deposit_amount)} via PayMongo (GCash / Maya / Card)?`,
+      `Accept this quotation and proceed to pay the initial deposit of ${formatCurrency(
+        quotation.deposit_amount
+      )} via PayMongo (GCash / Maya / Card)? Once paid, your event date is secured.`,
       [
         { text: "Review More", style: "cancel" },
         {
@@ -137,14 +153,17 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           onPress: async () => {
             setActionLoading(true);
             try {
-              // 1. Accept quotation
+              // 1. Accept quotation if not already accepted
               if (quotation.status !== "Accepted") {
                 await customerApi.acceptQuotation(quotation._id);
               }
 
+              const targetInqId =
+                quotation?.inquiry_id?._id || quotation?.inquiry_id || inquiryId;
+
               // 2. Create PayMongo checkout session for deposit
               const checkoutRes = await customerApi.createCheckoutSession({
-                inquiry_id: quotation.inquiry_id,
+                inquiry_id: targetInqId,
                 amount: quotation.deposit_amount,
                 payment_type: "deposit",
                 payment_method_types: ["gcash", "paymaya", "card"],
@@ -154,15 +173,21 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
                 navigation.navigate("PaymentCheckout", {
                   checkoutUrl: checkoutRes.checkout_url,
                   paymentId: checkoutRes.payment?._id,
-                  inquiryId: quotation.inquiry_id,
+                  inquiryId: targetInqId,
                   depositAmount: quotation.deposit_amount,
                 });
               } else {
-                Alert.alert("Checkout Initiated", "Quotation accepted. Please check payment status in bookings.");
+                Alert.alert(
+                  "Checkout Initiated",
+                  "Quotation accepted. Please check payment status in your bookings list."
+                );
                 navigation.navigate("BookingsList");
               }
             } catch (err) {
-              Alert.alert("Action Failed", err.response?.data?.message || "Failed to process quotation acceptance.");
+              Alert.alert(
+                "Action Failed",
+                err.response?.data?.message || "Failed to process quotation acceptance."
+              );
             } finally {
               setActionLoading(false);
             }
@@ -174,7 +199,10 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
 
   const handleRequestRevision = async () => {
     if (!revisionNote.trim()) {
-      Alert.alert("Note Required", "Please enter the adjustments or revisions you would like to request.");
+      Alert.alert(
+        "Note Required",
+        "Please describe the adjustments or revisions you would like our team to make."
+      );
       return;
     }
 
@@ -183,7 +211,10 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       await customerApi.requestQuotationRevision(quotation._id, revisionNote.trim());
       setShowRevisionModal(false);
       setRevisionNote("");
-      Alert.alert("Revision Requested", "Our event manager has received your feedback and will update the quotation.");
+      Alert.alert(
+        "Revision Requested",
+        "Our banquet manager has received your feedback and will update the quotation."
+      );
       loadQuotation();
     } catch (err) {
       Alert.alert("Error", err.response?.data?.message || "Failed to submit revision request.");
@@ -192,30 +223,10 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleReject = () => {
-    Alert.alert(
-      "Reject Quotation",
-      "Are you sure you want to reject this quotation? You can still request another quote later.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await customerApi.rejectQuotation(quotation._id);
-              loadQuotation();
-            } catch (err) {
-              Alert.alert("Error", err.response?.data?.message || "Failed to reject quotation.");
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
-  };
+  // Grouped inclusions using the ported helper
+  const inclusionGroups = useMemo(() => {
+    return groupInclusions(quotation?.package_inclusions || []);
+  }, [quotation?.package_inclusions]);
 
   if (loading) {
     return (
@@ -240,24 +251,77 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       <View style={styles.container}>
         <Header title="Quotation Document" onBack={() => navigation.goBack()} />
         <View style={styles.emptyContainer}>
-          <AlertCircle size={40} color={colors.secondary} />
+          <AlertCircle size={44} color={colors.secondary} />
           <Text style={styles.emptyTitle}>Quotation In Preparation</Text>
           <Text style={styles.emptyText}>
-            Our event manager is currently reviewing your event requirements. Your itemized quote will appear here once ready.
+            Our banquet team is reviewing your event requirements. Your itemized quote will appear here once ready.
           </Text>
         </View>
       </View>
     );
   }
 
-  const isActionable = ["Sent", "Draft", "Revision Requested"].includes(quotation.status);
-  const isAcceptedOrConverted = ["Accepted", "Converted to Booking"].includes(quotation.status);
+  const snapshot = quotation.event_snapshot || null;
+  const isPastExpiry = Boolean(
+    quotation.expiration_date &&
+      new Date(quotation.expiration_date).setHours(23, 59, 59, 999) < Date.now()
+  );
+  const eventDateVal = snapshot?.event_date;
+  const isWithinLockout = Boolean(
+    eventDateVal &&
+      new Date(eventDateVal).getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000
+  );
+  const isExpired = isPastExpiry || isWithinLockout;
+
+  const isDepositPaid =
+    quotation.status === "Accepted" ||
+    quotation.status === "Converted to Booking" ||
+    quotation.inquiry_payment_status === "deposit_paid" ||
+    quotation.inquiry_payment_status === "fully_paid";
+
+  const isActionable =
+    ["Sent", "Draft", "Revision Requested"].includes(quotation.status) && !isExpired;
+
+  const isRevisionPending = quotation.status === "Revision Requested";
+
+  // Check if fees exist to avoid empty card
+  const additionalFees = (Array.isArray(quotation.additional_fees) ? quotation.additional_fees : [])
+    .filter((fee) => Number(fee?.amount) > 0);
+  const hasFees =
+    Number(quotation.transportation_fee) > 0 ||
+    Number(quotation.equipment_fee) > 0 ||
+    Number(quotation.decoration_fee) > 0 ||
+    additionalFees.length > 0 ||
+    Number(quotation.discounts) > 0;
+
+  // Deductions & Adjustments
+  const startingPrice = Number(quotation.package_starting_price || 0);
+  const removedInclusions = (Array.isArray(quotation.removed_inclusions) ? quotation.removed_inclusions : [])
+    .filter((entry) => entry?.name);
+  const inclusionAdjustments = (
+    Array.isArray(quotation.inclusion_adjustments) ? quotation.inclusion_adjustments : []
+  ).filter((entry) => entry?.name && Number(entry?.amount));
+  const showPackageBreakdown =
+    startingPrice > 0 && (removedInclusions.length > 0 || inclusionAdjustments.length > 0);
+
+  // Event Context
+  const eventDateFormatted = snapshot?.event_date ? formatDate(snapshot.event_date) : null;
+  const startTimeFormatted = snapshot?.start_time ? formatTime(snapshot.start_time) : null;
+  const venueAddress = [
+    snapshot?.street,
+    snapshot?.barangay,
+    snapshot?.municipality,
+    snapshot?.province,
+  ].filter(Boolean).join(", ") || snapshot?.venue_type || null;
+  const eventType = snapshot?.event_type || quotation.event_type || null;
+  const guestCount = quotation.guest_count || snapshot?.guest_count || 0;
+  const hasEventDetails = Boolean(eventDateFormatted || guestCount > 0 || venueAddress || eventType);
 
   return (
     <View style={styles.container}>
       <Header
         title={`Quotation #${quotation.quotation_number || String(quotation._id).slice(-6).toUpperCase()}`}
-        subtitle={`Version ${quotation.version_number || 1}`}
+        subtitle={`Version ${Number(quotation.version_number) || 1}.0`}
         onBack={() => navigation.goBack()}
         rightElement={
           <TouchableOpacity
@@ -266,20 +330,26 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             activeOpacity={0.7}
           >
-            <MessageSquare size={20} color={colors.primary} />
+            <MessageSquare size={19} color={colors.primary} />
           </TouchableOpacity>
         }
       />
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + (isActionable ? 108 : 36) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Document Header Card */}
-        <Card style={styles.documentHeaderCard} variant="flat">
+        {/* Document Header & Authority Card */}
+        <View style={styles.documentHeaderCard}>
           <View style={styles.docRefRow}>
-            <View>
-              <Text style={styles.docBrand}>Caezelle's Catering</Text>
+            <View style={{ flex: 1 }}>
+              <View style={styles.brandRow}>
+                <View style={styles.brandBadgeDot} />
+                <Text style={styles.docBrand}>Caezelle's Catering</Text>
+              </View>
               <Text style={styles.docQuoteNumber}>
                 {quotation.quotation_number || "Official Quotation"}
               </Text>
@@ -287,165 +357,391 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
             <StatusBadge status={quotation.status} />
           </View>
 
-          {quotation.expiration_date && (
-            <Text style={styles.expirationNotice}>
-              Valid until: {formatDate(quotation.expiration_date)}
+          {/* Expiration or Validity Notice */}
+          <View style={styles.metaRow}>
+            <Clock size={13} color={isExpired ? colors.error : colors.textSubtle} />
+            <Text style={[styles.metaText, isExpired && { color: colors.error, fontWeight: "600" }]}>
+              {quotation.expiration_date
+                ? `${isExpired ? "Expired on " : "Valid until: "}${formatDate(quotation.expiration_date)}`
+                : "Valid for 7 days upon receipt"}
             </Text>
-          )}
+          </View>
 
+          {/* Manager's Note / AI Recommendation Box (Craft floor compliant: no 3px stripe) */}
           {quotation.admin_notes ? (
-            <View style={styles.adminNoteBox}>
-              <Text style={styles.adminNoteLabel}>Manager's Message:</Text>
-              <Text style={styles.adminNoteText}>{quotation.admin_notes}</Text>
+            <View style={styles.managerNoteBox}>
+              <View style={styles.managerNoteHeader}>
+                <Sparkles size={14} color={colors.primary} />
+                <Text style={styles.managerNoteTitle}>
+                  {quotation.admin_notes.toLowerCase().includes("ai suggestion")
+                    ? "Event Setup Recommendation"
+                    : "Banquet Manager's Note"}
+                </Text>
+              </View>
+              <Text style={styles.managerNoteBody}>{quotation.admin_notes}</Text>
             </View>
           ) : null}
-        </Card>
 
-        {/* Package & Event Baseline */}
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Package & Catering</Text>
-          <View style={styles.lineItem}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.lineItemTitle}>{quotation.package_name || "Custom Catering Package"}</Text>
-              <Text style={styles.lineItemSubtitle}>{quotation.guest_count || 0} Guests</Text>
-            </View>
-            <Text style={styles.lineItemPrice}>{formatCurrency(quotation.package_price || 0)}</Text>
-          </View>
-
-          {/* Inclusions */}
-          {Array.isArray(quotation.package_inclusions) && quotation.package_inclusions.length > 0 && (
-            <View style={styles.subList}>
-              <Text style={styles.subListTitle}>Inclusions:</Text>
-              {quotation.package_inclusions.map((inc, i) => (
-                <Text key={i} style={styles.subListItem}>• {inc}</Text>
-              ))}
+          {/* Customer Change Request Status Notice */}
+          {quotation.customer_response && (
+            <View style={styles.customerResponseBox}>
+              <View style={styles.customerResponseHeader}>
+                <RefreshCw size={13} color={isRevisionPending ? colors.warningDark : colors.primary} />
+                <Text
+                  style={[
+                    styles.customerResponseTitle,
+                    { color: isRevisionPending ? colors.warningDark : colors.primary },
+                  ]}
+                >
+                  {isRevisionPending ? "Your Change Request is Under Review" : "Your Earlier Feedback"}
+                </Text>
+              </View>
+              <Text style={styles.customerResponseBody}>"{quotation.customer_response}"</Text>
             </View>
           )}
-        </Card>
+        </View>
 
-        {/* Menu Dishes */}
-        {Array.isArray(quotation.menu_items) && quotation.menu_items.length > 0 && (
-          <Card style={styles.sectionCard}>
-            <Text style={styles.sectionHeading}>Banquet Menu Selection</Text>
-            {quotation.menu_items.map((item, idx) => (
-              <View key={idx} style={styles.menuRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuItemName}>{item.name}</Text>
-                  <Text style={styles.menuItemMeta}>
-                    {item.category || "Course"} • {item.quantity || 1} {item.unit || "serving"}
-                  </Text>
-                  {item.note ? <Text style={styles.menuItemNote}>{item.note}</Text> : null}
+        {/* Event Schedule & Logistics Overview (Context for the customer) */}
+        {hasEventDetails && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionHeading}>Event Information</Text>
+            <View style={styles.eventGridCard}>
+              <View style={styles.eventGridRow}>
+                <View style={styles.eventGridItem}>
+                  <View style={styles.gridIconWrap}>
+                    <Calendar size={15} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gridItemLabel}>Date & Time</Text>
+                    <Text style={styles.gridItemValue}>
+                      {eventDateFormatted || "To be confirmed"}
+                    </Text>
+                    {startTimeFormatted && (
+                      <Text style={styles.gridItemSub}>{startTimeFormatted}</Text>
+                    )}
+                  </View>
                 </View>
-                {item.price > 0 && (
-                  <Text style={styles.menuItemPrice}>{formatCurrency(item.price)}</Text>
-                )}
-              </View>
-            ))}
-          </Card>
-        )}
 
-        {/* Add-ons & Equipment */}
-        {Array.isArray(quotation.add_ons) && quotation.add_ons.length > 0 && (
-          <Card style={styles.sectionCard}>
-            <Text style={styles.sectionHeading}>Add-ons & Equipment Rentals</Text>
-            {quotation.add_ons.map((addon, idx) => (
-              <View key={idx} style={styles.lineItem}>
-                <Text style={styles.lineItemTitle}>
-                  {addon.name} (×{addon.quantity || 1})
-                </Text>
-                <Text style={styles.lineItemPrice}>
-                  {formatCurrency((addon.price || 0) * (addon.quantity || 1))}
-                </Text>
+                <View style={styles.eventGridItem}>
+                  <View style={styles.gridIconWrap}>
+                    <Users size={15} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gridItemLabel}>Guests & Event</Text>
+                    <Text style={styles.gridItemValue}>
+                      {guestCount > 0 ? `${guestCount} Guests` : "Count TBA"}
+                    </Text>
+                    {eventType && <Text style={styles.gridItemSub}>{eventType}</Text>}
+                  </View>
+                </View>
               </View>
-            ))}
-          </Card>
-        )}
 
-        {/* Additional Charges & Fees */}
-        <Card style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Logistics & Service Fees</Text>
-          {quotation.transportation_fee > 0 && (
-            <View style={styles.lineItem}>
-              <Text style={styles.lineItemTitle}>Transportation / Delivery Fee</Text>
-              <Text style={styles.lineItemPrice}>{formatCurrency(quotation.transportation_fee)}</Text>
+              {venueAddress && (
+                <View style={styles.eventAddressRow}>
+                  <View style={styles.gridIconWrap}>
+                    <MapPin size={15} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gridItemLabel}>Venue / Location</Text>
+                    <Text style={styles.gridItemValue} numberOfLines={2}>
+                      {venueAddress}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
-          )}
+          </View>
+        )}
 
-          {Array.isArray(quotation.additional_fees) &&
-            quotation.additional_fees.map((fee, idx) => (
-              <View key={idx} style={styles.lineItem}>
-                <Text style={styles.lineItemTitle}>{fee.name || "Additional Fee"}</Text>
-                <Text style={styles.lineItemPrice}>{formatCurrency(fee.amount)}</Text>
+        {/* Package & Categorized Inclusions */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeading}>Package & Inclusions</Text>
+          <View style={styles.cardBox}>
+            <View style={styles.packageHeaderRow}>
+              <View style={styles.packageIconWrap}>
+                <Package size={18} color={colors.primary} />
               </View>
-            ))}
-
-          {quotation.discounts > 0 && (
-            <View style={styles.lineItem}>
-              <Text style={[styles.lineItemTitle, { color: colors.success }]}>Special Discount</Text>
-              <Text style={[styles.lineItemPrice, { color: colors.success }]}>
-                -{formatCurrency(quotation.discounts)}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.packageName}>
+                  {quotation.package_name || "Custom Catering Package"}
+                </Text>
+                <Text style={styles.packagePax}>
+                  {guestCount > 0 ? `${guestCount} Guests Capacity` : "Tailored Setup"}
+                </Text>
+              </View>
+              <Text style={styles.packagePrice}>
+                {formatCurrency(quotation.package_price || 0)}
               </Text>
             </View>
-          )}
-        </Card>
 
-        {/* Financial Ticket Receipt */}
-        <View style={styles.ticketCard}>
-          <View style={styles.ticketHeader}>
-            <Text style={styles.ticketTitle}>Cost Breakdown</Text>
-            <Text style={styles.ticketSub}>Official Estimate</Text>
-          </View>
-
-          <View style={styles.ticketBody}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Base Package ({quotation.guest_count || 0} pax)</Text>
-              <Text style={styles.totalValue}>{formatCurrency(quotation.package_price || quotation.subtotal || 0)}</Text>
-            </View>
-
-            {quotation.transportation_fee > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Transportation & Logistics</Text>
-                <Text style={styles.totalValue}>{formatCurrency(quotation.transportation_fee)}</Text>
-              </View>
-            )}
-
-            {quotation.discounts > 0 && (
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: colors.success }]}>Discount Applied</Text>
-                <Text style={[styles.totalValue, { color: colors.success }]}>-{formatCurrency(quotation.discounts)}</Text>
-              </View>
-            )}
-
-            <View style={[styles.totalRow, styles.grandTotalRow]}>
-              <Text style={styles.grandTotalLabel}>Total Event Cost</Text>
-              <Text style={styles.grandTotalValue}>{formatCurrency(quotation.total_cost)}</Text>
-            </View>
-          </View>
-
-          <SerratedDivider color={colors.background} />
-
-          <View style={styles.ticketFooter}>
-            <View style={styles.depositBox}>
-              <View style={styles.depositBadge}>
-                <Text style={styles.depositBadgeText}>DOWNPAYMENT</Text>
-              </View>
-              <View style={styles.depositRowContent}>
-                <View>
-                  <Text style={styles.depositLabel}>Required Initial Deposit</Text>
-                  <Text style={styles.depositSubtext}>Locks in your reserved date</Text>
+            {/* Deduction Breakdown if modified from starting price */}
+            {showPackageBreakdown && (
+              <View style={styles.deductionBox}>
+                <View style={styles.deductionRow}>
+                  <Text style={styles.deductionLabel}>Package starting price</Text>
+                  <Text style={styles.deductionValue}>{formatCurrency(startingPrice)}</Text>
                 </View>
-                <Text style={styles.depositValue}>{formatCurrency(quotation.deposit_amount)}</Text>
+                {removedInclusions.map((rem, idx) => (
+                  <View key={idx} style={styles.deductionRow}>
+                    <Text style={styles.deductionLabel} numberOfLines={1}>
+                      Removed: {rem.name}
+                    </Text>
+                    <Text style={[styles.deductionValue, { color: colors.success }]}>
+                      − {formatCurrency(rem.deduction || 0)}
+                    </Text>
+                  </View>
+                ))}
+                {inclusionAdjustments.map((adj, idx) => (
+                  <View key={`adj-${idx}`} style={styles.deductionRow}>
+                    <Text style={styles.deductionLabel} numberOfLines={1}>
+                      Qty adj ({adj.quantity} instead of {adj.base_quantity}): {adj.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.deductionValue,
+                        { color: Number(adj.amount) < 0 ? colors.success : colors.foreground },
+                      ]}
+                    >
+                      {Number(adj.amount) < 0 ? "− " : "+ "}
+                      {formatCurrency(Math.abs(Number(adj.amount) || 0))}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Categorized Inclusions (cleanly grouped without [Bracket] noise) */}
+            {inclusionGroups.length > 0 && (
+              <View style={styles.inclusionsWrapper}>
+                <Text style={styles.inclusionsSectionTitle}>PACKAGE INCLUSIONS</Text>
+
+                {inclusionGroups.map((group, gIdx) => (
+                  <View key={gIdx} style={styles.inclusionGroup}>
+                    {group.category && (
+                      <View style={styles.categoryHeader}>
+                        <View style={styles.categoryPill} />
+                        <Text style={styles.categoryTitle}>{group.category}</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.itemsList}>
+                      {group.items.map((item, iIdx) => (
+                        <View key={iIdx} style={styles.inclusionItemRow}>
+                          <View style={styles.checkIconWrap}>
+                            <Check size={11} color={colors.primary} />
+                          </View>
+                          <Text style={styles.inclusionItemName} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                          {item.qty && (
+                            <View style={styles.quantityBadge}>
+                              <Text style={styles.quantityBadgeText}>{item.qty}</Text>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Banquet Menu Selection (if any) */}
+        {Array.isArray(quotation.menu_items) && quotation.menu_items.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionHeading}>
+              Banquet Menu Selection ({quotation.menu_items.length})
+            </Text>
+            <View style={styles.cardBox}>
+              {quotation.menu_items.map((item, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.menuRow,
+                    idx === quotation.menu_items.length - 1 && { borderBottomWidth: 0 },
+                  ]}
+                >
+                  <View style={styles.menuCourseBadge}>
+                    <Utensils size={13} color={colors.secondary} />
+                  </View>
+                  <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                    <Text style={styles.menuItemName}>{item.name}</Text>
+                    <Text style={styles.menuItemMeta}>
+                      {item.category || "Course"} • {item.quantity || 1} {item.unit || "serving"}
+                    </Text>
+                    {item.note ? <Text style={styles.menuItemNote}>{item.note}</Text> : null}
+                  </View>
+                  {Number(item.price) > 0 && (
+                    <Text style={styles.menuItemPrice}>{formatCurrency(item.price)}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Add-ons & Equipment Rentals (if any) */}
+        {Array.isArray(quotation.add_ons) && quotation.add_ons.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionHeading}>Add-ons & Equipment Rentals</Text>
+            <View style={styles.cardBox}>
+              {quotation.add_ons.map((addon, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.addonRow,
+                    idx === quotation.add_ons.length - 1 && { borderBottomWidth: 0 },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addonTitle}>
+                      {addon.name}
+                      <Text style={styles.addonQty}> (×{addon.quantity || 1})</Text>
+                    </Text>
+                    {addon.note ? <Text style={styles.addonNote}>{addon.note}</Text> : null}
+                  </View>
+                  <Text style={styles.addonPrice}>
+                    {formatCurrency((addon.price || 0) * (addon.quantity || 1))}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Logistics & Service Fees (ONLY rendered when fees exist!) */}
+        {hasFees && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionHeading}>Logistics & Service Fees</Text>
+            <View style={styles.cardBox}>
+              {Number(quotation.transportation_fee) > 0 && (
+                <View style={styles.feeLineItem}>
+                  <Text style={styles.feeLabel}>Transportation / Delivery Fee</Text>
+                  <Text style={styles.feeAmount}>
+                    {formatCurrency(quotation.transportation_fee)}
+                  </Text>
+                </View>
+              )}
+
+              {additionalFees.map((fee, idx) => (
+                <View key={idx} style={styles.feeLineItem}>
+                  <Text style={styles.feeLabel}>{fee.name || "Additional Service Fee"}</Text>
+                  <Text style={styles.feeAmount}>{formatCurrency(fee.amount)}</Text>
+                </View>
+              ))}
+
+              {Number(quotation.discounts) > 0 && (
+                <View style={styles.feeLineItem}>
+                  <Text style={[styles.feeLabel, { color: colors.success }]}>
+                    Special Discount Applied
+                  </Text>
+                  <Text style={[styles.feeAmount, { color: colors.success }]}>
+                    − {formatCurrency(quotation.discounts)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Financial Ticket / Cost Breakdown (Professional Receipt Style) */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeading}>Cost Breakdown</Text>
+          <View style={styles.ticketCard}>
+            <View style={styles.ticketTopBar}>
+              <Text style={styles.ticketTitle}>Official Quotation Summary</Text>
+              <Text style={styles.ticketSub}>Official Estimate</Text>
+            </View>
+
+            <View style={styles.ticketBody}>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  Base Package ({quotation.guest_count || 0} pax)
+                </Text>
+                <Text style={styles.totalValue}>
+                  {formatCurrency(quotation.package_price || quotation.subtotal || 0)}
+                </Text>
+              </View>
+
+              {Number(quotation.transportation_fee) > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Transportation & Logistics</Text>
+                  <Text style={styles.totalValue}>
+                    {formatCurrency(quotation.transportation_fee)}
+                  </Text>
+                </View>
+              )}
+
+              {additionalFees.map((fee, idx) => (
+                <View key={`ticket-fee-${idx}`} style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>{fee.name || "Additional Fee"}</Text>
+                  <Text style={styles.totalValue}>{formatCurrency(fee.amount)}</Text>
+                </View>
+              ))}
+
+              {Number(quotation.discounts) > 0 && (
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: colors.success }]}>
+                    Discount Applied
+                  </Text>
+                  <Text style={[styles.totalValue, { color: colors.success }]}>
+                    − {formatCurrency(quotation.discounts)}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.grandTotalDivider} />
+
+              <View style={styles.grandTotalRow}>
+                <View>
+                  <Text style={styles.grandTotalLabel}>Total Event Cost</Text>
+                  <Text style={styles.grandTotalSub}>All charges inclusive</Text>
+                </View>
+                <Text style={styles.grandTotalValue}>
+                  {formatCurrency(quotation.total_cost || 0)}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.balanceRow}>
-              <Text style={styles.balanceLabel}>Remaining Balance (Due before event):</Text>
-              <Text style={styles.balanceValue}>{formatCurrency(quotation.remaining_balance)}</Text>
+            {/* Downpayment Highlight Ticket Footer */}
+            <View style={styles.ticketFooter}>
+              <View style={styles.downpaymentHighlightBox}>
+                <View style={styles.downpaymentBadgeRow}>
+                  <View style={styles.downpaymentPill}>
+                    <Text style={styles.downpaymentPillText}>DOWNPAYMENT REQUIRED</Text>
+                  </View>
+                  <Text style={styles.downpaymentLockText}>Locks in your reserved date</Text>
+                </View>
+
+                <View style={styles.downpaymentAmountRow}>
+                  <Text style={styles.downpaymentAmountLabel}>Initial Deposit Due:</Text>
+                  <Text style={styles.downpaymentAmountValue}>
+                    {formatCurrency(quotation.deposit_amount || 0)}
+                  </Text>
+                </View>
+                <Text style={styles.downpaymentExplanation}>
+                  Pay this deposit to lock in your event date. Once paid, our banquet team will confirm
+                  and prepare your event schedule.
+                </Text>
+              </View>
+
+              {/* Remaining Balance Row - Clean, non-squished formatting */}
+              <View style={styles.balanceContainer}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.balanceTitle}>Remaining Balance</Text>
+                  <Text style={styles.balanceSubtitle}>Payable before the event date</Text>
+                </View>
+                <Text style={styles.balanceAmount}>
+                  {formatCurrency(quotation.remaining_balance || 0)}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* Chat / Inquiry Helper Card */}
+        {/* Banquet Team Direct Chat Card */}
         <TouchableOpacity
           style={styles.chatHelperCard}
           onPress={handleOpenChat}
@@ -457,76 +753,167 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           <View style={{ flex: 1 }}>
             <Text style={styles.chatHelperTitle}>Questions about this quotation?</Text>
             <Text style={styles.chatHelperSubtitle}>
-              Chat directly with our banquet team about menus, guest count, or schedule.
+              Chat directly with our banquet team about menus, headcounts, or schedule.
             </Text>
           </View>
           <ChevronRight size={16} color={colors.foregroundMuted} />
         </TouchableOpacity>
 
-        {/* Secure Checkout Notice */}
+        {/* Secure Online Checkout Notice */}
         <View style={styles.securityNoticeCard}>
-          <ShieldCheck size={20} color={colors.primary} />
+          <ShieldCheck size={22} color={colors.primary} />
           <View style={{ flex: 1, marginLeft: spacing.sm }}>
             <Text style={styles.securityTitle}>Secure Online Downpayment</Text>
             <Text style={styles.securityDesc}>
-              Powered by PayMongo. GCash, Maya, and Visa/Mastercard accepted with instant receipt.
+              Powered by PayMongo. GCash, Maya, and Visa/Mastercard accepted with instant digital
+              receipt and real-time status update.
             </Text>
           </View>
         </View>
       </ScrollView>
 
-      {/* Action Bar (Glovo Dual Pill Buttons) */}
+      {/* Fixed Bottom Action Bar (Dual Button Layout - Never wraps awkwardly!) */}
       {isActionable && (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.sm }]}>
-          <AppButton
-            title="Revision"
-            onPress={() => setShowRevisionModal(true)}
-            variant="secondary"
-            style={styles.revisionBtn}
-            size="lg"
-            disabled={actionLoading}
-          />
-          <AppButton
-            title={`Pay Deposit ${formatCurrency(quotation.deposit_amount)}`}
-            onPress={handleAcceptAndPay}
-            loading={actionLoading}
-            style={styles.payBtn}
-            size="lg"
-          />
+        <View
+          style={[
+            styles.bottomBar,
+            { paddingBottom: Math.max(insets.bottom, 12) + spacing.xs },
+          ]}
+        >
+          {isRevisionPending ? (
+            <View style={styles.revisionPendingBar}>
+              <RefreshCw size={16} color={colors.warningDark} style={{ marginRight: 8 }} />
+              <Text style={styles.revisionPendingText}>
+                Revision Request Under Review by Banquet Team
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.actionButtonsRow}>
+              {/* Revision Button: Guaranteed single-line fit with Edit icon */}
+              <TouchableOpacity
+                style={styles.revisionBtn}
+                onPress={() => setShowRevisionModal(true)}
+                disabled={actionLoading}
+                activeOpacity={0.7}
+              >
+                <Edit3 size={15} color={colors.foreground} style={{ marginRight: 6 }} />
+                <Text style={styles.revisionBtnText} numberOfLines={1}>
+                  Revision
+                </Text>
+              </TouchableOpacity>
+
+              {/* Pay Deposit Button: Sized for prominence with clear currency badge */}
+              <TouchableOpacity
+                style={styles.payBtn}
+                onPress={handleAcceptAndPay}
+                disabled={actionLoading}
+                activeOpacity={0.85}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <View style={styles.payBtnInner}>
+                    <CreditCard size={17} color={colors.white} style={{ marginRight: 8 }} />
+                    <View style={styles.payBtnTextCol}>
+                      <Text style={styles.payBtnLabel} numberOfLines={1}>
+                        Pay Deposit
+                      </Text>
+                      <Text style={styles.payBtnAmount} numberOfLines={1}>
+                        {formatCurrency(quotation.deposit_amount || 0)}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
-      {/* Revision Modal */}
+      {/* Revision Modal (Modern Bottom Sheet with Quick Suggestions) */}
       <Modal visible={showRevisionModal} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContent, { paddingBottom: insets.bottom + spacing.xl }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdropTap}
+            activeOpacity={1}
+            onPress={() => setShowRevisionModal(false)}
+          />
+
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 16) + spacing.md }]}>
+            <View style={styles.modalHandle} />
+
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Request Quotation Revision</Text>
-              <TouchableOpacity onPress={() => setShowRevisionModal(false)}>
-                <Text style={styles.modalCancel}>Cancel</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Request Quotation Revision</Text>
+                <Text style={styles.modalSub}>
+                  Our banquet manager will adjust the quotation based on your notes.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowRevisionModal(false)}
+                style={styles.modalCloseBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color={colors.foregroundMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalPrompt}>
-              Specify changes to guest count, dish choices, add-ons, or setup requirements:
-            </Text>
+            {/* Quick Suggestion Chips */}
+            <View style={styles.quickTagsContainer}>
+              {quickTags.map((tag, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.quickTagChip}
+                  onPress={() => {
+                    setRevisionNote((prev) =>
+                      prev ? `${prev.trim()}\n• ${tag}: ` : `• ${tag}: `
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.quickTagText}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-            <AppInput
-              placeholder="e.g. Please increase guests to 80, replace chicken with beef dish, and add 20 extra chairs."
+            <TextInput
+              style={styles.revisionInput}
+              placeholder="e.g. Please adjust the guest count to 80, add 2 round tables, and include beef dishes."
+              placeholderTextColor={colors.textDisabled}
               value={revisionNote}
               onChangeText={setRevisionNote}
               multiline
               numberOfLines={4}
+              textAlignVertical="top"
             />
 
-            <AppButton
-              title="Submit Revision Request"
-              onPress={handleRequestRevision}
-              loading={actionLoading}
-              size="lg"
-            />
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowRevisionModal(false)}
+                disabled={actionLoading}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleRequestRevision}
+                disabled={actionLoading}
+                activeOpacity={0.8}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.modalSubmitText}>Submit Request</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -538,12 +925,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: spacing.xl,
+    padding: spacing.base,
   },
+
+  // Document Header Card
   documentHeaderCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
     padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
     marginBottom: spacing.base,
-    backgroundColor: colors.surfaceAlt,
+    ...shadows.sm,
   },
   docRefRow: {
     flexDirection: "row",
@@ -551,136 +944,410 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.xs,
   },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 3,
+  },
+  brandBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.primary,
+  },
   docBrand: {
     fontSize: typography.sizes.xs,
     textTransform: "uppercase",
-    fontWeight: "700",
-    color: colors.secondary,
-    letterSpacing: 0.5,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primary,
+    letterSpacing: 0.8,
   },
   docQuoteNumber: {
-    fontSize: typography.sizes.lg,
-    fontWeight: "800",
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fontFamilies.extraBold,
     color: colors.foreground,
-    marginTop: 2,
+    letterSpacing: -0.3,
   },
-  expirationNotice: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginTop: spacing.xs,
   },
-  adminNoteBox: {
-    backgroundColor: colors.white,
+  metaText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+  },
+
+  // Manager's Note Box (craft-floor compliant: soft tinted card, no 3px border-left)
+  managerNoteBox: {
+    backgroundColor: colors.primaryLight,
     padding: spacing.md,
     borderRadius: radius.md,
     marginTop: spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
-  adminNoteLabel: {
+  managerNoteHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  managerNoteTitle: {
     fontSize: typography.sizes.xs,
-    fontWeight: "700",
-    color: colors.primary,
-    marginBottom: 2,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primaryDark,
+    letterSpacing: 0.2,
   },
-  adminNoteText: {
+  managerNoteBody: {
     fontSize: typography.sizes.sm,
-    color: colors.foreground,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    lineHeight: 19,
+  },
+
+  // Customer Response Box
+  customerResponseBox: {
+    backgroundColor: colors.warningLight,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+  },
+  customerResponseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  customerResponseTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+  },
+  customerResponseBody: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundDark,
+    fontStyle: "italic",
     lineHeight: 18,
   },
-  sectionCard: {
-    padding: spacing.lg,
+
+  // Common Section Container
+  sectionContainer: {
     marginBottom: spacing.base,
   },
   sectionHeading: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "800",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
     textTransform: "uppercase",
-    color: colors.secondary,
-    letterSpacing: 0.5,
-    marginBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    paddingBottom: spacing.xs,
-  },
-  lineItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    color: colors.textSubtle,
+    letterSpacing: 0.8,
     marginBottom: spacing.sm,
+    paddingHorizontal: 2,
   },
-  lineItemTitle: {
+  cardBox: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    ...shadows.sm,
+  },
+
+  // Event Details Grid Card
+  eventGridCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.base,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    ...shadows.sm,
+  },
+  eventGridRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  eventGridItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  gridIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  gridItemLabel: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.textSubtle,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  gridItemValue: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+    marginTop: 2,
+  },
+  gridItemSub: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.foregroundMuted,
+    marginTop: 1,
+  },
+  eventAddressRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+
+  // Package Header
+  packageHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  packageIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  packageName: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
   },
-  lineItemSubtitle: {
+  packagePax: {
     fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
-  lineItemPrice: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "700",
+  packagePrice: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
   },
-  subList: {
-    marginTop: spacing.sm,
-    paddingLeft: spacing.sm,
+
+  // Deductions Box
+  deductionBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.sm + 2,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
-  subListTitle: {
-    fontSize: typography.sizes.xs,
-    fontWeight: "700",
-    color: colors.foregroundMuted,
-    marginBottom: 4,
-  },
-  subListItem: {
-    fontSize: typography.sizes.xs,
-    color: colors.foregroundMuted,
-    lineHeight: 18,
-  },
-  menuRow: {
+  deductionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  deductionLabel: {
+    flex: 1,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginRight: spacing.sm,
+  },
+  deductionValue: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+
+  // Inclusions Subsection
+  inclusionsWrapper: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  inclusionsSectionTitle: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.textSubtle,
+    letterSpacing: 0.6,
+    marginBottom: spacing.sm,
+  },
+  inclusionGroup: {
+    marginBottom: spacing.sm + 2,
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  categoryPill: {
+    width: 3,
+    height: 12,
+    borderRadius: 1.5,
+    backgroundColor: colors.primary,
+  },
+  categoryTitle: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primaryDark,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  itemsList: {
+    gap: 5,
+    paddingLeft: 2,
+  },
+  inclusionItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  checkIconWrap: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+  },
+  inclusionItemName: {
+    flex: 1,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foreground,
+    lineHeight: 18,
+  },
+  quantityBadge: {
+    backgroundColor: colors.powder,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    marginLeft: 6,
+  },
+  quantityBadgeText: {
+    fontSize: 10,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+  },
+
+  // Menu Rows
+  menuRow: {
+    flexDirection: "row",
     alignItems: "flex-start",
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
   },
+  menuCourseBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.secondaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+  },
   menuItemName: {
     fontSize: typography.sizes.sm,
-    fontWeight: "600",
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
   },
   menuItemMeta: {
     fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 1,
   },
   menuItemNote: {
     fontSize: 11,
-    color: colors.secondary,
-    fontStyle: "italic",
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.primary,
+    marginTop: 2,
   },
   menuItemPrice: {
     fontSize: typography.sizes.sm,
-    fontWeight: "700",
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
   },
+
+  // Addon Rows
+  addonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  addonTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+  addonQty: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  addonNote: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.textSubtle,
+    marginTop: 1,
+  },
+  addonPrice: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+
+  // Logistics & Fees
+  feeLineItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 5,
+  },
+  feeLabel: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foreground,
+  },
+  feeAmount: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+
+  // Ticket Card (Financial Breakdown)
   ticketCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginBottom: spacing.base,
+    borderColor: colors.cardBorder,
     overflow: "hidden",
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    ...shadows.md,
   },
-  ticketHeader: {
+  ticketTopBar: {
     backgroundColor: colors.surfaceAlt,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -691,129 +1358,164 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   ticketTitle: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
+    fontSize: 12,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundDark,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   ticketSub: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.medium,
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
   },
   ticketBody: {
     padding: spacing.lg,
   },
-  ticketFooter: {
-    padding: spacing.lg,
-    backgroundColor: colors.surface,
-  },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: spacing.xs,
+    alignItems: "center",
+    marginBottom: spacing.xs + 2,
   },
   totalLabel: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.regular,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
   totalValue: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
+  },
+  grandTotalDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.sm,
   },
   grandTotalRow: {
-    paddingTop: spacing.md,
-    marginTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    marginBottom: spacing.xs,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: spacing.xs,
   },
   grandTotalLabel: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.extraBold,
     color: colors.foreground,
   },
-  grandTotalValue: {
-    fontSize: typography.sizes.xl,
-    fontFamily: typography.fontFamily.extrabold,
-    color: colors.primary,
+  grandTotalSub: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.textSubtle,
+    marginTop: 1,
   },
-  depositBox: {
+  grandTotalValue: {
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fontFamilies.extraBold,
+    color: colors.primary,
+    letterSpacing: -0.5,
+  },
+
+  // Ticket Footer & Downpayment Box
+  ticketFooter: {
+    padding: spacing.base,
+    backgroundColor: colors.surfaceAlt,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  downpaymentHighlightBox: {
     backgroundColor: colors.primaryLight,
     padding: spacing.md,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.borderFocus,
+    borderColor: colors.primaryBorder,
     marginBottom: spacing.md,
   },
-  depositBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.full,
-    marginBottom: spacing.xs,
+  downpaymentBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
   },
-  depositBadgeText: {
+  downpaymentPill: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  downpaymentPillText: {
     fontSize: 10,
-    fontFamily: typography.fontFamily.bold,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.white,
     letterSpacing: 0.5,
   },
-  depositRowContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  depositLabel: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
-  },
-  depositSubtext: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.regular,
+  downpaymentLockText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.primaryDark,
-    marginTop: 2,
   },
-  depositValue: {
-    fontSize: typography.sizes.lg,
-    fontFamily: typography.fontFamily.extrabold,
+  downpaymentAmountRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  downpaymentAmountLabel: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primaryDark,
+  },
+  downpaymentAmountValue: {
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fontFamilies.extraBold,
     color: colors.primary,
+    letterSpacing: -0.3,
   },
-  balanceRow: {
+  downpaymentExplanation: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    lineHeight: 15,
+  },
+
+  // Remaining Balance Row (Generous spacing, no squished text!)
+  balanceContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
-  balanceLabel: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.medium,
-    color: colors.foregroundMuted,
-  },
-  balanceValue: {
+  balanceTitle: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
   },
-  headerChatBtn: {
-    padding: 6,
-    borderRadius: radius.full,
-    backgroundColor: colors.primaryLight,
+  balanceSubtitle: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.textSubtle,
+    marginTop: 1,
   },
+  balanceAmount: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+
+  // Direct Banquet Chat Helper Card
   chatHelperCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.cardBorder,
     borderRadius: radius.xl,
     padding: spacing.md,
     marginBottom: spacing.base,
     gap: spacing.sm,
+    ...shadows.sm,
   },
   chatHelperIconWrap: {
     width: 38,
@@ -825,57 +1527,137 @@ const styles = StyleSheet.create({
   },
   chatHelperTitle: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.bold,
-    fontWeight: "700",
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
   },
   chatHelperSubtitle: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.foregroundMuted,
-    marginTop: 2,
-  },
-  securityNoticeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceAlt,
-    padding: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginBottom: spacing.base,
-  },
-  securityTitle: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
-  },
-  securityDesc: {
     fontSize: 11,
-    fontFamily: typography.fontFamily.regular,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
     lineHeight: 15,
   },
+
+  // Security Trust Notice Card
+  securityNoticeCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    marginBottom: spacing.base,
+  },
+  securityTitle: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+  },
+  securityDesc: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+
+  // Bottom Sticky Action Bar (Fixing the wrapping bug!)
   bottomBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: "row",
-    gap: spacing.md,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.sm + 2,
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    borderTopColor: colors.border,
+    ...shadows.dock,
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 2,
   },
   revisionBtn: {
     flex: 1,
+    height: 50,
+    borderRadius: radius.pill,
+    backgroundColor: colors.powder,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  revisionBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+    letterSpacing: 0.1,
   },
   payBtn: {
-    flex: 2,
+    flex: 1.85,
+    height: 50,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+    ...shadows.sm,
   },
+  payBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payBtnTextCol: {
+    alignItems: "flex-start",
+  },
+  payBtnLabel: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.medium,
+    color: colors.powderBlue,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  payBtnAmount: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.extraBold,
+    color: colors.white,
+    letterSpacing: -0.2,
+    lineHeight: 18,
+  },
+  revisionPendingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.warningLight,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+  },
+  revisionPendingText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.warningDark,
+  },
+
+  // Header chat button
+  headerChatBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Empty state
   emptyContainer: {
     flex: 1,
     alignItems: "center",
@@ -884,50 +1666,128 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: typography.sizes.lg,
-    fontWeight: "700",
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
   emptyText: {
     fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,
-    maxWidth: 280,
+    maxWidth: 290,
   },
+
+  // Revision Modal
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
     justifyContent: "flex-end",
   },
+  modalBackdropTap: {
+    flex: 1,
+  },
   modalContent: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    ...shadows.lg,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: "center",
+    marginBottom: spacing.md,
   },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: spacing.md,
   },
   modalTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: "700",
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fontFamilies.extraBold,
     color: colors.foreground,
   },
-  modalCancel: {
-    fontSize: typography.sizes.sm,
+  modalSub: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
-    fontWeight: "600",
+    marginTop: 2,
   },
-  modalPrompt: {
+  modalCloseBtn: {
+    padding: 4,
+    marginLeft: spacing.sm,
+  },
+  quickTagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: spacing.md,
+  },
+  quickTagChip: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  quickTagText: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primaryDark,
+  },
+  revisionInput: {
+    minHeight: 110,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     fontSize: typography.sizes.sm,
-    color: colors.foregroundMuted,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foreground,
     lineHeight: 20,
-    marginBottom: spacing.base,
+    marginBottom: spacing.lg,
+  },
+  modalButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: colors.powder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foregroundMuted,
+  },
+  modalSubmitBtn: {
+    flex: 1.8,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalSubmitText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.white,
   },
 });
 

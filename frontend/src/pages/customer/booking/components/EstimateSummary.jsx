@@ -25,7 +25,12 @@ export default function EstimateSummary({
   variant = "sidebar",
   note,
   className = "",
+  hideIncluded = false,
+  showIncluded = true,
 }) {
+  const shouldHideIncluded =
+    hideIncluded || !showIncluded || Boolean(estimate?.hideIncluded);
+
   const {
     lines,
     blockers,
@@ -147,7 +152,7 @@ export default function EstimateSummary({
           </ul>
         )}
 
-        {(included?.length > 0 || quotedSeparately?.length > 0) && (
+        {!shouldHideIncluded && (included?.length > 0 || quotedSeparately?.length > 0) && (
           <div className="mt-2.5 space-y-2 border-t border-slate-800 pt-2 text-xs">
             {included?.length > 0 && (
               <div>

@@ -857,12 +857,12 @@ export default function PackageModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Both types need a name and an event type. What they need beyond that
+    // Both types need a name. What they need beyond that
     // differs, because what they are priced on differs: an offer is sold at a
     // fixed rate per pax against its own guest count, a regular package at a
     // base setup price.
-    if (!formData.name.trim() || (!isOffer && !formData.event_type)) {
-      notify(isOffer ? "Combo name is required." : "Package name and event type are required.", "error");
+    if (!formData.name.trim()) {
+      notify(isOffer ? "Combo name is required." : "Package name is required.", "error");
       return;
     }
 
@@ -886,12 +886,7 @@ export default function PackageModal({
     }
 
     if (!isOffer && !formData.setup_price) {
-      notify("Package name, event type, and base setup price are required.", "error");
-      return;
-    }
-
-    if (!isOffer && formData.event_type === "Other" && !String(formData.event_type_other || "").trim()) {
-      notify("Please specify the custom event type.", "error");
+      notify("Base setup price is required.", "error");
       return;
     }
 
@@ -945,11 +940,7 @@ export default function PackageModal({
 
       const normalizedFormData = {
         ...formData,
-        event_type: isOffer
-          ? ""
-          : formData.event_type === "Other"
-            ? String(formData.event_type_other || "").trim() || "Other"
-            : formData.event_type,
+        event_type: "",
         // The event-space build, which only a regular package has.
         scaffold_size_options: isOffer || isFoodOnly
           ? []
@@ -1047,40 +1038,36 @@ export default function PackageModal({
         }}
       />
       
-      <div className="fixed inset-0 z-[60] flex justify-end bg-black/40 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-2xl h-full flex flex-col shadow-2xl animate-in slide-in-from-right overflow-hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100">
         {/* ============ HEADER ============ */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <h2 className="flex items-center gap-2 font-bold text-foreground text-lg">
-              {isOffer && <Tag size={17} className="text-amber-500" />}
-              {isOffer
-                ? pkg
-                  ? "Edit Combo"
-                  : "New Combo Pack"
-                : pkg
-                  ? "Edit Package"
-                  : "Add New Package"}
-            </h2>
-            {!pkg && (
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-foreground">
+                {pkg
+                  ? isOffer
+                    ? "Edit Combo"
+                    : "Edit Package"
+                  : isOffer
+                    ? "Add New Combo"
+                    : "Add New Package"}
+              </h2>
               <button
                 type="button"
                 onClick={() => setIsParserOpen(true)}
-                className="group relative inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-violet-600/10 hover:from-blue-600/15 hover:via-indigo-600/15 hover:to-violet-600/15 px-3 py-1 text-xs font-bold text-indigo-600 border border-indigo-200/80 hover:border-indigo-300 shadow-xs hover:shadow-sm transition-all duration-200 active:scale-95 cursor-pointer"
-                title="Automatically extract and populate package data using AI"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer"
               >
-                <Sparkles size={13} className="text-indigo-600 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <Sparkles size={12} />
                 <span>Auto-Fill with AI</span>
               </button>
-            )}
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X size={20} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full text-gray-500"
-          >
-            <X size={20} />
-          </button>
-        </div>
 
         {/* ============ SCROLLABLE CONTENT ============ */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-8">
@@ -1177,45 +1164,7 @@ export default function PackageModal({
                 />
               </div>
 
-              {/* Event Type (Regular Package Only) */}
-              {!isOffer && (
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">
-                    Event Type <span className="text-red-400">*</span>
-                  </label>
-                  <select
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                    value={formData.event_type}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        event_type: e.target.value,
-                        event_type_other:
-                          e.target.value === "Other" ? formData.event_type_other : "",
-                      })
-                    }
-                  >
-                    <option value="">Select Event Type</option>
-                    <option value="Wedding">Wedding</option>
-                    <option value="Birthday">Birthday</option>
-                    <option value="Corporate">Corporate</option>
-                    <option value="Christening">Christening</option>
-                    <option value="Anniversary">Anniversary</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  {formData.event_type === "Other" && (
-                    <input
-                      type="text"
-                      className="w-full mt-2 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                      placeholder="Specify custom event type"
-                      value={formData.event_type_other}
-                      onChange={(e) =>
-                        setFormData({ ...formData, event_type_other: e.target.value })
-                      }
-                    />
-                  )}
-                </div>
-              )}
+
 
 
               {/* Availability Toggle */}

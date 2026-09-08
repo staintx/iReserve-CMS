@@ -144,16 +144,13 @@ export default function PackageDetails() {
     return (
       <div
         key={course.category || idxKey}
-        className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-amber-300"
+        className="bg-white border border-gray-200/90 rounded-lg p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-amber-300"
       >
         <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-            <h4 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
-              {course.category || "Included Items"}
-            </h4>
-          </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60">
+          <h4 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
+            {course.category || "Included Items"}
+          </h4>
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200/60">
             {course.items.length} {course.items.length === 1 ? "item" : "items"}
           </span>
         </div>
@@ -168,9 +165,8 @@ export default function PackageDetails() {
           {course.items.map((item, itemIdx) => (
             <li
               key={itemIdx}
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-amber-50/40 hover:border-amber-200"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-amber-50/40 hover:border-amber-200"
             >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
               <span className="leading-snug">{item}</span>
             </li>
           ))}
@@ -216,6 +212,65 @@ export default function PackageDetails() {
   // grouped by it; a combo's are plain lines the admin typed, so they are
   // listed as they were written.
   const inclusionGroups = offer ? [] : groupInclusions(data?.inclusions);
+
+  const splitInclusionGroups = useMemo(() => {
+    const left = [];
+    const right = [];
+    let leftWeight = 0;
+    let rightWeight = 0;
+
+    for (const group of inclusionGroups) {
+      const weight = 3 + (group.items?.length || 0);
+      if (leftWeight <= rightWeight) {
+        left.push(group);
+        leftWeight += weight;
+      } else {
+        right.push(group);
+        rightWeight += weight;
+      }
+    }
+    return { left, right };
+  }, [inclusionGroups]);
+
+  const renderInclusionGroupCard = (group, idxKey) => {
+    return (
+      <div
+        key={group.category || idxKey}
+        className="bg-white border border-gray-200/90 rounded-lg p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-blue-300"
+      >
+        <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+          <h3 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
+            {group.category || "Included Items"}
+          </h3>
+          <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/60">
+            {group.items.length} {group.items.length === 1 ? "item" : "items"}
+          </span>
+        </div>
+
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {group.items.map((item, index) => (
+            <li
+              key={`${item.name}-${index}`}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-blue-50/30 hover:border-blue-200"
+            >
+              <span className="ls-inclusion-check shrink-0" aria-hidden="true">
+                <Check size={12} strokeWidth={3} />
+              </span>
+              <span className="leading-snug">
+                {item.name}
+                {item.qty && (
+                  <span className="text-xs text-gray-500 font-normal ml-1">
+                    ({item.qty})
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   const comboInclusions = offer ? offerInclusions(data) : [];
   // Add-ons are sold alongside a regular package. A combo has none — the same
   // reason it has no sizes.
@@ -478,8 +533,7 @@ export default function PackageDetails() {
                         </p>
                       </div>
                     </div>
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/80 shrink-0 self-start sm:self-auto shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/80 shrink-0 self-start sm:self-auto shadow-xs">
                       <span>Choose 1 item from each category.</span>
                     </div>
                   </div>
@@ -527,27 +581,36 @@ export default function PackageDetails() {
 
               {inclusionGroups.length > 0 && (
                 <section className="ls-detail-section" aria-labelledby="includes-title">
-                  <h2 id="includes-title">What this package includes</h2>
-                  {inclusionGroups.map((group, groupIndex) => (
-                    <div className="ls-inclusion-group" key={group.category || groupIndex}>
-                      {group.category && <h3>{group.category}</h3>}
-                      <ul className="ls-inclusion-list">
-                        {group.items.map((item, index) => (
-                          <li key={`${item.name}-${index}`}>
-                            <span className="ls-inclusion-check" aria-hidden="true">
-                              <Check size={12} strokeWidth={3} />
-                            </span>
-                            <span>
-                              {item.name}
-                              {item.qty && (
-                                <span className="ls-inclusion-qty"> × {item.qty}</span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
+                  <h2 id="includes-title" className="mb-6">What this package includes</h2>
+
+                  {inclusionGroups.length === 1 ? (
+                    <div className="space-y-5">
+                      {renderInclusionGroupCard(inclusionGroups[0], "single")}
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      {/* Mobile single-column layout */}
+                      <div className="space-y-5 md:hidden">
+                        {inclusionGroups.map((group, idx) =>
+                          renderInclusionGroupCard(group, `mob-${idx}`),
+                        )}
+                      </div>
+
+                      {/* Desktop & Tablet balanced two-column layout */}
+                      <div className="hidden md:grid md:grid-cols-2 gap-5 items-start">
+                        <div className="space-y-5">
+                          {splitInclusionGroups.left.map((group, idx) =>
+                            renderInclusionGroupCard(group, `left-${idx}`),
+                          )}
+                        </div>
+                        <div className="space-y-5">
+                          {splitInclusionGroups.right.map((group, idx) =>
+                            renderInclusionGroupCard(group, `right-${idx}`),
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </section>
               )}
 

@@ -678,14 +678,14 @@ export default function CustomerEventDashboard() {
 
   return (
     <CustomerDashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-5 pb-10">
+      <div className="w-full max-w-7xl mx-auto space-y-5 pb-12 font-sans">
         {/* Navigation Top Bar */}
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate("/customer/bookings")}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground font-medium transition-colors -ml-2 h-8 px-2 text-xs"
+            className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold transition-colors -ml-2 h-8 px-2 text-xs cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
             Back to My Bookings
@@ -694,7 +694,7 @@ export default function CustomerEventDashboard() {
 
         {/* Cancelled Payment Notification Banner */}
         {searchParams.get("payment") === "cancelled" && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5 flex items-start gap-2.5 shadow-2xs">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 shadow-2xs">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-semibold text-amber-950 text-xs">Payment Cancelled</h4>
@@ -706,7 +706,7 @@ export default function CustomerEventDashboard() {
         )}
 
         {/* Header — what this booking is, when, and what it costs */}
-        <div className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
             <div className="min-w-0 space-y-2.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -757,7 +757,7 @@ export default function CustomerEventDashboard() {
             </div>
 
             {/* The whole money story — total, paid, remaining */}
-            <div className="w-full shrink-0 rounded-lg border border-slate-200 bg-slate-50/80 p-3.5 sm:p-4 lg:w-80">
+            <div className="w-full shrink-0 rounded-xl border border-slate-200 bg-slate-50/80 p-4 lg:w-80">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-xs font-medium text-slate-500">Total cost</span>
                 <span className="text-xs font-bold tabular-nums text-slate-900">{formatCurrency(grandTotal)}</span>
@@ -781,16 +781,16 @@ export default function CustomerEventDashboard() {
                 <Button
                   onClick={handlePayRemainingBalance}
                   disabled={payingPaymentId !== null}
-                  className={cn("mt-2.5 w-full h-8 text-xs font-semibold rounded-md", ACTION_PAY)}
+                  className="mt-3 w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 rounded-lg cursor-pointer shadow-xs gap-1.5 transition-all active:scale-[0.98]"
                 >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  {payingPaymentId ? "Opening checkout…" : "Pay remaining balance"}
+                  <CreditCard className="h-4 w-4" />
+                  {payingPaymentId ? "Opening Checkout…" : `Pay Balance (${formatCurrency(outstandingAmount)})`}
                 </Button>
               )}
             </div>
           </div>
 
-          {/* Quick Action Toolbar */}
+          {/* WORKFLOW-ORGANIZED QUICK ACTION TOOLBAR */}
           <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -798,10 +798,10 @@ export default function CustomerEventDashboard() {
                 size="sm"
                 onClick={handleOpenChat}
                 disabled={isOpeningChat}
-                className={cn("gap-1.5 rounded-md text-xs font-medium h-8 px-3", ACTION_MESSAGE)}
+                className="gap-1.5 rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold h-8 px-3 cursor-pointer shadow-2xs"
               >
-                <MessageSquare className="w-3.5 h-3.5" />
-                {isOpeningChat ? "Opening chat…" : "Message us"}
+                <MessageSquare className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                {isOpeningChat ? "Opening chat…" : "Message Staff"}
               </Button>
 
               {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
@@ -810,20 +810,10 @@ export default function CustomerEventDashboard() {
                     variant="outline" 
                     size="sm" 
                     onClick={() => setAddingGuests(true)}
-                    className="text-xs rounded-md border-border hover:bg-muted font-medium gap-1.5 h-8 px-3"
+                    className="text-xs rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold gap-1.5 h-8 px-3 cursor-pointer shadow-2xs"
                   >
-                    <Users className="w-3.5 h-3.5 text-blue-500" />
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
                     Add Guests
-                  </Button>
-
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setUpgrading(true)}
-                    className="text-xs rounded-md border-border hover:bg-muted font-medium gap-1.5 h-8 px-3"
-                  >
-                    <ArrowUpCircle className="w-3.5 h-3.5 text-emerald-500" />
-                    Upgrade Package
                   </Button>
 
                   <Button 
@@ -831,50 +821,17 @@ export default function CustomerEventDashboard() {
                     size="sm" 
                     onClick={() => setRequestingChange(true)}
                     disabled={booking.change_request?.status === 'pending'}
-                    className="text-xs rounded-md border-border hover:bg-muted font-medium gap-1.5 h-8 px-3"
+                    className="text-xs rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold gap-1.5 h-8 px-3 cursor-pointer shadow-2xs"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
                     {booking.change_request?.status === 'pending' ? "Change Pending" : "Request Changes"}
                   </Button>
-
-                  {needsOcular && (
-                    <>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setRequestingOcular(true)}
-                        className="text-xs rounded-md border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium gap-1.5 h-8 px-3"
-                      >
-                        <CalendarRange className="w-3.5 h-3.5 text-amber-600" />
-                        Schedule Ocular
-                      </Button>
-                      {!booking.ocular_visit?.is_required && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
-                              CustomerAPI.skipOcular(booking._id)
-                                .then(() => {
-                                  notify("Ocular visit skipped successfully.", "success");
-                                  fetchBooking();
-                                })
-                                .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
-                            }
-                          }}
-                          className="text-xs rounded-md border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium h-8 px-3"
-                        >
-                          Skip Ocular
-                        </Button>
-                      )}
-                    </>
-                  )}
 
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => setRequestingCancellation(true)}
-                    className="text-xs rounded-md border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-medium gap-1.5 h-8 px-3"
+                    className="text-xs rounded-lg border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-800 font-semibold gap-1.5 h-8 px-3 cursor-pointer"
                   >
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                     Request Cancellation
@@ -887,7 +844,7 @@ export default function CustomerEventDashboard() {
               <Button 
                 onClick={acceptQuote} 
                 disabled={isAcceptingQuote}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 h-8 rounded-md shadow-xs gap-1.5"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 h-8 rounded-lg shadow-xs gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 {isAcceptingQuote ? "Processing..." : "Accept Quote & Pay Deposit"}
@@ -895,6 +852,124 @@ export default function CustomerEventDashboard() {
             )}
           </div>
         </div>
+
+        {/* CLEAN HORIZONTAL LIFECYCLE TIMELINE (DESIGN REFERENCE MATCH) */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#2C4B8A]" /> Booking Progress Timeline
+            </h2>
+            <span className="text-xs font-mono text-slate-400">Ref: #{refCode}</span>
+          </div>
+
+          <div className="relative pt-3 pb-2 px-2 sm:px-6">
+            {/* Connecting Background Line */}
+            <div className="absolute top-7 left-8 right-8 h-0.5 bg-slate-200 -z-0" />
+
+            {/* Steps Grid */}
+            <div
+              className={cn(
+                "grid gap-2 relative z-10",
+                steps.length === 5 ? "grid-cols-5" : steps.length === 3 ? "grid-cols-3" : "grid-cols-4"
+              )}
+            >
+              {steps.map((step, idx) => {
+                const isDone = step.completed;
+                const activeIndex = steps.findIndex((s) => !s.completed);
+                const isCurrent = activeIndex === -1 ? idx === steps.length - 1 : idx === activeIndex;
+
+                return (
+                  <div key={idx} className="flex flex-col items-center text-center group">
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-2xs",
+                        isDone
+                          ? "bg-emerald-600 text-white"
+                          : isCurrent
+                          ? "bg-[#2C4B8A] text-white ring-4 ring-[#2C4B8A]/15 scale-105"
+                          : "bg-white text-slate-400 border-2 border-slate-200"
+                      )}
+                    >
+                      {isDone ? <Check className="w-4 h-4 stroke-[2.5]" /> : idx + 1}
+                    </div>
+
+                    <div className="mt-2.5 space-y-0.5 max-w-[140px]">
+                      <h3
+                        className={cn(
+                          "text-xs sm:text-sm font-sans leading-tight",
+                          isCurrent
+                            ? "font-extrabold text-[#1E3563]"
+                            : isDone
+                            ? "font-bold text-slate-900"
+                            : "font-medium text-slate-400"
+                        )}
+                      >
+                        {step.label}
+                      </h3>
+                      <p
+                        className={cn(
+                          "text-[11px] leading-snug hidden sm:block",
+                          isCurrent ? "text-slate-600 font-medium" : "text-slate-400"
+                        )}
+                      >
+                        {step.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* DEDICATED SEPARATE VENUE & SITE OCULAR INSPECTION CARD */}
+        {needsOcular && (
+          <Card className="border-amber-200/90 bg-gradient-to-r from-amber-50/70 to-orange-50/40 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0 shadow-2xs">
+                  <CalendarRange className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-amber-950 text-sm font-sans">Venue &amp; Site Ocular Inspection</h4>
+                  <p className="text-amber-800 text-xs mt-0.5 leading-relaxed font-medium">
+                    {pendingOcular
+                      ? "Your requested ocular date is under review by our catering team."
+                      : "Schedule a site visit with our team to inspect venue layout and catering logistics before your event."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  onClick={() => setRequestingOcular(true)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 px-4 rounded-lg cursor-pointer shadow-xs gap-1.5 active:scale-[0.98]"
+                >
+                  <CalendarRange className="w-3.5 h-3.5" />
+                  <span>{pendingOcular ? "Reschedule Ocular" : "Schedule Ocular Visit"}</span>
+                </Button>
+                {!booking.ocular_visit?.is_required && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                        CustomerAPI.skipOcular(booking._id)
+                          .then(() => {
+                            notify("Ocular visit skipped successfully.", "success");
+                            fetchBooking();
+                          })
+                          .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                      }
+                    }}
+                    className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs h-8.5 px-3 rounded-lg cursor-pointer"
+                  >
+                    Skip Ocular
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Pending Revision Proposal Banner */}
         {booking.pending_revision && ["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status) && (

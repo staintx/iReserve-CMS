@@ -235,7 +235,8 @@ function formFromInquiry(inquiry) {
  * regardless of what this form sends (see utils/requestSelections.js), so the
  * validation here is for a good experience, not the actual guardrail.
  */
-export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSaved }) {
+export default function CustomerInquiryEditModal({ open, isOpen, inquiry, onClose, onSaved }) {
+  const showModal = Boolean(open ?? isOpen);
   const { notify } = useToast();
   const [form, setForm] = useState(() => formFromInquiry(inquiry));
   const [errors, setErrors] = useState({});
@@ -253,14 +254,14 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   const [activeCourseTab, setActiveCourseTab] = useState("all");
 
   useEffect(() => {
-    if (open) {
+    if (showModal) {
       setForm(formFromInquiry(inquiry));
       setErrors({});
       setTouched({});
       setDishQuery("");
       setActiveCourseTab("all");
     }
-  }, [open, inquiry]);
+  }, [showModal, inquiry]);
 
   /**
    * What the customer may choose from.
@@ -272,7 +273,7 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
    * to what the request already holds, so the rest of the form still saves.
    */
   useEffect(() => {
-    if (!open || !inquiry) return;
+    if (!showModal || !inquiry) return;
     let alive = true;
 
     const packageId =
@@ -654,7 +655,7 @@ export default function CustomerInquiryEditModal({ open, inquiry, onClose, onSav
   if (!inquiry) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose?.()}>
+    <Dialog open={showModal} onOpenChange={(next) => !next && onClose?.()}>
       <DialogContent className="w-full max-w-3xl max-h-[88vh] rounded-xl border border-slate-200 shadow-2xl p-0 overflow-hidden flex flex-col bg-white">
         <DialogHeader className="px-5 pt-4 pb-3 border-b border-slate-100 bg-white shrink-0">
           <DialogTitle className="font-sans font-bold text-base sm:text-lg text-slate-900 tracking-tight flex items-center gap-2">

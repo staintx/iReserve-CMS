@@ -34,6 +34,7 @@ import {
   Pencil,
   Clock,
   CheckCircle2,
+  Check,
   MapPin,
   Users,
   Calendar,
@@ -273,7 +274,7 @@ export default function CustomerInquiryDetails() {
 
   return (
     <CustomerDashboardLayout>
-      <div className="max-w-5xl mx-auto space-y-6 pb-16 font-sans">
+      <div className="w-full max-w-7xl mx-auto space-y-6 pb-16 font-sans">
         {/* Navigation Header */}
         <div className="flex items-center justify-between">
           <Button
@@ -411,48 +412,66 @@ export default function CustomerInquiryDetails() {
           )}
         </div>
 
-        {/* DEDICATED LIFECYCLE TIMELINE DIAGRAM */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
-            <Clock className="w-4 h-4 text-[#2C4B8A]" /> Inquiry Progress Timeline
-          </h2>
+        {/* CLEAN HORIZONTAL LIFECYCLE TIMELINE (DESIGN REFERENCE MATCH) */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#2C4B8A]" /> Inquiry Progress Timeline
+            </h2>
+            <span className="text-xs font-mono text-slate-400">Ref: #{refCode}</span>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2">
-            {steps.map((step, idx) => (
-              <div
-                key={step.id}
-                className={cn(
-                  "p-3.5 rounded-xl border text-xs relative flex flex-col justify-between space-y-2",
-                  step.status === "completed"
-                    ? "bg-emerald-50/50 border-emerald-200/80 text-emerald-900"
-                    : step.status === "active"
-                    ? "bg-blue-50/70 border-blue-300 text-blue-950 ring-2 ring-[#2C4B8A]/20"
-                    : "bg-slate-50/60 border-slate-200 text-slate-400"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Step {idx + 1}</span>
-                  {step.status === "completed" ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : step.status === "active" ? (
-                    <Clock className="w-4 h-4 text-[#2C4B8A] animate-spin" />
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-slate-300" />
-                  )}
-                </div>
+          <div className="relative pt-3 pb-2 px-2 sm:px-6">
+            {/* Connecting Background Line */}
+            <div className="absolute top-7 left-8 right-8 h-0.5 bg-slate-200 -z-0" />
 
-                <div>
-                  <h3 className="font-bold text-xs text-slate-900">{step.title}</h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{step.desc}</p>
-                </div>
+            {/* Steps Container */}
+            <div className="grid grid-cols-4 gap-2 relative z-10">
+              {steps.map((step, idx) => {
+                const isDone = step.status === "completed";
+                const isCurrent = step.status === "active";
 
-                {step.date && (
-                  <div className="text-[10px] font-mono text-slate-400 border-t border-slate-200/60 pt-1.5">
-                    {step.date}
+                return (
+                  <div key={step.id} className="flex flex-col items-center text-center group">
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-2xs",
+                        isDone
+                          ? "bg-emerald-600 text-white"
+                          : isCurrent
+                          ? "bg-[#2C4B8A] text-white ring-4 ring-[#2C4B8A]/15 scale-105"
+                          : "bg-white text-slate-400 border-2 border-slate-200"
+                      )}
+                    >
+                      {isDone ? <Check className="w-4 h-4 stroke-[2.5]" /> : idx + 1}
+                    </div>
+
+                    <div className="mt-2.5 space-y-0.5 max-w-[140px]">
+                      <h3
+                        className={cn(
+                          "text-xs sm:text-sm font-sans leading-tight",
+                          isCurrent
+                            ? "font-extrabold text-[#1E3563]"
+                            : isDone
+                            ? "font-bold text-slate-900"
+                            : "font-medium text-slate-400"
+                        )}
+                      >
+                        {step.title}
+                      </h3>
+                      <p
+                        className={cn(
+                          "text-[11px] leading-snug hidden sm:block",
+                          isCurrent ? "text-slate-600 font-medium" : "text-slate-400"
+                        )}
+                      >
+                        {step.desc}
+                      </p>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -569,7 +588,7 @@ export default function CustomerInquiryDetails() {
 
                 <div className="flex items-center gap-2.5">
                   <Phone className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="text-slate-600">{inquiry.contact_phone || "No phone"}</span>
+                  <span className="text-[#2C4B8A] font-semibold">{inquiry.contact_phone || "No phone"}</span>
                 </div>
               </div>
             </div>
@@ -607,6 +626,7 @@ export default function CustomerInquiryDetails() {
 
       {isEditModalOpen && (
         <CustomerInquiryEditModal
+          open={isEditModalOpen}
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
           inquiry={inquiry}

@@ -141,68 +141,116 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   const handleAcceptAndPay = async () => {
     if (!quotation) return;
 
-    Alert.alert(
-      "Accept Quotation & Pay Deposit",
-      `Accept this quotation and proceed to pay the initial deposit of ${formatCurrency(
-        quotation.deposit_amount
-      )} via PayMongo (GCash / Maya / Card)? Once paid, your event date is secured.`,
-      [
-        { text: "Review More", style: "cancel" },
-        {
-          text: "Proceed to Payment",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              // 1. Accept quotation if not already accepted
-              if (quotation.status !== "Accepted") {
-                await customerApi.acceptQuotation(quotation._id);
-              }
+    const proceed = () => {
+      executePaymentFlow();
+    };
 
-              const targetInqId =
-                quotation?.inquiry_id?._id || quotation?.inquiry_id || inquiryId;
+    const confirmMsg = `Accept this quotation and proceed to pay the initial deposit of ${formatCurrency(
+      quotation.deposit_amount
+    )} via PayMongo (GCash / Maya / Card)? Once paid, your event date is secured.`;
 
-              // 2. Create PayMongo checkout session for deposit
-              const checkoutRes = await customerApi.createCheckoutSession({
-                inquiry_id: targetInqId,
-                amount: quotation.deposit_amount,
-                payment_type: "deposit",
-                payment_method_types: ["gcash", "paymaya", "card"],
-              });
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm) {
+        if (window.confirm(confirmMsg)) {
+          proceed();
+        }
+      } else {
+        proceed();
+      }
+    } else {
+      Alert.alert(
+        "Accept Quotation & Pay Deposit",
+        confirmMsg,
+        [
+          { text: "Review More", style: "cancel" },
+          { text: "Proceed to Payment", onPress: proceed },
+        ]
+      );
+    }
+  };
 
-              if (checkoutRes?.checkout_url) {
-                navigation.navigate("PaymentCheckout", {
-                  checkoutUrl: checkoutRes.checkout_url,
-                  paymentId: checkoutRes.payment?._id,
-                  inquiryId: targetInqId,
-                  depositAmount: quotation.deposit_amount,
-                });
-              } else {
-                Alert.alert(
-                  "Checkout Initiated",
-                  "Quotation accepted. Please check payment status in your bookings list."
-                );
-                navigation.navigate("BookingsList");
-              }
-            } catch (err) {
-              Alert.alert(
-                "Action Failed",
-                err.response?.data?.message || "Failed to process quotation acceptance."
-              );
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ]
-    );
+  const executePaymentFlow = async () => {
+    setActionLoading(true);
+    try {
+      // 1. Accept quotation if not already accepted or awaiting final confirmation
+      const isAlreadyAcceptedOrAwaiting =
+        quotation.status === "Awaiting Final Confirmation" ||
+        quotation.status === "Accepted";
+
+      if (!isAlreadyAcceptedOrAwaiting) {
+        try {
+          await customerApi.acceptQuotation(quotation._id);
+        } catch (acceptErr) {
+          console.warn("Quotation accept notice:", acceptErr);
+          const msg = acceptErr.response?.data?.message || "";
+          if (
+            !msg.includes("already") &&
+            !msg.includes("Awaiting") &&
+            !msg.includes("accepted")
+          ) {
+            throw acceptErr;
+          }
+        }
+      }
+
+      // 2. Resolve clean inquiry ID string
+      const targetInqId =
+        typeof quotation?.inquiry_id === "object" && quotation?.inquiry_id !== null
+          ? quotation.inquiry_id._id
+          : quotation?.inquiry_id || inquiryId;
+
+      if (!targetInqId) {
+        throw new Error("Missing inquiry identifier for this quotation.");
+      }
+
+      // 3. Create PayMongo checkout session for deposit
+      const checkoutRes = await customerApi.createCheckoutSession({
+        inquiry_id: String(targetInqId),
+        amount: Number(quotation.deposit_amount),
+        payment_type: "deposit",
+        payment_method_types: ["gcash", "paymaya", "card"],
+      });
+
+      if (checkoutRes?.checkout_url) {
+        navigation.navigate("PaymentCheckout", {
+          checkoutUrl: checkoutRes.checkout_url,
+          paymentId: checkoutRes.payment?._id,
+          inquiryId: String(targetInqId),
+          depositAmount: quotation.deposit_amount,
+        });
+      } else {
+        const infoMsg = "Quotation accepted. Please check payment status in your bookings list.";
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.alert(infoMsg);
+        } else {
+          Alert.alert("Checkout Initiated", infoMsg);
+        }
+        navigation.navigate("BookingsList");
+      }
+    } catch (err) {
+      console.error("Payment initiation error:", err);
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to process quotation payment.";
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(`Payment Notice: ${errorMsg}`);
+      } else {
+        Alert.alert("Payment Notice", errorMsg);
+      }
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleRequestRevision = async () => {
     if (!revisionNote.trim()) {
-      Alert.alert(
-        "Note Required",
-        "Please describe the adjustments or revisions you would like our team to make."
-      );
+      const msg = "Please describe the adjustments or revisions you would like our team to make.";
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(msg);
+      } else {
+        Alert.alert("Note Required", msg);
+      }
       return;
     }
 
@@ -211,13 +259,20 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       await customerApi.requestQuotationRevision(quotation._id, revisionNote.trim());
       setShowRevisionModal(false);
       setRevisionNote("");
-      Alert.alert(
-        "Revision Requested",
-        "Our banquet manager has received your feedback and will update the quotation."
-      );
+      const successMsg = "Our banquet manager has received your feedback and will update the quotation.";
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(successMsg);
+      } else {
+        Alert.alert("Revision Requested", successMsg);
+      }
       loadQuotation();
     } catch (err) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to submit revision request.");
+      const errMsg = err.response?.data?.message || "Failed to submit revision request.";
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(errMsg);
+      } else {
+        Alert.alert("Error", errMsg);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -254,8 +309,18 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           <AlertCircle size={44} color={colors.secondary} />
           <Text style={styles.emptyTitle}>Quotation In Preparation</Text>
           <Text style={styles.emptyText}>
-            Our banquet team is reviewing your event requirements. Your itemized quote will appear here once ready.
+            Our banquet team is reviewing your event requirements. Your itemized quote detailing package costs, deposit, and balance will appear here once ready.
           </Text>
+          {inquiryId ? (
+            <TouchableOpacity
+              style={styles.viewInquiryBtn}
+              onPress={() => navigation.replace("InquiryDetail", { inquiryId })}
+              activeOpacity={0.8}
+            >
+              <FileText size={16} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.viewInquiryBtnText}>View Event Inquiry Details</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     );
@@ -279,10 +344,21 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
     quotation.inquiry_payment_status === "deposit_paid" ||
     quotation.inquiry_payment_status === "fully_paid";
 
-  const isActionable =
-    ["Sent", "Draft", "Revision Requested"].includes(quotation.status) && !isExpired;
-
   const isRevisionPending = quotation.status === "Revision Requested";
+
+  const canPayDeposit =
+    !isDepositPaid &&
+    !isExpired &&
+    ["Sent", "Draft", "Revision Requested", "Awaiting Final Confirmation"].includes(
+      quotation.status
+    );
+
+  const canRequestRevision =
+    !isDepositPaid &&
+    !isExpired &&
+    ["Sent", "Draft", "Awaiting Final Confirmation"].includes(quotation.status);
+
+  const isActionable = !isDepositPaid && (canPayDeposit || isRevisionPending);
 
   // Check if fees exist to avoid empty card
   const additionalFees = (Array.isArray(quotation.additional_fees) ? quotation.additional_fees : [])
@@ -772,7 +848,27 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Fixed Bottom Action Bar (Dual Button Layout - Never wraps awkwardly!) */}
+      {/* Deposit Already Paid Confirmation Banner */}
+      {isDepositPaid && (
+        <View
+          style={[
+            styles.bottomBar,
+            { paddingBottom: Math.max(insets.bottom, 12) + spacing.xs },
+          ]}
+        >
+          <View style={styles.depositPaidBar}>
+            <CheckCircle2 size={18} color={colors.success} style={{ marginRight: 8 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.depositPaidTitle}>Deposit Confirmed & Event Secured</Text>
+              <Text style={styles.depositPaidSub}>
+                Your event date is locked in. Our banquet team is preparing your arrangements.
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Fixed Bottom Action Bar */}
       {isActionable && (
         <View
           style={[
@@ -790,41 +886,45 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           ) : (
             <View style={styles.actionButtonsRow}>
               {/* Revision Button: Guaranteed single-line fit with Edit icon */}
-              <TouchableOpacity
-                style={styles.revisionBtn}
-                onPress={() => setShowRevisionModal(true)}
-                disabled={actionLoading}
-                activeOpacity={0.7}
-              >
-                <Edit3 size={15} color={colors.foreground} style={{ marginRight: 6 }} />
-                <Text style={styles.revisionBtnText} numberOfLines={1}>
-                  Revision
-                </Text>
-              </TouchableOpacity>
+              {canRequestRevision && (
+                <TouchableOpacity
+                  style={styles.revisionBtn}
+                  onPress={() => setShowRevisionModal(true)}
+                  disabled={actionLoading}
+                  activeOpacity={0.7}
+                >
+                  <Edit3 size={15} color={colors.foreground} style={{ marginRight: 6 }} />
+                  <Text style={styles.revisionBtnText} numberOfLines={1}>
+                    Revision
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               {/* Pay Deposit Button: Sized for prominence with clear currency badge */}
-              <TouchableOpacity
-                style={styles.payBtn}
-                onPress={handleAcceptAndPay}
-                disabled={actionLoading}
-                activeOpacity={0.85}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color={colors.white} />
-                ) : (
-                  <View style={styles.payBtnInner}>
-                    <CreditCard size={17} color={colors.white} style={{ marginRight: 8 }} />
-                    <View style={styles.payBtnTextCol}>
-                      <Text style={styles.payBtnLabel} numberOfLines={1}>
-                        Pay Deposit
-                      </Text>
-                      <Text style={styles.payBtnAmount} numberOfLines={1}>
-                        {formatCurrency(quotation.deposit_amount || 0)}
-                      </Text>
+              {canPayDeposit && (
+                <TouchableOpacity
+                  style={[styles.payBtn, !canRequestRevision && { flex: 1 }]}
+                  onPress={handleAcceptAndPay}
+                  disabled={actionLoading}
+                  activeOpacity={0.85}
+                >
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <View style={styles.payBtnInner}>
+                      <CreditCard size={17} color={colors.white} style={{ marginRight: 8 }} />
+                      <View style={styles.payBtnTextCol}>
+                        <Text style={styles.payBtnLabel} numberOfLines={1}>
+                          Pay Deposit
+                        </Text>
+                        <Text style={styles.payBtnAmount} numberOfLines={1}>
+                          {formatCurrency(quotation.deposit_amount || 0)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                )}
-              </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -1646,6 +1746,27 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamilies.bold,
     color: colors.warningDark,
   },
+  depositPaidBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.successLight,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.successBorder,
+  },
+  depositPaidTitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.successText,
+  },
+  depositPaidSub: {
+    fontSize: 11,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
 
   // Header chat button
   headerChatBtn: {
@@ -1678,6 +1799,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 290,
+  },
+  viewInquiryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  viewInquiryBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primary,
   },
 
   // Revision Modal

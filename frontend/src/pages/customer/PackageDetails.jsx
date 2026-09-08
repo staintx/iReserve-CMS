@@ -117,6 +117,68 @@ export default function PackageDetails() {
   const offerPax = offer ? offerGuestCount(data) : 0;
   const offerCourses = offer ? offerFoodByCategory(data) : [];
 
+  const splitCourses = useMemo(() => {
+    if (!offerCourses || offerCourses.length === 0) return { left: [], right: [] };
+    if (offerCourses.length === 1) return { left: offerCourses, right: [] };
+
+    const left = [];
+    const right = [];
+    let leftWeight = 0;
+    let rightWeight = 0;
+
+    for (const course of offerCourses) {
+      const weight = 3 + (course.items?.length || 0);
+      if (leftWeight <= rightWeight) {
+        left.push(course);
+        leftWeight += weight;
+      } else {
+        right.push(course);
+        rightWeight += weight;
+      }
+    }
+    return { left, right };
+  }, [offerCourses]);
+
+  const renderCourseCard = (course, idxKey) => {
+    const isLargeCategory = course.items.length > 8;
+    return (
+      <div
+        key={course.category || idxKey}
+        className="bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-amber-300"
+      >
+        <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <h4 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
+              {course.category || "Included Items"}
+            </h4>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60">
+            {course.items.length} {course.items.length === 1 ? "item" : "items"}
+          </span>
+        </div>
+
+        <ul
+          className={`grid gap-2.5 ${
+            isLargeCategory
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-1 sm:grid-cols-2"
+          }`}
+        >
+          {course.items.map((item, itemIdx) => (
+            <li
+              key={itemIdx}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-amber-50/40 hover:border-amber-200"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+              <span className="leading-snug">{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   const bookingState = data
     ? {
         resetWizard: true,
@@ -267,11 +329,6 @@ export default function PackageDetails() {
                   </p>
                   <h1>{data.name}</h1>
                   {data.description && <p className="ls-lede">{data.description}</p>}
-                  {data.fullDescription && data.fullDescription !== data.description && (
-                    <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                      {data.fullDescription}
-                    </p>
-                  )}
 
                   {offer && data.badge_text && (
                     <div className="ls-offer-chips" style={{ marginBottom: 4 }}>
@@ -358,69 +415,6 @@ export default function PackageDetails() {
                     </div>
                   )}
 
-                  {/* The meal itself, grouped by course/category, from the combo's own food list */}
-                  {offerCourses.length > 0 && (
-                    <div className="mt-8 space-y-5">
-                      <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                            <Utensils className="w-4.5 h-4.5" />
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-base text-gray-900 uppercase tracking-wider">
-                              What This Combo Serves
-                            </h3>
-                            <p className="text-xs text-gray-500">
-                              Included dishes & choices organized by course category
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                        {offerCourses.map((course, idx) => {
-                          const isLargeCategory = course.items.length > 8;
-                          return (
-                            <div
-                              key={course.category || idx}
-                              className={`bg-white border border-gray-200/90 rounded-2xl p-5 shadow-xs transition-all duration-200 hover:shadow-sm hover:border-amber-300 ${
-                                isLargeCategory ? "lg:col-span-2" : ""
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                                  <h4 className="font-bold text-sm tracking-wider text-gray-900 uppercase">
-                                    {course.category || "Included Items"}
-                                  </h4>
-                                </div>
-                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60">
-                                  {course.items.length} {course.items.length === 1 ? "item" : "items"}
-                                </span>
-                              </div>
-
-                              <ul className={`grid gap-2.5 ${
-                                isLargeCategory 
-                                  ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" 
-                                  : "grid-cols-1 sm:grid-cols-2"
-                              }`}>
-                                {course.items.map((item, itemIdx) => (
-                                  <li
-                                    key={itemIdx}
-                                    className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-gray-50/80 border border-gray-100 text-sm font-medium text-gray-800 transition-colors hover:bg-amber-50/40 hover:border-amber-200"
-                                  >
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                                    <span className="leading-snug">{item}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   <div className="ls-detail-actions flex-wrap gap-2">
                     <button
                       type="button"
@@ -466,20 +460,55 @@ export default function PackageDetails() {
                   </div>
                 )}
               </div>
+
+              {/* The meal itself, grouped by course/category, from the combo's own food list */}
+              {offerCourses.length > 0 && (
+                <div className="mt-10 pt-8 border-t border-gray-200/80 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                        <Utensils className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-base text-gray-900 uppercase tracking-wider">
+                          What This Combo Serves
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Included dishes & choices organized by course category
+                        </p>
+                      </div>
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/80 shrink-0 self-start sm:self-auto shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                      <span>Choose 1 item from each category.</span>
+                    </div>
+                  </div>
+
+                  {/* Mobile single-column layout */}
+                  <div className="space-y-5 md:hidden">
+                    {offerCourses.map((course, idx) => renderCourseCard(course, idx))}
+                  </div>
+
+                  {/* Desktop & Tablet balanced two-column layout */}
+                  <div className="hidden md:grid md:grid-cols-2 gap-5 items-start">
+                    <div className="space-y-5">
+                      {splitCourses.left.map((course, idx) =>
+                        renderCourseCard(course, `left-${idx}`),
+                      )}
+                    </div>
+                    <div className="space-y-5">
+                      {splitCourses.right.map((course, idx) =>
+                        renderCourseCard(course, `right-${idx}`),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <section className="ls-band ls-band--page">
             <div className="ls-inner ls-detail-body">
-              {longDescription && longDescription !== data.description && (
-                <section className="ls-detail-section" aria-labelledby="about-title">
-                  <h2 id="about-title">
-                    {offer ? "About this combo" : "About this package"}
-                  </h2>
-                  <p className="ls-detail-prose">{longDescription}</p>
-                </section>
-              )}
-
               {comboInclusions.length > 0 && (
                 <section className="ls-detail-section" aria-labelledby="combo-includes-title">
                   <h2 id="combo-includes-title">What this combo includes</h2>
@@ -542,16 +571,27 @@ export default function PackageDetails() {
                 </section>
               )}
 
-              <section className="ls-detail-section" aria-labelledby="custom-title">
-                <h2 id="custom-title">Can you change it?</h2>
-                <p className="ls-detail-prose">
-                  Yes. While you book you can set your guest count
-                  {guestMin && guestMax ? ` between ${guestMin} and ${guestMax}` : ""},
-                  choose your dishes, and add extras. If you need something this
-                  package doesn't cover, send us the details and we'll quote for
-                  it instead.
-                </p>
-              </section>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start">
+                {longDescription && (
+                  <section className="ls-detail-section" aria-labelledby="about-title">
+                    <h2 id="about-title">
+                      {offer ? "About this combo" : "About this package"}
+                    </h2>
+                    <p className="ls-detail-prose">{longDescription}</p>
+                  </section>
+                )}
+
+                <section className="ls-detail-section" aria-labelledby="custom-title">
+                  <h2 id="custom-title">Can you change it?</h2>
+                  <p className="ls-detail-prose">
+                    Yes. While you book you can set your guest count
+                    {guestMin && guestMax ? ` between ${guestMin} and ${guestMax}` : ""},
+                    choose your dishes, and add extras. If you need something this
+                    package doesn't cover, send us the details and we'll quote for
+                    it instead.
+                  </p>
+                </section>
+              </div>
 
               {gallery.length > 0 && (
                 <section className="ls-detail-section" aria-labelledby="gallery-title">

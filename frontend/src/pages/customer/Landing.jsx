@@ -7,7 +7,6 @@ import { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import useRevealOnScroll from "../../hooks/useRevealOnScroll";
 import {
   capacityLabel,
-  positiveNumbers,
   priceLabel,
 } from "../../lib/packageDisplay";
 import {
@@ -192,6 +191,11 @@ export default function Landing() {
     [publishedPackages],
   );
 
+  const availableSpecialOffers = useMemo(
+    () => publishedPackages.filter(isSpecialOffer),
+    [publishedPackages],
+  );
+
   const featuredPackages = useMemo(() => {
     const flagged = availablePackages.filter((pkg) => pkg?.featured === true);
     return (flagged.length > 0 ? flagged : availablePackages).slice(0, 3);
@@ -233,49 +237,43 @@ export default function Landing() {
     [content.menu.data],
   );
 
-  // Hero proof points, all derived from live data — never rendered when the
-  // underlying numbers aren't there.
-  const heroFacts = useMemo(() => {
-    const facts = [];
-
-    if (availablePackages.length > 0) {
-      facts.push({
-        value: String(availablePackages.length),
-        label: availablePackages.length === 1 ? "package" : "packages to choose from",
-      });
-    }
-
-    const mins = positiveNumbers(
-      availablePackages.flatMap((pkg) => [
-        pkg?.guest_min,
-        ...(pkg?.scaffold_size_options || []).map((o) => o?.guest_min),
-      ]),
-    );
-    const maxs = positiveNumbers(
-      availablePackages.flatMap((pkg) => [
-        pkg?.guest_max,
-        ...(pkg?.scaffold_size_options || []).map((o) => o?.guest_max),
-      ]),
-    );
-    if (mins.length && maxs.length) {
-      facts.push({
-        value: `${Math.min(...mins)}–${Math.max(...maxs)}`,
-        label: "guests catered for",
-      });
-    }
-
-    const eventTypes = [
-      ...new Set(availablePackages.map((pkg) => pkg?.event_type).filter(Boolean)),
-    ];
-    if (eventTypes.length > 0) {
-      facts.push({
-        value: String(eventTypes.length),
-        label: `event types — ${eventTypes.slice(0, 3).join(", ").toLowerCase()}`,
-      });
-    }
-
-    return facts;
-  }, [availablePackages]);
+  // Hero statistics row: Total Packages, Total Special Offers, Years of Experience, and Customizable Packages
+  const heroFacts = useMemo(
+    () => [
+      {
+        value:
+          content.packages.status === "loading"
+            ? "—"
+            : String(availablePackages.length),
+        label: "Total Packages",
+      },
+      {
+        value:
+          content.packages.status === "loading"
+            ? "—"
+            : String(availableSpecialOffers.length),
+        label: "Total Special Offers",
+      },
+      {
+        value: String(
+          businessInfo?.years_of_experience ||
+            DEFAULT_BUSINESS_INFO.years_of_experience ||
+            10,
+        ),
+        label: "Years of Experience",
+      },
+      {
+        value: "100%",
+        label: "Customizable Packages",
+      },
+    ],
+    [
+      content.packages.status,
+      availablePackages.length,
+      availableSpecialOffers.length,
+      businessInfo?.years_of_experience,
+    ],
+  );
 
   const reviews = content.reviews.data;
 
@@ -331,19 +329,17 @@ export default function Landing() {
             </button>
           </div>
 
-          {heroFacts.length > 0 && (
-            <dl className="ls-hero-facts">
-              {heroFacts.map((fact) => (
-                <div className="ls-hero-fact" key={fact.label}>
-                  <dt className="sr-only">{fact.label}</dt>
-                  <dd>
-                    <strong>{fact.value}</strong>
-                    {fact.label}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          <dl className="ls-hero-facts">
+            {heroFacts.map((fact) => (
+              <div className="ls-hero-fact" key={fact.label}>
+                <dt className="sr-only">{fact.label}</dt>
+                <dd>
+                  <strong>{fact.value}</strong>
+                  <span className="ls-hero-fact-label">{fact.label}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 

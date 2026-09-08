@@ -147,10 +147,14 @@ export const PackagesScreen = ({ navigation }) => {
       </Card>
     );
   };
-
   return (
     <View style={styles.container}>
-      <Header title="Catering Packages" showBack={false} />
+      <Header
+        title="Catering Packages"
+        subtitle="All curated event packages & inclusions"
+        showBack={navigation?.canGoBack ? navigation.canGoBack() : true}
+        onBack={() => navigation.goBack()}
+      />
 
       {/* Filter Tabs */}
       <View style={styles.filterRow}>

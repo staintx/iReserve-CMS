@@ -165,6 +165,16 @@ export const radius = {
 
 export const shadows = {
   none: {},
+  xs: Platform.select({
+    web: { boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)" },
+    default: {
+      shadowColor: "#0F172A",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.04,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+  }),
   sm: Platform.select({
     web: { boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)" },
     default: {

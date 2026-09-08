@@ -12,6 +12,7 @@ export const DEFAULT_BUSINESS_INFO = {
   instagram: "https://instagram.com",
   terms_url: "",
   privacy_url: "",
+  years_of_experience: 10,
 };
 
 export default function useBusinessInfo(provided) {

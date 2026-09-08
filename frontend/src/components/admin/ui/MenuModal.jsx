@@ -5,6 +5,19 @@ import SingleImageField from "./SingleImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+export const PREDEFINED_CATEGORIES = [
+  "Appetizer",
+  "Soup",
+  "Salad",
+  "Main Course",
+  "Vegetable",
+  "Pasta",
+  "Rice",
+  "Dessert",
+  "Beverage",
+  "Drinking Water",
+];
+
 export default function MenuModal({ item, onClose, onSave }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
@@ -15,28 +28,70 @@ export default function MenuModal({ item, onClose, onSave }) {
     status: "available",
     available: true
   });
+  const [isOtherCategory, setIsOtherCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
   const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
     if (item) {
+      const isCustom = item.category && !PREDEFINED_CATEGORIES.includes(item.category);
       setFormData({
         name: item.name || "",
-        category: item.category || "Main Course",
+        category: isCustom ? "Others" : (item.category || "Main Course"),
         description: item.description || "",
         status: item.available === false ? "unavailable" : "available",
         available: item.available !== false
       });
+      setIsOtherCategory(Boolean(isCustom));
+      setCustomCategory(isCustom ? item.category : "");
+    } else {
+      setFormData({
+        name: "",
+        category: "Main Course",
+        description: "",
+        status: "available",
+        available: true
+      });
+      setIsOtherCategory(false);
+      setCustomCategory("");
     }
   }, [item]);
 
+  const handleCategoryChange = (e) => {
+    const value = e.target.value;
+    if (value === "Others") {
+      setIsOtherCategory(true);
+      setFormData((prev) => ({ ...prev, category: "Others" }));
+    } else {
+      setIsOtherCategory(false);
+      setFormData((prev) => ({ ...prev, category: value }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const trimmedName = formData.name?.trim();
+    if (!trimmedName) {
+      notify("Please enter an item name", "error");
+      return;
+    }
+
+    const finalCategory = isOtherCategory
+      ? customCategory.trim()
+      : formData.category;
+
+    if (isOtherCategory && !finalCategory) {
+      notify("Please enter a custom category", "error");
+      return;
+    }
+
     setLoading(true);
     try {
       const data = new FormData();
-      data.append("name", formData.name);
-      data.append("category", formData.category);
-      data.append("description", formData.description);
+      data.append("name", trimmedName);
+      data.append("category", finalCategory);
+      data.append("description", formData.description || "");
       data.append("available", formData.status === "available");
       
       if (imageFile) {
@@ -94,26 +149,34 @@ export default function MenuModal({ item, onClose, onSave }) {
             <label className="block text-sm text-gray-600 mb-1">Category</label>
             <select 
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
-              value={formData.category} 
-              onChange={e => setFormData({...formData, category: e.target.value})}
+              value={isOtherCategory ? "Others" : formData.category} 
+              onChange={handleCategoryChange}
             >
-              {/* These values feed the customer booking flow's course rules
-                  (3 main courses, 1 vegetable, 2 desserts) and the "water is
-                  included" note — see frontend/src/lib/menuCategories.js and
-                  backend/src/utils/menuCategories.js. Vegetable and Drinking
-                  Water were missing, so those courses could not be stocked. */}
-              <option value="Appetizer">Appetizer</option>
-              <option value="Soup">Soup</option>
-              <option value="Salad">Salad</option>
-              <option value="Main Course">Main Course</option>
-              <option value="Vegetable">Vegetable</option>
-              <option value="Pasta">Pasta</option>
-              <option value="Rice">Rice</option>
-              <option value="Dessert">Dessert</option>
-              <option value="Beverage">Beverage</option>
-              <option value="Drinking Water">Drinking Water</option>
+              {PREDEFINED_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+              <option value="Others">Others</option>
             </select>
           </div>
+
+          {isOtherCategory && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                Custom Category <span className="text-red-500">*</span>
+              </label>
+              <input 
+                type="text" 
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
+                placeholder="Enter custom category" 
+                value={customCategory} 
+                onChange={(e) => setCustomCategory(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Description</label>

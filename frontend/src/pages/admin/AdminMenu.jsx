@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Search, Plus, Filter, Edit3, Trash2, Sparkles } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -7,7 +7,7 @@ import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
-import MenuModal from "../../components/admin/ui/MenuModal";
+import MenuModal, { PREDEFINED_CATEGORIES } from "../../components/admin/ui/MenuModal";
 import AIMenuParserModal from "../../components/admin/ui/AIMenuParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
@@ -24,9 +24,14 @@ export default function AdminMenu() {
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
-  // Keep in step with the category options in MenuModal.jsx — a category that
-  // can be saved but not filtered on makes those items look missing here.
-  const categories = ["all", "Appetizer", "Soup", "Salad", "Main Course", "Vegetable", "Pasta", "Rice", "Dessert", "Beverage", "Drinking Water"];
+  // Preserve predefined categories in order, plus any custom categories dynamically
+  const categories = useMemo(() => {
+    const customCats = menuItems
+      .map((i) => i?.category?.trim())
+      .filter((cat) => cat && !PREDEFINED_CATEGORIES.includes(cat));
+    const uniqueCustom = [...new Set(customCats)].sort((a, b) => a.localeCompare(b));
+    return ["all", ...PREDEFINED_CATEGORIES, ...uniqueCustom];
+  }, [menuItems]);
 
   const loadData = () => {
     setLoading(true);

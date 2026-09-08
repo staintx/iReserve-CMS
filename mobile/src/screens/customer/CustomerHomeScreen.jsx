@@ -373,20 +373,20 @@ export const CustomerHomeScreen = ({ navigation }) => {
           <View style={styles.heroPromoLeft}>
             <View style={styles.promoTag}>
               <Sparkles size={12} color={colors.primary} />
-              <Text style={styles.promoTagText}>Batangas' Premier Catering</Text>
+              <Text style={styles.promoTagText}>Batangas' Premier Caterer</Text>
             </View>
             <Text style={styles.heroPromoTitle}>
-              Handcrafted Feast For Your Milestones
+              Handcrafted Feasts for Your Milestones
             </Text>
             <Text style={styles.heroPromoSub}>
-              Full buffet spread, premium table styling & dedicated banquet crew.
+              Full buffet spread, premium table styling & dedicated banquet staff.
             </Text>
             <TouchableOpacity
               style={styles.heroCtaBtn}
               onPress={() => navigation.navigate("InquiryWizard")}
               activeOpacity={0.8}
             >
-              <Text style={styles.heroCtaText}>Request Free Quote</Text>
+              <Text style={styles.heroCtaText}>Request a Quote</Text>
               <ChevronRight size={14} color={colors.white} />
             </TouchableOpacity>
           </View>

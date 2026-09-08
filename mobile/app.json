@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
+      "image": "./assets/splash-icon.png",
       "backgroundColor": "#FFFFFF",
       "resizeMode": "contain"
     },
@@ -16,6 +17,7 @@
     },
     "android": {
       "package": "com.caezelles.catering",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#2C4B8A",
         "foregroundImage": "./assets/android-icon-foreground.png",

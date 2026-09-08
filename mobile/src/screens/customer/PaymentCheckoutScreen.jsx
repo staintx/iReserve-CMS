@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -188,6 +188,9 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         source={{ uri: currentCheckoutUrl }}
         onNavigationStateChange={handleNavigationStateChange}
         startInLoadingState
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        originWhitelist={["*"]}
         renderLoading={() => (
           <View style={styles.webviewLoading}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -232,14 +235,14 @@ const styles = StyleSheet.create({
   },
   verifyingTitle: {
     fontSize: typography.sizes.lg,
-    fontFamily: typography.fontFamily.bold,
+    fontFamily: typography.fontFamilies.bold,
     color: colors.foreground,
     marginTop: spacing.base,
     marginBottom: spacing.xs,
   },
   verifyingDesc: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.regular,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 20,
@@ -258,14 +261,14 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: typography.sizes.xxl,
-    fontFamily: typography.fontFamily.extrabold,
+    fontFamily: typography.fontFamilies.extraBold,
     color: colors.foreground,
     textAlign: "center",
     marginBottom: spacing.sm,
   },
   successDesc: {
     fontSize: typography.sizes.sm,
-    fontFamily: typography.fontFamily.regular,
+    fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     textAlign: "center",
     lineHeight: 22,

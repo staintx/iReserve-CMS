@@ -8,6 +8,9 @@ import {
   Alert,
   Modal,
   Image,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -32,6 +35,13 @@ import {
   Mail,
   Home,
   Info,
+  FileEdit,
+  Edit3,
+  Pencil,
+  Users,
+  Receipt,
+  FileText,
+  CheckCircle2,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import Header from "../../components/common/Header";
@@ -133,6 +143,59 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // Step state (0-indexed)
   const [stepIndex, setStepIndex] = useState(0);
 
+  // Keyboard avoidance & scroll management
+  const scrollViewRef = useRef(null);
+  const stepContainerY = useRef(0);
+  const fieldYCoords = useRef({});
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // When step changes, scroll smoothly to top and dismiss keyboard
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    Keyboard.dismiss();
+    fieldYCoords.current = {};
+  }, [stepIndex]);
+
+  const handleFieldLayout = (key) => (event) => {
+    fieldYCoords.current[key] = event.nativeEvent.layout.y;
+  };
+
+  const handleFieldFocus = (key, offsetAdjustment = 20) => () => {
+    setTimeout(() => {
+      const fieldRelativeY = fieldYCoords.current[key];
+      if (typeof fieldRelativeY === "number") {
+        const targetY = (stepContainerY.current || 0) + fieldRelativeY - offsetAdjustment;
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, targetY),
+          animated: true,
+        });
+      } else {
+        if (
+          key.toLowerCase().includes("landmark") ||
+          key.toLowerCase().includes("street") ||
+          key.toLowerCase().includes("phone")
+        ) {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }
+      }
+    }, 150);
+  };
+
   // Form State
   const [selectedPackage, setSelectedPackage] = useState(preselectedPackage);
   const [serviceType, setServiceType] = useState(initialServiceType);
@@ -218,6 +281,9 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // Modals
   const [showMunicipalityPicker, setShowMunicipalityPicker] = useState(false);
   const [showBarangayPicker, setShowBarangayPicker] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isReviewEditMode, setIsReviewEditMode] = useState(false);
+  const [submittedInquiry, setSubmittedInquiry] = useState(null);
 
   // Sync serviceType when direct package passes in
   useEffect(() => {
@@ -399,6 +465,64 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   }, [steps.length, stepIndex]);
 
   const currentStep = steps[stepIndex] || steps[0];
+
+  // Review edit mode handlers
+  const jumpToStep = (targetStepId) => {
+    const targetIndex = steps.findIndex((s) => s.id === targetStepId);
+    if (targetIndex !== -1) {
+      setIsReviewEditMode(true);
+      setStepIndex(targetIndex);
+      setShowEditModal(false);
+    }
+  };
+
+  const jumpToField = (field) => {
+    switch (field) {
+      case "service":
+        jumpToStep(steps.some((s) => s.id === "service") ? "service" : steps[0]?.id);
+        break;
+      case "datetime":
+      case "schedule":
+        jumpToStep("datetime");
+        break;
+      case "guestCount":
+      case "location":
+        jumpToStep(isFoodOnly ? "delivery" : "event_venue");
+        break;
+      case "eventType":
+      case "celebrant":
+      case "theme":
+        jumpToStep("event_venue");
+        break;
+      case "setup":
+      case "scaffold":
+        jumpToStep("setup_tier");
+        break;
+      case "menu":
+        jumpToStep("menu");
+        break;
+      case "dietary":
+        jumpToStep("dietary");
+        break;
+      case "addons":
+        jumpToStep("addons");
+        break;
+      case "contact":
+        jumpToStep("contact");
+        break;
+      default:
+        jumpToStep("event_venue");
+        break;
+    }
+  };
+
+  const returnToReview = () => {
+    const reviewIdx = steps.findIndex((s) => s.id === "review");
+    if (reviewIdx !== -1) {
+      setStepIndex(reviewIdx);
+      setIsReviewEditMode(false);
+    }
+  };
 
   // ══════════════════════════════════════════════════════════════════════════
   // ESTIMATE CALCULATION
@@ -637,16 +761,23 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
       const result = await customerApi.submitInquiry(payload);
 
-      Alert.alert(
-        "Inquiry Submitted! 🎉",
-        `Your catering & event inquiry has been received (Ref: ${result.reference || "INQ"}). Our manager will review logistics and send your official quotation shortly.`,
-        [
-          {
-            text: "View My Inquiries",
-            onPress: () => navigation.navigate("InquiriesList"),
-          },
-        ]
-      );
+      setSubmittedInquiry({
+        reference: result.reference || "INQ",
+        eventType: eventType,
+        celebrantName: celebrantName,
+        guestCount: guestCount,
+        selectedDate: selectedDate,
+        startTime: startTime,
+        location:
+          deliveryMethod === "pickup"
+            ? "Kitchen HQ Pick-up (Batangas City)"
+            : `${barangay ? barangay + ", " : ""}${municipality}`,
+        estimatedTotal: estimatedTotal,
+        depositAmount: depositAmount,
+        contactEmail: contactEmail.trim().toLowerCase(),
+        serviceType: serviceType,
+        packageName: selectedPackage?.name,
+      });
     } catch (err) {
       const errorMsg =
         err.response?.data?.message || "Unable to submit your inquiry. Please verify your entries.";
@@ -668,7 +799,10 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const isBlockedDate = blockedDates.includes(selectedDate);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       {/* Dynamic Header with Step Progress */}
       <Header
         title={`Step ${stepIndex + 1} of ${steps.length}`}
@@ -683,9 +817,35 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         height={4}
       />
 
+      {/* Return to Review Banner (when navigating to edit from Review) */}
+      {isReviewEditMode && currentStep?.id !== "review" && (
+        <View style={styles.reviewEditBanner}>
+          <View style={styles.reviewEditBannerLeft}>
+            <FileEdit size={15} color={colors.primary} />
+            <Text style={styles.reviewEditBannerText}>
+              Editing: <Text style={styles.reviewEditBannerStepName}>{currentStep?.title}</Text>
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.returnReviewBtn}
+            onPress={returnToReview}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.returnReviewBtnText}>Back to Review</Text>
+            <ChevronRight size={14} color={colors.white} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 95 }]}
+        ref={scrollViewRef}
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: isKeyboardVisible ? 140 : spacing.xxl },
+        ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
         {/* Step Banner / Context */}
@@ -813,7 +973,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             STEP: DATE & TIME SCHEDULE
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "datetime" && (
-          <View>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
             <View style={styles.noticeBox}>
               <AlertCircle size={18} color={colors.primary} />
               <Text style={styles.noticeBoxText}>
@@ -849,13 +1009,16 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               })}
             </ScrollView>
 
-            <AppInput
-              label="Selected Event Date (YYYY-MM-DD)"
-              value={selectedDate}
-              onChangeText={setSelectedDate}
-              placeholder="e.g. 2026-09-25"
-              leftIcon={Calendar}
-            />
+            <View onLayout={handleFieldLayout("selectedDate")}>
+              <AppInput
+                label="Selected Event Date (YYYY-MM-DD)"
+                value={selectedDate}
+                onChangeText={setSelectedDate}
+                placeholder="e.g. 2026-09-25"
+                leftIcon={Calendar}
+                onFocus={handleFieldFocus("selectedDate")}
+              />
+            </View>
 
             {isBlockedDate && (
               <View style={styles.errorAlert}>
@@ -890,7 +1053,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             STEP: DELIVERY & FULFILLMENT (FOOD ONLY)
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "delivery" && (
-          <View>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
             {/* Guest Count Stepper with Manual Input */}
             <Text style={styles.fieldLabel}>Number of Guests / Pax</Text>
             <View style={styles.guestCountRow}>
@@ -1001,19 +1164,25 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   <ChevronRight size={18} color={colors.foregroundMuted} />
                 </TouchableOpacity>
 
-                <AppInput
-                  label="Street Address / Residence"
-                  placeholder="e.g. Block 4 Lot 12 Villa Verde Subd."
-                  value={street}
-                  onChangeText={setStreet}
-                />
+                <View onLayout={handleFieldLayout("foodStreet")}>
+                  <AppInput
+                    label="Street Address / Residence"
+                    placeholder="e.g. Block 4 Lot 12 Villa Verde Subd."
+                    value={street}
+                    onChangeText={setStreet}
+                    onFocus={handleFieldFocus("foodStreet")}
+                  />
+                </View>
 
-                <AppInput
-                  label="Landmark (Optional)"
-                  placeholder="e.g. Across Barangay Hall or Shell Station"
-                  value={landmark}
-                  onChangeText={setLandmark}
-                />
+                <View onLayout={handleFieldLayout("foodLandmark")}>
+                  <AppInput
+                    label="Landmark (Optional)"
+                    placeholder="e.g. Across Barangay Hall or Shell Station"
+                    value={landmark}
+                    onChangeText={setLandmark}
+                    onFocus={handleFieldFocus("foodLandmark")}
+                  />
+                </View>
               </View>
             )}
           </View>
@@ -1074,7 +1243,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             STEP: EVENT DETAILS & VENUE
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "event_venue" && (
-          <View>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
             {/* Direct Package Banner if present */}
             {selectedPackage && (
               <Card style={styles.packageBannerCard}>
@@ -1105,12 +1274,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               ))}
             </View>
 
-            <AppInput
-              label="Celebrant / Honoree Name (Optional)"
-              placeholder="e.g. Maria's 18th Debut or John & Jane"
-              value={celebrantName}
-              onChangeText={setCelebrantName}
-            />
+            <View onLayout={handleFieldLayout("celebrantName")}>
+              <AppInput
+                label="Celebrant / Honoree Name (Optional)"
+                placeholder="e.g. Maria's 18th Debut or John & Jane"
+                value={celebrantName}
+                onChangeText={setCelebrantName}
+                onFocus={handleFieldFocus("celebrantName")}
+              />
+            </View>
 
             {/* Guest Count Stepper with Manual Input */}
             <Text style={styles.fieldLabel}>Guest Count</Text>
@@ -1180,12 +1352,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               })}
             </View>
 
-            <AppInput
-              label="Styling Notes or Custom Theme"
-              placeholder="e.g. Rustic Navy & Gold with fairy lights"
-              value={eventTheme}
-              onChangeText={setEventTheme}
-            />
+            <View onLayout={handleFieldLayout("eventTheme")}>
+              <AppInput
+                label="Styling Notes or Custom Theme"
+                placeholder="e.g. Rustic Navy & Gold with fairy lights"
+                value={eventTheme}
+                onChangeText={setEventTheme}
+                onFocus={handleFieldFocus("eventTheme")}
+              />
+            </View>
 
             {/* Venue Type */}
             <Text style={styles.fieldLabel}>Venue Space Type</Text>
@@ -1230,19 +1405,25 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               <ChevronRight size={18} color={colors.foregroundMuted} />
             </TouchableOpacity>
 
-            <AppInput
-              label="Venue Name or Street Address"
-              placeholder="e.g. Villa Mercedes Events Place, Brgy. Road"
-              value={street}
-              onChangeText={setStreet}
-            />
+            <View onLayout={handleFieldLayout("venueStreet")}>
+              <AppInput
+                label="Venue Name or Street Address"
+                placeholder="e.g. Villa Mercedes Events Place, Brgy. Road"
+                value={street}
+                onChangeText={setStreet}
+                onFocus={handleFieldFocus("venueStreet")}
+              />
+            </View>
 
-            <AppInput
-              label="Landmark (Optional)"
-              placeholder="e.g. Near St. John Parish Church"
-              value={landmark}
-              onChangeText={setLandmark}
-            />
+            <View onLayout={handleFieldLayout("venueLandmark")}>
+              <AppInput
+                label="Landmark (Optional)"
+                placeholder="e.g. Near St. John Parish Church"
+                value={landmark}
+                onChangeText={setLandmark}
+                onFocus={handleFieldFocus("venueLandmark")}
+              />
+            </View>
           </View>
         )}
 
@@ -1382,7 +1563,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             STEP: DIETARY NEEDS & ALLERGIES
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "dietary" && (
-          <View>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
             <View style={styles.noticeBox}>
               <Info size={18} color={colors.primary} />
               <Text style={styles.noticeBoxText}>
@@ -1390,23 +1571,29 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               </Text>
             </View>
 
-            <AppInput
-              label="Allergies & Dietary Restrictions"
-              placeholder="e.g. 5 Vegetarians, severe peanut allergy, no shellfish"
-              value={allergies}
-              onChangeText={setAllergies}
-              multiline
-              numberOfLines={3}
-            />
+            <View onLayout={handleFieldLayout("allergies")}>
+              <AppInput
+                label="Allergies & Dietary Restrictions"
+                placeholder="e.g. 5 Vegetarians, severe peanut allergy, no shellfish"
+                value={allergies}
+                onChangeText={setAllergies}
+                multiline
+                numberOfLines={3}
+                onFocus={handleFieldFocus("allergies")}
+              />
+            </View>
 
-            <AppInput
-              label="Special Culinary Requests / Serving Preferences"
-              placeholder="e.g. Separate kiddie buffet table, extra gravy boat, dessert table display"
-              value={specialRequests}
-              onChangeText={setSpecialRequests}
-              multiline
-              numberOfLines={3}
-            />
+            <View onLayout={handleFieldLayout("specialRequests")}>
+              <AppInput
+                label="Special Culinary Requests / Serving Preferences"
+                placeholder="e.g. Separate kiddie buffet table, extra gravy boat, dessert table display"
+                value={specialRequests}
+                onChangeText={setSpecialRequests}
+                multiline
+                numberOfLines={3}
+                onFocus={handleFieldFocus("specialRequests")}
+              />
+            </View>
           </View>
         )}
 
@@ -1475,55 +1662,70 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             STEP: CONTACT DETAILS
            ══════════════════════════════════════════════════════════════════ */}
         {currentStep?.id === "contact" && (
-          <View>
+          <View onLayout={(e) => { stepContainerY.current = e.nativeEvent.layout.y; }}>
             <Text style={styles.sectionHeading}>Contact Details</Text>
             <Text style={styles.sectionDescription}>
               Our event manager will send your official quotation and follow up on this number.
             </Text>
 
-            <AppInput
-              label="First Name"
-              placeholder="e.g. Maria"
-              value={contactFirstName}
-              onChangeText={setContactFirstName}
-              leftIcon={User}
-            />
+            <View onLayout={handleFieldLayout("contactFirstName")}>
+              <AppInput
+                label="First Name"
+                placeholder="e.g. Maria"
+                value={contactFirstName}
+                onChangeText={setContactFirstName}
+                leftIcon={User}
+                onFocus={handleFieldFocus("contactFirstName")}
+              />
+            </View>
 
-            <AppInput
-              label="Last Name"
-              placeholder="e.g. Santos"
-              value={contactLastName}
-              onChangeText={setContactLastName}
-              leftIcon={User}
-            />
+            <View onLayout={handleFieldLayout("contactLastName")}>
+              <AppInput
+                label="Last Name"
+                placeholder="e.g. Santos"
+                value={contactLastName}
+                onChangeText={setContactLastName}
+                leftIcon={User}
+                onFocus={handleFieldFocus("contactLastName")}
+              />
+            </View>
 
-            <AppInput
-              label="Email Address (Where quotation is sent)"
-              placeholder="maria.santos@gmail.com"
-              value={contactEmail}
-              onChangeText={setContactEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon={Mail}
-            />
+            <View onLayout={handleFieldLayout("contactEmail")}>
+              <AppInput
+                label="Email Address (Where quotation is sent)"
+                placeholder="maria.santos@gmail.com"
+                value={contactEmail}
+                onChangeText={setContactEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                leftIcon={Mail}
+                onFocus={handleFieldFocus("contactEmail")}
+              />
+            </View>
 
-            <AppInput
-              label="Primary Mobile Phone (Philippine 09XX)"
-              placeholder="09171234567"
-              value={contactPhone}
-              onChangeText={setContactPhone}
-              keyboardType="phone-pad"
-              leftIcon={Phone}
-            />
+            <View onLayout={handleFieldLayout("contactPhone")}>
+              <AppInput
+                label="Primary Mobile Phone (Philippine 09XX)"
+                placeholder="09171234567"
+                value={contactPhone}
+                onChangeText={setContactPhone}
+                keyboardType="phone-pad"
+                leftIcon={Phone}
+                onFocus={handleFieldFocus("contactPhone")}
+              />
+            </View>
 
-            <AppInput
-              label="Alternate Phone Number (Optional)"
-              placeholder="09181234567"
-              value={contactAltPhone}
-              onChangeText={setContactAltPhone}
-              keyboardType="phone-pad"
-              leftIcon={Phone}
-            />
+            <View onLayout={handleFieldLayout("contactAltPhone")}>
+              <AppInput
+                label="Alternate Phone Number (Optional)"
+                placeholder="09181234567"
+                value={contactAltPhone}
+                onChangeText={setContactAltPhone}
+                keyboardType="phone-pad"
+                leftIcon={Phone}
+                onFocus={handleFieldFocus("contactAltPhone")}
+              />
+            </View>
           </View>
         )}
 
@@ -1535,51 +1737,205 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             {/* Event Summary Card */}
             <Card style={styles.summaryCard}>
               <View style={styles.summaryCardHeader}>
-                <FileCheck size={20} color={colors.primary} />
-                <Text style={styles.summaryHeading}>Booking Summary</Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Service Scope:</Text>
-                <Text style={styles.summaryValueHighlight}>{serviceType}</Text>
-              </View>
-
-              {selectedPackage && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Package:</Text>
-                  <Text style={styles.summaryValue}>{selectedPackage.name}</Text>
+                <View style={styles.summaryHeaderTitle}>
+                  <FileCheck size={20} color={colors.primary} />
+                  <Text style={styles.summaryHeading}>Booking Summary</Text>
                 </View>
+                <TouchableOpacity
+                  style={styles.editInquiryHeaderBtn}
+                  onPress={() => setShowEditModal(true)}
+                  activeOpacity={0.7}
+                  accessibilityLabel="Edit all inquiry details"
+                >
+                  <Edit3 size={13} color={colors.primary} />
+                  <Text style={styles.editInquiryHeaderBtnText}>Edit All</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Service Scope */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("service")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit service scope"
+              >
+                <Text style={styles.summaryLabel}>Service Scope:</Text>
+                <View style={styles.summaryValueWithIcon}>
+                  <Text style={styles.summaryValueHighlight}>{serviceType}</Text>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {/* Package if selected */}
+              {selectedPackage && (
+                <TouchableOpacity
+                  style={styles.summaryRowTouchable}
+                  onPress={() => jumpToField("service")}
+                  activeOpacity={0.65}
+                  accessibilityLabel="Edit package selection"
+                >
+                  <Text style={styles.summaryLabel}>Package:</Text>
+                  <View style={styles.summaryValueWithIcon}>
+                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedPackage.name}</Text>
+                    <View style={styles.rowEditBadge}>
+                      <Pencil size={11} color={colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
               )}
 
-              <View style={styles.summaryRow}>
+              {/* Event Type */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("eventType")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit event type"
+              >
                 <Text style={styles.summaryLabel}>Event Type:</Text>
-                <Text style={styles.summaryValue}>{eventType}</Text>
-              </View>
-
-              {celebrantName ? (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Celebrant:</Text>
-                  <Text style={styles.summaryValue}>{celebrantName}</Text>
+                <View style={styles.summaryValueWithIcon}>
+                  <Text style={styles.summaryValue}>{eventType}</Text>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
                 </View>
+              </TouchableOpacity>
+
+              {/* Celebrant if provided */}
+              {celebrantName ? (
+                <TouchableOpacity
+                  style={styles.summaryRowTouchable}
+                  onPress={() => jumpToField("celebrant")}
+                  activeOpacity={0.65}
+                  accessibilityLabel="Edit celebrant name"
+                >
+                  <Text style={styles.summaryLabel}>Celebrant:</Text>
+                  <View style={styles.summaryValueWithIcon}>
+                    <Text style={styles.summaryValue} numberOfLines={1}>{celebrantName}</Text>
+                    <View style={styles.rowEditBadge}>
+                      <Pencil size={11} color={colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
               ) : null}
 
-              <View style={styles.summaryRow}>
+              {/* Guest Count */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("guestCount")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit guest count"
+              >
                 <Text style={styles.summaryLabel}>Guest Count:</Text>
-                <Text style={styles.summaryValue}>{guestCount} Guests</Text>
-              </View>
+                <View style={styles.summaryValueWithIcon}>
+                  <Text style={styles.summaryValue}>{guestCount} Guests</Text>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
 
-              <View style={styles.summaryRow}>
+              {/* Schedule */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("schedule")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit schedule date and time"
+              >
                 <Text style={styles.summaryLabel}>Schedule:</Text>
-                <Text style={styles.summaryValue}>{formatDate(selectedDate)} at {startTime}</Text>
-              </View>
+                <View style={styles.summaryValueWithIcon}>
+                  <Text style={styles.summaryValue}>{formatDate(selectedDate)} at {startTime}</Text>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
 
-              <View style={styles.summaryRow}>
+              {/* Location */}
+              <TouchableOpacity
+                style={styles.summaryRowTouchable}
+                onPress={() => jumpToField("location")}
+                activeOpacity={0.65}
+                accessibilityLabel="Edit venue location"
+              >
                 <Text style={styles.summaryLabel}>Location:</Text>
-                <Text style={styles.summaryValue}>
-                  {deliveryMethod === "pickup"
-                    ? "Kitchen HQ Pick-up (Batangas City)"
-                    : `${barangay ? barangay + ", " : ""}${municipality}`}
-                </Text>
+                <View style={styles.summaryValueWithIcon}>
+                  <Text style={styles.summaryValue} numberOfLines={2}>
+                    {deliveryMethod === "pickup"
+                      ? "Kitchen HQ Pick-up (Batangas City)"
+                      : `${barangay ? barangay + ", " : ""}${municipality}`}
+                  </Text>
+                  <View style={styles.rowEditBadge}>
+                    <Pencil size={11} color={colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {/* Setup / Scaffolding if applicable */}
+              {(isEventSetupOnly || isFullService) && selectedScaffold && (
+                <TouchableOpacity
+                  style={styles.summaryRowTouchable}
+                  onPress={() => jumpToField("setup")}
+                  activeOpacity={0.65}
+                  accessibilityLabel="Edit scaffolding size"
+                >
+                  <Text style={styles.summaryLabel}>Scaffolding:</Text>
+                  <View style={styles.summaryValueWithIcon}>
+                    <Text style={styles.summaryValue}>
+                      {selectedScaffold.label || `${selectedScaffold.width_ft} × ${selectedScaffold.length_ft} ft`}
+                    </Text>
+                    <View style={styles.rowEditBadge}>
+                      <Pencil size={11} color={colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Dishes Count if food included */}
+              {includeFood && (
+                <TouchableOpacity
+                  style={styles.summaryRowTouchable}
+                  onPress={() => jumpToField("menu")}
+                  activeOpacity={0.65}
+                  accessibilityLabel="Edit menu dishes"
+                >
+                  <Text style={styles.summaryLabel}>Catering Menu:</Text>
+                  <View style={styles.summaryValueWithIcon}>
+                    <Text style={styles.summaryValue}>
+                      {selectedDishes.length > 0 ? `${selectedDishes.length} Dishes Selected` : "Full Menu Included"}
+                    </Text>
+                    <View style={styles.rowEditBadge}>
+                      <Pencil size={11} color={colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Contact Info */}
+              {(contactFirstName || contactEmail || contactPhone) && (
+                <TouchableOpacity
+                  style={styles.summaryRowTouchable}
+                  onPress={() => jumpToField("contact")}
+                  activeOpacity={0.65}
+                  accessibilityLabel="Edit contact details"
+                >
+                  <Text style={styles.summaryLabel}>Contact:</Text>
+                  <View style={styles.summaryValueWithIcon}>
+                    <Text style={styles.summaryValue} numberOfLines={1}>
+                      {`${contactFirstName} ${contactLastName}`.trim() || contactEmail || contactPhone}
+                    </Text>
+                    <View style={styles.rowEditBadge}>
+                      <Pencil size={11} color={colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Tap to edit hint footer */}
+              <View style={styles.summaryEditHintRow}>
+                <Edit3 size={11} color={colors.primary} />
+                <Text style={styles.summaryEditHintText}>Tap any row or "Edit All" to modify your inquiry</Text>
               </View>
 
               {/* Estimate Calculation Section */}
@@ -1610,8 +1966,17 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         )}
       </ScrollView>
 
-      {/* Fixed Bottom Action Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+      {/* Bottom Action Bar */}
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            paddingBottom: isKeyboardVisible
+              ? spacing.sm
+              : insets.bottom + spacing.sm,
+          },
+        ]}
+      >
         {stepIndex > 0 && (
           <AppButton
             title="Back"
@@ -1693,7 +2058,325 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
-    </View>
+
+      {/* Edit Inquiry Sections Modal Sheet */}
+      <Modal visible={showEditModal} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md, maxHeight: "85%" }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <FileEdit size={18} color={colors.primary} style={{ marginRight: spacing.xs }} />
+                <Text style={styles.modalTitle}>Edit Inquiry Sections</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Text style={styles.modalClose}>Done</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Tap any section below to jump back and update your inquiry details:
+            </Text>
+
+            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+              {/* Option 1: Schedule & Time */}
+              <TouchableOpacity
+                style={styles.editSectionItem}
+                onPress={() => jumpToField("schedule")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.editSectionIconWrap}>
+                  <Calendar size={18} color={colors.primary} />
+                </View>
+                <View style={styles.editSectionTextWrap}>
+                  <Text style={styles.editSectionTitle}>Date & Serving Time</Text>
+                  <Text style={styles.editSectionSubtitle}>{formatDate(selectedDate)} at {startTime}</Text>
+                </View>
+                <View style={styles.editSectionActionBadge}>
+                  <Text style={styles.editSectionActionText}>Edit</Text>
+                  <ChevronRight size={13} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 2: Event Details & Guests */}
+              <TouchableOpacity
+                style={styles.editSectionItem}
+                onPress={() => jumpToField("eventType")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.editSectionIconWrap}>
+                  <Users size={18} color={colors.primary} />
+                </View>
+                <View style={styles.editSectionTextWrap}>
+                  <Text style={styles.editSectionTitle}>Event Details & Guests</Text>
+                  <Text style={styles.editSectionSubtitle}>
+                    {eventType} · {guestCount} Guests{celebrantName ? ` (${celebrantName})` : ""}
+                  </Text>
+                </View>
+                <View style={styles.editSectionActionBadge}>
+                  <Text style={styles.editSectionActionText}>Edit</Text>
+                  <ChevronRight size={13} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 3: Venue & Location */}
+              <TouchableOpacity
+                style={styles.editSectionItem}
+                onPress={() => jumpToField("location")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.editSectionIconWrap}>
+                  <MapPin size={18} color={colors.primary} />
+                </View>
+                <View style={styles.editSectionTextWrap}>
+                  <Text style={styles.editSectionTitle}>Venue & Location</Text>
+                  <Text style={styles.editSectionSubtitle} numberOfLines={1}>
+                    {deliveryMethod === "pickup"
+                      ? "Kitchen HQ Pick-up (Batangas City)"
+                      : `${barangay ? barangay + ", " : ""}${municipality}`}
+                  </Text>
+                </View>
+                <View style={styles.editSectionActionBadge}>
+                  <Text style={styles.editSectionActionText}>Edit</Text>
+                  <ChevronRight size={13} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 4: Setup & Scaffolding (if applicable) */}
+              {(isEventSetupOnly || isFullService) && (
+                <TouchableOpacity
+                  style={styles.editSectionItem}
+                  onPress={() => jumpToField("setup")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.editSectionIconWrap}>
+                    <Layers size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.editSectionTextWrap}>
+                    <Text style={styles.editSectionTitle}>Setup & Scaffolding</Text>
+                    <Text style={styles.editSectionSubtitle}>
+                      {selectedScaffold?.label || `${selectedScaffold?.width_ft} × ${selectedScaffold?.length_ft} ft`}
+                    </Text>
+                  </View>
+                  <View style={styles.editSectionActionBadge}>
+                    <Text style={styles.editSectionActionText}>Edit</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Option 5: Catering Menu (if food included) */}
+              {includeFood && (
+                <TouchableOpacity
+                  style={styles.editSectionItem}
+                  onPress={() => jumpToField("menu")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.editSectionIconWrap}>
+                    <Utensils size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.editSectionTextWrap}>
+                    <Text style={styles.editSectionTitle}>Menu & Dining</Text>
+                    <Text style={styles.editSectionSubtitle}>
+                      {selectedDishes.length > 0 ? `${selectedDishes.length} Dishes Selected` : "Full Menu Included"}
+                    </Text>
+                  </View>
+                  <View style={styles.editSectionActionBadge}>
+                    <Text style={styles.editSectionActionText}>Edit</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Option 6: Contact Information */}
+              <TouchableOpacity
+                style={styles.editSectionItem}
+                onPress={() => jumpToField("contact")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.editSectionIconWrap}>
+                  <User size={18} color={colors.primary} />
+                </View>
+                <View style={styles.editSectionTextWrap}>
+                  <Text style={styles.editSectionTitle}>Contact Details</Text>
+                  <Text style={styles.editSectionSubtitle} numberOfLines={1}>
+                    {`${contactFirstName} ${contactLastName}`.trim() || "Contact Name"} · {contactPhone || contactEmail}
+                  </Text>
+                </View>
+                <View style={styles.editSectionActionBadge}>
+                  <Text style={styles.editSectionActionText}>Edit</Text>
+                  <ChevronRight size={13} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+
+              {/* Option 7: Service Scope (if not direct package) */}
+              {!isDirectPackage && (
+                <TouchableOpacity
+                  style={styles.editSectionItem}
+                  onPress={() => jumpToField("service")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.editSectionIconWrap}>
+                    <PackageIcon size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.editSectionTextWrap}>
+                    <Text style={styles.editSectionTitle}>Service Scope</Text>
+                    <Text style={styles.editSectionSubtitle}>{serviceType}</Text>
+                  </View>
+                  <View style={styles.editSectionActionBadge}>
+                    <Text style={styles.editSectionActionText}>Edit</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── HIGH-AESTHETIC INQUIRY SUBMITTED SUCCESS MODAL ── */}
+      <Modal
+        visible={Boolean(submittedInquiry)}
+        animationType="fade"
+        transparent
+        onRequestClose={() => {
+          setSubmittedInquiry(null);
+          navigation.navigate("InquiriesList");
+        }}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalCard}>
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.successScrollContent}
+            >
+              {/* Concentric Celebration Badge */}
+              <View style={styles.successIconWrapper}>
+                <View style={styles.successIconOuterRing}>
+                  <View style={styles.successIconInnerCircle}>
+                    <Check size={26} color={colors.white} strokeWidth={3.2} />
+                  </View>
+                </View>
+              </View>
+
+              {/* Reference Pill */}
+              <View style={styles.successRefPill}>
+                <Sparkles size={12} color={colors.primary} />
+                <Text style={styles.successRefText}>
+                  Reference: {submittedInquiry?.reference || "INQ"}
+                </Text>
+              </View>
+
+              {/* Title & Subtitle */}
+              <Text style={styles.successTitle}>Inquiry Submitted!</Text>
+              <Text style={styles.successSubtitle}>
+                Your catering & event request has been received. Our manager will verify logistics and send an official quotation.
+              </Text>
+
+              {/* Summary Card */}
+              <View style={styles.successSummaryBox}>
+                <View style={styles.successSummaryRow}>
+                  <View style={styles.successSummaryIconCol}>
+                    <Calendar size={14} color={colors.primary} />
+                  </View>
+                  <Text style={styles.successSummaryLabel}>Schedule:</Text>
+                  <Text style={styles.successSummaryVal} numberOfLines={1}>
+                    {submittedInquiry?.selectedDate
+                      ? `${formatDate(submittedInquiry.selectedDate)} at ${submittedInquiry.startTime}`
+                      : "Requested Date"}
+                  </Text>
+                </View>
+
+                <View style={styles.successSummaryRow}>
+                  <View style={styles.successSummaryIconCol}>
+                    <Users size={14} color={colors.primary} />
+                  </View>
+                  <Text style={styles.successSummaryLabel}>Event & Guests:</Text>
+                  <Text style={styles.successSummaryVal} numberOfLines={1}>
+                    {submittedInquiry?.eventType || "Event"} · {submittedInquiry?.guestCount} Guests
+                  </Text>
+                </View>
+
+                <View style={styles.successSummaryRow}>
+                  <View style={styles.successSummaryIconCol}>
+                    <MapPin size={14} color={colors.primary} />
+                  </View>
+                  <Text style={styles.successSummaryLabel}>Location:</Text>
+                  <Text style={styles.successSummaryVal} numberOfLines={1}>
+                    {submittedInquiry?.location || "Batangas"}
+                  </Text>
+                </View>
+
+                <View style={[styles.successSummaryRow, styles.successSummaryRowTotal]}>
+                  <View style={styles.successSummaryIconCol}>
+                    <Receipt size={14} color={colors.primary} />
+                  </View>
+                  <Text style={styles.successTotalLabel}>Estimated Total:</Text>
+                  <Text style={styles.successTotalVal}>
+                    {formatCurrency(submittedInquiry?.estimatedTotal || 0)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Next Steps Card */}
+              <View style={styles.successNextStepsCard}>
+                <View style={styles.successNextStepItem}>
+                  <View style={styles.nextStepDot}>
+                    <Text style={styles.nextStepDotText}>1</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nextStepTitle}>Logistics Review</Text>
+                    <Text style={styles.nextStepSub}>
+                      Our team verifies venue accessibility and kitchen schedule.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.successNextStepItem}>
+                  <View style={styles.nextStepDot}>
+                    <Text style={styles.nextStepDotText}>2</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nextStepTitle}>Official Quotation</Text>
+                    <Text style={styles.nextStepSub}>
+                      Sent to {submittedInquiry?.contactEmail || "your email"} with confirmed pricing.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.successActionButtons}>
+                <TouchableOpacity
+                  style={styles.successPrimaryBtn}
+                  onPress={() => {
+                    setSubmittedInquiry(null);
+                    navigation.navigate("InquiriesList");
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <FileText size={16} color={colors.white} style={{ marginRight: 6 }} />
+                  <Text style={styles.successPrimaryBtnText}>View My Inquiries</Text>
+                  <ChevronRight size={16} color={colors.white} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.successSecondaryBtn}
+                  onPress={() => {
+                    setSubmittedInquiry(null);
+                    navigation.navigate("CustomerHome");
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Home size={15} color={colors.foregroundMuted} style={{ marginRight: 6 }} />
+                  <Text style={styles.successSecondaryBtnText}>Back to Home</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -1701,6 +2384,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   scrollContent: {
     padding: spacing.xl,
@@ -2427,6 +3113,45 @@ const styles = StyleSheet.create({
     minWidth: 28,
     textAlign: "center",
   },
+  reviewEditBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primary,
+  },
+  reviewEditBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: spacing.xs,
+  },
+  reviewEditBannerText: {
+    fontSize: typography.sizes.xs,
+    color: colors.foreground,
+    fontWeight: "600",
+  },
+  reviewEditBannerStepName: {
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  returnReviewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.full,
+    gap: 3,
+  },
+  returnReviewBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.white,
+  },
   summaryCard: {
     padding: spacing.lg,
     backgroundColor: colors.surfaceAlt,
@@ -2438,10 +3163,16 @@ const styles = StyleSheet.create({
   summaryCardHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
     paddingBottom: spacing.sm,
+  },
+  summaryHeaderTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
   summaryHeading: {
     fontSize: typography.sizes.md,
@@ -2449,10 +3180,35 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     marginLeft: spacing.sm,
   },
+  editInquiryHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primaryLight,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.full,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  editInquiryHeaderBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.primary,
+  },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: spacing.xs + 2,
+  },
+  summaryRowTouchable: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: radius.sm,
+    marginBottom: 2,
   },
   summaryLabel: {
     fontSize: typography.sizes.xs,
@@ -2462,13 +3218,41 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: "600",
     color: colors.foreground,
-    maxWidth: "60%",
     textAlign: "right",
   },
   summaryValueHighlight: {
     fontSize: typography.sizes.xs,
     fontWeight: "700",
     color: colors.primary,
+    textAlign: "right",
+  },
+  summaryValueWithIcon: {
+    flexDirection: "row",
+    alignItems: "center",
+    maxWidth: "68%",
+    justifyContent: "flex-end",
+  },
+  rowEditBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
+  summaryEditHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
+    gap: 4,
+  },
+  summaryEditHintText: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: "600",
   },
   estimateLabel: {
     fontSize: typography.sizes.base,
@@ -2511,10 +3295,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
@@ -2555,6 +3335,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.foreground,
   },
+  modalSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    marginBottom: spacing.md,
+    lineHeight: 18,
+  },
   modalClose: {
     fontSize: typography.sizes.sm,
     color: colors.primary,
@@ -2562,6 +3348,55 @@ const styles = StyleSheet.create({
   },
   modalList: {
     marginVertical: spacing.sm,
+  },
+  editSectionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  editSectionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  editSectionTextWrap: {
+    flex: 1,
+  },
+  editSectionTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  editSectionSubtitle: {
+    fontSize: 11,
+    color: colors.foregroundMuted,
+    marginTop: 2,
+  },
+  editSectionActionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primaryLight,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.full,
+    gap: 2,
+  },
+  editSectionActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.primary,
   },
   modalItem: {
     flexDirection: "row",
@@ -2615,6 +3450,229 @@ const styles = StyleSheet.create({
   presetChipTextActive: {
     color: colors.primary,
     fontWeight: "700",
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  successModalCard: {
+    width: "100%",
+    maxWidth: 400,
+    maxHeight: "90%",
+    backgroundColor: colors.white,
+    borderRadius: radius.xxl,
+    padding: spacing.xl,
+    ...shadows.lg,
+  },
+  successScrollContent: {
+    alignItems: "center",
+  },
+  successIconWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+    marginTop: spacing.xs,
+  },
+  successIconOuterRing: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.successLight,
+    borderWidth: 5,
+    borderColor: "rgba(167, 243, 208, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successIconInnerCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.success,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  successRefPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  successRefText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: "800",
+    color: colors.primary,
+    letterSpacing: 0.4,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.foreground,
+    textAlign: "center",
+    marginBottom: 6,
+    letterSpacing: -0.3,
+  },
+  successSubtitle: {
+    fontSize: typography.sizes.xs + 1,
+    color: colors.foregroundMuted,
+    textAlign: "center",
+    lineHeight: 19,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.xs,
+  },
+  successSummaryBox: {
+    width: "100%",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    marginBottom: spacing.md,
+  },
+  successSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  successSummaryRowTotal: {
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  successSummaryIconCol: {
+    width: 22,
+    alignItems: "center",
+    marginRight: 6,
+  },
+  successSummaryLabel: {
+    fontSize: typography.sizes.xs,
+    color: colors.foregroundMuted,
+    fontWeight: "500",
+    marginRight: 6,
+  },
+  successSummaryVal: {
+    flex: 1,
+    fontSize: typography.sizes.xs,
+    fontWeight: "700",
+    color: colors.foreground,
+    textAlign: "right",
+  },
+  successTotalLabel: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  successTotalVal: {
+    flex: 1,
+    fontSize: typography.sizes.base,
+    fontWeight: "800",
+    color: colors.primary,
+    textAlign: "right",
+  },
+  successNextStepsCard: {
+    width: "100%",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    gap: spacing.sm,
+  },
+  successNextStepItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  nextStepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+    marginTop: 1,
+  },
+  nextStepDotText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  nextStepTitle: {
+    fontSize: typography.sizes.xs,
+    fontWeight: "700",
+    color: colors.foreground,
+  },
+  nextStepSub: {
+    fontSize: 11,
+    color: colors.foregroundMuted,
+    marginTop: 1,
+    lineHeight: 15,
+  },
+  successActionButtons: {
+    width: "100%",
+    gap: spacing.xs,
+  },
+  successPrimaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: radius.full,
+    gap: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  successPrimaryBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.white,
+  },
+  successSecondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: radius.full,
+    gap: 4,
+  },
+  successSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.foregroundMuted,
   },
 });
 

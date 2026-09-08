@@ -309,8 +309,18 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
           <AlertCircle size={44} color={colors.secondary} />
           <Text style={styles.emptyTitle}>Quotation In Preparation</Text>
           <Text style={styles.emptyText}>
-            Our banquet team is reviewing your event requirements. Your itemized quote will appear here once ready.
+            Our banquet team is reviewing your event requirements. Your itemized quote detailing package costs, deposit, and balance will appear here once ready.
           </Text>
+          {inquiryId ? (
+            <TouchableOpacity
+              style={styles.viewInquiryBtn}
+              onPress={() => navigation.replace("InquiryDetail", { inquiryId })}
+              activeOpacity={0.8}
+            >
+              <FileText size={16} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.viewInquiryBtnText}>View Event Inquiry Details</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     );
@@ -1789,6 +1799,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 290,
+  },
+  viewInquiryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  viewInquiryBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primary,
   },
 
   // Revision Modal

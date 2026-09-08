@@ -276,7 +276,7 @@ export const InquiriesListScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.fullDetailsBtn}
                 onPress={() =>
-                  navigation.navigate("QuotationDetail", { inquiryId: item._id })
+                  navigation.navigate("InquiryDetail", { inquiryId: item._id })
                 }
                 activeOpacity={0.8}
               >

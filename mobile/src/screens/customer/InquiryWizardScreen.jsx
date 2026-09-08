@@ -283,7 +283,6 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const [showBarangayPicker, setShowBarangayPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isReviewEditMode, setIsReviewEditMode] = useState(false);
-  const [submittedInquiry, setSubmittedInquiry] = useState(null);
 
   // Sync serviceType when direct package passes in
   useEffect(() => {
@@ -450,8 +449,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
     });
     list.push({
       id: "review",
-      title: "Review & Quotation",
-      subtitle: "Verify details, view estimate & submit inquiry",
+      title: "Review & Submit",
+      subtitle: "Verify event details & submit your inquiry for quotation",
     });
 
     return list;
@@ -750,7 +749,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
         allergies,
         dietary_restrictions: allergies,
         special_requests: specialRequests,
-        estimated_total: estimatedTotal,
+        estimated_total: 0,
         contact_first_name: contactFirstName.trim(),
         contact_last_name: contactLastName.trim(),
         contact_email: contactEmail.trim().toLowerCase(),
@@ -761,23 +760,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
 
       const result = await customerApi.submitInquiry(payload);
 
-      setSubmittedInquiry({
-        reference: result.reference || "INQ",
-        eventType: eventType,
-        celebrantName: celebrantName,
-        guestCount: guestCount,
-        selectedDate: selectedDate,
-        startTime: startTime,
-        location:
-          deliveryMethod === "pickup"
-            ? "Kitchen HQ Pick-up (Batangas City)"
-            : `${barangay ? barangay + ", " : ""}${municipality}`,
-        estimatedTotal: estimatedTotal,
-        depositAmount: depositAmount,
-        contactEmail: contactEmail.trim().toLowerCase(),
-        serviceType: serviceType,
-        packageName: selectedPackage?.name,
-      });
+      // Transition immediately to the dedicated InquiryDetail confirmation screen
+      if (result?._id) {
+        navigation.replace("InquiryDetail", {
+          inquiryId: result._id,
+          isNewSubmission: true,
+        });
+      } else {
+        navigation.replace("InquiriesList");
+      }
     } catch (err) {
       const errorMsg =
         err.response?.data?.message || "Unable to submit your inquiry. Please verify your entries.";
@@ -1212,9 +1203,6 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                       <Text style={[styles.scaffoldDimension, isSelected && styles.scaffoldDimensionActive]}>
                         {option.label || `${option.width_ft} × ${option.length_ft} ft`}
                       </Text>
-                      {option.price ? (
-                        <Text style={styles.scaffoldPrice}>{formatCurrency(option.price)}</Text>
-                      ) : null}
                     </View>
 
                     <View style={styles.scaffoldCapacityRow}>
@@ -1545,9 +1533,6 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                                 <Text style={styles.dishName}>{dish.name}</Text>
                                 <Text style={styles.dishCategory}>{dish.category || "Main Dish"}</Text>
                               </View>
-                              {dish.price ? (
-                                <Text style={styles.dishPrice}>{formatCurrency(dish.price)}/pax</Text>
-                              ) : null}
                             </TouchableOpacity>
                           );
                         })}
@@ -1628,7 +1613,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                             <Text style={styles.addonDesc}>{addon.description}</Text>
                           ) : null}
                           <Text style={styles.addonPrice}>
-                            {addon.price ? formatCurrency(addon.price) : "Priced on quotation"}
+                            Itemized on official quote
                           </Text>
                         </View>
 
@@ -1938,30 +1923,19 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                 <Text style={styles.summaryEditHintText}>Tap any row or "Edit All" to modify your inquiry</Text>
               </View>
 
-              {/* Estimate Calculation Section */}
+              {/* Official Quotation Guarantee Notice */}
               <SerratedDivider color={colors.background} style={{ marginVertical: spacing.md }} />
 
-              <View style={styles.summaryRow}>
-                <Text style={styles.estimateLabel}>Estimated Total:</Text>
-                <Text style={styles.estimateValue}>{formatCurrency(estimatedTotal)}</Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.depositLabel}>Indicative {depositRate}% Deposit:</Text>
-                <Text style={styles.depositValue}>{formatCurrency(depositAmount)}</Text>
+              <View style={styles.guaranteeBox}>
+                <ShieldCheck size={20} color={colors.primary} />
+                <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                  <Text style={styles.guaranteeTitle}>Official Quotation Guarantee</Text>
+                  <Text style={styles.guaranteeText}>
+                    No upfront payment or pricing commitment is required at this stage. Our banquet manager will review your requested date, guest count, and logistics, then prepare an official quotation with complete package costs, deposit amount, and remaining balance.
+                  </Text>
+                </View>
               </View>
             </Card>
-
-            {/* Official Quotation Guarantee Notice */}
-            <View style={styles.guaranteeBox}>
-              <ShieldCheck size={20} color={colors.primary} />
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={styles.guaranteeTitle}>Official Quotation Guarantee</Text>
-                <Text style={styles.guaranteeText}>
-                  No upfront payment is charged right now. Our manager will review your requested logistics and send an official quotation to {contactEmail || "your email"} with confirmed dates and tasting schedule.
-                </Text>
-              </View>
-            </View>
           </View>
         )}
       </ScrollView>
@@ -2228,150 +2202,6 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   </View>
                 </TouchableOpacity>
               )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── HIGH-AESTHETIC INQUIRY SUBMITTED SUCCESS MODAL ── */}
-      <Modal
-        visible={Boolean(submittedInquiry)}
-        animationType="fade"
-        transparent
-        onRequestClose={() => {
-          setSubmittedInquiry(null);
-          navigation.navigate("InquiriesList");
-        }}
-      >
-        <View style={styles.successModalOverlay}>
-          <View style={styles.successModalCard}>
-            <ScrollView
-              bounces={false}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.successScrollContent}
-            >
-              {/* Concentric Celebration Badge */}
-              <View style={styles.successIconWrapper}>
-                <View style={styles.successIconOuterRing}>
-                  <View style={styles.successIconInnerCircle}>
-                    <Check size={26} color={colors.white} strokeWidth={3.2} />
-                  </View>
-                </View>
-              </View>
-
-              {/* Reference Pill */}
-              <View style={styles.successRefPill}>
-                <Sparkles size={12} color={colors.primary} />
-                <Text style={styles.successRefText}>
-                  Reference: {submittedInquiry?.reference || "INQ"}
-                </Text>
-              </View>
-
-              {/* Title & Subtitle */}
-              <Text style={styles.successTitle}>Inquiry Submitted!</Text>
-              <Text style={styles.successSubtitle}>
-                Your catering & event request has been received. Our manager will verify logistics and send an official quotation.
-              </Text>
-
-              {/* Summary Card */}
-              <View style={styles.successSummaryBox}>
-                <View style={styles.successSummaryRow}>
-                  <View style={styles.successSummaryIconCol}>
-                    <Calendar size={14} color={colors.primary} />
-                  </View>
-                  <Text style={styles.successSummaryLabel}>Schedule:</Text>
-                  <Text style={styles.successSummaryVal} numberOfLines={1}>
-                    {submittedInquiry?.selectedDate
-                      ? `${formatDate(submittedInquiry.selectedDate)} at ${submittedInquiry.startTime}`
-                      : "Requested Date"}
-                  </Text>
-                </View>
-
-                <View style={styles.successSummaryRow}>
-                  <View style={styles.successSummaryIconCol}>
-                    <Users size={14} color={colors.primary} />
-                  </View>
-                  <Text style={styles.successSummaryLabel}>Event & Guests:</Text>
-                  <Text style={styles.successSummaryVal} numberOfLines={1}>
-                    {submittedInquiry?.eventType || "Event"} · {submittedInquiry?.guestCount} Guests
-                  </Text>
-                </View>
-
-                <View style={styles.successSummaryRow}>
-                  <View style={styles.successSummaryIconCol}>
-                    <MapPin size={14} color={colors.primary} />
-                  </View>
-                  <Text style={styles.successSummaryLabel}>Location:</Text>
-                  <Text style={styles.successSummaryVal} numberOfLines={1}>
-                    {submittedInquiry?.location || "Batangas"}
-                  </Text>
-                </View>
-
-                <View style={[styles.successSummaryRow, styles.successSummaryRowTotal]}>
-                  <View style={styles.successSummaryIconCol}>
-                    <Receipt size={14} color={colors.primary} />
-                  </View>
-                  <Text style={styles.successTotalLabel}>Estimated Total:</Text>
-                  <Text style={styles.successTotalVal}>
-                    {formatCurrency(submittedInquiry?.estimatedTotal || 0)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Next Steps Card */}
-              <View style={styles.successNextStepsCard}>
-                <View style={styles.successNextStepItem}>
-                  <View style={styles.nextStepDot}>
-                    <Text style={styles.nextStepDotText}>1</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.nextStepTitle}>Logistics Review</Text>
-                    <Text style={styles.nextStepSub}>
-                      Our team verifies venue accessibility and kitchen schedule.
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.successNextStepItem}>
-                  <View style={styles.nextStepDot}>
-                    <Text style={styles.nextStepDotText}>2</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.nextStepTitle}>Official Quotation</Text>
-                    <Text style={styles.nextStepSub}>
-                      Sent to {submittedInquiry?.contactEmail || "your email"} with confirmed pricing.
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.successActionButtons}>
-                <TouchableOpacity
-                  style={styles.successPrimaryBtn}
-                  onPress={() => {
-                    setSubmittedInquiry(null);
-                    navigation.navigate("InquiriesList");
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <FileText size={16} color={colors.white} style={{ marginRight: 6 }} />
-                  <Text style={styles.successPrimaryBtnText}>View My Inquiries</Text>
-                  <ChevronRight size={16} color={colors.white} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.successSecondaryBtn}
-                  onPress={() => {
-                    setSubmittedInquiry(null);
-                    navigation.navigate("CustomerHome");
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Home size={15} color={colors.foregroundMuted} style={{ marginRight: 6 }} />
-                  <Text style={styles.successSecondaryBtnText}>Back to Home</Text>
-                </TouchableOpacity>
-              </View>
             </ScrollView>
           </View>
         </View>

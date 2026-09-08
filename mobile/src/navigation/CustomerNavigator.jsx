@@ -19,6 +19,7 @@ import CustomerMessagesScreen from "../screens/customer/CustomerMessagesScreen";
 import CustomerProfileScreen from "../screens/customer/CustomerProfileScreen";
 
 import InquiryWizardScreen from "../screens/customer/InquiryWizardScreen";
+import InquiryDetailScreen from "../screens/customer/InquiryDetailScreen";
 import QuotationDetailScreen from "../screens/customer/QuotationDetailScreen";
 import PaymentCheckoutScreen from "../screens/customer/PaymentCheckoutScreen";
 import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
@@ -121,6 +122,7 @@ export const CustomerNavigator = () => {
         component={InquiryWizardScreen}
         options={{ presentation: "modal" }}
       />
+      <Stack.Screen name="InquiryDetail" component={InquiryDetailScreen} />
       <Stack.Screen name="QuotationDetail" component={QuotationDetailScreen} />
       <Stack.Screen
         name="PaymentCheckout"

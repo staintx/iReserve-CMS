@@ -34,6 +34,7 @@ import {
   FieldStatusPill,
 } from "../../pages/customer/booking/components/BookingSharedUI";
 import ThemePicker, { ColorPalettePicker } from "../../pages/customer/booking/components/ThemePicker";
+import CourseFilterBar from "../../pages/customer/booking/components/CourseFilterBar";
 import {
   VENUE_TYPES,
   OTHER_VENUE_TYPE,

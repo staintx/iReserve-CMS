@@ -194,6 +194,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     });
   };
 
+  const snapshot = quotation.event_snapshot || null;
+
   const isPastExpiry = Boolean(
     quotation.expiration_date &&
       new Date(quotation.expiration_date).setHours(23, 59, 59, 999) < Date.now()
@@ -220,7 +222,6 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
    * booking record and will have moved on, which is exactly why it cannot be
    * the source for a document the customer is being asked to accept.
    */
-  const snapshot = quotation.event_snapshot || null;
   const eventDetail = (key) => {
     const fromSnapshot = snapshot?.[key];
     if (fromSnapshot !== undefined && fromSnapshot !== null && fromSnapshot !== "") {

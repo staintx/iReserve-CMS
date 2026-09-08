@@ -28,6 +28,7 @@ import CustomCheckout from "../pages/customer/payments/CustomCheckout";
 
 import CustomerBookings from "../pages/customer/CustomerBookings";
 import CustomerInquiries from "../pages/customer/CustomerInquiries";
+import CustomerInquiryDetails from "../pages/customer/CustomerInquiryDetails";
 import CustomerDashboard from "../pages/customer/CustomerDashboard";
 import CustomerMessages from "../pages/customer/CustomerMessages";
 import CustomerMessageThread from "../pages/customer/CustomerMessageThread";
@@ -147,6 +148,9 @@ export default function AppRoutes() {
 
         <Route path="/customer/bookings" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerBookings /></ProtectedRoute>} />
         <Route path="/customer/inquiries" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+        <Route path="/customer/inquiries/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiryDetails /></ProtectedRoute>} />
+        <Route path="/customer/inquiries/:id/edit" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
+        <Route path="/customer/inquiries/edit/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerInquiries /></ProtectedRoute>} />
         <Route path="/customer/bookings/:id" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
         <Route path="/customer/bookings/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />
         <Route path="/customer/events/:id/revision" element={<ProtectedRoute allowedRoles={customerOnly}><CustomerEventDashboard /></ProtectedRoute>} />

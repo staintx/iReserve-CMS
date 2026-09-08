@@ -48,6 +48,16 @@ export const formatEventDate = (value, { fallback = "Date to be confirmed" } = {
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
+/** Formats dates as "Sep 23, 2026 (Wednesday)" matching the portal design spec. */
+export const formatEventDateWithDay = (value, { fallback = "Date to be confirmed" } = {}) => {
+  if (!value) return fallback;
+  const parsed = parseLocalDate(value);
+  if (!parsed) return fallback;
+  const monthDayYear = parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const weekday = parsed.toLocaleDateString("en-US", { weekday: "long" });
+  return `${monthDayYear} (${weekday})`;
+};
+
 /** "Aug 12, 2026 · 11:00 AM" — one readable string for a card headline. */
 export const formatEventDateTime = (date, time, options) => {
   const datePart = formatEventDate(date, options);

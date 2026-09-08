@@ -60,6 +60,46 @@ const TABS = [
   },
 ];
 
+function getRegularPackageCategories(pkg) {
+  const categoriesMap = new Map();
+
+  const addCategoryCount = (catName, count = 1) => {
+    const cleanCat = String(catName || "").trim() || "Inclusions";
+    categoriesMap.set(cleanCat, (categoriesMap.get(cleanCat) || 0) + count);
+  };
+
+  // 1. Process inclusions array (e.g. "[Event Setup & Furniture] Stage Setup", etc.)
+  if (Array.isArray(pkg?.inclusions)) {
+    pkg.inclusions.forEach((inc) => {
+      if (!inc || typeof inc !== "string") return;
+      const match = inc.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+      if (match && match[1]) {
+        addCategoryCount(match[1]);
+      } else if (inc.trim()) {
+        addCategoryCount("Inclusions");
+      }
+    });
+  }
+
+  // 2. Process offer_food_items / menu_items if present
+  if (Array.isArray(pkg?.offer_food_items) && pkg.offer_food_items.length > 0) {
+    pkg.offer_food_items.forEach((item) => {
+      const cat = item?.menu_category || "Food";
+      addCategoryCount(cat);
+    });
+  } else if (Array.isArray(pkg?.menu_items) && pkg.menu_items.length > 0) {
+    pkg.menu_items.forEach((item) => {
+      const cat = typeof item === "object" ? (item?.menu_category || item?.category || "Food") : "Food";
+      addCategoryCount(cat);
+    });
+  }
+
+  return Array.from(categoriesMap.entries()).map(([category, count]) => ({
+    category,
+    count,
+  }));
+}
+
 export default function AdminPackages() {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
@@ -414,6 +454,7 @@ export default function AdminPackages() {
                 const price = priceLine(pkg);
                 const pax = offer ? offerGuestCount(pkg) : null;
                 const offerCategories = offer ? offerFoodByCategory(pkg) : [];
+                const regularCategories = !offer ? getRegularPackageCategories(pkg) : [];
 
                 return (
                   <AdminCard
@@ -431,18 +472,6 @@ export default function AdminPackages() {
                           <h3 className="font-bold text-foreground truncate text-base">
                             {pkg.name}
                           </h3>
-                          {!offer && (
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-muted-foreground font-mono">
-                                #{pkg._id.substring(pkg._id.length - 6).toUpperCase()}
-                              </p>
-                              {pkg.event_type && (
-                                <span className="text-[10px] font-bold font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/80">
-                                  {pkg.event_type}
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
                         <Badge status={pkg.available ? "available" : "unavailable"} />
                       </div>
@@ -481,10 +510,10 @@ export default function AdminPackages() {
                         )}
                       </div>
 
-                      {/* What the customer gets: food category summary for a combo, inclusion list for regular package */}
+                      {/* Category Summary */}
                       <div>
                         <p className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
-                          {offer ? "Food Categories" : "Inclusions"}
+                          CATEGORIES
                         </p>
                         {offer ? (
                           offerCategories.length > 0 ? (
@@ -510,28 +539,28 @@ export default function AdminPackages() {
                             </p>
                           )
                         ) : (
-                          <ul className="space-y-1 mb-4 h-24 overflow-y-auto">
-                            {(pkg.inclusions || []).slice(0, 4).map((inc, i) => (
-                              <li
-                                key={i}
-                                className="text-sm text-foreground flex items-center gap-2 truncate"
-                                title={inc}
-                              >
-                                <div className="w-1.5 h-1.5 bg-primary rounded-full flex-shrink-0" />
-                                <span className="truncate">{inc}</span>
-                              </li>
-                            ))}
-                            {(pkg.inclusions || []).length > 4 && (
-                              <li className="text-xs text-gray-400 italic">
-                                +{pkg.inclusions.length - 4} more items
-                              </li>
-                            )}
-                            {(pkg.inclusions || []).length === 0 && (
-                              <li className="text-sm text-gray-400 italic">
-                                No inclusions specified
-                              </li>
-                            )}
-                          </ul>
+                          regularCategories.length > 0 ? (
+                            <ul className="space-y-1.5 mb-4">
+                              {regularCategories.map((cat, i) => (
+                                <li
+                                  key={i}
+                                  className="text-sm text-foreground flex items-center gap-2 truncate"
+                                >
+                                  <div className="w-1.5 h-1.5 bg-primary rounded-full flex-shrink-0" />
+                                  <span className="font-medium text-slate-800">
+                                    {cat.category}
+                                  </span>
+                                  <span className="text-slate-400 font-normal">
+                                    — {cat.count} {cat.count === 1 ? "item" : "items"}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic mb-4">
+                              No categories configured yet
+                            </p>
+                          )
                         )}
                       </div>
                     </div>

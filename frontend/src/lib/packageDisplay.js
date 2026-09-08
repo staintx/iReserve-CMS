@@ -177,8 +177,11 @@ export function priceLabel(pkg) {
 const INCLUSION_PATTERN = /^\s*\[([^\]]+)\]\s*(.+?)\s*(?:\(([^()]*)\))?\s*$/;
 
 export function parseInclusion(value) {
-  const raw = String(value || "").trim();
+  let raw = String(value || "").trim();
   if (!raw) return null;
+
+  // Strip wrapping quotes and escape slashes if present (e.g. '"[Event Setup & Furniture] Couch"')
+  raw = raw.replace(/^["'\\]+|["'\\]+$/g, "").trim();
 
   const match = raw.match(INCLUSION_PATTERN);
   if (!match) return { category: null, name: raw, qty: null };
@@ -291,10 +294,10 @@ export function groupInclusions(inclusions) {
     const parsed = parseInclusion(entry);
     if (!parsed) return;
 
-    const key = parsed.category || "";
+    const key = parsed.category || "General Inclusions";
     let group = byCategory.get(key);
     if (!group) {
-      group = { category: parsed.category, items: [] };
+      group = { category: key, items: [] };
       byCategory.set(key, group);
       groups.push(group);
     }

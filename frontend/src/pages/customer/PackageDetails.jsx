@@ -647,11 +647,10 @@ export default function PackageDetails() {
                 <section className="ls-detail-section" aria-labelledby="custom-title">
                   <h2 id="custom-title">Can you change it?</h2>
                   <p className="ls-detail-prose">
-                    Yes. While you book you can set your guest count
-                    {guestMin && guestMax ? ` between ${guestMin} and ${guestMax}` : ""},
-                    choose your dishes, and add extras. If you need something this
-                    package doesn't cover, send us the details and we'll quote for
-                    it instead.
+                    Yes. While you book you can set your guest count, choose
+                    your dishes, and add extras. If you need something this
+                    package doesn't cover, send us the details and we'll quote
+                    for it instead.
                   </p>
                 </section>
               </div>

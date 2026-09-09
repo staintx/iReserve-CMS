@@ -10,8 +10,25 @@ export const getBatangasBarangays = (municipality) => {
   return batangasData[municipality] || [];
 };
 
+export const searchBatangasMunicipalities = (query) => {
+  const all = getBatangasMunicipalities();
+  if (!query || !query.trim()) return all;
+  const q = query.trim().toLowerCase();
+  return all.filter((m) => m.toLowerCase().includes(q));
+};
+
+export const searchBatangasBarangays = (municipality, query) => {
+  const all = getBatangasBarangays(municipality);
+  if (!query || !query.trim()) return all;
+  const q = query.trim().toLowerCase();
+  return all.filter((b) => b.toLowerCase().includes(q));
+};
+
 export default {
   BATANGAS_PROVINCE,
   getBatangasMunicipalities,
   getBatangasBarangays,
+  searchBatangasMunicipalities,
+  searchBatangasBarangays,
 };
+

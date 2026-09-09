@@ -1,13 +1,17 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, radius, shadows, typography, spacing } from "../../constants/theme";
 
 /**
  * FloatingTabBar — Baemin/Glovo inspired floating rounded pill navigation dock
  */
 export const FloatingTabBar = ({ state, descriptors, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomOffset = Math.max(insets.bottom + 6, Platform.OS === "ios" ? 20 : 12);
+
   return (
-    <View style={styles.dockContainer}>
+    <View style={[styles.dockContainer, { bottom: bottomOffset }]}>
       <View style={styles.dock}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];

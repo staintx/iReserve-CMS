@@ -53,6 +53,7 @@ import {
 } from "../../constants/cateringData";
 import { formatCurrency, formatDate } from "../../utils/format";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
+import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -87,9 +88,10 @@ export const CustomerHomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Modals
+  // Modals & Image State
   const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
   const [selectedDish, setSelectedDish] = useState(null);
+  const [heroImageError, setHeroImageError] = useState(false);
 
   const loadAllData = useCallback(async () => {
     try {
@@ -153,6 +155,8 @@ export const CustomerHomeScreen = ({ navigation }) => {
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
+
+  useRealTimeRefresh(loadAllData);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -387,11 +391,16 @@ export const CustomerHomeScreen = ({ navigation }) => {
           </View>
 
           <Image
-            source={{
-              uri: "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=800",
-            }}
+            source={
+              heroImageError
+                ? require("../../../assets/images/logo.jpg")
+                : {
+                    uri: "https://images.pexels.com/photos/28736727/pexels-photo-28736727.jpeg?auto=compress&cs=tinysrgb&w=800",
+                  }
+            }
             style={styles.heroPromoImage}
             resizeMode="cover"
+            onError={() => setHeroImageError(true)}
           />
         </View>
 

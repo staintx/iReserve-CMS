@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { colors, typography } from "../../constants/theme";
 
-const MIN_DISPLAY_MS = 2800;
+const MIN_DISPLAY_MS = 600;
 
 // Modern Apple-style ultra-smooth deceleration curve
 const SMOOTH_EASE = Easing.bezier(0.16, 1, 0.3, 1);
@@ -20,57 +20,57 @@ export const AnimatedSplashScreen = ({ isReady = false, onAnimationComplete }) =
 
   // Logo animation values (appears first)
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0.82)).current;
-  const logoTranslateY = useRef(new Animated.Value(8)).current;
+  const logoScale = useRef(new Animated.Value(0.85)).current;
+  const logoTranslateY = useRef(new Animated.Value(6)).current;
 
   // "iReserve" wordmark animation values (appears second)
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslateY = useRef(new Animated.Value(14)).current;
+  const textTranslateY = useRef(new Animated.Value(10)).current;
 
   // Container exit dissolve
   const containerOpacity = useRef(new Animated.Value(1)).current;
 
-  // Slower, aesthetic choreographed entrance
+  // Fluid choreographed entrance
   useEffect(() => {
-    // 1. First: Logo icon alone emerges smoothly (850ms)
+    // 1. Logo icon emerges swiftly
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1,
-        duration: 800,
+        duration: 350,
         easing: SMOOTH_EASE,
         useNativeDriver: true,
       }),
       Animated.timing(logoScale, {
         toValue: 1,
-        duration: 850,
+        duration: 380,
         easing: SMOOTH_EASE,
         useNativeDriver: true,
       }),
       Animated.timing(logoTranslateY, {
         toValue: 0,
-        duration: 850,
+        duration: 380,
         easing: SMOOTH_EASE,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // 2. Second: "iReserve" wordmark reveals underneath after icon establishes (starts at 700ms)
+    // 2. "iReserve" wordmark reveals underneath
     const textTimer = setTimeout(() => {
       Animated.parallel([
         Animated.timing(textOpacity, {
           toValue: 1,
-          duration: 750,
+          duration: 300,
           easing: SMOOTH_EASE,
           useNativeDriver: true,
         }),
         Animated.timing(textTranslateY, {
           toValue: 0,
-          duration: 750,
+          duration: 300,
           easing: SMOOTH_EASE,
           useNativeDriver: true,
         }),
       ]).start();
-    }, 700);
+    }, 120);
 
     return () => clearTimeout(textTimer);
   }, []);
@@ -86,7 +86,7 @@ export const AnimatedSplashScreen = ({ isReady = false, onAnimationComplete }) =
       setHasStartedExit(true);
       Animated.timing(containerOpacity, {
         toValue: 0,
-        duration: 420,
+        duration: 250,
         easing: Easing.bezier(0.25, 1, 0.5, 1),
         useNativeDriver: true,
       }).start(() => {

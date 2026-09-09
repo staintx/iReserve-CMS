@@ -38,6 +38,8 @@ import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import { formatDate, formatTime } from "../../utils/format";
 
+import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
+
 export const InquiryDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const { inquiryId, isNewSubmission = false } = route.params || {};
@@ -70,6 +72,8 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
     loadInquiry();
   }, [inquiryId]);
 
+  useRealTimeRefresh(loadInquiry);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadInquiry();
@@ -79,7 +83,7 @@ export const InquiryDetailScreen = ({ route, navigation }) => {
     if (!inquiry) return;
     setChatLoading(true);
     try {
-      const convList = await messagesApi.getConversations();
+      const convList = await messagesApi.listConversations();
       const existing = Array.isArray(convList)
         ? convList.find((c) => {
             const inq = c.inquiry_id?._id || c.inquiry_id;

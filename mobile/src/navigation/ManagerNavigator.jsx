@@ -98,7 +98,6 @@ export const ManagerNavigator = () => {
       }}
     >
       <Stack.Screen name="ManagerTabs" component={ManagerTabs} />
-      <Stack.Screen name="ManagerStaff" component={ManagerStaffScreen} />
       <Stack.Screen name="ManagerBookingDetail" component={ManagerBookingDetailScreen} />
       <Stack.Screen name="BookingDetail" component={ManagerBookingDetailScreen} />
       <Stack.Screen

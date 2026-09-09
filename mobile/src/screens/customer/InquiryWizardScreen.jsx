@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -42,6 +43,8 @@ import {
   Receipt,
   FileText,
   CheckCircle2,
+  Search,
+  X,
 } from "lucide-react-native";
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import Header from "../../components/common/Header";
@@ -54,7 +57,13 @@ import AnimatedStepper from "../../components/common/AnimatedStepper";
 import { useAuth } from "../../context/AuthContext";
 import customerApi from "../../api/customer";
 import SerratedDivider from "../../components/common/SerratedDivider";
-import { BATANGAS_PROVINCE, getBatangasMunicipalities, getBatangasBarangays } from "../../utils/batangas";
+import {
+  BATANGAS_PROVINCE,
+  getBatangasMunicipalities,
+  getBatangasBarangays,
+  searchBatangasMunicipalities,
+  searchBatangasBarangays,
+} from "../../utils/batangas";
 import { formatCurrency, formatDate } from "../../utils/format";
 
 const MIN_DATE_OFFSET_DAYS = 4;
@@ -281,6 +290,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // Modals
   const [showMunicipalityPicker, setShowMunicipalityPicker] = useState(false);
   const [showBarangayPicker, setShowBarangayPicker] = useState(false);
+  const [municipalityQuery, setMunicipalityQuery] = useState("");
+  const [barangayQuery, setBarangayQuery] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [isReviewEditMode, setIsReviewEditMode] = useState(false);
 
@@ -342,6 +353,15 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const availableBarangays = useMemo(() => {
     return getBatangasBarangays(municipality);
   }, [municipality]);
+
+  // Filtered municipalities & barangays for instant search
+  const filteredMunicipalities = useMemo(() => {
+    return searchBatangasMunicipalities(municipalityQuery);
+  }, [municipalityQuery]);
+
+  const filteredBarangays = useMemo(() => {
+    return searchBatangasBarangays(municipality, barangayQuery);
+  }, [municipality, barangayQuery]);
 
   // Derived Booleans
   const isFoodOnly = serviceType === SERVICE_TYPES.FOOD_ONLY;
@@ -718,6 +738,11 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
               item_name: item.item_name,
             }))
           : undefined,
+        selected_scaffold_option_id: !isFoodOnly && selectedScaffold ? selectedScaffold._id : undefined,
+        scaffold_width: !isFoodOnly && selectedScaffold ? selectedScaffold.width_ft : undefined,
+        scaffold_length: !isFoodOnly && selectedScaffold ? selectedScaffold.length_ft : undefined,
+        scaffold_base_area: !isFoodOnly && selectedScaffold ? (selectedScaffold.width_ft * selectedScaffold.length_ft) : undefined,
+        scaffold_price: !isFoodOnly && selectedScaffold ? selectedScaffold.price : undefined,
         event_type: isFoodOnly ? "Food Order" : eventType,
         booking_for: celebrantName ? "someone_else" : "myself",
         celebrant_name: celebrantName,
@@ -1976,18 +2001,36 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Batangas Municipality</Text>
-              <TouchableOpacity onPress={() => setShowMunicipalityPicker(false)}>
+              <TouchableOpacity onPress={() => { setShowMunicipalityPicker(false); setMunicipalityQuery(""); }}>
                 <Text style={styles.modalClose}>Done</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalList}>
-              {getBatangasMunicipalities().map((muni) => (
+            <View style={styles.modalSearchContainer}>
+              <Search size={16} color={colors.foregroundMuted} style={styles.modalSearchIcon} />
+              <TextInput
+                placeholder="Search municipality..."
+                placeholderTextColor={colors.foregroundMuted}
+                value={municipalityQuery}
+                onChangeText={setMunicipalityQuery}
+                style={styles.modalSearchInput}
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+              />
+              {municipalityQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setMunicipalityQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={15} color={colors.foregroundMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+              {filteredMunicipalities.map((muni) => (
                 <TouchableOpacity
                   key={muni}
                   style={styles.modalItem}
                   onPress={() => {
                     setMunicipality(muni);
                     setBarangay("");
+                    setMunicipalityQuery("");
                     setShowMunicipalityPicker(false);
                   }}
                 >
@@ -1997,6 +2040,11 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   {municipality === muni && <Check size={18} color={colors.primary} />}
                 </TouchableOpacity>
               ))}
+              {filteredMunicipalities.length === 0 && (
+                <View style={styles.modalEmptyState}>
+                  <Text style={styles.modalEmptyText}>No municipalities match "{municipalityQuery}"</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -2008,17 +2056,35 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
           <View style={[styles.modalSheet, { paddingBottom: insets.bottom + spacing.md }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Barangay in {municipality}</Text>
-              <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
+              <TouchableOpacity onPress={() => { setShowBarangayPicker(false); setBarangayQuery(""); }}>
                 <Text style={styles.modalClose}>Done</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalList}>
-              {availableBarangays.map((brgy) => (
+            <View style={styles.modalSearchContainer}>
+              <Search size={16} color={colors.foregroundMuted} style={styles.modalSearchIcon} />
+              <TextInput
+                placeholder="Search barangay..."
+                placeholderTextColor={colors.foregroundMuted}
+                value={barangayQuery}
+                onChangeText={setBarangayQuery}
+                style={styles.modalSearchInput}
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+              />
+              {barangayQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setBarangayQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={15} color={colors.foregroundMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+              {filteredBarangays.map((brgy) => (
                 <TouchableOpacity
                   key={brgy}
                   style={styles.modalItem}
                   onPress={() => {
                     setBarangay(brgy);
+                    setBarangayQuery("");
                     setShowBarangayPicker(false);
                   }}
                 >
@@ -2028,6 +2094,11 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   {barangay === brgy && <Check size={18} color={colors.primary} />}
                 </TouchableOpacity>
               ))}
+              {filteredBarangays.length === 0 && (
+                <View style={styles.modalEmptyState}>
+                  <Text style={styles.modalEmptyText}>No barangays match "{barangayQuery}"</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -3178,6 +3249,34 @@ const styles = StyleSheet.create({
   },
   modalList: {
     marginVertical: spacing.sm,
+  },
+  modalSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: Platform.OS === "ios" ? spacing.sm : spacing.xs,
+    marginVertical: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  modalSearchIcon: {
+    marginRight: spacing.xs,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: typography.sizes.sm,
+    color: colors.foreground,
+    paddingVertical: 0,
+  },
+  modalEmptyState: {
+    paddingVertical: spacing.xl,
+    alignItems: "center",
+  },
+  modalEmptyText: {
+    fontSize: typography.sizes.sm,
+    color: colors.foregroundMuted,
   },
   editSectionItem: {
     flexDirection: "row",

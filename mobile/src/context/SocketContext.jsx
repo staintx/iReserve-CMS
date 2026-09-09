@@ -24,6 +24,16 @@ export const SocketProvider = ({ children }) => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const activeConversationIdRef = useRef(null);
 
+  const refreshListenersRef = useRef(new Set());
+
+  const subscribeToRefresh = useCallback((callback) => {
+    if (typeof callback !== "function") return () => {};
+    refreshListenersRef.current.add(callback);
+    return () => {
+      refreshListenersRef.current.delete(callback);
+    };
+  }, []);
+
   const setActiveConversationId = useCallback((id) => {
     activeConversationIdRef.current = id;
   }, []);
@@ -82,10 +92,29 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(false);
     });
 
+    // Operational system:refresh event broadcast by backend
+    socketInstance.on("system:refresh", (data) => {
+      refreshListenersRef.current.forEach((cb) => {
+        try {
+          cb(data);
+        } catch (err) {
+          console.warn("Error in system:refresh subscriber", err);
+        }
+      });
+    });
+
     // Global operational notification handler
     socketInstance.on("notification:new", (notification) => {
       setUnreadCount((prev) => prev + 1);
       showInAppNotification(notification);
+      // Also notify refresh listeners (e.g. Inquiries, Bookings, Quotations list)
+      refreshListenersRef.current.forEach((cb) => {
+        try {
+          cb({ type: "notification", notification });
+        } catch (err) {
+          console.warn("Error in notification refresh subscriber", err);
+        }
+      });
     });
 
     // Global chat message handler (for alerts when not in active chat thread)
@@ -137,6 +166,7 @@ export const SocketProvider = ({ children }) => {
         decrementUnreadCount,
         clearUnreadCount,
         setActiveConversationId,
+        subscribeToRefresh,
       }}
     >
       {children}

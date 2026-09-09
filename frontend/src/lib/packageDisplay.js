@@ -166,6 +166,33 @@ export function priceLabel(pkg) {
 }
 
 /**
+ * Structured breakdown of price for package cards so the amount can be rendered
+ * prominently with supporting text (e.g., amount: "₱17,000", suffix: "setup fee").
+ */
+export function packagePriceParts(pkg) {
+  const perGuest = perGuestPrice(pkg);
+  if (perGuest) {
+    return { amount: peso(perGuest), suffix: "per guest" };
+  }
+
+  const setupPrice = Number(pkg?.setup_price);
+  if (Number.isFinite(setupPrice) && setupPrice > 0) {
+    return { amount: peso(setupPrice), suffix: "setup fee" };
+  }
+
+  const setupFrom = setupFromPrice(pkg);
+  if (setupFrom) {
+    return { prefix: "Setup from", amount: peso(setupFrom), suffix: "" };
+  }
+
+  if (pkg?.package_type === "Food Only") {
+    return { text: "Priced by menu selection" };
+  }
+
+  return { text: priceLabel(pkg) || "Quoted per event" };
+}
+
+/**
  * Inclusions are stored as plain strings, but the admin form composes each one
  * as `[Category] Name (qty)` — see handleAddInclusion in PackageModal.jsx. The
  * customer pages used to print that raw, brackets and all. Parsing it back out
@@ -180,16 +207,41 @@ export function parseInclusion(value) {
   let raw = String(value || "").trim();
   if (!raw) return null;
 
-  // Strip wrapping quotes and escape slashes if present (e.g. '"[Event Setup & Furniture] Couch"')
-  raw = raw.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  // Strip wrapping quotes and escape slashes repeatedly
+  for (let i = 0; i < 4; i++) {
+    raw = raw.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+
+  // Remove nested brackets with quotes e.g. `["[`, `[\[`, `[\"`
+  raw = raw.replace(/^\[+[\s"'\\]*\[/, "[");
+  raw = raw.replace(/\]+[\s"'\\]*\]+$/, "]");
+  raw = raw.replace(/^\[+[\s"'\\]+/, "[");
+  raw = raw.replace(/[\s"'\\]+\]+$/, "]");
+
+  for (let i = 0; i < 4; i++) {
+    raw = raw.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
 
   const match = raw.match(INCLUSION_PATTERN);
-  if (!match) return { category: null, name: raw, qty: null };
+  if (!match) {
+    let cleanName = raw.replace(/^\[+|\]+$/g, "").trim();
+    cleanName = cleanName.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+    return { category: null, name: cleanName, qty: null };
+  }
+
+  let cat = match[1].trim();
+  cat = cat.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+
+  let name = match[2].trim();
+  name = name.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+
+  let qty = match[3]?.trim() || null;
+  if (qty) qty = qty.replace(/^["'\\]+|["'\\]+$/g, "").trim();
 
   return {
-    category: match[1].trim() || null,
-    name: match[2].trim(),
-    qty: match[3]?.trim() || null,
+    category: cat || null,
+    name: name,
+    qty: qty,
   };
 }
 
@@ -284,21 +336,37 @@ export function withInclusionQuantity(value, quantity) {
   return `${raw.slice(0, found.start)}${quantity}${raw.slice(found.end)}`;
 }
 
-/** Inclusions grouped by category, in the order the categories first appear. */
+/** Inclusions grouped by category, in the order the categories first appear, with item deduplication. */
 export function groupInclusions(inclusions) {
   const list = Array.isArray(inclusions) ? inclusions : [];
   const groups = [];
   const byCategory = new Map();
+  const seenItemsPerCategory = new Map();
 
   list.forEach((entry) => {
     const parsed = parseInclusion(entry);
-    if (!parsed) return;
+    if (!parsed || !parsed.name) return;
 
-    const key = parsed.category || "General Inclusions";
-    let group = byCategory.get(key);
+    const catKey = (parsed.category || "General Inclusions").trim();
+    const catLower = catKey.toLowerCase();
+    const itemKey = `${parsed.name.toLowerCase()}:::${(parsed.qty || "").toLowerCase()}`;
+
+    let seen = seenItemsPerCategory.get(catLower);
+    if (!seen) {
+      seen = new Set();
+      seenItemsPerCategory.set(catLower, seen);
+    }
+
+    if (seen.has(itemKey)) {
+      // Skip duplicate item within the same category
+      return;
+    }
+    seen.add(itemKey);
+
+    let group = byCategory.get(catLower);
     if (!group) {
-      group = { category: key, items: [] };
-      byCategory.set(key, group);
+      group = { category: catKey, items: [] };
+      byCategory.set(catLower, group);
       groups.push(group);
     }
     group.items.push(parsed);

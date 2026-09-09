@@ -359,30 +359,93 @@ function offerBookingProblem(pkg, guestCount) {
 }
 
 /**
- * Parses the combo's food as it arrives from the admin form. Food items travel
- * as JSON in a multipart body, so this is the one place that decides what a
- * food item is.
+ * Recursively parses and unwraps any JSON-stringified value or nested array.
  */
-function normalizeOfferFoodItems(raw) {
-  let items = raw;
-  if (typeof raw === "string") {
-    try {
-      items = JSON.parse(raw);
-    } catch {
-      return [];
+function unwrapJsonOrArray(raw) {
+  if (!raw) return [];
+  let current = raw;
+  for (let depth = 0; depth < 5; depth++) {
+    if (typeof current === "string") {
+      const trimmed = current.trim();
+      if (
+        (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+        (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith('"') && trimmed.endsWith('"'))
+      ) {
+        try {
+          current = JSON.parse(trimmed);
+        } catch {
+          break;
+        }
+      } else {
+        break;
+      }
+    } else {
+      break;
     }
   }
-  if (!Array.isArray(items)) return [];
 
-  return items
-    .map((item) => ({
-      menu_category: String(item?.menu_category || "").trim(),
-      item_name: String(item?.item_name || "").trim(),
-    }))
-    .filter((item) => item.item_name)
-    // Position is the admin's arrangement, renumbered on save so a removed row
-    // never leaves a gap that later reorders the list by itself.
-    .map((item, index) => ({ ...item, sort_order: index }));
+  if (Array.isArray(current)) {
+    return current.flat(Infinity);
+  }
+  return [current];
+}
+
+/** Clean wrapping quotes, slashes, and stray array bracket artifacts from a string */
+function cleanTextValue(val) {
+  if (val == null) return "";
+  let s = String(val).trim();
+  // Strip outer quotes and escape slashes repeatedly
+  for (let i = 0; i < 4; i++) {
+    s = s.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  return s;
+}
+
+/**
+ * Parses the combo's food as it arrives from the admin form. Food items travel
+ * as JSON in a multipart body. Handles nested arrays, JSON stringified values,
+ * extracts multiple dishes if item_name was sent as an array, and deduplicates dishes.
+ */
+function normalizeOfferFoodItems(raw) {
+  if (!raw) return [];
+  const rawList = unwrapJsonOrArray(raw);
+  const expanded = [];
+
+  rawList.forEach((item) => {
+    if (!item) return;
+
+    let category = cleanTextValue(item.menu_category || item.category || "");
+    let rawName = item.item_name !== undefined ? item.item_name : item.name;
+
+    // Handle cases where item_name itself is an array or stringified array (e.g. ["Garlic Rice"])
+    const unwrappedNames = unwrapJsonOrArray(rawName);
+    unwrappedNames.forEach((nameCandidate) => {
+      let cleanName = cleanTextValue(nameCandidate);
+      // Strip any residual brackets (e.g. if "[Garlic Rice]" was typed without a category)
+      cleanName = cleanName.replace(/^\[+|\]+$/g, "").trim();
+      cleanName = cleanTextValue(cleanName);
+      if (cleanName) {
+        expanded.push({
+          menu_category: category,
+          item_name: cleanName,
+        });
+      }
+    });
+  });
+
+  // Deduplicate items within the same category
+  const seen = new Set();
+  const deduped = [];
+
+  expanded.forEach((entry) => {
+    const key = `${entry.menu_category.toLowerCase()}:::${entry.item_name.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(entry);
+  });
+
+  return deduped.map((item, index) => ({ ...item, sort_order: index }));
 }
 
 const SETUP_KEYWORDS = [
@@ -409,27 +472,33 @@ function isSetupInclusion(str) {
 
 /** Plain inclusion lines, deduped, sanitized of setup items, and emptied of blanks. */
 function normalizeOfferInclusions(raw) {
-  let items = raw;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) items = parsed;
-      else items = raw.split(",");
-    } catch {
-      items = raw.split(",");
-    }
-  }
-  if (!Array.isArray(items)) return [];
-
+  if (!raw) return [];
+  const rawList = unwrapJsonOrArray(raw);
   const seen = new Set();
-  return items
-    .map((entry) => String(entry || "").replace(/^\s*\[[^\]]*\]\s*/, "").trim())
-    .filter((entry) => {
-      if (!entry || seen.has(entry.toLowerCase())) return false;
-      if (isSetupInclusion(entry)) return false;
-      seen.add(entry.toLowerCase());
-      return true;
+  const result = [];
+
+  rawList.forEach((entry) => {
+    if (!entry) return;
+    const unwrappedEntries = unwrapJsonOrArray(entry);
+    unwrappedEntries.forEach((subEntry) => {
+      let clean = cleanTextValue(subEntry);
+      // Strip bracketed category prefix if present
+      clean = clean.replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+      // Strip any residual bracket artifacts
+      clean = clean.replace(/^\[+|\]+$/g, "").trim();
+      clean = cleanTextValue(clean);
+
+      if (!clean) return;
+      if (isSetupInclusion(clean)) return;
+
+      const lower = clean.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      result.push(clean);
     });
+  });
+
+  return result;
 }
 
 module.exports = {

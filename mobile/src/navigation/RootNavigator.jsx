@@ -13,18 +13,20 @@ import StaffNavigator from "./StaffNavigator";
 
 export { navigationRef, navigateGlobal };
 
-export const RootNavigator = () => {
+export const RootNavigator = ({ fontsLoaded = true }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [splashFinished, setSplashFinished] = useState(false);
 
+  const isReady = !isLoading && fontsLoaded;
+
   return (
     <View style={styles.rootContainer}>
-      {/* Navigation Tree (mounted once auth check resolves) */}
-      {!isLoading && (
+      {/* Navigation Tree (mounted once auth check and fonts resolve) */}
+      {isReady && (
         <NavigationContainer ref={navigationRef}>
           {!isAuthenticated ? (
             <AuthNavigator />
-          ) : user?.role === "manager" || user?.role === "admin" ? (
+          ) : user?.role === "manager" ? (
             <ManagerNavigator />
           ) : user?.role === "staff" ? (
             <StaffNavigator />
@@ -39,7 +41,7 @@ export const RootNavigator = () => {
       {/* Mobbin-style Animated Splash Overlay */}
       {!splashFinished && (
         <AnimatedSplashScreen
-          isReady={!isLoading}
+          isReady={isReady}
           onAnimationComplete={() => setSplashFinished(true)}
         />
       )}

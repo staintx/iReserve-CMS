@@ -49,7 +49,7 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
 }
 
 export default function App() {
-  const [fontsLoaded] = usePlusJakarta({
+  const [plusJakartaLoaded] = usePlusJakarta({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -57,17 +57,19 @@ export default function App() {
     PlusJakartaSans_800ExtraBold,
   });
 
-  useWorkSans({
+  const [workSansLoaded] = useWorkSans({
     WorkSans_400Regular,
     WorkSans_500Medium,
     WorkSans_600SemiBold,
     WorkSans_700Bold,
   });
 
-  usePlayfair({
+  const [playfairLoaded] = usePlayfair({
     PlayfairDisplay_600SemiBold,
     PlayfairDisplay_700Bold,
   });
+
+  const fontsLoaded = Boolean(plusJakartaLoaded && workSansLoaded && playfairLoaded);
 
   return (
     <SafeAreaProvider>
@@ -77,7 +79,7 @@ export default function App() {
             <StatusBar style="dark" />
             <OfflineBanner />
             <InAppNotificationBanner />
-            <RootNavigator />
+            <RootNavigator fontsLoaded={fontsLoaded} />
           </SocketProvider>
         </AuthProvider>
       </NetworkProvider>

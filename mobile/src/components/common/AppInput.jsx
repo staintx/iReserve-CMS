@@ -43,7 +43,7 @@ export const AppInput = forwardRef(({
       <View
         style={[
           styles.inputWrapper,
-          multiline && { height: numberOfLines * 24 + 24, alignItems: "flex-start" },
+          multiline && { minHeight: Math.max(52, numberOfLines * 24 + 24), height: undefined, alignItems: "flex-start", paddingVertical: spacing.sm },
           isFocused && styles.inputWrapperFocused,
           Boolean(error) && styles.inputWrapperError,
           !editable && styles.inputWrapperDisabled,
@@ -67,11 +67,12 @@ export const AppInput = forwardRef(({
           multiline={multiline}
           numberOfLines={numberOfLines}
           editable={editable}
+          accessibilityLabel={label || placeholder}
           onFocus={handleFocus}
           onBlur={handleBlur}
           style={[
             styles.textInput,
-            multiline && { textAlignVertical: "top", paddingTop: 10 },
+            multiline && { textAlignVertical: "top", paddingTop: 4, minHeight: numberOfLines * 24 },
             inputStyle,
           ]}
           {...restProps}

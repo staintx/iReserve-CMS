@@ -796,18 +796,15 @@ export default function AdminInquiries() {
                             </td>
 
                             {/* Customer */}
-                            <td className="py-2.5 px-2.5">
-                              <div className="flex items-center gap-2">
-                                <AvatarInitials name={r.customer} />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1">
-                                    {r.isNew && (
-                                      <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" title="Recent activity" />
-                                    )}
-                                    <p className="font-bold text-foreground text-xs truncate max-w-[120px]">{r.customer}</p>
-                                  </div>
-                                  <p className="text-[10px] text-muted-foreground truncate max-w-[120px]">{r.email || "—"}</p>
+                            <td className="py-2.5 px-2.5 min-w-[130px]">
+                              <div className="min-w-0 space-y-0.5">
+                                <div className="flex items-center gap-1">
+                                  {r.isNew && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" title="Recent activity" />
+                                  )}
+                                  <p className="font-bold text-foreground text-xs truncate max-w-[140px]">{r.customer}</p>
                                 </div>
+                                <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{r.email || "—"}</p>
                               </div>
                             </td>
 
@@ -1047,6 +1044,62 @@ export default function AdminInquiries() {
                 </div>
               </div>
 
+              {/* UPPER SECTION: Quick Action Buttons Bar */}
+              <div className="bg-card border border-border/70 rounded-xl p-2.5 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Admin Actions</span>
+                </div>
+                
+                {/* Primary Contextual Action */}
+                {selectedInquiry.status === "Converted to Booking" || Boolean(selectedInquiry.convertedBookingId) ? (
+                  <button
+                    onClick={() => navigate('/admin/bookings/reservations')}
+                    className="w-full py-1.5 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <CheckCircle2 size={13} /> View Confirmed Booking
+                  </button>
+                ) : selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent" ? (
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <FileText size={13} /> View Issued Quotation
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <Plus size={13} /> Create Quotation
+                  </button>
+                )}
+
+                {/* Secondary Actions Row */}
+                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
+                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    title="View full details"
+                  >
+                    <Eye size={12} /> Details
+                  </button>
+                  <button
+                    onClick={() => setArchiveTarget(selectedInquiry)}
+                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    title={selectedInquiry.archived ? "Restore inquiry" : "Archive inquiry"}
+                  >
+                    <Archive size={12} /> {selectedInquiry.archived ? "Restore" : "Archive"}
+                  </button>
+                  <button
+                    onClick={() => setCancelTarget(selectedInquiry)}
+                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-rose-600 hover:bg-rose-50 transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    title="Reject inquiry"
+                  >
+                    <X size={12} /> Reject
+                  </button>
+                </div>
+              </div>
+
               {/* Tabs Bar (Overview | Customer Notes | Timeline) */}
               <div className="flex border-b border-border text-[11px] font-semibold">
                 <button
@@ -1154,31 +1207,6 @@ export default function AdminInquiries() {
                       </div>
                     </div>
                   )}
-
-                  {/* Quick Actions (Matching Reference Buttons) */}
-                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
-                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Quick Actions</h5>
-                    <div className="space-y-1.5">
-                      <button
-                        onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
-                        className="w-full py-2 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-center hover:bg-primary/90 transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs"
-                      >
-                        <Eye size={14} /> View Full Details
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
-                        className="w-full py-2 px-3 rounded-lg border border-input bg-background font-semibold text-foreground text-center hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors flex items-center justify-center gap-1.5 text-xs"
-                      >
-                        <Send size={14} /> Send Quotation
-                      </button>
-                      <button
-                        onClick={() => setArchiveTarget(selectedInquiry)}
-                        className="w-full py-2 px-3 rounded-lg border border-input bg-background font-semibold text-muted-foreground text-center hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors flex items-center justify-center gap-1.5 text-xs"
-                      >
-                        <Archive size={14} /> {selectedInquiry.archived ? "Restore Inquiry" : "Archive Inquiry"}
-                      </button>
-                    </div>
-                  </div>
 
                   {/* Progress Stepper Timeline */}
                   <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">

@@ -781,13 +781,10 @@ export default function AdminQuotesList() {
                               </td>
 
                               {/* 2. Customer */}
-                              <td className="py-3 px-3">
-                                <div className="flex items-center gap-2">
-                                  <AvatarInitials name={item.customerName} className="w-8 h-8 text-[10.5px]" />
-                                  <div className="min-w-0">
-                                    <span className="font-bold text-foreground block truncate max-w-[130px]">{item.customerName}</span>
-                                    <span className="text-[10px] text-muted-foreground block truncate max-w-[130px]">{item.customerPhone}</span>
-                                  </div>
+                              <td className="py-3 px-3 min-w-[130px]">
+                                <div className="min-w-0 space-y-0.5">
+                                  <span className="font-bold text-foreground block truncate max-w-[140px]">{item.customerName}</span>
+                                  <span className="text-[10px] text-muted-foreground block truncate max-w-[140px]">{item.customerPhone}</span>
                                 </div>
                               </td>
 
@@ -1004,6 +1001,76 @@ export default function AdminQuotesList() {
                 </div>
               </div>
 
+              {/* UPPER SECTION: Quick Action Buttons Bar */}
+              <div className="bg-card border border-border/70 rounded-xl p-2.5 space-y-2 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Admin Actions</span>
+                </div>
+
+                {/* Primary Contextual Action */}
+                {selectedQuotation.status === "Accepted" ? (
+                  <button
+                    onClick={() => setConvertTarget(selectedQuotation)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <CheckCircle size={13} /> Convert to Booking
+                  </button>
+                ) : selectedQuotation.status === "Draft" ? (
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <Edit3 size={13} /> Edit Quotation Draft
+                  </button>
+                ) : selectedQuotation.status === "Revision Requested" ? (
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <RotateCcw size={13} /> Revise Quotation
+                  </button>
+                ) : selectedQuotation.status === "Converted to Booking" || Boolean(selectedQuotation.convertedBookingId) ? (
+                  <button
+                    onClick={() => navigate('/admin/bookings/reservations')}
+                    className="w-full py-1.5 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <CheckCircle2 size={13} /> View Confirmed Booking
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <FileText size={13} /> View Quotation Details
+                  </button>
+                )}
+
+                {/* Secondary Actions Row */}
+                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
+                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    title="Edit quote"
+                  >
+                    <Edit3 size={12} /> Edit
+                  </button>
+                  <button
+                    onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
+                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    title="Send quote"
+                  >
+                    <Send size={12} /> Send
+                  </button>
+                  <button
+                    onClick={() => navigate(`/admin/inquiries?search=${selectedQuotation.reference}`)}
+                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    title="Related Inquiry"
+                  >
+                    <ArrowUpRight size={12} /> Inquiry
+                  </button>
+                </div>
+              </div>
+
               {/* Panel Navigation Tabs */}
               <div className="flex border-b border-border bg-card text-xs">
                 {[
@@ -1102,43 +1169,6 @@ export default function AdminQuotesList() {
                             <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
                           </div>
                         )}
-                      </div>
-                    </div>
-
-                    {/* Quick Actions Buttons */}
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Quick Actions</h5>
-                      <div className="space-y-1.5">
-                        <button
-                          onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                          className="w-full py-2 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-center hover:bg-primary-hover transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                        >
-                          <Eye size={14} /> View Full Details
-                        </button>
-
-                        {selectedQuotation.status === "Accepted" && (
-                          <button
-                            onClick={() => setConvertTarget(selectedQuotation)}
-                            className="w-full py-2 px-3 rounded-lg bg-emerald-600 text-white font-semibold text-center hover:bg-emerald-700 transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-                          >
-                            <CheckCircle size={14} /> Convert to Booking
-                          </button>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                          <button
-                            onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                            className="py-1.5 px-2 rounded-lg border border-input bg-background font-semibold text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-xs cursor-pointer"
-                          >
-                            <Edit3 size={12} /> Edit Quote
-                          </button>
-                          <button
-                            onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                            className="py-1.5 px-2 rounded-lg border border-input bg-background font-semibold text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-xs cursor-pointer"
-                          >
-                            <Send size={12} /> Send Quote
-                          </button>
-                        </div>
                       </div>
                     </div>
 

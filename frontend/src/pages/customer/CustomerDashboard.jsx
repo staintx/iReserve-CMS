@@ -292,9 +292,9 @@ export default function CustomerDashboard() {
                     <Button 
                       size="sm"
                       className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
-                      onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                      onClick={() => navigate("/packages")}
                     >
-                      <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Request a quote
+                      <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Inquire now
                     </Button>
                   }
                 />

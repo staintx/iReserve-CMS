@@ -539,7 +539,7 @@ export default function BookingWizard() {
   useEffect(() => {
     CustomerAPI.getBusinessInfo()
       .then((res) => setBusinessInfo(res.data || {}))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -551,7 +551,7 @@ export default function BookingWizard() {
           ),
         ),
       )
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -563,7 +563,7 @@ export default function BookingWizard() {
           ),
         ),
       )
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -575,7 +575,7 @@ export default function BookingWizard() {
           ),
         ),
       )
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -1131,7 +1131,7 @@ export default function BookingWizard() {
         full_name: fullName,
         email: form.contact_email,
         phone: form.contact_phone,
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     if (isEditing) {
@@ -1175,10 +1175,10 @@ export default function BookingWizard() {
     const date =
       year && month && day
         ? new Date(year, month - 1, day).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
         : form.event_date;
 
     const [rawHours, minutes] = String(form.start_time).split(":");
@@ -1223,7 +1223,7 @@ export default function BookingWizard() {
     }
 
     setError("");
-      const eventType =
+    const eventType =
       (form.event_type === OTHER_EVENT_TYPE
         ? String(form.event_type_other || "").trim()
         : String(form.event_type || "").trim()) ||
@@ -1267,14 +1267,14 @@ export default function BookingWizard() {
       // was shown and what is stored cannot disagree.
       ...(isOffer
         ? {
-            selected_scaffold_option_id: undefined,
-            scaffold_width: undefined,
-            scaffold_length: undefined,
-            scaffold_base_area: undefined,
-            scaffold_price: undefined,
-            inventory_items: [],
-            offer_food_snapshot: form.offer_food_snapshot || [],
-          }
+          selected_scaffold_option_id: undefined,
+          scaffold_width: undefined,
+          scaffold_length: undefined,
+          scaffold_base_area: undefined,
+          scaffold_price: undefined,
+          inventory_items: [],
+          offer_food_snapshot: form.offer_food_snapshot || [],
+        }
         : {}),
       // Dishes only travel with a request that asked for food, and never with
       // a combo — its food is the combo's own and the server records it from
@@ -1328,7 +1328,7 @@ export default function BookingWizard() {
       turnstileRef.current?.reset();
       setError(
         err?.response?.data?.message ||
-          "Could not send your request right now. Try again in a moment.",
+        "Could not send your request right now. Try again in a moment.",
       );
     } finally {
       setIsSubmitting(false);

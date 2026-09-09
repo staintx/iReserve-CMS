@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Search, Calendar, MapPin, Users, Mail, Phone, Clock, Eye, 
   ChevronRight, Plus, X, MoreHorizontal, LayoutList, LayoutGrid,
@@ -382,10 +382,13 @@ export default function AdminInquiries() {
     });
   }, [filteredBookings, sortBy]);
 
-  // Automatically select the most recently received inquiry on initial load
+  const hasInitializedRef = useRef(false);
+
+  // Automatically select the most recently received inquiry ONCE on initial load
   useEffect(() => {
-    if (sortedBookings.length > 0 && !selectedInquiry) {
+    if (!hasInitializedRef.current && sortedBookings.length > 0) {
       setSelectedInquiry(sortedBookings[0]);
+      hasInitializedRef.current = true;
     }
   }, [sortedBookings]);
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import ConvertBookingModal from "../../components/admin/quotation/ConvertBookingModal";
@@ -408,12 +408,15 @@ export default function AdminQuotesList() {
     return items;
   }, [groupedQuotations, activeTab, eventTypeFilter, dateRangeFilter, search, sortBy]);
 
-  // Automatically select the first quotation on load
+  const hasInitializedRef = useRef(false);
+
+  // Automatically select the first quotation ONCE on initial load
   useEffect(() => {
-    if (filteredQuotations.length > 0 && !selectedQuotation) {
+    if (!hasInitializedRef.current && filteredQuotations.length > 0) {
       setSelectedQuotation(filteredQuotations[0]);
+      hasInitializedRef.current = true;
     }
-  }, [filteredQuotations, selectedQuotation]);
+  }, [filteredQuotations]);
 
   // Pagination calculation
   const totalItems = filteredQuotations.length;

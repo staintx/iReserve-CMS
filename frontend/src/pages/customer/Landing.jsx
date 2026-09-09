@@ -7,6 +7,7 @@ import { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import useRevealOnScroll from "../../hooks/useRevealOnScroll";
 import {
   capacityLabel,
+  packagePriceParts,
   priceLabel,
 } from "../../lib/packageDisplay";
 import {
@@ -422,9 +423,7 @@ export default function Landing() {
                 }
 
                 const capacity = capacityLabel(pkg);
-                const inclusionCount = Array.isArray(pkg.inclusions)
-                  ? pkg.inclusions.length
-                  : 0;
+                const priceInfo = packagePriceParts(pkg);
 
                 return (
                   <article className="ls-pkg" key={pkg._id || pkg.name}>
@@ -444,25 +443,27 @@ export default function Landing() {
                       <dl className="ls-pkg-facts">
                         <div className="ls-pkg-fact">
                           <dt>Price</dt>
-                          <dd>
-                            <strong>{priceLabel(pkg)}</strong>
+                          <dd className="ls-pkg-price-val">
+                            {priceInfo.amount ? (
+                              <>
+                                {priceInfo.prefix && (
+                                  <span className="ls-pkg-price-sub">{priceInfo.prefix}</span>
+                                )}
+                                <strong className="ls-pkg-price-amount">{priceInfo.amount}</strong>
+                                {priceInfo.suffix && (
+                                  <span className="ls-pkg-price-sub">{priceInfo.suffix}</span>
+                                )}
+                              </>
+                            ) : (
+                              <strong className="ls-pkg-price-text">{priceInfo.text}</strong>
+                            )}
                           </dd>
                         </div>
                         {capacity && (
                           <div className="ls-pkg-fact">
-                            <dt>Guests</dt>
+                            <dt>Estimated Guests</dt>
                             <dd>
-                              <strong>{capacity}</strong>
-                            </dd>
-                          </div>
-                        )}
-                        {inclusionCount > 0 && (
-                          <div className="ls-pkg-fact">
-                            <dt>Includes</dt>
-                            <dd>
-                              <strong>
-                                {inclusionCount} {inclusionCount === 1 ? "item" : "items"}
-                              </strong>
+                              <strong className="ls-pkg-guests-val">{capacity}</strong>
                             </dd>
                           </div>
                         )}

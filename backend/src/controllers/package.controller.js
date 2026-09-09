@@ -55,16 +55,119 @@ const normalizeScaffoldOptions = (options, existing = []) => {
   });
 };
 
-const normalizeList = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+/**
+ * Recursively parses and unwraps any JSON-stringified value or nested array into a flat list of clean strings.
+ */
+const unwrapJsonOrArray = (raw) => {
+  if (!raw) return [];
+  let current = raw;
+  for (let depth = 0; depth < 5; depth++) {
+    if (typeof current === "string") {
+      const trimmed = current.trim();
+      if (
+        (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+        (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith('"') && trimmed.endsWith('"'))
+      ) {
+        try {
+          current = JSON.parse(trimmed);
+        } catch {
+          break;
+        }
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  if (Array.isArray(current)) {
+    return current.flat(Infinity);
+  }
+  if (typeof current === "string") {
+    // If it was a plain comma-separated string (e.g. "item1, item2") rather than JSON
+    if (current.includes(",")) {
+      return current.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return [current.trim()].filter(Boolean);
   }
   return [];
+};
+
+/**
+ * Strips accidental wrapping quotes, escapes, and rogue array bracket artifacts
+ * while preserving legitimate inclusion category brackets like `[Event Setup & Furniture]`.
+ */
+const sanitizeItemString = (val) => {
+  if (val == null) return "";
+  let s = String(val).trim();
+
+  // Strip wrapping quotes and escape slashes repeatedly
+  for (let i = 0; i < 4; i++) {
+    s = s.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+
+  // Remove any nested brackets with quotes e.g. `["[`, `[\[`, `[\"`
+  s = s.replace(/^\[+[\s"'\\]*\[/, "[");
+  s = s.replace(/\]+[\s"'\\]*\]+$/, "]");
+
+  // If there are still escaped quotes or stray quotes around or right after `[`:
+  s = s.replace(/^\[+[\s"'\\]+/, "[");
+  s = s.replace(/[\s"'\\]+\]+$/, "]");
+
+  // Remove stray quotes/slashes at start or end again
+  for (let i = 0; i < 4; i++) {
+    s = s.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+
+  // Check balanced brackets
+  const openCount = (s.match(/\[/g) || []).length;
+  const closeCount = (s.match(/\]/g) || []).length;
+  if (closeCount > openCount) {
+    s = s.replace(/\]+$/, "");
+  } else if (openCount > closeCount && !s.includes("]")) {
+    s = s.replace(/^\[+/, "");
+  }
+
+  return s.trim();
+};
+
+const normalizeStringList = (value) => {
+  if (!value) return [];
+  const rawList = unwrapJsonOrArray(value);
+  const seen = new Set();
+  const result = [];
+
+  rawList.forEach((item) => {
+    if (!item) return;
+    const unwrapped = unwrapJsonOrArray(item);
+    unwrapped.forEach((subItem) => {
+      const cleaned = sanitizeItemString(subItem);
+      if (!cleaned) return;
+      const lower = cleaned.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      result.push(cleaned);
+    });
+  });
+
+  return result;
+};
+
+const sanitizePackageDoc = (pkg) => {
+  if (!pkg) return pkg;
+  const doc = pkg.toObject ? pkg.toObject() : { ...pkg };
+  if (Array.isArray(doc.inclusions)) {
+    doc.inclusions = normalizeStringList(doc.inclusions);
+  }
+  if (Array.isArray(doc.offer_food_items) && doc.offer_food_items.length > 0) {
+    doc.offer_food_items = normalizeOfferFoodItems(doc.offer_food_items);
+  }
+  if (Array.isArray(doc.features)) {
+    doc.features = normalizeStringList(doc.features);
+  }
+  return doc;
 };
 
 /**
@@ -157,7 +260,7 @@ exports.create = async (req, res) => {
     try {
       features = JSON.parse(req.body.features);
     } catch (e) {
-      features = normalizeList(req.body.features);
+      features = normalizeStringList(req.body.features);
     }
   }
 
@@ -186,11 +289,11 @@ exports.create = async (req, res) => {
       ? normalizeOfferFoodItems(req.body.offer_food_items)
       : [],
     // A combo's inclusions are plain lines the admin typed; a package's carry
-    // the inventory class they came from, which normalizeList keeps intact.
+    // the inventory class they came from, which normalizeStringList keeps intact.
     inclusions:
       isOffer || req.body.package_type === "Food Only"
         ? normalizeOfferInclusions(rawInclusions)
-        : normalizeList(rawInclusions),
+        : normalizeStringList(rawInclusions),
     add_ons: isOffer || req.body.package_type === "Food Only" ? [] : add_ons,
     features,
     setup_equipment: isOffer || req.body.package_type === "Food Only" ? [] : setup_equipment,
@@ -258,7 +361,7 @@ exports.getAll = async (req, res) => {
   // A combo's food is stored on the offer itself, so nothing here needs
   // populating: the list the customer sees is the list that was saved.
   const packages = await Package.find(query);
-  res.json(packages);
+  res.json(packages.map(sanitizePackageDoc));
 };
 
 exports.getById = async (req, res) => {
@@ -268,7 +371,7 @@ exports.getById = async (req, res) => {
 
   const pkg = await Package.findOne(query);
   if (!pkg) return res.status(404).json({ message: "Package not found" });
-  res.json(pkg);
+  res.json(sanitizePackageDoc(pkg));
 };
 
 exports.update = async (req, res) => {
@@ -286,10 +389,10 @@ exports.update = async (req, res) => {
     inclusions: rawInclusions !== undefined
       ? isOffer || isFoodOnly
         ? normalizeOfferInclusions(rawInclusions)
-        : normalizeList(rawInclusions)
+        : normalizeStringList(rawInclusions)
       : undefined,
     gallery_to_remove: req.body.gallery_to_remove
-      ? normalizeList(req.body.gallery_to_remove)
+      ? normalizeStringList(req.body.gallery_to_remove)
       : [],
   };
 
@@ -362,7 +465,7 @@ exports.update = async (req, res) => {
     try {
       data.features = JSON.parse(req.body.features);
     } catch (e) {
-      data.features = normalizeList(req.body.features);
+      data.features = normalizeStringList(req.body.features);
     }
   }
 
@@ -498,7 +601,7 @@ exports.update = async (req, res) => {
     io.emit("system:refresh", { type: "package", action: "update", package_id: updated._id });
   }
 
-  res.json(updated);
+  res.json(sanitizePackageDoc(updated));
 };
 
 exports.remove = async (req, res) => {
@@ -710,7 +813,7 @@ exports.createBulk = async (req, res) => {
         offer_food_items: isOffer ? normalizeOfferFoodItems(rawPkg.offer_food_items) : [],
         inclusions: isOffer
           ? normalizeOfferInclusions(rawPkg.inclusions)
-          : normalizeList(rawPkg.inclusions),
+          : normalizeStringList(rawPkg.inclusions),
         add_ons: Array.isArray(rawPkg.add_ons)
           ? rawPkg.add_ons.map((a) => (typeof a === "string" ? { name: a, qty: "" } : { name: a.name || "", qty: a.qty || "" }))
           : [],

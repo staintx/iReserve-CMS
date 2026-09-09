@@ -60,8 +60,13 @@ export default function CustomerLayout({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const drawerCloseRef = useRef(null);
   const navToggleRef = useRef(null);
+  const lastScrollYRef = useRef(0);
+  const accumulatedDeltaRef = useRef(0);
+  const scrollDirectionRef = useRef(null);
 
   // The overlay header only stays transparent while the hero is still behind
   // it. Anything past a short scroll gets the solid, legible treatment.
@@ -73,6 +78,92 @@ export default function CustomerLayout({
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [overlayHeader]);
+
+  // Auto-hide navbar on scroll (Facebook mobile style):
+  // - Scrolling down (swiping up) hides the navbar smoothly after threshold (>15px).
+  // - Scrolling up (swiping down) immediately brings the navbar back (>5px).
+  // - Top of page (<=80px) keeps navbar visible.
+  // - Menus (drawer or account dropdown) prevent hiding while open.
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentScrollY = Math.max(0, window.scrollY);
+          const prevScrollY = lastScrollYRef.current;
+          const delta = currentScrollY - prevScrollY;
+
+          // Always visible near top of page
+          if (currentScrollY <= 80) {
+            setIsNavVisible(true);
+            accumulatedDeltaRef.current = 0;
+            scrollDirectionRef.current = null;
+            lastScrollYRef.current = currentScrollY;
+            ticking = false;
+            return;
+          }
+
+          // Guard against rubber-banding at bottom of document
+          const maxScroll = Math.max(
+            0,
+            document.documentElement.scrollHeight - window.innerHeight
+          );
+          if (currentScrollY >= maxScroll - 16) {
+            lastScrollYRef.current = currentScrollY;
+            ticking = false;
+            return;
+          }
+
+          if (delta > 0) {
+            // Scrolling down (swiping up)
+            if (scrollDirectionRef.current !== "down") {
+              scrollDirectionRef.current = "down";
+              accumulatedDeltaRef.current = 0;
+            }
+            accumulatedDeltaRef.current += delta;
+
+            if (accumulatedDeltaRef.current >= 15 && !drawerOpen && !accountMenuOpen) {
+              setIsNavVisible(false);
+            }
+          } else if (delta < 0) {
+            // Scrolling up (swiping down)
+            if (scrollDirectionRef.current !== "up") {
+              scrollDirectionRef.current = "up";
+              accumulatedDeltaRef.current = 0;
+            }
+            accumulatedDeltaRef.current += Math.abs(delta);
+
+            if (accumulatedDeltaRef.current >= 5) {
+              setIsNavVisible(true);
+            }
+          }
+
+          lastScrollYRef.current = currentScrollY;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    lastScrollYRef.current = Math.max(0, window.scrollY);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [drawerOpen, accountMenuOpen]);
+
+  // Keep navbar visible if drawer or account dropdown opens
+  useEffect(() => {
+    if (drawerOpen || accountMenuOpen) {
+      setIsNavVisible(true);
+    }
+  }, [drawerOpen, accountMenuOpen]);
+
+  // Reset navbar visibility on navigation/route changes
+  useEffect(() => {
+    setIsNavVisible(true);
+    accumulatedDeltaRef.current = 0;
+    lastScrollYRef.current = 0;
+  }, [location.pathname]);
 
   // Drawer: lock the page, close on Escape, and hand focus to the close button
   // so keyboard users land inside the panel rather than behind it.
@@ -100,6 +191,7 @@ export default function CustomerLayout({
   }, []);
 
   const scrollToSection = (sectionId) => {
+    setIsNavVisible(true);
     const target = document.getElementById(sectionId);
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -113,6 +205,7 @@ export default function CustomerLayout({
 
   const handleNavClick = (item) => (event) => {
     event.preventDefault();
+    setIsNavVisible(true);
     setDrawerOpen(false);
 
     if (item.section) {
@@ -132,11 +225,10 @@ export default function CustomerLayout({
     navigate(item.to);
   };
 
-  // Matches the landing page's "Book Now" CTA: both send customers straight
-  // to the packages catalog rather than into the booking wizard.
-  const goToPackages = () => {
+  // Sends customers into the custom booking wizard (reusing Request Custom flow).
+  const goToCustomBooking = () => {
     setDrawerOpen(false);
-    navigate("/packages");
+    navigate("/customer/book", { state: { resetWizard: true } });
   };
 
   const navHref = (item) => (item.section ? `/#${item.section}` : item.to);
@@ -157,20 +249,32 @@ export default function CustomerLayout({
     navigate(item.to);
   };
 
-  const headerState = !overlayHeader
-    ? ""
-    : scrolled
-      ? "ls-header--solid"
-      : "ls-header--overlay";
+  const headerState = [
+    !overlayHeader
+      ? ""
+      : scrolled
+        ? "ls-header--solid"
+        : "ls-header--overlay",
+    !isNavVisible ? "ls-header--hidden" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className={`page-shell${marketing ? " customer-shell" : ""}`}>
+    <div
+      className={`page-shell${marketing ? " customer-shell" : ""}${
+        !isNavVisible ? " ls-header-is-hidden" : ""
+      }`}
+    >
       <header className={`ls-header ${headerState}`}>
         <div className="ls-inner ls-header-inner">
           <button
             type="button"
             className="ls-brand"
-            onClick={() => navigate("/")}
+            onClick={() => {
+              setIsNavVisible(true);
+              navigate("/");
+            }}
             aria-label="Caezelle's Catering — home"
           >
             <img src={logo} alt="" className="ls-brand-logo" />
@@ -211,9 +315,9 @@ export default function CustomerLayout({
             <button
               type="button"
               className="ls-btn ls-btn--sm ls-btn--primary"
-              onClick={goToPackages}
+              onClick={goToCustomBooking}
             >
-              Book an Event
+              Request Custom
             </button>
 
             {user && (
@@ -224,7 +328,11 @@ export default function CustomerLayout({
                  opening the menu made the nav jump and the scrollbar
                  disappear. Non-modal keeps outside-click and Escape working
                  without touching body. */
-              <DropdownMenu modal={false}>
+              <DropdownMenu
+                modal={false}
+                open={accountMenuOpen}
+                onOpenChange={setAccountMenuOpen}
+              >
                 <DropdownMenuTrigger asChild>
                   <button
                     className="ls-account-trigger"
@@ -402,9 +510,9 @@ export default function CustomerLayout({
               <button
                 type="button"
                 className="ls-btn ls-btn--primary ls-btn--block"
-                onClick={goToPackages}
+                onClick={goToCustomBooking}
               >
-                Book an Event
+                Request Custom
               </button>
               {!user && (
                 <button

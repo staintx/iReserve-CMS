@@ -487,7 +487,7 @@ export default function PackageDetails() {
                         navigate("/customer/book", { state: { resetWizard: true } })
                       }
                     >
-                      Request Custom Booking
+                      Request Custom
                     </button>
                     <button
                       type="button"
@@ -712,7 +712,7 @@ export default function PackageDetails() {
                     navigate("/customer/book", { state: { resetWizard: true } })
                   }
                 >
-                  Request Custom Booking
+                  Request Custom
                 </button>
               </div>
             </div>

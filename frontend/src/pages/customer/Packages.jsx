@@ -8,7 +8,6 @@ import {
   SERVICE_LABELS,
   capacityLabel,
   eventTypeForPackage,
-  perGuestPrice,
   priceLabel,
   serviceLabel,
 } from "../../lib/packageDisplay";
@@ -33,8 +32,6 @@ export default function Packages() {
   const [packages, setPackages] = useState({ status: "loading", data: [] });
   const [service, setService] = useState("all");
   const [eventType, setEventType] = useState("all");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
 
   const fetchPackages = useCallback(
     () =>
@@ -101,9 +98,8 @@ export default function Packages() {
   const selectedService = serviceOptions.includes(service) ? service : "all";
   const selectedEvent = eventOptions.includes(eventType) ? eventType : "all";
 
-  const hasPriceFilter = priceMin !== "" || priceMax !== "";
   const hasAnyFilter =
-    selectedService !== "all" || selectedEvent !== "all" || hasPriceFilter;
+    selectedService !== "all" || selectedEvent !== "all";
 
   const filtered = useMemo(
     () =>
@@ -115,25 +111,14 @@ export default function Packages() {
           return false;
         }
 
-        if (hasPriceFilter) {
-          // Only per-guest packages have a figure this range can compare
-          // against; the filter's help text says so out loud.
-          const perGuest = perGuestPrice(pkg);
-          if (!perGuest) return false;
-          if (priceMin !== "" && perGuest < Number(priceMin)) return false;
-          if (priceMax !== "" && perGuest > Number(priceMax)) return false;
-        }
-
         return true;
       }),
-    [available, selectedService, selectedEvent, hasPriceFilter, priceMin, priceMax],
+    [available, selectedService, selectedEvent],
   );
 
   const clearFilters = () => {
     setService("all");
     setEventType("all");
-    setPriceMin("");
-    setPriceMax("");
   };
 
   /**
@@ -262,33 +247,6 @@ export default function Packages() {
                   </div>
                 )}
 
-                <div className="ls-field">
-                  <label htmlFor="price-min">Price per guest</label>
-                  <div className="ls-field-pair">
-                    <input
-                      id="price-min"
-                      type="number"
-                      min="0"
-                      inputMode="numeric"
-                      placeholder="Min"
-                      value={priceMin}
-                      onChange={(event) => setPriceMin(event.target.value)}
-                      aria-describedby="price-help"
-                    />
-                    <span aria-hidden="true">–</span>
-                    <input
-                      id="price-max"
-                      type="number"
-                      min="0"
-                      inputMode="numeric"
-                      placeholder="Max"
-                      value={priceMax}
-                      onChange={(event) => setPriceMax(event.target.value)}
-                      aria-label="Maximum price per guest"
-                      aria-describedby="price-help"
-                    />
-                  </div>
-                </div>
 
                 {hasAnyFilter && (
                   <button
@@ -362,7 +320,7 @@ export default function Packages() {
                     navigate("/customer/book", { state: { resetWizard: true } })
                   }
                 >
-                  Book an Event
+                  Request Custom
                 </button>
               </div>
             </div>
@@ -538,13 +496,6 @@ export default function Packages() {
               }
             >
               Build your own
-            </button>
-            <button
-              type="button"
-              className="ls-btn ls-btn--light"
-              onClick={() => navigate("/menu")}
-            >
-              Browse the menu
             </button>
           </div>
         </div>

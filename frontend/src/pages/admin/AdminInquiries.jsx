@@ -476,7 +476,7 @@ export default function AdminInquiries() {
         {/* Top Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-border/40">
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Inquiries
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">

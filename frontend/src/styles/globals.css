@@ -1371,6 +1371,59 @@
 
   .ls-btn--onink:hover { background: rgba(255, 255, 255, 0.88); }
 
+  /* Gradient pill button for Inquire Now */
+  .ls-btn-inquire {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 26px;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 9999px;
+    border: 1.5px solid rgba(24, 24, 27, 0.22);
+    background: linear-gradient(90deg, #F5B241 0%, #FDC66A 50%, #F5B241 100%);
+    color: #18181b;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(245, 178, 65, 0.28);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    text-decoration: none;
+  }
+
+  .ls-btn-inquire:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245, 178, 65, 0.42);
+    filter: brightness(1.03);
+  }
+
+  .ls-btn-inquire:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(245, 178, 65, 0.3);
+  }
+
+  .ls-btn-inquire:focus-visible {
+    outline: 2px solid #F5B241;
+    outline-offset: 2px;
+  }
+
+  .ls-btn-inquire .ls-btn-inquire-icon {
+    flex-shrink: 0;
+    color: #18181b;
+  }
+
+  .ls-btn-inquire .ls-btn-inquire-arrow {
+    flex-shrink: 0;
+    color: #18181b;
+    transition: transform 0.2s ease;
+  }
+
+  .ls-btn-inquire:hover .ls-btn-inquire-arrow {
+    transform: translateX(3px);
+  }
+
   /* Text link with a trailing arrow — used for section-level actions. */
   .ls-textlink {
     display: inline-flex;

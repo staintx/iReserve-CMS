@@ -17,7 +17,7 @@ import {
   offerFoodItems,
   offerFoodByCategory,
 } from "../../lib/specialOffers";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CalendarDays, ArrowRight } from "lucide-react";
 
 const peso = (amount) =>
   "₱" + Number(amount || 0).toLocaleString("en-PH", { maximumFractionDigits: 0 });
@@ -322,8 +322,14 @@ export default function Landing() {
           </p>
 
           <div className="ls-hero-actions">
-            <button type="button" className="ls-btn ls-btn--primary" onClick={() => navigate("/packages")}>
-              Inquire now
+            <button
+              type="button"
+              className="ls-btn-inquire"
+              onClick={() => navigate("/packages")}
+            >
+              <CalendarDays className="ls-btn-inquire-icon" size={19} strokeWidth={2.2} />
+              <span>Inquire Now</span>
+              <ArrowRight className="ls-btn-inquire-arrow" size={19} strokeWidth={2.2} />
             </button>
           </div>
 
@@ -693,8 +699,14 @@ export default function Landing() {
             </p>
           </div>
           <div className="ls-bridge-actions">
-            <button type="button" className="ls-btn ls-btn--onink" onClick={() => navigate("/packages")}>
-              Inquire now
+            <button
+              type="button"
+              className="ls-btn-inquire"
+              onClick={() => navigate("/packages")}
+            >
+              <CalendarDays className="ls-btn-inquire-icon" size={19} strokeWidth={2.2} />
+              <span>Inquire Now</span>
+              <ArrowRight className="ls-btn-inquire-arrow" size={19} strokeWidth={2.2} />
             </button>
           </div>
         </div>

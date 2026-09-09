@@ -237,7 +237,7 @@ export default function Menu() {
                     navigate("/customer/book", { state: { resetWizard: true } })
                   }
                 >
-                  Book an Event
+                  Request Custom
                 </button>
               </div>
             </div>
@@ -324,7 +324,7 @@ export default function Menu() {
                 navigate("/customer/book", { state: { resetWizard: true } })
               }
             >
-              Book an Event
+              Request Custom
             </button>
             <button
               type="button"

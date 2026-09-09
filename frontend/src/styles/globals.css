@@ -1150,10 +1150,18 @@
     --ls-navy: #16264A;
     --ls-champagne: #C5A059;
     --ls-header-h: 64px;
+    --ls-header-offset: var(--ls-header-h);
   }
 
   @media (min-width: 900px) {
-    .page-shell { --ls-header-h: 76px; }
+    .page-shell {
+      --ls-header-h: 76px;
+      --ls-header-offset: var(--ls-header-h);
+    }
+  }
+
+  .page-shell.ls-header-is-hidden {
+    --ls-header-offset: 0px;
   }
 
   .customer-shell {
@@ -1394,7 +1402,24 @@
     height: var(--ls-header-h);
     background: var(--ls-surface);
     border-bottom: 1px solid var(--ls-line);
-    transition: background 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease;
+    transform: translateY(0);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                background 0.28s ease,
+                border-color 0.28s ease,
+                box-shadow 0.28s ease;
+    will-change: transform;
+  }
+
+  .ls-header--hidden {
+    transform: translateY(-100%);
+    pointer-events: none;
+    box-shadow: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ls-header {
+      transition-duration: 0.01ms !important;
+    }
   }
 
   .ls-header--overlay {
@@ -2658,12 +2683,13 @@
   @media (min-width: 900px) {
     .ls-filterbar {
       position: sticky;
-      top: var(--ls-header-h);
+      top: var(--ls-header-offset, var(--ls-header-h));
       backdrop-filter: blur(8px);
       /* A short viewport (a laptop in a split screen, a phone in landscape)
          must never end up with a pinned bar taller than the window. */
-      max-height: calc(100vh - var(--ls-header-h) - 16px);
+      max-height: calc(100vh - var(--ls-header-offset, var(--ls-header-h)) - 16px);
       overflow-y: auto;
+      transition: top 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
   }
 
@@ -3358,16 +3384,31 @@
 
   .ls-footer-grid {
     display: grid;
-    gap: 40px;
+    gap: 36px;
     grid-template-columns: 1fr;
   }
 
   @media (min-width: 640px) {
-    .ls-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ls-footer-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 36px 40px;
+    }
+
+    .ls-footer-brand-col {
+      grid-column: 1 / -1;
+    }
   }
 
   @media (min-width: 1024px) {
-    .ls-footer-grid { grid-template-columns: 1.4fr 1fr 1.2fr 1fr; gap: 48px; }
+    .ls-footer-grid {
+      grid-template-columns: 1.6fr 1.15fr 1fr;
+      gap: 48px 64px;
+      align-items: start;
+    }
+
+    .ls-footer-brand-col {
+      grid-column: auto;
+    }
   }
 
   .ls-footer h2,
@@ -3402,7 +3443,7 @@
 
   .ls-footer-summary {
     margin-top: 16px;
-    max-width: 34ch;
+    max-width: 38ch;
     font-size: 0.875rem;
     line-height: 1.7;
   }
@@ -3490,6 +3531,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     gap: 12px;
     margin-top: 48px;
     padding-top: 24px;
@@ -3498,15 +3541,14 @@
     color: rgba(255, 255, 255, 0.55);
   }
 
-  @media (min-width: 640px) {
-    .ls-footer-bottom {
-      flex-direction: row;
-      justify-content: space-between;
-    }
+  .ls-footer-copyright {
+    margin: 0;
+    text-align: center;
   }
 
   .ls-footer-bottom-links {
     display: flex;
+    justify-content: center;
     gap: 18px;
   }
 

@@ -322,10 +322,7 @@ export default function Landing() {
 
           <div className="ls-hero-actions">
             <button type="button" className="ls-btn ls-btn--primary" onClick={() => navigate("/packages")}>
-              Book Now
-            </button>
-            <button type="button" className="ls-btn ls-btn--light" onClick={() => goToBooking()}>
-              Request Custom Booking
+              Inquire now
             </button>
           </div>
 
@@ -395,7 +392,7 @@ export default function Landing() {
               </p>
               <div className="ls-state-actions">
                 <button type="button" className="ls-btn ls-btn--sm ls-btn--primary" onClick={() => goToBooking()}>
-                  Request Custom Booking
+                  Request Custom
                 </button>
               </div>
             </div>
@@ -683,7 +680,7 @@ export default function Landing() {
 
       {/* ── Closing booking moment ─────────────────────────── */}
       <section id="contact" className="ls-band ls-band--ink" aria-labelledby="contact-title">
-        <div className="ls-inner ls-close ls-reveal">
+        <div className="ls-inner ls-bridge ls-reveal">
           <div>
             <span className="ls-rule" aria-hidden="true" />
             <h2 className="ls-title" id="contact-title">
@@ -693,38 +690,17 @@ export default function Landing() {
               Tell us the date, the guest count, and what you need on the table. We'll
               confirm availability and send the details back to you.
             </p>
-            <div className="ls-close-actions">
-              <button type="button" className="ls-btn ls-btn--onink" onClick={() => navigate("/packages")}>
-                Book Now
-              </button>
-              <button type="button" className="ls-btn ls-btn--light" onClick={() => goToBooking()}>
-                Request Custom Booking
-              </button>
-            </div>
           </div>
-
-          <dl className="ls-close-contact">
-            <div>
-              <dt>Call or text</dt>
-              <dd>
-                <a href={`tel:${contactNumber.replace(/\s+/g, "")}`}>{contactNumber}</a>
-              </dd>
-            </div>
-            <div>
-              <dt>Email</dt>
-              <dd>
-                <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
-              </dd>
-            </div>
-            <div>
-              <dt>Open</dt>
-              <dd>{hours}</dd>
-            </div>
-          </dl>
+          <div className="ls-bridge-actions">
+            <button type="button" className="ls-btn ls-btn--onink" onClick={() => navigate("/packages")}>
+              Inquire now
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────── */}
+      {/* ── Main Footer ────────────────────────────────────── */}
+      <CustomerFooter businessInfo={businessInfo} />
       {/* ── Gallery lightbox ───────────────────────────────── */}
       {lightboxIndex !== null && galleryItems[lightboxIndex] && (
         <div

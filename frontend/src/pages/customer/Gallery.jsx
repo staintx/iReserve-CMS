@@ -298,7 +298,7 @@ export default function Gallery() {
                 navigate("/customer/book", { state: { resetWizard: true } })
               }
             >
-              Book an Event
+              Request Custom
             </button>
             <button
               type="button"

@@ -1,9 +1,7 @@
-import { useNavigate } from "react-router-dom";
 import useBusinessInfo, { DEFAULT_BUSINESS_INFO } from "../../hooks/useBusinessInfo";
 import logo from "../../assets/images/logo.jpg";
 
 export default function CustomerFooter({ businessInfo: provided }) {
-  const navigate = useNavigate();
   const businessInfo = useBusinessInfo(provided);
 
   const businessName = businessInfo.business_name || DEFAULT_BUSINESS_INFO.business_name;
@@ -22,72 +20,20 @@ export default function CustomerFooter({ businessInfo: provided }) {
     { label: "Instagram", href: businessInfo.instagram, icon: "instagram" },
   ].filter((link) => Boolean(link.href));
 
-  const go = (path) => (event) => {
-    event.preventDefault();
-    navigate(path);
-  };
-
   return (
     <footer className="ls-footer">
       <div className="ls-inner">
         <div className="ls-footer-grid">
-          <div>
+          <div className="ls-footer-brand-col">
             <div className="ls-footer-brand">
               <img src={logo} alt="" />
               <span className="ls-footer-brand-name">{businessName}</span>
             </div>
             <p className="ls-footer-summary">
-              Catering, event setup, and on-the-day service for weddings,
-              birthdays, and corporate events.
+              Complete event solutions designed to bring your celebrations,
+              gatherings, and special occasions to life.
             </p>
-            {socialLinks.length > 0 && (
-              <div className="ls-footer-social">
-                {socialLinks.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={link.label}
-                  >
-                    {link.icon === "facebook" ? (
-                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M22 12a10 10 0 1 0-11.6 9.9v-7h-2.3V12h2.3V9.8c0-2.3 1.4-3.6 3.5-3.6 1 0 2 .2 2 .2v2.2h-1.1c-1.1 0-1.4.7-1.4 1.4V12h2.4l-.4 2.9h-2v7A10 10 0 0 0 22 12Z" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 4.5A3.5 3.5 0 1 1 8.5 12 3.5 3.5 0 0 1 12 8.5Zm0 2A1.5 1.5 0 1 0 13.5 12 1.5 1.5 0 0 0 12 10.5ZM17.7 6.3a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z" />
-                      </svg>
-                    )}
-                  </a>
-                ))}
-              </div>
-            )}
           </div>
-
-          <nav aria-labelledby="footer-browse">
-            <h2 id="footer-browse">Browse</h2>
-            <div className="ls-footer-list">
-              <a href="/menu" onClick={go("/menu")}>
-                Menu
-              </a>
-              <a href="/packages" onClick={go("/packages")}>
-                Packages
-              </a>
-              <a href="/gallery" onClick={go("/gallery")}>
-                Gallery
-              </a>
-              <a
-                href="/customer/book"
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigate("/customer/book", { state: { resetWizard: true } });
-                }}
-              >
-                Book an Event
-              </a>
-            </div>
-          </nav>
 
           <div>
             <h2>Contact</h2>
@@ -120,13 +66,36 @@ export default function CustomerFooter({ businessInfo: provided }) {
             <div className="ls-footer-contact">
               <p>{hours}</p>
             </div>
+            {socialLinks.length > 0 && (
+              <div className="ls-footer-social">
+                {socialLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={link.label}
+                  >
+                    {link.icon === "facebook" ? (
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M22 12a10 10 0 1 0-11.6 9.9v-7h-2.3V12h2.3V9.8c0-2.3 1.4-3.6 3.5-3.6 1 0 2 .2 2 .2v2.2h-1.1c-1.1 0-1.4.7-1.4 1.4V12h2.4l-.4 2.9h-2v7A10 10 0 0 0 22 12Z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm5 4.5A3.5 3.5 0 1 1 8.5 12 3.5 3.5 0 0 1 12 8.5Zm0 2A1.5 1.5 0 1 0 13.5 12 1.5 1.5 0 0 0 12 10.5ZM17.7 6.3a1 1 0 1 1-1 1 1 1 0 0 1 1-1Z" />
+                      </svg>
+                    )}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="ls-footer-bottom">
-          <span>
+          <p className="ls-footer-copyright">
             © {new Date().getFullYear()} {businessName}. All rights reserved.
-          </span>
+          </p>
           {policyLinks.length > 0 && (
             <div className="ls-footer-bottom-links">
               {policyLinks.map((link) => (

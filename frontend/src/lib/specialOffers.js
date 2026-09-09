@@ -125,27 +125,69 @@ export function offerBaseFoodPrice(pkg, guestCount) {
   return money(offerPricePerPax(pkg) * Math.floor(count));
 }
 
-/** The combo's food, in the order the admin arranged it. */
+/** Clean wrapping quotes, slashes, and stray array bracket artifacts from a string */
+function cleanItemName(val) {
+  if (val == null) return "";
+  let s = String(val).trim();
+  for (let i = 0; i < 4; i++) {
+    s = s.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  s = s.replace(/^\[+|\]+$/g, "").trim();
+  for (let i = 0; i < 4; i++) {
+    s = s.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  return s;
+}
+
+/** The combo's food, in the order the admin arranged it, with array unwrapping and deduplication. */
 export function offerFoodItems(pkg) {
-  return (Array.isArray(pkg?.offer_food_items) ? pkg.offer_food_items : [])
-    .filter((item) => item && String(item.item_name || "").trim())
-    .map((item, index) => ({
-      menu_category: String(item.menu_category || "").trim(),
-      item_name: String(item.item_name || "").trim(),
-      sort_order: Number.isFinite(Number(item.sort_order))
-        ? Number(item.sort_order)
-        : index,
-    }))
-    .sort((a, b) => a.sort_order - b.sort_order);
+  const rawList = Array.isArray(pkg?.offer_food_items) ? pkg.offer_food_items : [];
+  const expanded = [];
+
+  rawList.forEach((item) => {
+    if (!item) return;
+    const category = cleanItemName(item.menu_category || "");
+    const rawName = item.item_name !== undefined ? item.item_name : item.name;
+
+    if (Array.isArray(rawName)) {
+      rawName.flat(Infinity).forEach((n) => {
+        const clean = cleanItemName(n);
+        if (clean) expanded.push({ menu_category: category, item_name: clean });
+      });
+    } else if (typeof rawName === "string") {
+      let trimmed = rawName.trim();
+      if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            parsed.flat(Infinity).forEach((n) => {
+              const clean = cleanItemName(n);
+              if (clean) expanded.push({ menu_category: category, item_name: clean });
+            });
+            return;
+          }
+        } catch {}
+      }
+      const clean = cleanItemName(trimmed);
+      if (clean) expanded.push({ menu_category: category, item_name: clean });
+    }
+  });
+
+  const seen = new Set();
+  const deduped = [];
+  expanded.forEach((item) => {
+    const key = `${item.menu_category.toLowerCase()}:::${item.item_name.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(item);
+  });
+
+  return deduped.map((item, index) => ({ ...item, sort_order: index }));
 }
 
 /**
  * The combo's food grouped by course, in first-appearance order — which is how
  * every customer-facing surface renders it.
- *
- * Accepts a booking's `offer_food_snapshot` as well as an offer, because the
- * snapshot is the same shape: what a request was sold reads exactly like what
- * the combo offers.
  */
 export function offerFoodByCategory(pkgOrItems) {
   const items = Array.isArray(pkgOrItems)
@@ -153,11 +195,30 @@ export function offerFoodByCategory(pkgOrItems) {
     : offerFoodItems(pkgOrItems);
 
   const groups = new Map();
+  const seenPerCategory = new Map();
+
   items.forEach((item) => {
     const category = item.menu_category || "Included";
-    if (!groups.has(category)) groups.set(category, { category, items: [] });
-    groups.get(category).items.push(item.item_name);
+    const catLower = category.toLowerCase();
+    const itemLower = item.item_name.toLowerCase();
+
+    let seen = seenPerCategory.get(catLower);
+    if (!seen) {
+      seen = new Set();
+      seenPerCategory.set(catLower, seen);
+    }
+
+    if (seen.has(itemLower)) return;
+    seen.add(itemLower);
+
+    let group = groups.get(catLower);
+    if (!group) {
+      group = { category, items: [] };
+      groups.set(catLower, group);
+    }
+    group.items.push(item.item_name);
   });
+
   return [...groups.values()];
 }
 
@@ -248,10 +309,25 @@ export function offerFoodForDisplay(record, pkg) {
  * from ("[Dining & Service Inventory] Plates"). A combo's are typed as plain
  * lines, so the prefix is stripped here for the offers configured the old way.
  */
-export const offerInclusions = (pkg) =>
-  (Array.isArray(pkg?.inclusions) ? pkg.inclusions : [])
-    .map((entry) => String(entry || "").replace(/^\s*\[[^\]]*\]\s*/, "").trim())
-    .filter(Boolean);
+export const offerInclusions = (pkg) => {
+  const list = Array.isArray(pkg?.inclusions) ? pkg.inclusions : [];
+  const seen = new Set();
+  const result = [];
+
+  list.forEach((entry) => {
+    let clean = cleanItemName(entry);
+    clean = clean.replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+    clean = cleanItemName(clean);
+    if (!clean) return;
+
+    const lower = clean.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    result.push(clean);
+  });
+
+  return result;
+};
 
 /**
  * Whether the combo can be booked at all, and why not when it cannot.

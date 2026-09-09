@@ -19,7 +19,20 @@ import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 import AIPackageParserModal from "./AIPackageParserModal";
 import { OFFER_TYPES, offerFoodItems, offerInclusions } from "../../../lib/specialOffers";
+import { parseInclusion as parseInclusionDisplay } from "../../../lib/packageDisplay";
 import { resolveGroup, CATEGORY_GROUPS } from "../../../lib/menuCategories";
+
+const cleanTextValue = (str) => {
+  let val = String(str || "").trim();
+  for (let i = 0; i < 4; i++) {
+    val = val.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  val = val.replace(/^\[+[\s"'\\]*/, "").replace(/[\s"'\\]*\]+$/, "");
+  for (let i = 0; i < 4; i++) {
+    val = val.replace(/^["'\\]+|["'\\]+$/g, "").trim();
+  }
+  return val;
+};
 
 /**
  * One form for both kinds of package.
@@ -243,8 +256,8 @@ export default function PackageModal({
         // Reopened in the order it was saved in, which is the order the combo
         // is served and displayed in.
         offer_food_items: offerFoodItems(pkg).map((item) => ({
-          menu_category: item.menu_category,
-          item_name: item.item_name,
+          menu_category: cleanTextValue(item.menu_category),
+          item_name: cleanTextValue(item.item_name),
         })),
         description: pkg.description || "",
         fullDescription: pkg.fullDescription || "",
@@ -253,8 +266,19 @@ export default function PackageModal({
         inclusions:
           pkg.offer_type === OFFER_TYPES.SPECIAL
             ? offerInclusions(pkg)
-            : pkg.inclusions || [],
-        add_ons: normalizedAddOns,
+            : (Array.isArray(pkg.inclusions) ? pkg.inclusions : [])
+                .map((inc) => {
+                  const p = parseInclusion(inc);
+                  if (!p.name) return "";
+                  const q = p.qty ? ` (${p.qty})` : "";
+                  return `[${p.category}] ${p.name}${q}`;
+                })
+                .filter(Boolean)
+                .filter((inc, idx, arr) => arr.indexOf(inc) === idx),
+        add_ons: normalizedAddOns.map((addon) => ({
+          ...addon,
+          name: cleanTextValue(addon.name),
+        })),
         setup_equipment: pkg.setup_equipment || [],
         scaffold_size_options: pkg.scaffold_size_options || [],
         default_scaffold_option_id: pkg.default_scaffold_option_id || "",
@@ -379,15 +403,14 @@ export default function PackageModal({
 
   // ============ INCLUSION HELPERS & CATEGORIZATION ============
   const parseInclusion = (str) => {
-    const raw = String(str || "").trim();
-    const match = raw.match(/^\s*\[([^\]]+)\]\s*(.+?)\s*(?:\(([^()]*)\))?\s*$/);
-    if (!match) {
-      return { category: "Event Setup & Furniture", name: raw, qty: "" };
+    const parsed = parseInclusionDisplay(str);
+    if (!parsed) {
+      return { category: "Event Setup & Furniture", name: "", qty: "" };
     }
     return {
-      category: match[1].trim(),
-      name: match[2].trim(),
-      qty: match[3]?.trim() || "",
+      category: parsed.category || "Event Setup & Furniture",
+      name: cleanTextValue(parsed.name),
+      qty: parsed.qty || "",
     };
   };
 
@@ -407,29 +430,53 @@ export default function PackageModal({
   };
 
   const handleAddSetupInclusion = (customName) => {
-    const nameToAdd = customName || setupInput.name;
-    if (!nameToAdd.trim()) return;
+    const rawName = customName || setupInput.name;
+    const nameToAdd = cleanTextValue(rawName);
+    if (!nameToAdd) return;
     const qtyStr = setupInput.qty.trim() ? ` (${setupInput.qty.trim()})` : "";
-    const incStr = `[Event Setup & Furniture] ${nameToAdd.trim()}${qtyStr}`;
+    const incStr = `[Event Setup & Furniture] ${nameToAdd}${qtyStr}`;
 
-    setFormData((prev) => ({
-      ...prev,
-      inclusions: [...prev.inclusions, incStr],
-    }));
+    setFormData((prev) => {
+      const existing = prev.inclusions || [];
+      const alreadyExists = existing.some((inc) => {
+        const p = parseInclusion(inc);
+        return p.name.toLowerCase() === nameToAdd.toLowerCase();
+      });
+      if (alreadyExists) {
+        notify(`"${nameToAdd}" is already in the inclusions list.`, "info");
+        return prev;
+      }
+      return {
+        ...prev,
+        inclusions: [...existing, incStr],
+      };
+    });
 
     setSetupInput({ name: "", qty: "" });
   };
 
   const handleAddDiningInclusion = (customName) => {
-    const nameToAdd = customName || diningInput.name;
-    if (!nameToAdd.trim()) return;
+    const rawName = customName || diningInput.name;
+    const nameToAdd = cleanTextValue(rawName);
+    if (!nameToAdd) return;
     const qtyStr = diningInput.qty.trim() ? ` (${diningInput.qty.trim()})` : "";
-    const incStr = `[Dining & Service Inventory] ${nameToAdd.trim()}${qtyStr}`;
+    const incStr = `[Dining & Service Inventory] ${nameToAdd}${qtyStr}`;
 
-    setFormData((prev) => ({
-      ...prev,
-      inclusions: [...prev.inclusions, incStr],
-    }));
+    setFormData((prev) => {
+      const existing = prev.inclusions || [];
+      const alreadyExists = existing.some((inc) => {
+        const p = parseInclusion(inc);
+        return p.name.toLowerCase() === nameToAdd.toLowerCase();
+      });
+      if (alreadyExists) {
+        notify(`"${nameToAdd}" is already in the inclusions list.`, "info");
+        return prev;
+      }
+      return {
+        ...prev,
+        inclusions: [...existing, incStr],
+      };
+    });
 
     setDiningInput({ name: "", qty: "" });
   };
@@ -451,11 +498,12 @@ export default function PackageModal({
   };
 
   const handleSaveEditInclusion = (category, originalStr) => {
-    if (!editInclusionData.name.trim()) return;
+    const cleanName = cleanTextValue(editInclusionData.name);
+    if (!cleanName) return;
     const qtyStr = editInclusionData.qty.trim()
       ? ` (${editInclusionData.qty.trim()})`
       : "";
-    const newIncStr = `[${category}] ${editInclusionData.name.trim()}${qtyStr}`;
+    const newIncStr = `[${category}] ${cleanName}${qtyStr}`;
 
     setFormData((prev) => ({
       ...prev,
@@ -475,18 +523,30 @@ export default function PackageModal({
 
   // ============ HANDLERS - Add-ons ============
   const handleAddAddOn = (presetName) => {
-    const nameToAdd = presetName || addOnInput.name;
-    if (!nameToAdd.trim()) return;
+    const rawName = presetName || addOnInput.name;
+    const nameToAdd = cleanTextValue(rawName);
+    if (!nameToAdd) return;
 
-    const newAddOnObj = {
-      name: nameToAdd.trim(),
-      qty: addOnInput.qty.trim() || "",
-    };
-
-    setFormData((prev) => ({
-      ...prev,
-      add_ons: [...prev.add_ons, newAddOnObj],
-    }));
+    setFormData((prev) => {
+      const existing = prev.add_ons || [];
+      const alreadyExists = existing.some(
+        (addon) => cleanTextValue(addon.name).toLowerCase() === nameToAdd.toLowerCase()
+      );
+      if (alreadyExists) {
+        notify(`"${nameToAdd}" is already in the add-ons list.`, "info");
+        return prev;
+      }
+      return {
+        ...prev,
+        add_ons: [
+          ...existing,
+          {
+            name: nameToAdd,
+            qty: addOnInput.qty.trim() || "",
+          },
+        ],
+      };
+    });
 
     setAddOnInput({
       name: "",
@@ -510,11 +570,12 @@ export default function PackageModal({
   };
 
   const handleSaveEditAddOn = (idx) => {
-    if (!editAddOnData.name.trim()) return;
+    const cleanName = cleanTextValue(editAddOnData.name);
+    if (!cleanName) return;
     setFormData((prev) => {
       const nextAddOns = [...prev.add_ons];
       nextAddOns[idx] = {
-        name: editAddOnData.name.trim(),
+        name: cleanName,
         qty: editAddOnData.qty.trim() || "",
       };
       return { ...prev, add_ons: nextAddOns };
@@ -799,10 +860,10 @@ export default function PackageModal({
   // rather than silently added, because two "Serving utensils" rows read as a
   // mistake on the customer's card.
   const handleAddComboInclusion = () => {
-    const value = comboInclusionInput.trim();
+    const value = cleanTextValue(comboInclusionInput);
     if (!value) return;
     const existing = formData.inclusions || [];
-    if (existing.some((entry) => entry.toLowerCase() === value.toLowerCase())) {
+    if (existing.some((entry) => cleanTextValue(entry).toLowerCase() === value.toLowerCase())) {
       notify(`"${value}" is already included.`, "error");
       return;
     }
@@ -814,7 +875,7 @@ export default function PackageModal({
   };
 
   const handleSaveComboInclusion = (index) => {
-    const value = editComboInclusionValue.trim();
+    const value = cleanTextValue(editComboInclusionValue);
     if (!value) {
       notify("An inclusion needs a name.", "error");
       return;
@@ -914,8 +975,17 @@ export default function PackageModal({
     try {
       const data = new FormData();
       const isFoodOnly = formData.package_type === "Food Only";
-      const normalizedInclusions = (formData.inclusions || [])
-        .map((inc) => (isOffer ? String(inc).replace(/^\s*\[[^\]]*\]\s*/, "").trim() : inc))
+      let normalizedInclusions = (formData.inclusions || [])
+        .map((inc) => {
+          if (isOffer) {
+            return cleanTextValue(String(inc).replace(/^\s*\[[^\]]*\]\s*/, ""));
+          }
+          const p = parseInclusion(inc);
+          if (!p.name) return "";
+          const q = p.qty ? ` (${p.qty})` : "";
+          return `[${p.category}] ${p.name}${q}`;
+        })
+        .filter(Boolean)
         .filter((inc) => {
           if (!isOffer && !isFoodOnly) return true;
           // For Special Offers or Food Only, filter out setup equipment keywords
@@ -938,6 +1008,15 @@ export default function PackageModal({
           );
         });
 
+      // Deduplicate normalized inclusions
+      const seenIncs = new Set();
+      normalizedInclusions = normalizedInclusions.filter((inc) => {
+        const key = inc.toLowerCase();
+        if (seenIncs.has(key)) return false;
+        seenIncs.add(key);
+        return true;
+      });
+
       const normalizedFormData = {
         ...formData,
         event_type: "",
@@ -953,7 +1032,14 @@ export default function PackageModal({
           ? ""
           : formData.default_scaffold_option_id || "",
         setup_equipment: isOffer || isFoodOnly ? [] : formData.setup_equipment || [],
-        add_ons: isOffer || isFoodOnly ? [] : formData.add_ons || [],
+        add_ons: isOffer || isFoodOnly
+          ? []
+          : (formData.add_ons || [])
+              .map((addon) => ({
+                name: cleanTextValue(addon.name),
+                qty: String(addon.qty || "").trim(),
+              }))
+              .filter((addon) => addon.name),
         inclusions: normalizedInclusions,
         // Only a Special Offer carries these.
         setup_price: isOffer ? "" : formData.setup_price || "",
@@ -963,10 +1049,21 @@ export default function PackageModal({
         offer_food_items: isOffer
           ? (formData.offer_food_items || [])
               .map((item) => ({
-                menu_category: String(item.menu_category || "").trim(),
-                item_name: String(item.item_name || "").trim(),
+                menu_category: cleanTextValue(item.menu_category),
+                item_name: cleanTextValue(item.item_name),
               }))
               .filter((item) => item.item_name)
+              .filter(
+                (item, idx, self) =>
+                  idx ===
+                  self.findIndex(
+                    (t) =>
+                      t.menu_category.toLowerCase() ===
+                        item.menu_category.toLowerCase() &&
+                      t.item_name.toLowerCase() ===
+                        item.item_name.toLowerCase()
+                  )
+              )
           : [],
       };
 
@@ -1511,6 +1608,14 @@ export default function PackageModal({
                                             item_name: e.target.value,
                                           })
                                         }
+                                        onBlur={(e) => {
+                                          const cleaned = cleanTextValue(e.target.value);
+                                          if (cleaned !== e.target.value) {
+                                            handleUpdateFoodItem(item.globalIndex, {
+                                              item_name: cleaned,
+                                            });
+                                          }
+                                        }}
                                       />
                                       <datalist id={`combo-dish-suggestions-${group.name}-${catIdx}`}>
                                         {dishSuggestionsFor(group.name).map((name) => (
@@ -2103,16 +2208,26 @@ export default function PackageModal({
                         Quick Add Presets from Catalog:
                       </p>
                       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {SETUP_PRESETS.map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleAddSetupInclusion(preset)}
-                            className="text-xs px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:text-primary hover:border-primary transition-all shadow-2xs hover:bg-primary/5 flex items-center gap-1"
-                          >
-                            <Plus size={10} /> {preset}
-                          </button>
-                        ))}
+                        {SETUP_PRESETS.map((preset, idx) => {
+                          const isAdded = setupInclusions.some(
+                            (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleAddSetupInclusion(preset)}
+                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                isAdded
+                                  ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
+                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                              }`}
+                            >
+                              {isAdded ? <Check size={10} className="text-blue-600" /> : <Plus size={10} />}
+                              {preset}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -2310,16 +2425,26 @@ export default function PackageModal({
                         Quick Add Presets from Catalog:
                       </p>
                       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {DINING_PRESETS.map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleAddDiningInclusion(preset)}
-                            className="text-xs px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:text-primary hover:border-primary transition-all shadow-2xs hover:bg-primary/5 flex items-center gap-1"
-                          >
-                            <Plus size={10} /> {preset}
-                          </button>
-                        ))}
+                        {DINING_PRESETS.map((preset, idx) => {
+                          const isAdded = diningInclusions.some(
+                            (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleAddDiningInclusion(preset)}
+                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                isAdded
+                                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
+                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                              }`}
+                            >
+                              {isAdded ? <Check size={10} className="text-emerald-600" /> : <Plus size={10} />}
+                              {preset}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -2519,16 +2644,26 @@ export default function PackageModal({
                         Quick Add Presets from Catalog:
                       </p>
                       <div className="flex flex-wrap gap-1.5">
-                        {ADDON_PRESETS.map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleAddAddOn(preset)}
-                            className="text-xs px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-600 hover:text-primary hover:border-primary transition-all shadow-2xs hover:bg-primary/5 flex items-center gap-1"
-                          >
-                            <Plus size={10} /> {preset}
-                          </button>
-                        ))}
+                        {ADDON_PRESETS.map((preset, idx) => {
+                          const isAdded = (formData.add_ons || []).some(
+                            (addon) => cleanTextValue(addon.name).toLowerCase() === preset.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleAddAddOn(preset)}
+                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                isAdded
+                                  ? "bg-purple-50 border-purple-200 text-purple-700 font-medium"
+                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                              }`}
+                            >
+                              {isAdded ? <Check size={10} className="text-purple-600" /> : <Plus size={10} />}
+                              {preset}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

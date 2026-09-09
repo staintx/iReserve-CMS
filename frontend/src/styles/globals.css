@@ -2146,9 +2146,9 @@
   .ls-pkg-facts {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin: 16px 0 18px;
-    padding-top: 14px;
+    gap: 12px;
+    margin: 18px 0 20px;
+    padding-top: 16px;
     border-top: 1px solid var(--ls-line);
     font-size: 0.8125rem;
     color: var(--ls-ink-soft);
@@ -2161,7 +2161,51 @@
     gap: 12px;
   }
 
+  .ls-pkg-fact dt {
+    color: var(--ls-ink-soft);
+    font-size: 0.8125rem;
+    font-weight: 400;
+  }
+
   .ls-pkg-fact strong {
+    font-weight: 600;
+    color: var(--ls-ink);
+    text-align: right;
+  }
+
+  .ls-pkg-price-val {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 5px;
+    text-align: right;
+  }
+
+  .ls-pkg-price-amount {
+    font-family: var(--font-sans);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--ls-ink);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ls-pkg-price-sub {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--ls-ink-soft);
+  }
+
+  .ls-pkg-price-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--ls-ink);
+  }
+
+  .ls-pkg-guests-val {
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--ls-ink);
     text-align: right;

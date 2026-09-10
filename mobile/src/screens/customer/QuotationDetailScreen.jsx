@@ -43,6 +43,7 @@ import StatusBadge from "../../components/common/StatusBadge";
 import LoadingState from "../../components/common/LoadingState";
 import ErrorState from "../../components/common/ErrorState";
 import { formatCurrency, formatDate, formatShortDate, formatTime } from "../../utils/format";
+import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import { groupInclusions } from "../../utils/packageDisplay";
 
 export const QuotationDetailScreen = ({ route, navigation }) => {
@@ -137,6 +138,8 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
   useEffect(() => {
     loadQuotation();
   }, [inquiryId, quotationId]);
+
+  useRealTimeRefresh(loadQuotation);
 
   const handleAcceptAndPay = async () => {
     if (!quotation) return;

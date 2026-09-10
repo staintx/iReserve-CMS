@@ -39,6 +39,15 @@ export const OtpVerificationScreen = ({ route, navigation }) => {
 
   const handleOtpChange = (text, index) => {
     const cleanText = text.replace(/[^0-9]/g, "");
+
+    // If pasting full code or multi-digit string
+    if (cleanText.length >= 6) {
+      const digits = cleanText.slice(0, 6).split("");
+      setOtp(digits);
+      inputRefs.current[5]?.focus();
+      return;
+    }
+
     const newOtp = [...otp];
     newOtp[index] = cleanText.slice(-1);
     setOtp(newOtp);

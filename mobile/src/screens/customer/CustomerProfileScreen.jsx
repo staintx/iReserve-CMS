@@ -30,6 +30,7 @@ import AppButton from "../../components/common/AppButton";
 import AppInput from "../../components/common/AppInput";
 import { useAuth } from "../../context/AuthContext";
 import authApi from "../../api/auth";
+import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -120,8 +121,9 @@ export const CustomerProfileScreen = ({ navigation }) => {
       Alert.alert("Validation", "Please enter your current password.");
       return;
     }
-    if (newPassword.length < 6) {
-      Alert.alert("Validation", "New password must be at least 6 characters.");
+    const { isValid } = evaluatePassword(newPassword);
+    if (!isValid) {
+      Alert.alert("Password Policy", describePasswordGap(newPassword));
       return;
     }
     if (newPassword !== confirmPassword) {

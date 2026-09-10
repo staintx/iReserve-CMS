@@ -385,24 +385,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: colors.accentDark,
-    marginLeft: 4,
-  },
-  packageName: {
-    fontSize: typography.sizes.title,
-    fontWeight: "800",
-    color: colors.foreground,
-    letterSpacing: -0.4,
-  },
-  packageCategory: {
-    fontSize: typography.sizes.sm,
-    color: colors.secondary,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  priceHero: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginTop: spacing.md,
   },
   packageName: {
     fontSize: typography.sizes.title,

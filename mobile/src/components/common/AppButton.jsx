@@ -11,6 +11,7 @@ export const AppButton = ({
   loading = false,
   icon: IconComponent = null,
   iconPosition = "left",
+  accessibilityLabel,
   style,
   textStyle,
 }) => {
@@ -85,6 +86,9 @@ export const AppButton = ({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={disabled || loading}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel || (typeof title === "string" ? title : undefined)}
+        accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
         style={[
           styles.base,
           {

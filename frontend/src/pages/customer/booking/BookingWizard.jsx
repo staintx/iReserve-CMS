@@ -847,8 +847,16 @@ export default function BookingWizard() {
         businessInfo,
         isCustomBooking,
         standardPackagePrice: initialPackagePrice,
+        currentStepId,
       }),
-    [form, packageDetails, businessInfo, isCustomBooking, initialPackagePrice],
+    [
+      form,
+      packageDetails,
+      businessInfo,
+      isCustomBooking,
+      initialPackagePrice,
+      currentStepId,
+    ],
   );
 
   // ---------------------------------------------------------------------------

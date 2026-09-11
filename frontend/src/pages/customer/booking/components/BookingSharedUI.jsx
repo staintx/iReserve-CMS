@@ -531,7 +531,9 @@ export function StepShell({ children, aside, width = "wide", className = "" }) {
       <div className={cn("mx-auto w-full", widths.wide, className)}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">{children}</div>
-          <div className="w-full shrink-0 lg:w-[290px]">{aside}</div>
+          <aside className="w-full shrink-0 lg:w-[296px] lg:sticky lg:top-[calc(var(--ls-header-offset,var(--ls-header-h,76px))+68px)] lg:self-start lg:z-10 transition-[top] duration-300">
+            {aside}
+          </aside>
         </div>
       </div>
     );

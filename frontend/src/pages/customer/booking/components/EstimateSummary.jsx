@@ -1,3 +1,5 @@
+import { useState, useEffect, useRef } from "react";
+import { ChevronDown, UtensilsCrossed } from "lucide-react";
 import { formatPeso } from "../lib/bookingUI";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +29,17 @@ export default function EstimateSummary({
   className = "",
   hideIncluded = false,
   showIncluded = true,
+  selectedMenu: propSelectedMenu,
+  selectedAddOns: propSelectedAddOns,
+  specialRequests: propSpecialRequests,
+  currentStepId: propCurrentStepId,
 }) {
   const shouldHideIncluded =
     hideIncluded || !showIncluded || Boolean(estimate?.hideIncluded);
 
   const {
-    lines,
-    blockers,
+    lines = [],
+    blockers = [],
     total,
     hasTotal,
     depositPercentage,
@@ -53,7 +59,57 @@ export default function EstimateSummary({
     included,
     quotedSeparately,
     totalLabel = "Estimated total",
-  } = estimate;
+    selectedMenu: estimateMenu = [],
+    selectedAddOns: estimateAddOns = [],
+    specialRequests: estimateSpecialRequests = "",
+    currentStepId: estimateCurrentStepId = null,
+  } = estimate || {};
+
+  const currentStepId = propCurrentStepId ?? estimateCurrentStepId;
+  const selectedMenu = Array.isArray(propSelectedMenu ?? estimateMenu)
+    ? (propSelectedMenu ?? estimateMenu)
+    : [];
+  const selectedAddOns = Array.isArray(propSelectedAddOns ?? estimateAddOns)
+    ? (propSelectedAddOns ?? estimateAddOns)
+    : [];
+  const specialRequests = String(
+    propSpecialRequests ?? estimateSpecialRequests ?? "",
+  ).trim();
+
+  const isMenuStep = currentStepId === "MenuSelection";
+  const isAddonsStep =
+    currentStepId === "PackageAddOns" || currentStepId === "AddonSelection";
+
+  const [expandedSections, setExpandedSections] = useState(() => ({
+    menu: isMenuStep,
+    addons: isAddonsStep,
+    notes: false,
+  }));
+
+  const prevStepIdRef = useRef(currentStepId);
+
+  useEffect(() => {
+    if (currentStepId !== prevStepIdRef.current) {
+      prevStepIdRef.current = currentStepId;
+      if (currentStepId === "MenuSelection") {
+        setExpandedSections({ menu: true, addons: false, notes: false });
+      } else if (
+        currentStepId === "PackageAddOns" ||
+        currentStepId === "AddonSelection"
+      ) {
+        setExpandedSections({ menu: false, addons: true, notes: false });
+      } else {
+        setExpandedSections({ menu: false, addons: false, notes: false });
+      }
+    }
+  }, [currentStepId]);
+
+  const toggleSection = (key) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   if (variant === "bar") {
     return (
@@ -80,18 +136,23 @@ export default function EstimateSummary({
     <section
       aria-label="Estimated cost"
       className={cn(
-        "overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900 text-white shadow-xs",
-        variant === "sidebar" && "lg:sticky lg:top-[120px]",
+        "flex flex-col overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900 text-white shadow-xs",
+        variant === "sidebar" && "lg:max-h-[calc(100vh-var(--ls-header-offset,var(--ls-header-h,76px))-90px)]",
+        variant === "review" && "lg:max-h-[calc(100vh-200px)]",
         className,
       )}
     >
-      <div className="border-b border-slate-800 px-3.5 py-2.5">
+      {/* ── Fixed Header ───────────────────────────────────────────── */}
+      <div className="shrink-0 border-b border-slate-800 px-3.5 py-2.5 bg-slate-900">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Estimated cost
           </h3>
           {guests > 0 && (
-            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300" aria-live="polite">
+            <span
+              className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300"
+              aria-live="polite"
+            >
               {guestsLabel}: <strong className="text-white">{guests}</strong>
             </span>
           )}
@@ -109,33 +170,262 @@ export default function EstimateSummary({
         )}
       </div>
 
-      <div className="px-3.5 py-2.5">
+      {/* ── Dedicated Scrollable Middle Body ────────────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pl-3.5 pr-3 py-2.5 custom-scrollbar-dark">
         {lines.length > 0 && (
-          <dl className="space-y-1.5 text-xs">
-            {lines.map((line) => (
-              <div key={line.id} className="flex items-start justify-between gap-2">
-                <dt className="min-w-0">
-                  <span className="block truncate text-slate-200 font-medium">
-                    {line.isAddOn ? `Add-on: ${line.label}` : line.label}
-                  </span>
-                  {line.detail && (
-                    <span className="block text-[11px] text-slate-400">
-                      {line.detail}
-                    </span>
-                  )}
-                </dt>
-                <dd
-                  className={cn(
-                    "shrink-0 text-right font-medium",
-                    line.isQuotedLater
-                      ? "text-[11px] text-slate-400"
-                      : "tabular-nums text-white",
-                  )}
+          <dl className="space-y-2 text-xs">
+            {lines.map((line) => {
+              if (line.id === "food") {
+                const dishCount = selectedMenu.length;
+                const isMenuExpanded = Boolean(expandedSections.menu);
+                return (
+                  <div
+                    key={line.id}
+                    className="border-b border-slate-800/80 pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleSection("menu")}
+                          className="group inline-flex items-center gap-1.5 text-left text-slate-200 hover:text-white transition-colors cursor-pointer max-w-full"
+                          aria-expanded={isMenuExpanded}
+                        >
+                          <span className="font-semibold text-slate-200 group-hover:text-white transition-colors whitespace-nowrap">
+                            Catering menu ({dishCount}{" "}
+                            {dishCount === 1 ? "dish" : "dishes"})
+                          </span>
+                          <span className="text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+                            <ChevronDown
+                              size={13}
+                              className={cn(
+                                "transition-transform duration-200",
+                                isMenuExpanded && "rotate-180 text-amber-400",
+                              )}
+                            />
+                          </span>
+                        </button>
+                        {line.detail && (
+                          <span className="block text-[11px] text-slate-400 mt-0.5">
+                            {line.detail}
+                          </span>
+                        )}
+                      </dt>
+                      <dd
+                        className={cn(
+                          "shrink-0 text-right font-medium",
+                          line.isQuotedLater
+                            ? "text-[11px] text-slate-400"
+                            : "tabular-nums text-white",
+                        )}
+                      >
+                        {line.isQuotedLater
+                          ? "On quotation"
+                          : formatPeso(line.amount)}
+                      </dd>
+                    </div>
+
+                    {isMenuExpanded && (
+                      <div className="mt-2 max-h-48 overflow-y-auto overscroll-contain custom-scrollbar-dark pr-1 space-y-1.5 rounded-md bg-slate-950/60 p-2 border border-slate-800/80">
+                        {dishCount === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic py-0.5">
+                            No dishes selected yet. Select dishes from the menu to see them here.
+                          </p>
+                        ) : (
+                          selectedMenu.map((item, idx) => (
+                            <div
+                              key={item._id || item.id || idx}
+                              className="flex items-center gap-2 py-0.5"
+                            >
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt=""
+                                  className="h-6 w-6 shrink-0 rounded object-cover border border-slate-700/60"
+                                />
+                              ) : (
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-800 text-slate-400 border border-slate-700/60">
+                                  <UtensilsCrossed size={11} />
+                                </span>
+                              )}
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-200">
+                                {item.name || item.item_name || "Dish"}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              if (line.id === "addons") {
+                const addOnsCount = selectedAddOns.length;
+                const isAddonsExpanded = Boolean(expandedSections.addons);
+                return (
+                  <div
+                    key={line.id}
+                    className="border-b border-slate-800/80 pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleSection("addons")}
+                          className="group inline-flex items-center gap-1.5 text-left text-slate-200 hover:text-white transition-colors cursor-pointer max-w-full"
+                          aria-expanded={isAddonsExpanded}
+                        >
+                          <span className="font-semibold text-slate-200 group-hover:text-white transition-colors whitespace-nowrap">
+                            Add-ons ({addOnsCount})
+                          </span>
+                          <span className="text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+                            <ChevronDown
+                              size={13}
+                              className={cn(
+                                "transition-transform duration-200",
+                                isAddonsExpanded && "rotate-180 text-amber-400",
+                              )}
+                            />
+                          </span>
+                        </button>
+                        {line.detail && (
+                          <span className="block text-[11px] text-slate-400 mt-0.5">
+                            {line.detail}
+                          </span>
+                        )}
+                      </dt>
+                      <dd
+                        className={cn(
+                          "shrink-0 text-right font-medium",
+                          line.isQuotedLater
+                            ? "text-[11px] text-slate-400"
+                            : "tabular-nums text-white",
+                        )}
+                      >
+                        {line.amount > 0
+                          ? formatPeso(line.amount)
+                          : "On quotation"}
+                      </dd>
+                    </div>
+
+                    {isAddonsExpanded && (
+                      <div className="mt-2 max-h-48 overflow-y-auto overscroll-contain custom-scrollbar-dark pr-1 space-y-1.5 rounded-md bg-slate-950/60 p-2 border border-slate-800/80">
+                        {addOnsCount === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic py-0.5">
+                            No add-ons selected yet.
+                          </p>
+                        ) : (
+                          selectedAddOns.map((item, idx) => (
+                            <div
+                              key={item.item_id || item._id || item.name || idx}
+                              className="flex items-center justify-between gap-2 py-0.5 text-[11px]"
+                            >
+                              <span className="min-w-0 flex-1 truncate font-medium text-slate-200">
+                                {item.name}
+                                {Number(item.quantity) > 1 && (
+                                  <span className="text-slate-400 ml-1">
+                                    × {item.quantity}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-[10px] text-slate-400">
+                                {Number(item.price) > 0
+                                  ? formatPeso(
+                                      Number(item.price) *
+                                        (Number(item.quantity) || 1),
+                                    )
+                                  : "On quotation"}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              if (line.id === "special_requests") {
+                const isNotesExpanded = Boolean(expandedSections.notes);
+                return (
+                  <div
+                    key={line.id}
+                    className="border-b border-slate-800/80 pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleSection("notes")}
+                          className="group inline-flex items-center gap-1.5 text-left text-slate-200 hover:text-white transition-colors cursor-pointer max-w-full"
+                          aria-expanded={isNotesExpanded}
+                        >
+                          <span className="font-semibold text-slate-200 group-hover:text-white transition-colors whitespace-nowrap">
+                            Additional requests or notes
+                          </span>
+                          <span className="text-slate-400 group-hover:text-amber-400 transition-colors shrink-0">
+                            <ChevronDown
+                              size={13}
+                              className={cn(
+                                "transition-transform duration-200",
+                                isNotesExpanded && "rotate-180 text-amber-400",
+                              )}
+                            />
+                          </span>
+                        </button>
+                        {line.detail && (
+                          <span className="block text-[11px] text-slate-400 mt-0.5">
+                            {line.detail}
+                          </span>
+                        )}
+                      </dt>
+                      <dd className="shrink-0 text-right font-medium text-[11px] text-slate-400">
+                        Noted
+                      </dd>
+                    </div>
+
+                    {isNotesExpanded && (
+                      <div className="mt-2 max-h-36 overflow-y-auto overscroll-contain custom-scrollbar-dark rounded-md bg-slate-950/60 p-2.5 border border-slate-800/80 text-[11px] text-slate-300 leading-relaxed">
+                        <p className="whitespace-pre-wrap italic">
+                          "{specialRequests}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={line.id}
+                  className="flex items-start justify-between gap-2"
                 >
-                  {line.isQuotedLater ? "On quotation" : formatPeso(line.amount)}
-                </dd>
-              </div>
-            ))}
+                  <dt className="min-w-0">
+                    <span className="block truncate text-slate-200 font-medium">
+                      {line.label}
+                    </span>
+                    {line.detail && (
+                      <span className="block text-[11px] text-slate-400">
+                        {line.detail}
+                      </span>
+                    )}
+                  </dt>
+                  <dd
+                    className={cn(
+                      "shrink-0 text-right font-medium",
+                      line.isQuotedLater
+                        ? "text-[11px] text-slate-400"
+                        : "tabular-nums text-white",
+                    )}
+                  >
+                    {line.isQuotedLater
+                      ? "On quotation"
+                      : formatPeso(line.amount)}
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         )}
 
@@ -187,13 +477,11 @@ export default function EstimateSummary({
             )}
           </div>
         )}
+      </div>
 
-        <div
-          className={cn(
-            "flex items-baseline justify-between gap-2 border-t border-slate-800 pt-2",
-            lines.length > 0 || blockers.length > 0 ? "mt-2.5" : "",
-          )}
-        >
+      {/* ── Fixed / Pinned Total Footer ────────────────────────────── */}
+      <div className="shrink-0 border-t border-slate-800 bg-slate-900">
+        <div className="flex items-baseline justify-between gap-2 px-3.5 py-2.5">
           <span className="text-xs font-semibold text-slate-300">{totalLabel}</span>
           <span
             className={cn(
@@ -205,21 +493,21 @@ export default function EstimateSummary({
             {hasTotal ? formatPeso(total) : "Not yet available"}
           </span>
         </div>
-      </div>
 
-      {hasTotal && (
-        <div className="border-t border-slate-800 bg-slate-950/60 px-3.5 py-2 text-[11px] leading-relaxed text-slate-400">
-          {offerName ? (
-            <>
-              Combo base price. Extra rentals & services will be itemized on quotation. {depositPercentage}% deposit reserves date.
-            </>
-          ) : (
-            <>
-              {depositPercentage}% deposit (<strong className="text-white font-mono">{formatPeso(depositAmount)}</strong>) reserves date upon quotation acceptance.
-            </>
-          )}
-        </div>
-      )}
+        {hasTotal && (
+          <div className="border-t border-slate-800/80 bg-slate-950/70 px-3.5 py-2 text-[11px] leading-relaxed text-slate-400">
+            {offerName ? (
+              <>
+                Combo base price. Extra rentals & services will be itemized on quotation. {depositPercentage}% deposit reserves date.
+              </>
+            ) : (
+              <>
+                {depositPercentage}% deposit (<strong className="text-white font-mono">{formatPeso(depositAmount)}</strong>) reserves date upon quotation acceptance.
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

@@ -304,6 +304,7 @@ export function buildEstimate({
   businessInfo,
   isCustomBooking,
   standardPackagePrice = 0,
+  currentStepId = null,
 }) {
   const guests = num(form?.guest_count);
   const serviceType = form?.service_type;
@@ -395,6 +396,13 @@ export function buildEstimate({
       included,
       quotedSeparately,
       totalLabel: "Combo price",
+      selectedMenu: form?.selected_menu || [],
+      selectedAddOns: [
+        ...(form?.selected_package_addons || []),
+        ...(form?.additional_services || []),
+      ],
+      specialRequests: String(form?.special_requests || form?.custom_setup_notes || "").trim(),
+      currentStepId: currentStepId || null,
     };
   }
 
@@ -408,9 +416,19 @@ export function buildEstimate({
   const packagePrice = num(packageDetails?.setup_price);
   const packageName = packageDetails?.name;
 
+  const rawDishes = form?.selected_menu || [];
+  const dishes = [];
+  const seenDishKeys = new Set();
+  rawDishes.forEach((dish, idx) => {
+    const key = dish?._id || dish?.id || dish?.name || idx;
+    if (!seenDishKeys.has(key)) {
+      seenDishKeys.add(key);
+      dishes.push(dish);
+    }
+  });
+
   if (serviceType === SERVICE_TYPES.FOOD_ONLY) {
-    const dishes = form?.selected_menu || [];
-    if (dishes.length === 0) {
+    if (dishes.length === 0 && currentStepId !== "MenuSelection") {
       blockers.push("Choose your dishes to receive a quotation.");
     } else if (guests <= 0) {
       blockers.push("Add your guest count for your catering inquiry.");
@@ -430,7 +448,6 @@ export function buildEstimate({
     // Setup Only or Food and Event Setup (Full Service). The service type here
     // is only where the customer started; their catering answer is what counts.
     const isFoodIncluded = cateringRequested(form);
-    const dishes = form?.selected_menu || [];
     const hasFoodChosen = isFoodIncluded && dishes.length > 0;
 
     let setupAmount = 0;
@@ -494,8 +511,8 @@ export function buildEstimate({
       );
     }
 
-    // Food fee: additional to the setup fee above, whenever dishes are chosen.
-    if (hasFoodChosen) {
+    // Food fee: additional to the setup fee above, whenever dishes are chosen or currently on MenuSelection.
+    if (hasFoodChosen || (isFoodIncluded && currentStepId === "MenuSelection")) {
       lines.push({
         id: "food",
         label: `Catering menu (${dishes.length} ${dishes.length === 1 ? "dish" : "dishes"})`,
@@ -510,22 +527,55 @@ export function buildEstimate({
     }
   }
 
-  const addOns = [
+  const rawAddOns = [
     ...(form?.selected_package_addons || []),
     ...(form?.additional_services || []),
   ];
-  addOns.forEach((addOn, index) => {
-    const quantity = num(addOn?.quantity) || 1;
-    const amount = num(addOn?.price) * quantity;
-    if (amount <= 0) return;
-    lines.push({
-      id: `addon-${addOn?.item_id || addOn?.name || index}`,
-      label: addOn?.name || "Add-on",
-      detail: quantity > 1 ? `${quantity} x ${num(addOn?.price).toLocaleString("en-PH")}` : null,
-      amount,
-      isAddOn: true,
-    });
+  const addOns = [];
+  const seenAddOnKeys = new Set();
+  rawAddOns.forEach((addOn, index) => {
+    const key = addOn?.item_id || addOn?._id || addOn?.name || index;
+    if (!seenAddOnKeys.has(key)) {
+      seenAddOnKeys.add(key);
+      addOns.push(addOn);
+    }
   });
+
+  const addOnsTotal = addOns.reduce(
+    (sum, addOn) => sum + (num(addOn?.price) * (num(addOn?.quantity) || 1)),
+    0,
+  );
+
+  const isAddonsStep =
+    currentStepId === "PackageAddOns" || currentStepId === "AddonSelection";
+
+  if (addOns.length > 0 || isAddonsStep) {
+    lines.push({
+      id: "addons",
+      label: `Add-ons (${addOns.length})`,
+      detail:
+        addOns.length > 0
+          ? `${addOns.length} ${addOns.length === 1 ? "item" : "items"} selected`
+          : "None selected yet",
+      amount: addOnsTotal,
+      isQuotedLater: addOnsTotal === 0 && addOns.length > 0,
+      isAddOnGroup: true,
+    });
+  }
+
+  const specialRequests = String(
+    form?.special_requests || form?.custom_setup_notes || "",
+  ).trim();
+
+  if (specialRequests.length > 0) {
+    lines.push({
+      id: "special_requests",
+      label: "Additional requests or notes",
+      detail: "Included with your inquiry",
+      amount: 0,
+      isNotes: true,
+    });
+  }
 
   const total = lines.reduce((sum, line) => sum + line.amount, 0);
 
@@ -546,5 +596,9 @@ export function buildEstimate({
     // "" whenever the package has no event space at all (Food Only, a combo),
     // which is the signal to show nothing rather than a misleading value.
     eventSpace: packageScaffoldSize(packageDetails),
+    selectedMenu: dishes,
+    selectedAddOns: addOns,
+    specialRequests,
+    currentStepId: currentStepId || null,
   };
 }

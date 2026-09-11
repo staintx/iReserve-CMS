@@ -402,7 +402,7 @@ export default function PackageDetails() {
                     </div>
                     {!offer && capacity && (
                       <div>
-                        <dt>Guests</dt>
+                        <dt>Estimated Guest</dt>
                         <dd>{capacity}</dd>
                       </div>
                     )}

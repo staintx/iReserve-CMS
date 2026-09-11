@@ -4,7 +4,9 @@ import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
 import {
+  ArrowRight,
   CalendarCheck,
+  CalendarDays,
   ChevronDown,
   FileText,
   LayoutDashboard,
@@ -314,10 +316,12 @@ export default function CustomerLayout({
                 to vanish for them entirely. */}
             <button
               type="button"
-              className="ls-btn ls-btn--sm ls-btn--primary"
+              className="ls-btn-inquire ls-btn-inquire--nav"
               onClick={goToCustomBooking}
             >
-              Request Custom
+              <CalendarDays className="ls-btn-inquire-icon" size={15} strokeWidth={2.2} />
+              <span>Request Custom</span>
+              <ArrowRight className="ls-btn-inquire-arrow" size={15} strokeWidth={2.2} />
             </button>
 
             {user && (

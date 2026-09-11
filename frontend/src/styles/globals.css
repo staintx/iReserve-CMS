@@ -1424,6 +1424,47 @@
     transform: translateX(3px);
   }
 
+  /* Navbar variant matching Inquire Now's aesthetic with the custom blue palette */
+  .ls-btn-inquire--nav {
+    gap: 7px;
+    padding: 8px 16px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    background: linear-gradient(90deg, #6E7FDD 0%, #8EA0F4 50%, #6E7FDD 100%);
+    border: 1.5px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 3px 14px rgba(110, 127, 221, 0.35);
+  }
+
+  .ls-btn-inquire--nav:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 5px 20px rgba(110, 127, 221, 0.5);
+    filter: brightness(1.04);
+  }
+
+  .ls-btn-inquire--nav:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(110, 127, 221, 0.3);
+  }
+
+  .ls-btn-inquire--nav:focus-visible {
+    outline: 2px solid #6E7FDD;
+    outline-offset: 2px;
+  }
+
+  .ls-btn-inquire--nav .ls-btn-inquire-icon,
+  .ls-btn-inquire--nav .ls-btn-inquire-arrow {
+    color: #FFFFFF;
+  }
+
+  @media (max-width: 480px) {
+    .ls-btn-inquire--nav {
+      gap: 5px;
+      padding: 7px 12px;
+      font-size: 0.75rem;
+    }
+  }
+
   /* Text link with a trailing arrow — used for section-level actions. */
   .ls-textlink {
     display: inline-flex;

@@ -50,7 +50,6 @@ import {
   Package,
   Check,
   SlidersHorizontal,
-  Eye,
 } from "lucide-react";
 
 const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
@@ -231,6 +230,15 @@ export default function CustomerInquiries() {
     setMobileView("detail");
   };
 
+  const handleViewInquiry = (inq) => {
+    setSelectedInquiryId(inq._id);
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      navigate(`/customer/inquiries/${inq._id}`);
+    } else {
+      setMobileView("detail");
+    }
+  };
+
   // Open Quotation Modal
   const openQuotationView = async (inq) => {
     if (!inq?._id) {
@@ -395,6 +403,10 @@ export default function CustomerInquiries() {
       <Button
         size="sm"
         variant="outline"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleViewInquiry(inq);
+        }}
         className="border-slate-200 text-[#2C4B8A] group-hover:border-[#2C4B8A] group-hover:bg-[#2C4B8A] group-hover:text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
       >
         <span>View</span>
@@ -865,19 +877,6 @@ export default function CustomerInquiries() {
                       </span>
                     </div>
                   </div>
-                </div>
-
-                {/* BOTTOM FULL SPECIFICATIONS CTA - PROMINENT & PINNED ACCESSIBLE ABOVE THE FOLD */}
-                <div className="pt-2 border-t border-slate-100 shrink-0">
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate(`/customer/inquiries/${selectedInquiry._id}`)}
-                    className="w-full border-blue-200 bg-blue-50/40 hover:bg-blue-100/60 text-[#1E3563] font-bold text-xs h-8.5 rounded-md cursor-pointer shadow-2xs gap-1.5 shrink-0 transition-all"
-                  >
-                    <Eye className="w-4 h-4 text-[#1E3563]" />
-                    <span>View Full Details</span>
-                    <ChevronRight className="w-4 h-4 text-[#1E3563]" />
-                  </Button>
                 </div>
               </div>
             ) : (

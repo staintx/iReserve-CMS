@@ -339,158 +339,113 @@ export default function StepEventDetails({
       ) : (
         /* Regular Package or Event Setup Flow */
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 items-start">
-          {/* Left Column: Event Basics & Theme */}
-          <div className="flex flex-col gap-3.5">
-            <Card className="p-3.5 sm:p-4">
-              <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
-              <div className="space-y-3">
-                {/* Who is this event for */}
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                    Who is this event for?
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
-                      className={cn(
-                        "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
-                        form.booking_for !== "someone_else"
-                          ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      )}
-                    >
-                      <User className="w-3.5 h-3.5" />
-                      <span>For myself</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
-                      className={cn(
-                        "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
-                        form.booking_for === "someone_else"
-                          ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      )}
-                    >
-                      <Heart className="w-3.5 h-3.5" />
-                      <span>For someone else</span>
-                    </button>
-                  </div>
+          {/* Left Column: About the event */}
+          <Card className="p-3.5 sm:p-4">
+            <SectionTitle icon={PartyPopper}>About the event</SectionTitle>
+            <div className="space-y-3">
+              {/* Who is this event for */}
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                  Who is this event for?
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, booking_for: "myself", celebrant_name: "" }))}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                      form.booking_for !== "someone_else"
+                        ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>For myself</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, booking_for: "someone_else" }))}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all cursor-pointer",
+                      form.booking_for === "someone_else"
+                        ? "border-primary bg-primary/5 text-primary font-semibold ring-1 ring-primary/30 shadow-2xs"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    )}
+                  >
+                    <Heart className="w-3.5 h-3.5" />
+                    <span>For someone else</span>
+                  </button>
                 </div>
-
-                {form.booking_for === "someone_else" && (
-                  <Field
-                    label="Celebrant / Honoree name"
-                    required
-                    hint="e.g. Sarah, John & Maria, Baby Liam (used for your event title & quote)"
-                    error={errors.celebrant_name}
-                  >
-                    <TInput
-                      placeholder="e.g. Sarah"
-                      value={form.celebrant_name || ""}
-                      onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
-                      hasError={!!errors.celebrant_name}
-                    />
-                  </Field>
-                )}
-
-                <Field
-                  label="Event type"
-                  required
-                  error={errors.event_type}
-                >
-                  <TSelect
-                    value={form.event_type}
-                    onChange={(val) =>
-                      setForm({
-                        ...form,
-                        event_type: val,
-                        event_type_other:
-                          val === OTHER_EVENT_TYPE ? form.event_type_other : "",
-                      })
-                    }
-                    options={EVENT_TYPES}
-                    placeholder="Select event type"
-                    hasError={!!errors.event_type}
-                  />
-                </Field>
-
-                {form.event_type === OTHER_EVENT_TYPE && (
-                  <Field
-                    label="Specify event type"
-                    required
-                    error={errors.event_type_other}
-                  >
-                    <TInput
-                      placeholder="e.g. Family Reunion"
-                      value={form.event_type_other}
-                      onChange={(val) => setForm({ ...form, event_type_other: val })}
-                      hasError={!!errors.event_type_other}
-                    />
-                  </Field>
-                )}
-
-                <Field
-                  label={guestCountLabel(offer)}
-                  required
-                  hint={
-                    setupCapacity?.message || `Minimum ${guestMin || 1} guest${(guestMin || 1) === 1 ? "" : "s"} supported.`
-                  }
-                  error={errors.guest_count}
-                >
-                  <GuestCounter
-                    value={currentCount}
-                    onChange={handleGuestChange}
-                    min={guestMin || 1}
-                  />
-                </Field>
               </div>
-            </Card>
 
-            {/* Theme & Palette (when not in Bespoke Custom Setup tab) */}
-            {!form.is_custom_setup && (
-              <Card className="p-3.5 sm:p-4">
-                <SectionTitle
-                  icon={Palette}
-                  right={<FieldStatusPill value={form.event_theme} />}
+              {form.booking_for === "someone_else" && (
+                <Field
+                  label="Celebrant / Honoree name"
+                  required
+                  hint="e.g. Sarah, John & Maria, Baby Liam (used for your event title & quote)"
+                  error={errors.celebrant_name}
                 >
-                  Theme &amp; styling motif
-                </SectionTitle>
+                  <TInput
+                    placeholder="e.g. Sarah"
+                    value={form.celebrant_name || ""}
+                    onChange={(val) => setForm((prev) => ({ ...prev, celebrant_name: val }))}
+                    hasError={!!errors.celebrant_name}
+                  />
+                </Field>
+              )}
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                      Event Theme (Optional)
-                    </label>
-                    <ThemePicker
-                      value={form.event_theme}
-                      onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
-                    />
-                  </div>
+              <Field
+                label="Event type"
+                required
+                error={errors.event_type}
+              >
+                <TSelect
+                  value={form.event_type}
+                  onChange={(val) =>
+                    setForm({
+                      ...form,
+                      event_type: val,
+                      event_type_other:
+                        val === OTHER_EVENT_TYPE ? form.event_type_other : "",
+                    })
+                  }
+                  options={EVENT_TYPES}
+                  placeholder="Select event type"
+                  hasError={!!errors.event_type}
+                />
+              </Field>
 
-                  <div className="border-t border-slate-100 pt-2.5">
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                        Color palette (Optional)
-                      </label>
-                      <FieldStatusPill
-                        value={
-                          Array.isArray(form.event_palette) && form.event_palette.length > 0
-                            ? form.event_palette.join(", ")
-                            : ""
-                        }
-                      />
-                    </div>
-                    <ColorPalettePicker
-                      value={form.event_palette}
-                      onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
-                    />
-                  </div>
-                </div>
-              </Card>
-            )}
-          </div>
+              {form.event_type === OTHER_EVENT_TYPE && (
+                <Field
+                  label="Specify event type"
+                  required
+                  error={errors.event_type_other}
+                >
+                  <TInput
+                    placeholder="e.g. Family Reunion"
+                    value={form.event_type_other}
+                    onChange={(val) => setForm({ ...form, event_type_other: val })}
+                    hasError={!!errors.event_type_other}
+                  />
+                </Field>
+              )}
+
+              <Field
+                label={guestCountLabel(offer)}
+                required
+                hint={
+                  setupCapacity?.message || `Minimum ${guestMin || 1} guest${(guestMin || 1) === 1 ? "" : "s"} supported.`
+                }
+                error={errors.guest_count}
+              >
+                <GuestCounter
+                  value={currentCount}
+                  onChange={handleGuestChange}
+                  min={guestMin || 1}
+                />
+              </Field>
+            </div>
+          </Card>
 
           {/* Right Column: Venue Location */}
           <Card className="p-3.5 sm:p-4">
@@ -584,6 +539,49 @@ export default function StepEventDetails({
               )}
             </div>
           </Card>
+
+          {/* Spanning Row: Theme & Palette (when not in Bespoke Custom Setup tab) */}
+          {!form.is_custom_setup && (
+            <Card className="p-3.5 sm:p-4 lg:col-span-2">
+              <SectionTitle
+                icon={Palette}
+                right={<FieldStatusPill value={form.event_theme} />}
+              >
+                Theme &amp; styling motif
+              </SectionTitle>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                    Event Theme (Optional)
+                  </label>
+                  <ThemePicker
+                    value={form.event_theme}
+                    onChange={(theme) => setForm((prev) => ({ ...prev, event_theme: theme }))}
+                  />
+                </div>
+
+                <div className="border-t border-slate-100 pt-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                      Color palette (Optional)
+                    </label>
+                    <FieldStatusPill
+                      value={
+                        Array.isArray(form.event_palette) && form.event_palette.length > 0
+                          ? form.event_palette.join(", ")
+                          : ""
+                      }
+                    />
+                  </div>
+                  <ColorPalettePicker
+                    value={form.event_palette}
+                    onChange={(palette) => setForm((prev) => ({ ...prev, event_palette: palette }))}
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       )}
     </StepShell>

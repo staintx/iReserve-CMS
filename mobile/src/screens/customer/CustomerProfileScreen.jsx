@@ -31,12 +31,14 @@ import AppInput from "../../components/common/AppInput";
 import { useAuth } from "../../context/AuthContext";
 import authApi from "../../api/auth";
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
+import SignOutConfirmModal from "../../components/common/SignOutConfirmModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export const CustomerProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, logout, updateUser } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Profile Edit State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -153,18 +155,7 @@ export const CustomerProfileScreen = ({ navigation }) => {
   };
 
   const handleLogout = () => {
-    if (Platform.OS === "web") {
-      logout();
-      return;
-    }
-    Alert.alert("Sign Out", "Are you sure you want to sign out of iReserve?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: logout,
-      },
-    ]);
+    setShowLogoutModal(true);
   };
 
   return (
@@ -479,6 +470,15 @@ export const CustomerProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={logout}
+        title="Sign Out of iReserve?"
+        message="Are you sure you want to sign out? You will need your credentials to access your inquiries, quotations, and catering reservations."
+      />
     </View>
   );
 };

@@ -57,6 +57,7 @@ import AnimatedStepper from "../../components/common/AnimatedStepper";
 import { useAuth } from "../../context/AuthContext";
 import customerApi from "../../api/customer";
 import SerratedDivider from "../../components/common/SerratedDivider";
+import CalendarDatePicker from "../../components/common/CalendarDatePicker";
 import {
   BATANGAS_PROVINCE,
   getBatangasMunicipalities,
@@ -1026,13 +1027,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             </ScrollView>
 
             <View onLayout={handleFieldLayout("selectedDate")}>
-              <AppInput
-                label="Selected Event Date (YYYY-MM-DD)"
-                value={selectedDate}
-                onChangeText={setSelectedDate}
-                placeholder="e.g. 2026-09-25"
-                leftIcon={Calendar}
-                onFocus={handleFieldFocus("selectedDate")}
+              <CalendarDatePicker
+                label="Selected Event Date"
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
+                minDate={minSelectableDate}
+                blockedDates={blockedDates}
+                leadTimeDays={MIN_DATE_OFFSET_DAYS}
               />
             </View>
 

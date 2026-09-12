@@ -6,49 +6,56 @@ import {
   Animated,
   Easing,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { colors, typography } from "../../constants/theme";
 
-const MIN_DISPLAY_MS = 600;
+const MIN_DISPLAY_MS = 3000;
 
 // Modern Apple-style ultra-smooth deceleration curve
-const SMOOTH_EASE = Easing.bezier(0.16, 1, 0.3, 1);
+export const SMOOTH_EASE = Easing.bezier(0.16, 1, 0.3, 1);
 
-export const AnimatedSplashScreen = ({ isReady = false, onAnimationComplete }) => {
+export const AnimatedSplashScreen = ({
+  isReady = false,
+  slideAnim: externalSlideAnim,
+  onAnimationComplete,
+}) => {
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const startTimeRef = useRef(Date.now());
   const [hasStartedExit, setHasStartedExit] = useState(false);
 
+  // Fallback if slideAnim is not provided by parent
+  const fallbackSlideAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = externalSlideAnim || fallbackSlideAnim;
+
   // Logo animation values (appears first)
   const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(0.85)).current;
-  const logoTranslateY = useRef(new Animated.Value(6)).current;
+  const logoScale = useRef(new Animated.Value(0.82)).current;
+  const logoTranslateY = useRef(new Animated.Value(8)).current;
 
   // "iReserve" wordmark animation values (appears second)
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textTranslateY = useRef(new Animated.Value(10)).current;
-
-  // Container exit dissolve
-  const containerOpacity = useRef(new Animated.Value(1)).current;
+  const textTranslateY = useRef(new Animated.Value(12)).current;
 
   // Fluid choreographed entrance
   useEffect(() => {
-    // 1. Logo icon emerges swiftly
+    // 1. Logo icon emerges smoothly
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1,
-        duration: 350,
+        duration: 750,
         easing: SMOOTH_EASE,
         useNativeDriver: true,
       }),
       Animated.timing(logoScale, {
         toValue: 1,
-        duration: 380,
+        duration: 800,
         easing: SMOOTH_EASE,
         useNativeDriver: true,
       }),
       Animated.timing(logoTranslateY, {
         toValue: 0,
-        duration: 380,
+        duration: 800,
         easing: SMOOTH_EASE,
         useNativeDriver: true,
       }),
@@ -59,23 +66,23 @@ export const AnimatedSplashScreen = ({ isReady = false, onAnimationComplete }) =
       Animated.parallel([
         Animated.timing(textOpacity, {
           toValue: 1,
-          duration: 300,
+          duration: 650,
           easing: SMOOTH_EASE,
           useNativeDriver: true,
         }),
         Animated.timing(textTranslateY, {
           toValue: 0,
-          duration: 300,
+          duration: 650,
           easing: SMOOTH_EASE,
           useNativeDriver: true,
         }),
       ]).start();
-    }, 120);
+    }, 600);
 
     return () => clearTimeout(textTimer);
   }, []);
 
-  // Exit dissolve when ready (held for at least MIN_DISPLAY_MS)
+  // Exit slide transition when ready (held for at least MIN_DISPLAY_MS)
   useEffect(() => {
     if (!isReady || hasStartedExit) return;
 
@@ -84,10 +91,11 @@ export const AnimatedSplashScreen = ({ isReady = false, onAnimationComplete }) =
 
     const exitTimer = setTimeout(() => {
       setHasStartedExit(true);
-      Animated.timing(containerOpacity, {
-        toValue: 0,
-        duration: 250,
-        easing: Easing.bezier(0.25, 1, 0.5, 1),
+
+      Animated.timing(slideAnim, {
+        toValue: 1,
+        duration: 580,
+        easing: SMOOTH_EASE,
         useNativeDriver: true,
       }).start(() => {
         if (onAnimationComplete) {
@@ -97,14 +105,36 @@ export const AnimatedSplashScreen = ({ isReady = false, onAnimationComplete }) =
     }, remainingTime);
 
     return () => clearTimeout(exitTimer);
-  }, [isReady, hasStartedExit, onAnimationComplete]);
+  }, [isReady, hasStartedExit, slideAnim, onAnimationComplete]);
+
+  // Parallax translation: Splash gently recedes to the left as Login slides in
+  const splashTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -SCREEN_WIDTH * 0.32],
+  });
+
+  // Subtle scale-down gives physical depth
+  const splashScale = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.94],
+  });
+
+  // Soft fade out towards the end of the slide
+  const splashOpacity = slideAnim.interpolate({
+    inputRange: [0, 0.75, 1],
+    outputRange: [1, 0.6, 0],
+  });
 
   return (
     <Animated.View
       style={[
         styles.container,
         {
-          opacity: containerOpacity,
+          opacity: splashOpacity,
+          transform: [
+            { translateX: splashTranslateX },
+            { scale: splashScale },
+          ],
         },
       ]}
       pointerEvents={hasStartedExit ? "none" : "auto"}
@@ -145,7 +175,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 99999,
+    zIndex: 10,
   },
   centerBlock: {
     alignItems: "center",

@@ -23,30 +23,15 @@ import {
 import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
 import Card from "../../components/common/Card";
+import SignOutConfirmModal from "../../components/common/SignOutConfirmModal";
 
 export const ManagerProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const handleLogout = async () => {
-    if (Platform.OS === "web") {
-      await logout();
-      return;
-    }
-    Alert.alert(
-      "Confirm Logout",
-      "Are you sure you want to sign out of the manager portal?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Sign Out",
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-          },
-        },
-      ]
-    );
+  const handleLogout = () => {
+    setShowLogoutModal(true);
   };
 
   const initials = (user?.full_name || "Manager")
@@ -163,6 +148,15 @@ export const ManagerProfileScreen = ({ navigation }) => {
 
         <Text style={styles.versionText}>Caezelle's Catering Mobile v1.0.0 (Manager Build)</Text>
       </ScrollView>
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={logout}
+        title="Sign Out of Manager Portal?"
+        message="Are you sure you want to sign out? You will need your manager credentials to view booking approvals, analytics, and staff assignments."
+      />
     </View>
   );
 };

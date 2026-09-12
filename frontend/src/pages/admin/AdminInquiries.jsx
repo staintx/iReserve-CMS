@@ -4,7 +4,7 @@ import {
   ChevronRight, Plus, X, MoreHorizontal, LayoutList, LayoutGrid,
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Sparkles, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
-  AlertTriangle, Tag, Package, Sliders
+  AlertTriangle, Tag, Package, Sliders, CheckCircle2
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -109,7 +109,7 @@ const getRelativeTime = (dateStr) => {
   const date = new Date(dateStr);
   const now = new Date();
   const diffSec = Math.floor((now - date) / 1000);
-  if (diffSec < 60) return "Just now";
+  if (isNaN(diffSec) || diffSec < 60) return "Just now";
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.floor(diffMin / 60);

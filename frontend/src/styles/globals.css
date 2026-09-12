@@ -4102,3 +4102,35 @@
     min-height: 40px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Customer Portal Navbar Account Ticker Animation
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes account-ticker-flow {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+.animate-account-ticker {
+  display: inline-flex;
+  white-space: nowrap;
+  animation-name: account-ticker-flow;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.animate-account-ticker:hover {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-account-ticker {
+    animation-play-state: paused !important;
+  }
+}
+

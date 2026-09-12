@@ -13,9 +13,6 @@ import {
   FileText, 
   Menu, 
   X, 
-  Search, 
-  Utensils, 
-  Layers, 
   UserRound, 
   Plus,
   Sparkles,
@@ -25,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { CustomerAPI } from "../../api/customer";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
+import AccountInfoTicker from "../customer/portal/AccountInfoTicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,13 +42,6 @@ const navGroups = [
     ]
   },
   {
-    title: "Explore & Services",
-    items: [
-      { to: "/packages", label: "Packages & Menus", desc: "Browse catering tiers", icon: Utensils },
-      { to: "/gallery", label: "Gallery & Themes", desc: "Event setup inspiration", icon: Layers }
-    ]
-  },
-  {
     title: "Account",
     items: [
       { to: "/customer/profile", label: "Profile & Security", desc: "Personal info and settings", icon: UserRound }
@@ -64,7 +55,6 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [unreadMessages, setUnreadMessages] = useState(0);
 
   const fetchUnreadCounts = async () => {
@@ -94,23 +84,6 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   })();
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    const q = searchQuery.toLowerCase().trim();
-    if (q.includes("book") || q.includes("event") || q.includes("reserv")) {
-      navigate("/customer/bookings");
-    } else if (q.includes("inquir") || q.includes("quote")) {
-      navigate("/customer/inquiries");
-    } else if (q.includes("pack") || q.includes("menu")) {
-      navigate("/packages");
-    } else if (q.includes("msg") || q.includes("chat") || q.includes("message")) {
-      navigate("/customer/messages");
-    } else {
-      navigate(`/customer/inquiries`);
-    }
-  };
 
   const navLinks = (onNavigate) => (
     <nav className="flex-1 px-3 py-3 space-y-6 overflow-y-auto">
@@ -227,30 +200,18 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-white">
         {/* Stripe-style Modern Header */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20">
-          <div className="flex items-center gap-3 flex-1 max-w-md">
-            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="text-slate-600 md:hidden -ml-2">
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 sticky top-0 z-20 gap-2 sm:gap-4">
+          <div className="flex items-center shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="text-slate-600 md:hidden -ml-1">
               <Menu className="w-5 h-5" />
             </Button>
-
-            {/* Stripe Sleek Search Bar */}
-            <form onSubmit={handleSearchSubmit} className="relative w-full hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search bookings, inquiries, packages..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-1.5 bg-slate-100/80 hover:bg-slate-100 focus:bg-white text-xs text-slate-800 placeholder-slate-400 rounded-lg border border-transparent focus:border-[#2C4B8A]/40 focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all"
-              />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                ↵
-              </span>
-            </form>
           </div>
 
+          {/* Horizontally Moving Account Information Ticker */}
+          <AccountInfoTicker />
+
           {/* Right Header Utilities */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0 z-20">
             {/* Notification Bell */}
             <NotificationBell />
           </div>

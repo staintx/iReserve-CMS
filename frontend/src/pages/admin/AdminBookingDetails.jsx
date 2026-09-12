@@ -52,6 +52,16 @@ import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
 import { isFoodOnly, isSetupOnly, isOcularRequired } from "../../components/customer/portal/statusMeta";
 
+const safeDateToIsoString = (val) => {
+  if (!val) return "";
+  try {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+};
+
 export default function AdminBookingDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -180,7 +190,7 @@ export default function AdminBookingDetails() {
       // Populate edit form
       setEditForm({
         guest_count: bookingData.guest_count || "",
-        event_date: bookingData.event_date ? new Date(bookingData.event_date).toISOString().split('T')[0] : "",
+        event_date: safeDateToIsoString(bookingData.event_date),
         start_time: bookingData.start_time || "",
         venue_type: bookingData.venue_type || "",
         status: bookingData.status || "",
@@ -188,7 +198,7 @@ export default function AdminBookingDetails() {
       });
 
       if (bookingData.ocular_visit) {
-        setOcularDate(bookingData.ocular_visit.scheduled_date ? new Date(bookingData.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
+        setOcularDate(safeDateToIsoString(bookingData.ocular_visit.scheduled_date));
         setOcularTime(bookingData.ocular_visit.scheduled_time || "");
         setOcularOutcome(bookingData.ocular_visit.outcome || "proceed");
         setOcularInspectionNotes(bookingData.ocular_visit.notes || "");
@@ -317,6 +327,9 @@ export default function AdminBookingDetails() {
   const totalPaid = payments.filter(p => p.status === "approved").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const remainingBalance = Math.max(0, (booking.total_price || 0) - totalPaid);
 
+  const pkg = booking.package_id;
+  const guestCount = Number(booking.guest_count) || 0;
+
   // Independent Financial Breakdown Calculations
   const serviceItemsSubtotal = (booking.service_items || []).reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
@@ -331,9 +344,6 @@ export default function AdminBookingDetails() {
     0
   );
   const addOnsSubtotal = serviceItemsSubtotal + additionalChargesSubtotal + menuItemsAddonSubtotal;
-
-  const pkg = booking.package_id;
-  const guestCount = Number(booking.guest_count) || 0;
   
   let basePackageSubtotal = 0;
   let pkgRateText = "";
@@ -387,7 +397,6 @@ export default function AdminBookingDetails() {
     AdminAPI.resolveChangeRequest(booking._id, { status: "approved" })
       .then(() => {
         notify("Change request marked as resolved.", "success");
-        setShowChangeModal(false);
         loadData();
       })
       .catch((err) => notify(err.response?.data?.message || "Failed to resolve change request.", "error"));
@@ -1024,7 +1033,7 @@ export default function AdminBookingDetails() {
                   size="sm"
                   variant="secondary"
                   onClick={() => {
-                    setOcularDate(booking.ocular_visit?.scheduled_date ? new Date(booking.ocular_visit.scheduled_date).toISOString().split('T')[0] : "");
+                    setOcularDate(safeDateToIsoString(booking.ocular_visit?.scheduled_date));
                     setOcularTime(booking.ocular_visit?.scheduled_time || "");
                     setShowRescheduleModal(true);
                   }}

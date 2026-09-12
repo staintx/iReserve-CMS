@@ -4,7 +4,8 @@ import {
   ChevronRight, Plus, X, MoreHorizontal, LayoutList, LayoutGrid,
   FileText, Send, Archive, ArchiveRestore, AlertCircle,
   Sparkles, RefreshCw, ArrowUpRight, ChevronLeft, Check, Info,
-  AlertTriangle, Tag, Package, Sliders, CheckCircle2
+  AlertTriangle, Tag, Package, Sliders, CheckCircle2, ExternalLink,
+  User, History
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
@@ -251,6 +252,17 @@ export default function AdminInquiries() {
 
   useRealTimeRefresh(loadData);
 
+  // Close details drawer on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && selectedInquiry) {
+        setSelectedInquiry(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedInquiry]);
+
   // Format data for table & filtering
   const formattedBookings = useMemo(() => {
     return bookings.map((b) => {
@@ -382,16 +394,6 @@ export default function AdminInquiries() {
     });
   }, [filteredBookings, sortBy]);
 
-  const hasInitializedRef = useRef(false);
-
-  // Automatically select the most recently received inquiry ONCE on initial load
-  useEffect(() => {
-    if (!hasInitializedRef.current && sortedBookings.length > 0) {
-      setSelectedInquiry(sortedBookings[0]);
-      hasInitializedRef.current = true;
-    }
-  }, [sortedBookings]);
-
   // Pagination calculation
   const totalItems = sortedBookings.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
@@ -473,6 +475,17 @@ export default function AdminInquiries() {
     );
   };
 
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && selectedInquiry) {
+        setSelectedInquiry(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedInquiry]);
+
   return (
     <AdminLayout>
       <div className="space-y-3 bg-background min-h-[calc(100vh-4rem)] p-1.5 sm:p-2.5">
@@ -496,10 +509,8 @@ export default function AdminInquiries() {
           </div>
         </div>
 
-        {/* Level Split Layout: Main Content on Left, Inquiry Overview Panel on Right (STARTS LEVEL WITH KPI CARDS) */}
-        <div className="flex flex-col lg:flex-row gap-3.5 items-start">
-          {/* Main Left Content Column: Expands to full width when panel is closed */}
-          <div className="flex-1 min-w-0 space-y-3.5 w-full">
+        {/* Main Content Area (Uncompressed 100% Full Width) */}
+        <div className="space-y-3.5 w-full">
             {/* KPI Summary Cards Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Card 1: Total Inquiries */}
@@ -856,37 +867,32 @@ export default function AdminInquiries() {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => setSelectedInquiry(r)}
-                                  title="View inquiry details"
-                                  aria-label="View inquiry details"
-                                  className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors shadow-2xs shrink-0"
+                                  title="View Inquiry Summary"
+                                  aria-label="View Inquiry Summary"
+                                  className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5 shrink-0"
                                 >
-                                  <Eye size={14} />
+                                  <Eye size={13} className="text-muted-foreground" />
+                                  <span>View</span>
                                 </button>
                                 
                                 <div className="relative group/menu shrink-0">
                                   <button
                                     title="More options"
                                     aria-label="More options"
-                                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                                   >
                                     <MoreHorizontal size={14} />
                                   </button>
                                   <div className="absolute right-0 top-full mt-1 hidden group-hover/menu:block z-30 w-40 p-1 bg-popover border border-border rounded-lg shadow-md text-left space-y-0.5 text-xs">
                                     <button
-                                      onClick={() => setSelectedInquiry(r)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors"
-                                    >
-                                      <Eye size={12} /> View Details
-                                    </button>
-                                    <button
                                       onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors"
+                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
                                     >
                                       <FileText size={12} /> Send Quotation
                                     </button>
                                     <button
                                       onClick={() => setArchiveTarget(r)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors"
+                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
                                     >
                                       {r.archived ? <ArchiveRestore size={12} /> : <Archive size={12} />}
                                       {r.archived ? "Restore Inquiry" : "Archive Inquiry"}
@@ -894,7 +900,7 @@ export default function AdminInquiries() {
                                     <div className="border-t border-border/60 my-0.5" />
                                     <button
                                       onClick={() => setCancelTarget(r)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-rose-50 text-rose-600 text-left flex items-center gap-1.5 font-medium transition-colors"
+                                      className="w-full px-2 py-1 rounded-md hover:bg-rose-50 text-rose-600 text-left flex items-center gap-1.5 font-medium transition-colors cursor-pointer"
                                     >
                                       <X size={12} /> Reject Inquiry
                                     </button>
@@ -991,11 +997,12 @@ export default function AdminInquiries() {
                             e.stopPropagation();
                             setSelectedInquiry(r);
                           }}
-                          title="View inquiry details"
-                          aria-label="View inquiry details"
-                          className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors"
+                          title="View Inquiry Summary"
+                          aria-label="View Inquiry Summary"
+                          className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5"
                         >
-                          <Eye size={14} />
+                          <Eye size={12} className="text-muted-foreground" />
+                          <span>View</span>
                         </button>
                       </div>
                     </div>
@@ -1005,350 +1012,382 @@ export default function AdminInquiries() {
             )}
           </div>
 
-          {/* Right Side Inquiry Summary / Decision-Support Panel (Matches Reference Screenshot Layout) */}
-          {selectedInquiry && (
-            <div className="w-full lg:w-[340px] xl:w-[360px] shrink-0 bg-card border border-border/70 rounded-xl p-3.5 space-y-3.5 shadow-sm text-xs sticky top-3 max-h-[calc(100vh-5rem)] overflow-y-auto">
-              {/* Panel Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-foreground">Inquiry Details</h3>
-                  <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+        {/* Slide-Over Inquiry Summary Drawer */}
+        {selectedInquiry && (
+          <div
+            className="fixed inset-0 z-50 flex justify-end"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inquiry-drawer-title"
+          >
+            {/* Backdrop Scrim */}
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity animate-in fade-in-0 duration-200"
+              onClick={() => setSelectedInquiry(null)}
+              aria-hidden="true"
+            />
+
+            {/* Slide-Over Panel */}
+            <div className="relative w-full max-w-[460px] h-full bg-card border-l border-border/80 shadow-2xl flex flex-col z-10 text-xs animate-in slide-in-from-right duration-200">
+              
+              {/* Pinned Drawer Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-xs shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 id="inquiry-drawer-title" className="font-bold text-sm text-foreground truncate">
+                    Inquiry Summary
+                  </h3>
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md shrink-0">
                     #{selectedInquiry.id}
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedInquiry(null)}
-                  className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   title="Close panel"
+                  aria-label="Close panel"
                 >
-                  <X size={15} />
+                  <X size={16} />
                 </button>
               </div>
 
-              {/* Customer Info Card Header */}
-              <div className="flex items-start justify-between gap-2.5 p-3 bg-muted/30 rounded-xl border border-border/50">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <AvatarInitials name={selectedInquiry.customer} className="w-9 h-9 text-xs" />
-                  <div className="min-w-0 space-y-0.5">
-                    <h4 className="font-bold text-foreground text-xs truncate">{selectedInquiry.customer}</h4>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                      <Phone size={10} className="shrink-0 text-muted-foreground/70" />
-                      <span className="truncate">{selectedInquiry.phone}</span>
+              {/* Scrollable Content Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+                {/* Customer Info Card */}
+                <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <AvatarInitials name={selectedInquiry.customer} className="w-9 h-9 text-xs" />
+                      <div className="min-w-0 space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Customer</span>
+                        <h4 className="font-bold text-foreground text-sm truncate">{selectedInquiry.customer}</h4>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                      <Mail size={10} className="shrink-0 text-muted-foreground/70" />
-                      <span className="truncate">{selectedInquiry.email}</span>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <Badge status={selectedInquiry.status} />
+                      <PackageTypeTag type={selectedInquiry.bookingType} label={selectedInquiry.bookingTypeLabel} />
+                    </div>
+                  </div>
+
+                  {/* Quick Contact Line */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Phone size={12} className="shrink-0 text-primary" />
+                      <a href={`tel:${selectedInquiry.phone}`} className="truncate hover:text-foreground hover:underline">
+                        {selectedInquiry.phone || "N/A"}
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Mail size={12} className="shrink-0 text-primary" />
+                      <a href={`mailto:${selectedInquiry.email}`} className="truncate hover:text-foreground hover:underline">
+                        {selectedInquiry.email || "N/A"}
+                      </a>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <Badge status={selectedInquiry.status} />
-                  <PackageTypeTag type={selectedInquiry.bookingType} label={selectedInquiry.bookingTypeLabel} />
+
+                {/* Tabs Bar */}
+                <div className="flex border-b border-border text-xs font-semibold">
+                  <button
+                    onClick={() => setDrawerTab("overview")}
+                    className={`pb-2 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      drawerTab === "overview" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <FileText size={13} /> Overview
+                  </button>
+                  <button
+                    onClick={() => setDrawerTab("notes")}
+                    className={`pb-2 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      drawerTab === "notes" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <User size={13} /> Customer Notes
+                  </button>
+                  <button
+                    onClick={() => setDrawerTab("timeline")}
+                    className={`pb-2 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      drawerTab === "timeline" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <History size={13} /> Timeline
+                  </button>
                 </div>
+
+                {/* Tab 1: Overview */}
+                {drawerTab === "overview" && (
+                  <div className="space-y-3 text-xs">
+                    {/* Event Overview Box */}
+                    <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Calendar size={12} className="text-primary" /> Event & Venue
+                      </h5>
+                      <div className="grid grid-cols-2 gap-2.5 text-xs">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Date & Time</span>
+                          <span className="font-semibold text-foreground">{selectedInquiry.eventDateFormatted}</span>
+                          <span className="text-[11px] text-muted-foreground block">{selectedInquiry.eventTimeFormatted}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Event Type</span>
+                          <span className="font-semibold text-foreground">{selectedInquiry.eventType}</span>
+                          <span className="text-[11px] text-muted-foreground block">{selectedInquiry.guests} guests (pax)</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Catering Package</span>
+                          <span className="font-semibold text-foreground">{selectedInquiry.booking}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block font-medium">Est. Budget / Total</span>
+                          <span className="font-semibold text-foreground">
+                            {selectedInquiry.budgetRange && selectedInquiry.budgetRange !== "N/A"
+                              ? selectedInquiry.budgetRange
+                              : selectedInquiry.estimatedTotal
+                              ? `₱${Number(selectedInquiry.estimatedTotal).toLocaleString("en-PH")}`
+                              : "Custom / TBD"}
+                          </span>
+                        </div>
+                        <div className="col-span-2 pt-1.5 border-t border-border/50">
+                          <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
+                            <MapPin size={11} className="text-primary" /> Venue Address
+                          </span>
+                          <span className="font-medium text-foreground leading-snug block mt-0.5">{selectedInquiry.venueFull}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Decision-Support Panel: Needs Attention / Next Action Alerts */}
+                    {selectedAlerts.length > 0 && (
+                      <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <AlertTriangle size={12} className="text-amber-600" /> Needs Attention
+                        </h5>
+                        <div className="space-y-1.5">
+                          {selectedAlerts.map((alert) => {
+                            const IconComp = alert.icon;
+                            return (
+                              <div
+                                key={alert.key}
+                                className={`p-2 rounded-lg border text-xs flex items-start gap-2 ${alert.tone}`}
+                              >
+                                <IconComp size={13} className="shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-[11px] leading-snug">{alert.label}</p>
+                                  <p className="text-[10px] opacity-90 leading-tight mt-0.5">{alert.sub}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Special Requests */}
+                    {selectedInquiry.specialRequests && (
+                      <div className="bg-card border border-border/70 rounded-xl p-3 space-y-1.5 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                          <Info size={12} className="text-primary" /> Special Requests
+                        </h5>
+                        <div className="text-muted-foreground leading-relaxed text-[11px] pl-1">
+                          <p className="whitespace-pre-line">{selectedInquiry.specialRequests}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Progress Stepper Timeline */}
+                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Progress</h5>
+                      <div className="flex items-center justify-between relative text-[10px] text-center pt-1.5">
+                        <div className="flex-1 flex flex-col items-center relative z-10">
+                          <div className="w-4.5 h-4.5 rounded-full bg-primary text-primary-foreground font-bold flex items-center justify-center text-[9px]">
+                            <Check size={11} />
+                          </div>
+                          <span className="font-bold mt-1">Inquiry</span>
+                          <span className="text-[8.5px] text-muted-foreground">
+                            {selectedInquiry.createdDateStr}
+                          </span>
+                        </div>
+                        
+                        <div className="flex-1 flex flex-col items-center relative z-10">
+                          <div
+                            className={`w-4.5 h-4.5 rounded-full font-bold flex items-center justify-center text-[9px] ${
+                              selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground border border-input"
+                            }`}
+                          >
+                            {selectedInquiry.latestQuote ? <Check size={11} /> : "2"}
+                          </div>
+                          <span className="font-semibold mt-1">Quotation</span>
+                        </div>
+
+                        <div className="flex-1 flex flex-col items-center relative z-10">
+                          <div
+                            className={`w-4.5 h-4.5 rounded-full font-bold flex items-center justify-center text-[9px] ${
+                              selectedInquiry.convertedBookingId
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground border border-input"
+                            }`}
+                          >
+                            3
+                          </div>
+                          <span className="font-semibold mt-1">Booking</span>
+                        </div>
+
+                        <div className="flex-1 flex flex-col items-center relative z-10">
+                          <div
+                            className={`w-4.5 h-4.5 rounded-full font-bold flex items-center justify-center text-[9px] ${
+                              ["deposit_paid", "fully_paid"].includes(selectedInquiry.paymentStatus)
+                                ? "bg-emerald-600 text-white"
+                                : "bg-muted text-muted-foreground border border-input"
+                            }`}
+                          >
+                            4
+                          </div>
+                          <span className="font-semibold mt-1">Reservation</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 2: Customer Notes */}
+                {drawerTab === "notes" && (
+                  <div className="space-y-3 text-xs">
+                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Request Details</h5>
+                      <div className="space-y-1.5 text-xs">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Package Name</p>
+                          <p className="font-bold text-foreground">{selectedInquiry.booking}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Classification</p>
+                          <span className="inline-block font-mono text-[9.5px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                            {selectedInquiry.bookingTypeLabel}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Estimated Total</p>
+                            <p className="font-bold text-foreground">₱{Number(selectedInquiry.estimatedTotal || 0).toLocaleString("en-PH")}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Budget Range</p>
+                            <p className="font-semibold text-foreground">{selectedInquiry.budgetRange}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Customer Preferences</h5>
+                      {selectedInquiry.celebrantName && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Celebrant / Honoree</p>
+                          <p className="font-semibold text-foreground">{selectedInquiry.celebrantName}</p>
+                        </div>
+                      )}
+                      {selectedInquiry.dietaryRestrictions && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Dietary Restrictions</p>
+                          <p className="text-foreground">{selectedInquiry.dietaryRestrictions}</p>
+                        </div>
+                      )}
+                      {selectedInquiry.allergies && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Allergies</p>
+                          <p className="text-foreground">{selectedInquiry.allergies}</p>
+                        </div>
+                      )}
+                      {!selectedInquiry.celebrantName && !selectedInquiry.dietaryRestrictions && !selectedInquiry.allergies && (
+                        <p className="text-muted-foreground italic text-xs">No additional customer notes recorded.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 3: Timeline */}
+                {drawerTab === "timeline" && (
+                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-3 shadow-2xs text-xs">
+                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Inquiry Lifecycle</h5>
+                    <div className="space-y-2 border-l-2 border-primary pl-3">
+                      <div>
+                        <p className="font-bold text-foreground">Inquiry Submitted</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {selectedInquiry.createdDateStr} · {selectedInquiry.createdTimeStr}
+                        </p>
+                      </div>
+                      {selectedInquiry.updatedAt && (
+                        <div>
+                          <p className="font-bold text-foreground">Last Updated</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {selectedInquiry.updatedRelative}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* UPPER SECTION: Quick Action Buttons Bar */}
-              <div className="bg-card border border-border/70 rounded-xl p-2.5 space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Admin Actions</span>
-                </div>
-                
+              {/* Pinned Action Footer */}
+              <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs flex flex-col gap-2 shrink-0">
                 {/* Primary Contextual Action */}
                 {selectedInquiry.status === "Converted to Booking" || Boolean(selectedInquiry.convertedBookingId) ? (
                   <button
                     onClick={() => navigate('/admin/bookings/reservations')}
-                    className="w-full py-1.5 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <CheckCircle2 size={13} /> View Confirmed Booking
+                    <CheckCircle2 size={14} /> View Confirmed Booking
                   </button>
                 ) : selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent" ? (
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <FileText size={13} /> View Issued Quotation
+                    <FileText size={14} /> View Issued Quotation
                   </button>
                 ) : (
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <Plus size={13} /> Create Quotation
+                    <Plus size={14} /> Create Quotation
                   </button>
                 )}
 
                 {/* Secondary Actions Row */}
-                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedInquiry._id}/details`)}
-                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
-                    title="View full details"
+                    className="flex-1 py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-semibold text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                    title="Open full inquiry details"
                   >
-                    <Eye size={12} /> Details
+                    <ExternalLink size={12} className="text-muted-foreground" />
+                    <span>Open Full Details</span>
                   </button>
                   <button
                     onClick={() => setArchiveTarget(selectedInquiry)}
-                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    className="py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shrink-0 shadow-2xs"
                     title={selectedInquiry.archived ? "Restore inquiry" : "Archive inquiry"}
                   >
-                    <Archive size={12} /> {selectedInquiry.archived ? "Restore" : "Archive"}
+                    {selectedInquiry.archived ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                    <span>{selectedInquiry.archived ? "Restore" : "Archive"}</span>
                   </button>
                   <button
                     onClick={() => setCancelTarget(selectedInquiry)}
-                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-rose-600 hover:bg-rose-50 transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
+                    className="py-1.5 px-2.5 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shrink-0 shadow-2xs"
                     title="Reject inquiry"
                   >
-                    <X size={12} /> Reject
+                    <X size={13} />
+                    <span>Reject</span>
                   </button>
                 </div>
               </div>
 
-              {/* Tabs Bar (Overview | Customer Notes | Timeline) */}
-              <div className="flex border-b border-border text-[11px] font-semibold">
-                <button
-                  onClick={() => setDrawerTab("overview")}
-                  className={`pb-1.5 px-2.5 border-b-2 transition-colors ${
-                    drawerTab === "overview" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-primary"
-                  }`}
-                >
-                  Overview
-                </button>
-                <button
-                  onClick={() => setDrawerTab("notes")}
-                  className={`pb-1.5 px-2.5 border-b-2 transition-colors ${
-                    drawerTab === "notes" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-primary"
-                  }`}
-                >
-                  Customer Notes
-                </button>
-                <button
-                  onClick={() => setDrawerTab("timeline")}
-                  className={`pb-1.5 px-2.5 border-b-2 transition-colors ${
-                    drawerTab === "timeline" ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-primary"
-                  }`}
-                >
-                  Timeline
-                </button>
-              </div>
-
-              {/* Tab 1: Overview */}
-              {drawerTab === "overview" && (
-                <div className="space-y-3 text-xs">
-                  {/* Event Overview Box */}
-                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2.5 shadow-2xs">
-                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                      Event Overview
-                    </h5>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-start gap-2.5">
-                        <Sparkles size={14} className="text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground font-semibold uppercase">Event Type</p>
-                          <p className="font-semibold text-foreground">{selectedInquiry.eventType}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2.5">
-                        <Calendar size={14} className="text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground font-semibold uppercase">Event Date</p>
-                          <p className="font-semibold text-foreground">
-                            {selectedInquiry.eventDateFormatted} · {selectedInquiry.eventTimeFormatted}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2.5">
-                        <MapPin size={14} className="text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground font-semibold uppercase">Venue</p>
-                          <p className="font-semibold text-foreground">{selectedInquiry.venueFull}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2.5">
-                        <Users size={14} className="text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground font-semibold uppercase">Guest Count</p>
-                          <p className="font-semibold text-foreground">{selectedInquiry.guests} guests</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Decision-Support Panel: Needs Attention / Next Action Alerts */}
-                  {selectedAlerts.length > 0 && (
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <AlertTriangle size={12} className="text-amber-600" /> Needs Attention
-                      </h5>
-                      <div className="space-y-1.5">
-                        {selectedAlerts.map((alert) => {
-                          const IconComp = alert.icon;
-                          return (
-                            <div
-                              key={alert.key}
-                              className={`p-2 rounded-lg border text-xs flex items-start gap-2 ${alert.tone}`}
-                            >
-                              <IconComp size={13} className="shrink-0 mt-0.5" />
-                              <div className="min-w-0">
-                                <p className="font-bold text-[11px] leading-snug">{alert.label}</p>
-                                <p className="text-[10px] opacity-90 leading-tight mt-0.5">{alert.sub}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Special Requests (ONLY shown when customer submitted them) */}
-                  {selectedInquiry.specialRequests && (
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-1.5 shadow-2xs">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                        <Info size={12} className="text-primary" /> Special Requests
-                      </h5>
-                      <div className="text-muted-foreground leading-relaxed text-[11px] pl-1">
-                        <p className="whitespace-pre-line">{selectedInquiry.specialRequests}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Progress Stepper Timeline */}
-                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
-                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Progress</h5>
-                    <div className="flex items-center justify-between relative text-[10px] text-center pt-1.5">
-                      <div className="flex-1 flex flex-col items-center relative z-10">
-                        <div className="w-4.5 h-4.5 rounded-full bg-primary text-primary-foreground font-bold flex items-center justify-center text-[9px]">
-                          <Check size={11} />
-                        </div>
-                        <span className="font-bold mt-1">Inquiry</span>
-                        <span className="text-[8.5px] text-muted-foreground">
-                          {selectedInquiry.createdDateStr}
-                        </span>
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col items-center relative z-10">
-                        <div
-                          className={`w-4.5 h-4.5 rounded-full font-bold flex items-center justify-center text-[9px] ${
-                            selectedInquiry.latestQuote || selectedInquiry.status === "Quotation Sent"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground border border-input"
-                          }`}
-                        >
-                          {selectedInquiry.latestQuote ? <Check size={11} /> : "2"}
-                        </div>
-                        <span className="font-semibold mt-1">Quotation</span>
-                      </div>
-
-                      <div className="flex-1 flex flex-col items-center relative z-10">
-                        <div
-                          className={`w-4.5 h-4.5 rounded-full font-bold flex items-center justify-center text-[9px] ${
-                            selectedInquiry.convertedBookingId
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground border border-input"
-                          }`}
-                        >
-                          3
-                        </div>
-                        <span className="font-semibold mt-1">Booking</span>
-                      </div>
-
-                      <div className="flex-1 flex flex-col items-center relative z-10">
-                        <div
-                          className={`w-4.5 h-4.5 rounded-full font-bold flex items-center justify-center text-[9px] ${
-                            ["deposit_paid", "fully_paid"].includes(selectedInquiry.paymentStatus)
-                              ? "bg-emerald-600 text-white"
-                              : "bg-muted text-muted-foreground border border-input"
-                          }`}
-                        >
-                          4
-                        </div>
-                        <span className="font-semibold mt-1">Reservation</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: Customer Notes */}
-              {drawerTab === "notes" && (
-                <div className="space-y-3 text-xs">
-                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
-                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Request Details</h5>
-                    <div className="space-y-1.5 text-xs">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Package Name</p>
-                        <p className="font-bold text-foreground">{selectedInquiry.booking}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Classification</p>
-                        <span className="inline-block font-mono text-[9.5px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 uppercase">
-                          {selectedInquiry.bookingTypeLabel}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Estimated Total</p>
-                          <p className="font-bold text-foreground">₱{Number(selectedInquiry.estimatedTotal || 0).toLocaleString("en-PH")}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Budget Range</p>
-                          <p className="font-semibold text-foreground">{selectedInquiry.budgetRange}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
-                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Customer Preferences</h5>
-                    {selectedInquiry.celebrantName && (
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Celebrant / Honoree</p>
-                        <p className="font-semibold text-foreground">{selectedInquiry.celebrantName}</p>
-                      </div>
-                    )}
-                    {selectedInquiry.dietaryRestrictions && (
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Dietary Restrictions</p>
-                        <p className="text-foreground">{selectedInquiry.dietaryRestrictions}</p>
-                      </div>
-                    )}
-                    {selectedInquiry.allergies && (
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-semibold">Allergies</p>
-                        <p className="text-foreground">{selectedInquiry.allergies}</p>
-                      </div>
-                    )}
-                    {!selectedInquiry.celebrantName && !selectedInquiry.dietaryRestrictions && !selectedInquiry.allergies && (
-                      <p className="text-muted-foreground italic text-xs">No additional customer notes recorded.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3: Timeline */}
-              {drawerTab === "timeline" && (
-                <div className="bg-card border border-border/70 rounded-xl p-3 space-y-3 shadow-2xs text-xs">
-                  <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Inquiry Lifecycle</h5>
-                  <div className="space-y-2 border-l-2 border-primary pl-3">
-                    <div>
-                      <p className="font-bold text-foreground">Inquiry Submitted</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {selectedInquiry.createdDateStr} · {selectedInquiry.createdTimeStr}
-                      </p>
-                    </div>
-                    {selectedInquiry.updatedAt && (
-                      <div>
-                        <p className="font-bold text-foreground">Last Updated</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {selectedInquiry.updatedRelative}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Modal: Confirm Reject */}
         {cancelTarget && (

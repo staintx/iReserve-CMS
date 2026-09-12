@@ -405,6 +405,22 @@ export default function AdminQuoteDetails() {
     ? "Confirm & Convert"
     : "Prepare Quotation";
 
+  // Customer details with robust fallback to customer_id
+  const customerName = (quote.contact_first_name || quote.contact_last_name)
+    ? `${quote.contact_first_name || ""} ${quote.contact_last_name || ""}`.trim()
+    : [quote.customer_id?.first_name, quote.customer_id?.last_name].filter(Boolean).join(" ")
+    || quote.customer_id?.full_name
+    || "Customer";
+
+  const customerEmail = quote.contact_email || quote.customer_id?.email || "";
+  const customerPhone = quote.contact_phone || quote.customer_id?.phone || "";
+
+  const customerInitials = (() => {
+    const parts = (customerName || "").trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return (customerName || "CU").substring(0, 2).toUpperCase();
+  })();
+
   // Package inclusions grouped cleanly
   const rawInclusions = Array.isArray(quote.package_id?.inclusions) ? quote.package_id.inclusions : [];
   const groupedInclusions = groupInclusions(rawInclusions);
@@ -514,8 +530,8 @@ export default function AdminQuoteDetails() {
             </div>
             <div>
               <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">Customer</span>
-              <span className="text-xs font-semibold text-slate-800 truncate block" title={`${quote.contact_first_name} ${quote.contact_last_name}`}>
-                {quote.contact_first_name} {quote.contact_last_name}
+              <span className="text-xs font-semibold text-slate-800 truncate block" title={customerName}>
+                {customerName}
               </span>
             </div>
             <div>
@@ -1140,12 +1156,11 @@ export default function AdminQuoteDetails() {
               <div className="space-y-3.5">
                 <div className="flex items-center gap-3.5 pb-3 border-b border-slate-100">
                   <div className="w-10 h-10 rounded-md bg-primary/10 text-primary font-bold flex items-center justify-center text-sm shrink-0 border border-primary/20">
-                    {(quote.contact_first_name?.[0] || "").toUpperCase()}
-                    {(quote.contact_last_name?.[0] || "").toUpperCase()}
+                    {customerInitials}
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">
-                      {quote.contact_first_name} {quote.contact_last_name}
+                      {customerName}
                     </h3>
                   </div>
                 </div>
@@ -1153,23 +1168,31 @@ export default function AdminQuoteDetails() {
                 <div className="space-y-2.5 text-xs">
                   <div className="flex items-center gap-2.5 text-slate-700 min-w-0">
                     <Mail size={13} className="text-slate-400 shrink-0" />
-                    <a 
-                      href={`mailto:${quote.contact_email}`} 
-                      className="text-primary hover:underline font-medium truncate"
-                      title={quote.contact_email}
-                    >
-                      {quote.contact_email}
-                    </a>
+                    {customerEmail ? (
+                      <a 
+                        href={`mailto:${customerEmail}`} 
+                        className="text-primary hover:underline font-medium truncate"
+                        title={customerEmail}
+                      >
+                        {customerEmail}
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 italic">No email provided</span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2.5 text-slate-700 min-w-0">
                     <Phone size={13} className="text-slate-400 shrink-0" />
-                    <a 
-                      href={`tel:${quote.contact_phone}`} 
-                      className="hover:text-slate-900 font-medium"
-                    >
-                      {quote.contact_phone}
-                    </a>
+                    {customerPhone ? (
+                      <a 
+                        href={`tel:${customerPhone}`} 
+                        className="hover:text-slate-900 font-medium"
+                      >
+                        {customerPhone}
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 italic">No phone provided</span>
+                    )}
                   </div>
 
                   {quote.contact_alt_phone && (

@@ -255,13 +255,31 @@ export default function AdminQuotesList() {
       const inq = latest.inquiry_id || {};
       const expInfo = getExpiryInfo(latest.expiration_date);
 
-      // Customer name & contacts
-      const customerName = inq.contact_first_name
-        ? `${inq.contact_first_name} ${inq.contact_last_name}`.trim()
-        : ([inq.customer_id?.first_name, inq.customer_id?.last_name].filter(Boolean).join(" ") || inq.customer_id?.full_name || "Customer");
+      // Customer name & contacts with robust fallbacks
+      const customerName = (inq.contact_first_name || inq.contact_last_name)
+        ? `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.trim()
+        : [inq.customer_id?.first_name, inq.customer_id?.last_name].filter(Boolean).join(" ")
+        || inq.customer_id?.full_name
+        || inq.customer_name
+        || latest.customer_name
+        || "Customer";
 
-      const customerPhone = inq.contact_phone || inq.customer_id?.phone || "—";
-      const customerEmail = inq.contact_email || inq.customer_id?.email || "—";
+      const customerPhone = 
+        inq.contact_phone 
+        || inq.contact_alt_phone
+        || inq.customer_id?.phone 
+        || inq.phone 
+        || latest.customer_phone 
+        || latest.contact_phone 
+        || "—";
+
+      const customerEmail = 
+        inq.contact_email 
+        || inq.customer_id?.email 
+        || inq.email 
+        || latest.customer_email 
+        || latest.contact_email 
+        || "—";
 
       // Venue full
       const venueFull = [inq.venue_type, inq.street, inq.barangay, inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_type || "Venue TBA";
@@ -279,6 +297,8 @@ export default function AdminQuotesList() {
         customerName,
         customerPhone,
         customerEmail,
+        phone: customerPhone,
+        email: customerEmail,
         eventDate: inq.event_date,
         eventTime: inq.start_time || "TBA",
         venue: inq.venue_type || inq.street || "TBA",
@@ -408,16 +428,6 @@ export default function AdminQuotesList() {
     return items;
   }, [groupedQuotations, activeTab, eventTypeFilter, dateRangeFilter, search, sortBy]);
 
-  const hasInitializedRef = useRef(false);
-
-  // Automatically select the first quotation ONCE on initial load
-  useEffect(() => {
-    if (!hasInitializedRef.current && filteredQuotations.length > 0) {
-      setSelectedQuotation(filteredQuotations[0]);
-      hasInitializedRef.current = true;
-    }
-  }, [filteredQuotations]);
-
   // Pagination calculation
   const totalItems = filteredQuotations.length;
   const totalPages = Math.ceil(totalItems / pageSize) || 1;
@@ -488,6 +498,17 @@ export default function AdminQuotesList() {
     setCurrentPage(1);
   };
 
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && selectedQuotation) {
+        setSelectedQuotation(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedQuotation]);
+
   return (
     <AdminLayout>
       <div className="space-y-3 bg-background min-h-screen">
@@ -511,11 +532,8 @@ export default function AdminQuotesList() {
           </div>
         </div>
 
-        {/* Top-Level Outer Flex Layout: Left Column & Right Summary Card */}
-        <div className="flex flex-col xl:flex-row gap-3.5 items-start relative">
-          
-          {/* Main Left Column (Dynamically Resizes & Reflows) */}
-          <div className="flex-1 min-w-0 space-y-3 w-full">
+        {/* Main Content Area (Uncompressed 100% Full Width) */}
+        <div className="space-y-3 w-full">
             
             {/* STRICTLY 4 KPI METRIC CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -829,10 +847,10 @@ export default function AdminQuotesList() {
                                 </span>
                               </td>
 
-                              {/* 7. Actions (Icon-Only View Button or Convert Button) */}
+                              {/* 7. Actions (Standard View Button & Quick Convert) */}
                               <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-end gap-1">
-                                  {item.status === "Accepted" || item.status === "Quote Accepted" ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {(item.status === "Accepted" || item.status === "Quote Accepted") && (
                                     <button
                                       onClick={() => setConvertTarget(item)}
                                       className="px-2 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
@@ -840,16 +858,16 @@ export default function AdminQuotesList() {
                                     >
                                       <CheckCircle size={11} /> Convert
                                     </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => setSelectedQuotation(item)}
-                                      className="p-1.5 rounded-lg border border-input bg-background hover:bg-muted text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-                                      title="View Quotation Details"
-                                      aria-label="View Quotation Details"
-                                    >
-                                      <Eye size={15} />
-                                    </button>
                                   )}
+                                  <button
+                                    onClick={() => setSelectedQuotation(item)}
+                                    className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                                    title="View Quotation Summary"
+                                    aria-label="View Quotation Summary"
+                                  >
+                                    <Eye size={13} className="text-muted-foreground" />
+                                    <span>View</span>
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -939,24 +957,39 @@ export default function AdminQuotesList() {
                 </div>
               </div>
             </div>
+        </div>
 
-          </div>
+        {/* Slide-Over Quotation Summary Drawer */}
+        {selectedQuotation && (
+          <div
+            className="fixed inset-0 z-50 flex justify-end"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quotation-drawer-title"
+          >
+            {/* Backdrop Scrim */}
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity animate-in fade-in-0 duration-200"
+              onClick={() => setSelectedQuotation(null)}
+              aria-hidden="true"
+            />
 
-          {/* Right-Side Summary Card Level with KPI Section */}
-          {selectedQuotation && (
-            <div className="w-full lg:w-[340px] xl:w-[360px] shrink-0 bg-card border border-border/70 rounded-xl p-3.5 space-y-3.5 shadow-sm text-xs sticky top-3 max-h-[calc(100vh-2rem)] overflow-y-auto">
+            {/* Slide-Over Panel */}
+            <div className="relative w-full max-w-[460px] h-full bg-card border-l border-border/80 shadow-2xl flex flex-col z-10 text-xs animate-in slide-in-from-right duration-200">
               
-              {/* Panel Top Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-foreground">Quotation Details</h3>
-                  <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+              {/* Pinned Drawer Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-xs shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 id="quotation-drawer-title" className="font-bold text-sm text-foreground truncate">
+                    Quotation Summary
+                  </h3>
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md shrink-0">
                     {selectedQuotation.quotationNumber}
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedQuotation(null)}
-                  className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   title="Close panel"
                   aria-label="Close details panel"
                 >
@@ -964,320 +997,320 @@ export default function AdminQuotesList() {
                 </button>
               </div>
 
-              {/* Customer Info Card Header */}
-              <div className="flex items-start justify-between gap-2.5 p-3 bg-muted/30 rounded-xl border border-border/50">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <AvatarInitials name={selectedQuotation.customerName} className="w-9 h-9 text-xs" />
-                  <div className="min-w-0 space-y-0.5">
-                    <h4 className="font-bold text-foreground text-xs truncate">{selectedQuotation.customerName}</h4>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                      <Phone size={10} className="shrink-0 text-muted-foreground/70" />
-                      <span className="truncate">{selectedQuotation.customerPhone}</span>
+              {/* Scrollable Content Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+                {/* Customer Info Card Header */}
+                <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <AvatarInitials name={selectedQuotation.customerName} className="w-9 h-9 text-xs" />
+                      <div className="min-w-0 space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Customer</span>
+                        <h4 className="font-bold text-foreground text-sm truncate">{selectedQuotation.customerName}</h4>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-                      <Mail size={10} className="shrink-0 text-muted-foreground/70" />
-                      <span className="truncate">{selectedQuotation.customerEmail}</span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {renderStatusBadge(selectedQuotation.status, selectedQuotation.expInfo?.isExpired)}
+                      <span className="text-[10px] font-mono text-muted-foreground">v{selectedQuotation.version}</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Contact Line */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Phone size={12} className="shrink-0 text-primary" />
+                      <a href={`tel:${selectedQuotation.phone}`} className="truncate hover:text-foreground hover:underline">
+                        {selectedQuotation.phone || "N/A"}
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Mail size={12} className="shrink-0 text-primary" />
+                      <a href={`mailto:${selectedQuotation.email}`} className="truncate hover:text-foreground hover:underline">
+                        {selectedQuotation.email || "N/A"}
+                      </a>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {renderStatusBadge(selectedQuotation.status, selectedQuotation.expInfo?.isExpired)}
+
+                {/* Key Metrics Grid (Total, Deposit & Validity) */}
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-card border border-border/70 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground block">Total Quoted</span>
+                    <span className="text-xs font-bold font-mono text-foreground block truncate">{formatPeso(selectedQuotation.totalCost)}</span>
+                  </div>
+                  <div className="bg-card border border-border/70 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground block">Deposit Due</span>
+                    <span className="text-xs font-bold font-mono text-emerald-600 block truncate">{formatPeso(selectedQuotation.depositAmount)}</span>
+                  </div>
+                  <div className="bg-card border border-border/70 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground block flex items-center gap-1">
+                      <Calendar size={10} className="text-primary" /> Valid Until
+                    </span>
+                    <span className="text-[11px] font-bold text-foreground block truncate">
+                      {formatDateClean(selectedQuotation.expirationDate)}
+                    </span>
+                    <span className={`text-[9.5px] block truncate font-medium ${selectedQuotation.expInfo?.tone}`}>
+                      {selectedQuotation.expInfo?.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Navigation Tabs */}
+                <div className="flex border-b border-border text-xs font-semibold">
+                  {[
+                    { id: "overview", label: "Overview", icon: FileText },
+                    { id: "event_details", label: "Venue & Setup", icon: MapPin },
+                    { id: "items", label: "Financials", icon: CreditCard },
+                    { id: "timeline", label: "Timeline", icon: History },
+                  ].map((t) => {
+                    const IconComp = t.icon;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setPanelTab(t.id)}
+                        className={`pb-2 px-2.5 border-b-2 transition-colors cursor-pointer text-center flex-1 flex items-center justify-center gap-1 text-xs ${
+                          panelTab === t.id
+                            ? "border-primary text-primary font-bold"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <IconComp size={12} />
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tabs Content */}
+                <div className="space-y-3">
+                  {/* Tab 1: Overview */}
+                  {panelTab === "overview" && (
+                    <div className="space-y-3">
+                      {/* Event Information Card */}
+                      <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Calendar size={12} className="text-primary" /> Event & Venue
+                        </h5>
+                        <div className="grid grid-cols-2 gap-2.5 text-xs">
+                          <div>
+                            <span className="text-[10px] text-muted-foreground block font-medium">Date & Time</span>
+                            <span className="font-semibold text-foreground">{formatDateClean(selectedQuotation.eventDate)}</span>
+                            <span className="text-[11px] text-muted-foreground block">{selectedQuotation.eventTime}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-muted-foreground block font-medium">Event Type</span>
+                            <span className="font-semibold text-foreground">{selectedQuotation.eventType}</span>
+                            <span className="text-[11px] text-muted-foreground block">{selectedQuotation.guestCount} guests (pax)</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-[10px] text-muted-foreground block font-medium">Catering Package</span>
+                            <span className="font-semibold text-foreground">{selectedQuotation.packageName}</span>
+                          </div>
+                          <div className="col-span-2 pt-1.5 border-t border-border/50">
+                            <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
+                              <MapPin size={11} className="text-primary" /> Venue Address
+                            </span>
+                            <span className="font-medium text-foreground leading-snug block mt-0.5">{selectedQuotation.venueFull}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quotation Status Stepper */}
+                      <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Progress</h5>
+                        <div className="space-y-2 border-l-2 border-primary/40 pl-3">
+                          <div>
+                            <p className="font-bold text-foreground">Inquiry Received</p>
+                            <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.createdAt)}</p>
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground">Quotation Created (v{selectedQuotation.version})</p>
+                            <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
+                          </div>
+                          {["Sent", "Quotation Sent", "Accepted", "Converted to Booking"].includes(selectedQuotation.status) && (
+                            <div>
+                              <p className="font-bold text-foreground">Sent to Customer</p>
+                              <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
+                            </div>
+                          )}
+                          {selectedQuotation.status === "Revision Requested" && (
+                            <div>
+                              <p className="font-bold text-purple-800">Revision Requested</p>
+                              <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
+                            </div>
+                          )}
+                          {(selectedQuotation.status === "Accepted" || selectedQuotation.status === "Converted to Booking") && (
+                            <div>
+                              <p className="font-bold text-emerald-800">Quote Accepted</p>
+                              <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Related Inquiry Card */}
+                      <div className="bg-card border border-border/70 rounded-xl p-2.5 flex items-center justify-between shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <FileText size={15} className="text-primary" />
+                          <div>
+                            <span className="text-[9.5px] text-muted-foreground font-semibold uppercase block">Related Inquiry</span>
+                            <span className="font-bold text-foreground font-mono">{selectedQuotation.reference}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => navigate(`/admin/inquiries?search=${selectedQuotation.reference}`)}
+                          className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          View <ChevronRight size={11} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 2: Event Details */}
+                  {panelTab === "event_details" && (
+                    <div className="space-y-3">
+                      <div className="bg-card border border-border/70 rounded-xl p-3 space-y-1.5 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Venue Specs</h5>
+                        <div className="space-y-1 text-xs">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Address</p>
+                            <p className="font-semibold text-foreground">{selectedQuotation.venueFull}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase font-semibold">Package Selected</p>
+                            <p className="font-semibold text-foreground">{selectedQuotation.packageName}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-card border border-border/70 rounded-xl p-3 space-y-1.5 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Setup Notes</h5>
+                        {selectedQuotation.rawInquiry?.special_requests ? (
+                          <p className="text-foreground leading-relaxed whitespace-pre-line text-xs">
+                            {selectedQuotation.rawInquiry.special_requests}
+                          </p>
+                        ) : (
+                          <p className="text-muted-foreground italic text-xs">No special setup notes recorded.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 3: Items Breakdown */}
+                  {panelTab === "items" && (
+                    <div className="space-y-3">
+                      <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Financial Breakdown</h5>
+                        <div className="space-y-1.5 text-xs divide-y divide-border/60">
+                          <div className="flex justify-between py-1">
+                            <span className="text-muted-foreground">Package Base Price</span>
+                            <span className="font-bold font-mono">{formatPeso(selectedQuotation.packagePrice)}</span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="text-muted-foreground">Menu Items ({selectedQuotation.menuItems.length})</span>
+                            <span className="font-semibold font-mono">Included</span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="text-muted-foreground">Add-ons ({selectedQuotation.addOns.length})</span>
+                            <span className="font-semibold font-mono">Included</span>
+                          </div>
+                          <div className="flex justify-between py-1">
+                            <span className="text-muted-foreground">Required Deposit</span>
+                            <span className="font-bold font-mono text-emerald-600">{formatPeso(selectedQuotation.depositAmount)}</span>
+                          </div>
+                          <div className="flex justify-between pt-2 text-sm">
+                            <span className="font-bold text-foreground">Quoted Total</span>
+                            <span className="font-bold font-mono text-primary">{formatPeso(selectedQuotation.totalCost)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab 4: Timeline Lifecycle */}
+                  {panelTab === "timeline" && (
+                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2 shadow-2xs">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Lifecycle Log</h5>
+                      <div className="space-y-2 border-l-2 border-primary/40 pl-3 text-xs">
+                        <div>
+                          <p className="font-bold text-foreground">Inquiry Created</p>
+                          <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.createdAt)}</p>
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Latest Version Issued (v{selectedQuotation.version})</p>
+                          <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Key Metrics Header Box (Total & Validity) */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-card border border-border/70 rounded-xl p-2.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Total Amount</span>
-                  <span className="text-base font-bold font-mono text-foreground">{formatPeso(selectedQuotation.totalCost)}</span>
-                </div>
-                <div className="bg-card border border-border/70 rounded-xl p-2.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block flex items-center gap-1">
-                    <Calendar size={11} className="text-primary" /> Valid Until
-                  </span>
-                  <span className="text-xs font-bold text-foreground block">
-                    {formatDateClean(selectedQuotation.expirationDate)}
-                  </span>
-                  <span className={`text-[10px] block ${selectedQuotation.expInfo?.tone}`}>
-                    {selectedQuotation.expInfo?.label}
-                  </span>
-                </div>
-              </div>
-
-              {/* UPPER SECTION: Quick Action Buttons Bar */}
-              <div className="bg-card border border-border/70 rounded-xl p-2.5 space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Admin Actions</span>
-                </div>
-
+              {/* Pinned Action Footer */}
+              <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs flex flex-col gap-2 shrink-0">
                 {/* Primary Contextual Action */}
                 {selectedQuotation.status === "Accepted" ? (
                   <button
                     onClick={() => setConvertTarget(selectedQuotation)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <CheckCircle size={13} /> Convert to Booking
+                    <CheckCircle size={14} /> Convert to Booking
                   </button>
                 ) : selectedQuotation.status === "Draft" ? (
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <Edit3 size={13} /> Edit Quotation Draft
+                    <Edit3 size={14} /> Edit Quotation Draft
                   </button>
                 ) : selectedQuotation.status === "Revision Requested" ? (
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <RotateCcw size={13} /> Revise Quotation
+                    <RotateCcw size={14} /> Revise Quotation
                   </button>
                 ) : selectedQuotation.status === "Converted to Booking" || Boolean(selectedQuotation.convertedBookingId) ? (
                   <button
                     onClick={() => navigate('/admin/bookings/reservations')}
-                    className="w-full py-1.5 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <CheckCircle2 size={13} /> View Confirmed Booking
+                    <CheckCircle2 size={14} /> View Confirmed Booking
                   </button>
                 ) : (
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                    className="w-full py-1.5 px-3 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
-                    <FileText size={13} /> View Quotation Details
+                    <FileText size={14} /> View Quotation Details
                   </button>
                 )}
 
                 {/* Secondary Actions Row */}
-                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
-                    title="Edit quote"
+                    className="flex-1 py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-semibold text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                    title="Open full quotation details"
                   >
-                    <Edit3 size={12} /> Edit
-                  </button>
-                  <button
-                    onClick={() => navigate(`/admin/quotes/${selectedQuotation.inquiryId}/details`)}
-                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
-                    title="Send quote"
-                  >
-                    <Send size={12} /> Send
+                    <ExternalLink size={12} className="text-muted-foreground" />
+                    <span>Open Full Details</span>
                   </button>
                   <button
                     onClick={() => navigate(`/admin/inquiries?search=${selectedQuotation.reference}`)}
-                    className="py-1 px-2 rounded-md border border-input bg-background font-medium text-muted-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1 text-[11px] cursor-pointer"
-                    title="Related Inquiry"
+                    className="py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shrink-0 shadow-2xs"
+                    title="View related customer inquiry"
                   >
-                    <ArrowUpRight size={12} /> Inquiry
+                    <ArrowUpRight size={13} />
+                    <span>Inquiry</span>
                   </button>
                 </div>
               </div>
 
-              {/* Panel Navigation Tabs */}
-              <div className="flex border-b border-border bg-card text-xs">
-                {[
-                  { id: "overview", label: "Overview" },
-                  { id: "event_details", label: "Event Details" },
-                  { id: "items", label: "Items" },
-                  { id: "timeline", label: "Timeline" },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setPanelTab(t.id)}
-                    className={`flex-1 py-2 text-center font-semibold border-b-2 transition-colors cursor-pointer ${
-                      panelTab === t.id
-                        ? "border-primary text-primary bg-primary/5"
-                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Panel Content Body */}
-              <div className="space-y-3">
-                
-                {/* Tab 1: Overview */}
-                {panelTab === "overview" && (
-                  <div className="space-y-3">
-                    
-                    {/* Event Information Card */}
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                        <Calendar size={11} className="text-primary" /> Event Information
-                      </h5>
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex items-start gap-2">
-                          <User size={13} className="text-primary shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[10px] text-muted-foreground font-semibold uppercase">Event Type</p>
-                            <p className="font-semibold text-foreground">{selectedQuotation.eventType}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Clock size={13} className="text-primary shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[10px] text-muted-foreground font-semibold uppercase">Date & Time</p>
-                            <p className="font-semibold text-foreground">
-                              {formatDateClean(selectedQuotation.eventDate)} • {selectedQuotation.eventTime}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <MapPin size={13} className="text-primary shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[10px] text-muted-foreground font-semibold uppercase">Venue</p>
-                            <p className="font-semibold text-foreground">{selectedQuotation.venueFull}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Users size={13} className="text-primary shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[10px] text-muted-foreground font-semibold uppercase">Guest Count</p>
-                            <p className="font-semibold text-foreground">{selectedQuotation.guestCount} guests</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quotation Status Stepper */}
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Progress</h5>
-                      <div className="space-y-2 border-l-2 border-primary/40 pl-3">
-                        <div>
-                          <p className="font-bold text-foreground">Inquiry Received</p>
-                          <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.createdAt)}</p>
-                        </div>
-                        <div>
-                          <p className="font-bold text-foreground">Quotation Created (v{selectedQuotation.version})</p>
-                          <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
-                        </div>
-                        {["Sent", "Quotation Sent", "Accepted", "Converted to Booking"].includes(selectedQuotation.status) && (
-                          <div>
-                            <p className="font-bold text-foreground">Sent to Customer</p>
-                            <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
-                          </div>
-                        )}
-                        {selectedQuotation.status === "Revision Requested" && (
-                          <div>
-                            <p className="font-bold text-purple-800">Revision Requested</p>
-                            <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
-                          </div>
-                        )}
-                        {(selectedQuotation.status === "Accepted" || selectedQuotation.status === "Converted to Booking") && (
-                          <div>
-                            <p className="font-bold text-emerald-800">Quote Accepted</p>
-                            <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Related Inquiry Card */}
-                    <div className="bg-card border border-border/70 rounded-xl p-2.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText size={15} className="text-primary" />
-                        <div>
-                          <span className="text-[9.5px] text-muted-foreground font-semibold uppercase block">Related Inquiry</span>
-                          <span className="font-bold text-foreground font-mono">{selectedQuotation.reference}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => navigate(`/admin/inquiries?search=${selectedQuotation.reference}`)}
-                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
-                      >
-                        View <ChevronRight size={11} />
-                      </button>
-                    </div>
-
-                  </div>
-                )}
-
-                {/* Tab 2: Event Details */}
-                {panelTab === "event_details" && (
-                  <div className="space-y-3">
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-1.5">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Venue Specs</h5>
-                      <div className="space-y-1 text-xs">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Address</p>
-                          <p className="font-semibold text-foreground">{selectedQuotation.venueFull}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">Package Selected</p>
-                          <p className="font-semibold text-foreground">{selectedQuotation.packageName}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-1.5">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Setup Notes</h5>
-                      {selectedQuotation.rawInquiry?.special_requests ? (
-                        <p className="text-foreground leading-relaxed whitespace-pre-line text-xs">
-                          {selectedQuotation.rawInquiry.special_requests}
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground italic text-xs">No special setup notes recorded.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab 3: Items Breakdown */}
-                {panelTab === "items" && (
-                  <div className="space-y-3">
-                    <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Financial Breakdown</h5>
-                      <div className="space-y-1.5 text-xs divide-y divide-border/60">
-                        <div className="flex justify-between py-1">
-                          <span className="text-muted-foreground">Package Base Price</span>
-                          <span className="font-bold font-mono">{formatPeso(selectedQuotation.packagePrice)}</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span className="text-muted-foreground">Menu Items ({selectedQuotation.menuItems.length})</span>
-                          <span className="font-semibold font-mono">Included</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span className="text-muted-foreground">Add-ons ({selectedQuotation.addOns.length})</span>
-                          <span className="font-semibold font-mono">Included</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span className="text-muted-foreground">Required Deposit</span>
-                          <span className="font-bold font-mono text-emerald-600">{formatPeso(selectedQuotation.depositAmount)}</span>
-                        </div>
-                        <div className="flex justify-between pt-2 text-sm">
-                          <span className="font-bold text-foreground">Quoted Total</span>
-                          <span className="font-bold font-mono text-primary">{formatPeso(selectedQuotation.totalCost)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab 4: Timeline Lifecycle */}
-                {panelTab === "timeline" && (
-                  <div className="bg-card border border-border/70 rounded-xl p-3 space-y-2">
-                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Lifecycle Log</h5>
-                    <div className="space-y-2 border-l-2 border-primary/40 pl-3 text-xs">
-                      <div>
-                        <p className="font-bold text-foreground">Inquiry Created</p>
-                        <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.createdAt)}</p>
-                      </div>
-                      <div>
-                        <p className="font-bold text-foreground">Latest Version Issued (v{selectedQuotation.version})</p>
-                        <p className="text-[10px] text-muted-foreground">{formatDateTimeClean(selectedQuotation.updatedAt)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-              </div>
             </div>
-          )}
-
-        </div>
+          </div>
+        )}
 
         {/* Modal: Convert Quotation to Booking */}
         {convertTarget && (

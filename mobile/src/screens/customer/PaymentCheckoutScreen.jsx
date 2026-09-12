@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   Linking,
+  BackHandler,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { CheckCircle, AlertTriangle, ArrowLeft, ExternalLink, CreditCard, RefreshCw } from "lucide-react-native";
@@ -173,7 +174,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleExit = () => {
+  const handleExit = useCallback(() => {
     if (Platform.OS === "web") {
       if (typeof window !== "undefined" && window.confirm) {
         if (window.confirm("Exit Checkout? Your payment transaction will not be completed.")) {
@@ -192,7 +193,18 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         ]
       );
     }
-  };
+  }, [navigation]);
+
+  // Intercept Android hardware back button to prevent accidental exit
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const onBackPress = () => {
+      handleExit();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => subscription.remove();
+  }, [handleExit]);
 
   if (loadingSession) {
     return (

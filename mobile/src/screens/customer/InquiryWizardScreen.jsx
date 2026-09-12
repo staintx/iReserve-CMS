@@ -711,6 +711,7 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   // SUBMISSION TO API
   // ══════════════════════════════════════════════════════════════════════════
   const handleSubmitInquiry = async () => {
+    if (submitting) return;
     setSubmitting(true);
     try {
       const activeDeliveryMethod = isFoodOnly ? deliveryMethod : "setup";

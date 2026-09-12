@@ -12,6 +12,17 @@ export const formatCurrency = (amount) => {
 
 export const formatDate = (dateValue) => {
   if (!dateValue) return "N/A";
+  if (typeof dateValue === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateValue)) {
+    const [year, month, day] = dateValue.slice(0, 10).split("-").map(Number);
+    const d = new Date(year, month - 1, day);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+  }
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return String(dateValue);
   return d.toLocaleDateString("en-US", {
@@ -23,6 +34,16 @@ export const formatDate = (dateValue) => {
 
 export const formatShortDate = (dateValue) => {
   if (!dateValue) return "";
+  if (typeof dateValue === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateValue)) {
+    const [year, month, day] = dateValue.slice(0, 10).split("-").map(Number);
+    const d = new Date(year, month - 1, day);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    }
+  }
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-US", {

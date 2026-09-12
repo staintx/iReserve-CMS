@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { setStoredToken, removeStoredToken, getStoredToken, setOnSessionExpired } from "../api/client";
 import authApi from "../api/auth";
+import { clearAllOfflineCache } from "../utils/offlineStorage";
 
 import { ROLES } from "../constants/config";
 
@@ -84,6 +85,7 @@ export const AuthProvider = ({ children }) => {
       // ignore
     }
     await removeStoredToken();
+    await clearAllOfflineCache();
     setToken(null);
     setUser(null);
   }, []);

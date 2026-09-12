@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
@@ -10,7 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Mail, Lock, Utensils } from "lucide-react-native";
+import { Mail, Lock } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
@@ -89,12 +90,12 @@ export const LoginScreen = ({ navigation }) => {
       >
         {/* Brand Header */}
         <View style={styles.brandHeader}>
-          <View style={styles.logoBadge}>
-            <Utensils size={30} color={colors.primary} />
-          </View>
-          <Text style={styles.brandName}>
-            iReserve<Text style={styles.brandDot}>.</Text>
-          </Text>
+          <Image
+            source={require("../../../assets/images/splash-icon.png")}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandName}>iReserve</Text>
           <Text style={styles.brandSubtitle}>Caezelle's Food, Catering & Services</Text>
         </View>
 
@@ -204,26 +205,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: spacing.xl,
   },
-  logoBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 24,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-    borderWidth: 1.5,
-    borderColor: colors.primaryBorder,
+  brandLogo: {
+    width: 86,
+    height: 86,
+    marginBottom: 14,
   },
   brandName: {
-    fontSize: typography.sizes.title,
-    fontFamily: typography.fontFamilies.extraBold,
-    fontWeight: "800",
-    color: colors.foreground,
+    fontSize: 26,
+    fontFamily: typography.fontFamilies.bold,
+    fontWeight: Platform.select({ ios: "700", android: undefined }),
+    color: colors.foregroundDark,
     letterSpacing: -0.5,
-  },
-  brandDot: {
-    color: colors.primary,
   },
   brandSubtitle: {
     fontSize: typography.sizes.xs,

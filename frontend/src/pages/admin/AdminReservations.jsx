@@ -42,6 +42,7 @@ import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
+import { menuLineTotal } from "../../utils/quotationPricing";
 
 /**
  * Format currency to PHP string (e.g. ₱12,500.00)
@@ -146,7 +147,7 @@ export default function AdminReservations() {
         // Independent Add-ons Price Calculation
         const serviceItemsTotal = (b.service_items || []).reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
         const additionalChargesTotal = (b.additional_charges || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
-        const menuItemsAddonTotal = (b.menu_items || []).reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+        const menuItemsAddonTotal = (b.menu_items || []).reduce((sum, i) => sum + menuLineTotal(i, b.guest_count), 0);
         const addOnsPrice = serviceItemsTotal + additionalChargesTotal + menuItemsAddonTotal;
 
         // Base Package Calculation

@@ -373,7 +373,7 @@ export default function CustomerBookings() {
           </div>
 
           <Button
-            onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+            onClick={() => navigate("/packages")}
             className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-md font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -425,12 +425,12 @@ export default function CustomerBookings() {
                         {statusFilter === "all"
                           ? "All bookings"
                           : statusFilter === "confirmed"
-                          ? "Confirmed"
-                          : statusFilter === "deposit_needed"
-                          ? "Deposit Needed"
-                          : statusFilter === "completed"
-                          ? "Completed"
-                          : "Cancelled"}
+                            ? "Confirmed"
+                            : statusFilter === "deposit_needed"
+                              ? "Deposit Needed"
+                              : statusFilter === "completed"
+                                ? "Completed"
+                                : "Cancelled"}
                       </span>
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                     </Button>
@@ -565,8 +565,8 @@ export default function CustomerBookings() {
                         {sortBy === "newest"
                           ? "Newest first"
                           : sortBy === "oldest"
-                          ? "Oldest first"
-                          : "Event date"}
+                            ? "Oldest first"
+                            : "Event date"}
                       </span>
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                     </Button>
@@ -724,10 +724,10 @@ export default function CustomerBookings() {
                             ocularMeta.state === "action_required"
                               ? "bg-amber-50/80 border-amber-200/80 hover:bg-amber-100/70 text-amber-950"
                               : ocularMeta.state === "scheduled"
-                              ? "bg-blue-50/70 border-blue-200/80 hover:bg-blue-100/60 text-blue-950"
-                              : ocularMeta.state === "requested"
-                              ? "bg-amber-50/60 border-amber-200/70 hover:bg-amber-100/50 text-amber-950"
-                              : "bg-emerald-50/60 border-emerald-200/70 hover:bg-emerald-100/50 text-emerald-950"
+                                ? "bg-blue-50/70 border-blue-200/80 hover:bg-blue-100/60 text-blue-950"
+                                : ocularMeta.state === "requested"
+                                  ? "bg-amber-50/60 border-amber-200/70 hover:bg-amber-100/50 text-amber-950"
+                                  : "bg-emerald-50/60 border-emerald-200/70 hover:bg-emerald-100/50 text-emerald-950"
                           )}
                         >
                           <div className="flex items-center gap-2 min-w-0">
@@ -737,10 +737,10 @@ export default function CustomerBookings() {
                                 ocularMeta.state === "action_required"
                                   ? "bg-orange-500 animate-pulse"
                                   : ocularMeta.state === "scheduled"
-                                  ? "bg-blue-600"
-                                  : ocularMeta.state === "requested"
-                                  ? "bg-amber-500"
-                                  : "bg-emerald-600"
+                                    ? "bg-blue-600"
+                                    : ocularMeta.state === "requested"
+                                      ? "bg-amber-500"
+                                      : "bg-emerald-600"
                               )}
                             />
                             <span className="font-bold uppercase tracking-wider text-[10px] shrink-0 opacity-90">
@@ -841,8 +841,8 @@ export default function CustomerBookings() {
                                   isDone
                                     ? "bg-emerald-600 text-white"
                                     : isCurrent
-                                    ? "bg-blue-600 text-white ring-3 ring-blue-600/15 scale-105"
-                                    : "bg-white text-slate-400 border border-slate-300"
+                                      ? "bg-blue-600 text-white ring-3 ring-blue-600/15 scale-105"
+                                      : "bg-white text-slate-400 border border-slate-300"
                                 )}
                               >
                                 {isDone ? <Check className="w-3 h-3" /> : s.step + 1}
@@ -901,10 +901,10 @@ export default function CustomerBookings() {
                             selectedOcular.state === "action_required"
                               ? "bg-gradient-to-r from-amber-50 to-orange-50/50 border-amber-200/90 hover:border-amber-300"
                               : selectedOcular.state === "scheduled"
-                              ? "bg-blue-50/70 border-blue-200/80 hover:border-blue-300"
-                              : selectedOcular.state === "requested"
-                              ? "bg-amber-50/60 border-amber-200/70 hover:border-amber-300"
-                              : "bg-emerald-50/60 border-emerald-200/70"
+                                ? "bg-blue-50/70 border-blue-200/80 hover:border-blue-300"
+                                : selectedOcular.state === "requested"
+                                  ? "bg-amber-50/60 border-amber-200/70 hover:border-amber-300"
+                                  : "bg-emerald-50/60 border-emerald-200/70"
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -915,10 +915,10 @@ export default function CustomerBookings() {
                                   selectedOcular.state === "action_required"
                                     ? "bg-orange-500 animate-pulse"
                                     : selectedOcular.state === "scheduled"
-                                    ? "bg-blue-600"
-                                    : selectedOcular.state === "requested"
-                                    ? "bg-amber-500"
-                                    : "bg-emerald-600"
+                                      ? "bg-blue-600"
+                                      : selectedOcular.state === "requested"
+                                        ? "bg-amber-500"
+                                        : "bg-emerald-600"
                                 )}
                               />
                               <h4 className="font-bold text-[#1E3563] text-[11px] uppercase tracking-wider font-sans truncate">

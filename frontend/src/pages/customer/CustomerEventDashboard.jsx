@@ -30,6 +30,10 @@ import {
   Info,
   ExternalLink,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Package,
+  Store,
   History,
   FileText,
   Truck,
@@ -56,12 +60,76 @@ import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/act
 import { cn } from "@/lib/utils";
 import { selectSourceQuotation } from "../../utils/quotationDiff";
 import { formatShortDate } from "../../utils/format";
-import { menuAmountLabel } from "../../utils/quotationPricing";
+import { menuAmountLabel, menuLineTotal, MENU_PRICING } from "../../utils/quotationPricing";
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 const formatCurrency = (val) => {
   return `₱${Number(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// Parse inclusions like "[Event Setup & Furniture] Stage Setup" into categorized arrays
+const parseInclusions = (inclusions = []) => {
+  if (!Array.isArray(inclusions) || inclusions.length === 0) return [];
+  const groups = {};
+  inclusions.forEach((item) => {
+    if (typeof item !== "string") return;
+    const match = item.match(/^\[(.*?)\]\s*(.*)$/);
+    if (match) {
+      const category = match[1].trim();
+      const val = match[2].trim();
+      if (!groups[category]) groups[category] = [];
+      groups[category].push(val);
+    } else {
+      const category = "General Inclusions";
+      if (!groups[category]) groups[category] = [];
+      groups[category].push(item.trim());
+    }
+  });
+  return Object.entries(groups).map(([category, items]) => ({
+    category,
+    items,
+  }));
+};
+
+// Group menu items by category
+const categorizeMenuItems = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const groups = {};
+  items.forEach((dish) => {
+    const cat = dish?.category || "Main Course";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(dish);
+  });
+  return Object.entries(groups).map(([category, dishes]) => ({
+    category,
+    dishes,
+  }));
+};
+
+// Computes the final total price of a dish line
+const getItemLineTotal = (item, guestCount) => {
+  if (item?.total_price != null && Number(item.total_price) >= 0) {
+    return Number(item.total_price);
+  }
+  if (item?.line_total != null && Number(item.line_total) >= 0) {
+    return Number(item.line_total);
+  }
+  const unitPrice = Number(item?.price) || 0;
+  if (unitPrice === 0) return 0;
+  if (item?.pricing_type === "quantity" || item?.pricing_type === MENU_PRICING?.QUANTITY) {
+    const qty = Number(item?.quantity) > 0 ? Number(item.quantity) : 1;
+    return Math.round(unitPrice * qty * 100) / 100;
+  }
+  if (item?.pricing_type === "per_guest" || item?.pricing_type === MENU_PRICING?.PER_GUEST) {
+    const qty = Number(guestCount) > 0 ? Number(guestCount) : 1;
+    return Math.round(unitPrice * qty * 100) / 100;
+  }
+  // Fallback: if quantity is specified along with a unit or quantity > 1
+  if (Number(item?.quantity) > 0 && (item?.unit || Number(item?.quantity) > 1)) {
+    return Math.round(unitPrice * Number(item.quantity) * 100) / 100;
+  }
+  return menuLineTotal(item, guestCount);
 };
 
 export default function CustomerEventDashboard() {
@@ -74,6 +142,7 @@ export default function CustomerEventDashboard() {
 
   // Management State
   const [packages, setPackages] = useState([]);
+  const [isPackageExpanded, setIsPackageExpanded] = useState(false);
   
   const [addingGuests, setAddingGuests] = useState(false);
   const [additionalGuests, setAdditionalGuests] = useState(0);
@@ -257,6 +326,117 @@ export default function CustomerEventDashboard() {
   );
 
   // Independent Price Breakdown Calculations for Customer View
+  // Independent Price Breakdown Calculations for Customer View
+  const guestCount = Number(booking?.guest_count) || 0;
+
+  const activeQuotation = useMemo(() => {
+    if (booking?.quotation_id && typeof booking.quotation_id === "object" && booking.quotation_id.package_name) {
+      return booking.quotation_id;
+    }
+    return sourceQuotation?.quotation || null;
+  }, [booking, sourceQuotation]);
+
+  const resolvedPackage = useMemo(() => {
+    if (!booking) return null;
+    if (booking.package_id && typeof booking.package_id === "object" && booking.package_id.name) {
+      return booking.package_id;
+    }
+    const pkgId = booking.package_id?._id || booking.package_id;
+    if (pkgId && packages.length > 0) {
+      const found = packages.find((p) => String(p._id) === String(pkgId));
+      if (found) return found;
+    }
+    const pkgName = booking.package_name_snapshot || activeQuotation?.package_name;
+    if (pkgName && packages.length > 0) {
+      const found = packages.find((p) => (p.name || "").trim().toLowerCase() === pkgName.trim().toLowerCase());
+      if (found) return found;
+    }
+    if (pkgName) {
+      return {
+        name: pkgName,
+        description: "Curated catering and event setup package tailored for your event.",
+        inclusions: [],
+      };
+    }
+    return null;
+  }, [booking, packages, activeQuotation]);
+
+  const hasPackage = Boolean(
+    resolvedPackage?.name || 
+    booking?.package_name_snapshot || 
+    booking?.package_id || 
+    activeQuotation?.package_name
+  );
+
+  const isSpecialOffer = booking?.booking_type === "special" || resolvedPackage?.offer_type === "special";
+
+  const activeInclusions = useMemo(() => {
+    if (activeQuotation?.package_inclusions && activeQuotation.package_inclusions.length > 0) {
+      return activeQuotation.package_inclusions;
+    }
+    return resolvedPackage?.inclusions || [];
+  }, [activeQuotation, resolvedPackage]);
+
+  const removedInclusions = useMemo(() => {
+    return activeQuotation?.removed_inclusions || [];
+  }, [activeQuotation]);
+
+  const inclusionAdjustments = useMemo(() => {
+    return activeQuotation?.inclusion_adjustments || [];
+  }, [activeQuotation]);
+
+  const packageInclusionGroups = useMemo(() => {
+    return parseInclusions(activeInclusions);
+  }, [activeInclusions]);
+
+  const totalPackageInclusionsCount = activeInclusions.length;
+  const totalDishesCount = (booking?.menu_items || []).length;
+
+  const resolvedScaffoldSize = useMemo(() => {
+    if (!resolvedPackage) return null;
+    const options = Array.isArray(resolvedPackage.scaffold_size_options)
+      ? resolvedPackage.scaffold_size_options
+      : [];
+
+    let option = null;
+    const inq = sourceQuotation?.inquiry;
+    if (inq?.selected_scaffold_option_id) {
+      option = options.find((o) => String(o._id) === String(inq.selected_scaffold_option_id));
+    }
+    if (!option && (booking?.scaffold_width || inq?.scaffold_width) && (booking?.scaffold_length || inq?.scaffold_length)) {
+      const w = booking?.scaffold_width || inq?.scaffold_width;
+      const l = booking?.scaffold_length || inq?.scaffold_length;
+      option = options.find((o) => Number(o.width_ft) === Number(w) && Number(o.length_ft) === Number(l));
+    }
+    if (!option && resolvedPackage.default_scaffold_option_id) {
+      option = options.find((o) => String(o._id) === String(resolvedPackage.default_scaffold_option_id));
+    }
+    if (!option && options.length > 0) {
+      option = options[0];
+    }
+
+    const width = booking?.scaffold_width || inq?.scaffold_width || option?.width_ft;
+    const length = booking?.scaffold_length || inq?.scaffold_length || option?.length_ft;
+    const area = booking?.scaffold_base_area || inq?.scaffold_base_area || option?.area_ft2;
+    const label = option?.label ? String(option.label).trim() : null;
+
+    if (width && length) {
+      return {
+        formatted: `${width}ft × ${length}ft`,
+        width,
+        length,
+        label,
+        area: area ? `${area} sq.ft.` : null,
+        capacity: option?.guest_min && option?.guest_max ? `${option.guest_min}–${option.guest_max} guests` : null,
+      };
+    }
+    return null;
+  }, [resolvedPackage, booking, sourceQuotation]);
+
+  const categorizedMenu = useMemo(() => {
+    return categorizeMenuItems(booking?.menu_items || []);
+  }, [booking?.menu_items]);
+
   const serviceItemsSubtotal = (booking?.service_items || []).reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
@@ -266,13 +446,12 @@ export default function CustomerEventDashboard() {
     0
   );
   const menuItemsAddonSubtotal = (booking?.menu_items || []).reduce(
-    (sum, item) => sum + (Number(item.price) || 0),
+    (sum, item) => sum + getItemLineTotal(item, guestCount),
     0
   );
   const addOnsSubtotal = serviceItemsSubtotal + additionalChargesSubtotal + menuItemsAddonSubtotal;
 
-  const pkg = booking?.package_id;
-  const guestCount = Number(booking?.guest_count) || 0;
+  const pkg = resolvedPackage || booking?.package_id;
   
   let basePackageSubtotal = 0;
   let pkgLabelText = "Base Package Subtotal";
@@ -294,6 +473,19 @@ export default function CustomerEventDashboard() {
     basePackageSubtotal = Math.max(0, grandTotal + discountAmount - addOnsSubtotal);
     pkgLabelText = `Base Package Subtotal (${guestCount} guests)`;
   }
+
+  const packageStartingPrice = Number(activeQuotation?.package_starting_price) > 0
+    ? Number(activeQuotation.package_starting_price)
+    : (resolvedPackage?.package_type === "Event Setup Only"
+        ? Number(resolvedPackage?.setup_price || 0)
+        : (Number(resolvedPackage?.price_per_guest || 0) * guestCount));
+
+  const packageFinalPrice = Number(activeQuotation?.package_price) > 0
+    ? Number(activeQuotation.package_price)
+    : (packageStartingPrice > 0 ? packageStartingPrice : basePackageSubtotal);
+
+  const showPackageBreakdown =
+    packageStartingPrice > 0 && (removedInclusions.length > 0 || inclusionAdjustments.length > 0);
 
   const displayPaid = grandTotal > 0 ? Math.min(totalPaid, grandTotal) : totalPaid;
   const outstandingAmount = Math.max(0, grandTotal - displayPaid);
@@ -408,8 +600,20 @@ export default function CustomerEventDashboard() {
    */
   const fetchSourceQuotation = async (currentBooking = booking) => {
     try {
-      let inquiryId = currentBooking?.inquiry_id?._id || currentBooking?.inquiry_id;
-      let sourceInquiry = null;
+      let qObj = null;
+      if (currentBooking?.quotation_id && typeof currentBooking.quotation_id === "object") {
+        qObj = currentBooking.quotation_id;
+      } else if (typeof currentBooking?.quotation_id === "string") {
+        try {
+          const qRes = await CustomerAPI.getQuotationById(currentBooking.quotation_id);
+          if (qRes?.data) qObj = qRes.data;
+        } catch {
+          // fallback to inquiry below
+        }
+      }
+
+      let inquiryId = currentBooking?.inquiry_id?._id || currentBooking?.inquiry_id || qObj?.inquiry_id?._id || qObj?.inquiry_id;
+      let sourceInquiry = typeof currentBooking?.inquiry_id === "object" ? currentBooking.inquiry_id : null;
 
       if (!inquiryId) {
         const inqRes = await CustomerAPI.getInquiries();
@@ -419,11 +623,29 @@ export default function CustomerEventDashboard() {
         inquiryId = sourceInquiry?._id;
       }
 
-      if (!inquiryId) return;
+      if (inquiryId && !sourceInquiry) {
+        try {
+          const inqRes = await CustomerAPI.getInquiryById(inquiryId);
+          sourceInquiry = inqRes.data || null;
+        } catch {
+          // ignore
+        }
+      }
 
-      const qRes = await CustomerAPI.getQuotationsForInquiry(inquiryId);
-      const allVersions = qRes.data || [];
-      const picked = selectSourceQuotation(allVersions);
+      let allVersions = [];
+      let picked = qObj;
+      if (inquiryId) {
+        try {
+          const qRes = await CustomerAPI.getQuotationsForInquiry(inquiryId);
+          allVersions = qRes.data || [];
+          if (!picked) {
+            picked = selectSourceQuotation(allVersions);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       if (picked) {
         setSourceQuotation({ quotation: picked, inquiry: sourceInquiry, versions: allVersions });
       }
@@ -717,14 +939,14 @@ export default function CustomerEventDashboard() {
         )}
 
         {/* Header — what this booking is, when, and what it costs */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-            <div className="min-w-0 space-y-2.5">
+        <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-2xs space-y-3">
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+            <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-sans text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                <h1 className="font-sans text-lg sm:text-xl font-bold tracking-tight text-slate-900">
                   {booking.event_type || "Catering Event"}
                 </h1>
-                <Badge className={`rounded-md px-2.5 py-0.5 text-xs ${statusBadge.variant}`}>
+                <Badge className={`rounded-md px-2 py-0.5 text-xs ${statusBadge.variant}`}>
                   {statusBadge.label}
                 </Badge>
                 {booking.is_revised && (
@@ -734,7 +956,7 @@ export default function CustomerEventDashboard() {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600">
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-slate-600">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden="true" />
                   <span className="font-semibold text-slate-800">
@@ -768,22 +990,22 @@ export default function CustomerEventDashboard() {
             </div>
 
             {/* The whole money story — total, paid, remaining */}
-            <div className="w-full shrink-0 rounded-xl border border-slate-200 bg-slate-50/80 p-4 lg:w-80">
+            <div className="w-full shrink-0 rounded-lg border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 lg:w-72">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-xs font-medium text-slate-500">Total cost</span>
                 <span className="text-xs font-bold tabular-nums text-slate-900">{formatCurrency(grandTotal)}</span>
               </div>
-              <div className="mt-1 flex items-baseline justify-between gap-3">
+              <div className="mt-0.5 flex items-baseline justify-between gap-3">
                 <span className="text-xs font-medium text-slate-500">Amount paid</span>
                 <span className="text-xs font-bold tabular-nums text-emerald-700">
                   {displayPaid > 0 ? `− ${formatCurrency(displayPaid)}` : formatCurrency(0)}
                 </span>
               </div>
-              <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-slate-200 pt-2">
+              <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t border-slate-200 pt-1.5">
                 <span className="text-xs font-bold text-slate-800">
                   {isFullyPaid ? "Paid in full" : "Remaining balance"}
                 </span>
-                <span className={`text-xl font-bold tabular-nums ${isFullyPaid ? "text-emerald-700" : "text-amber-700"}`}>
+                <span className={`text-lg font-bold tabular-nums ${isFullyPaid ? "text-emerald-700" : "text-amber-700"}`}>
                   {formatCurrency(isFullyPaid ? grandTotal : outstandingAmount)}
                 </span>
               </div>
@@ -792,7 +1014,7 @@ export default function CustomerEventDashboard() {
                 <Button
                   onClick={handlePayRemainingBalance}
                   disabled={payingPaymentId !== null}
-                  className="mt-3 w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 rounded-lg cursor-pointer shadow-xs gap-1.5 transition-all active:scale-[0.98]"
+                  className="mt-2 w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 rounded-lg cursor-pointer shadow-xs gap-1.5 transition-all active:scale-[0.98]"
                 >
                   <CreditCard className="h-4 w-4" />
                   {payingPaymentId ? "Opening Checkout…" : `Pay Balance (${formatCurrency(outstandingAmount)})`}
@@ -802,7 +1024,7 @@ export default function CustomerEventDashboard() {
           </div>
 
           {/* WORKFLOW-ORGANIZED QUICK ACTION TOOLBAR */}
-          <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
@@ -816,38 +1038,15 @@ export default function CustomerEventDashboard() {
               </Button>
 
               {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setAddingGuests(true)}
-                    className="text-xs rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold gap-1.5 h-8 px-3 cursor-pointer shadow-2xs"
-                  >
-                    <Users className="w-3.5 h-3.5 text-blue-600" />
-                    Add Guests
-                  </Button>
-
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setRequestingChange(true)}
-                    disabled={booking.change_request?.status === 'pending'}
-                    className="text-xs rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold gap-1.5 h-8 px-3 cursor-pointer shadow-2xs"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
-                    {booking.change_request?.status === 'pending' ? "Change Pending" : "Request Changes"}
-                  </Button>
-
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setRequestingCancellation(true)}
-                    className="text-xs rounded-lg border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-800 font-semibold gap-1.5 h-8 px-3 cursor-pointer"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                    Request Cancellation
-                  </Button>
-                </>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setRequestingCancellation(true)}
+                  className="text-xs rounded-lg border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-800 font-semibold gap-1.5 h-8 px-3 cursor-pointer"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  Request Cancellation
+                </Button>
               )}
             </div>
 
@@ -1308,6 +1507,246 @@ export default function CustomerEventDashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 sm:p-5 space-y-4">
+                    {/* Selected Package & Inclusions Banner & Collapsible Accordion */}
+                    {hasPackage && (
+                      <div className="rounded-xl border border-border bg-slate-50/70 p-4 transition-all space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div className="flex items-start gap-3.5 min-w-0">
+                            {resolvedPackage?.image_url ? (
+                              <img
+                                src={resolvedPackage.image_url}
+                                alt={resolvedPackage.name}
+                                className="w-14 h-14 rounded-xl object-cover border border-border shrink-0 shadow-2xs"
+                              />
+                            ) : (
+                              <div className="w-14 h-14 rounded-xl bg-blue-100/70 border border-blue-200 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
+                                <Package className="w-6 h-6 opacity-80" />
+                              </div>
+                            )}
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block leading-none">
+                                  Selected Package
+                                </span>
+                                <span className="text-[10px] font-bold text-[#1E3563] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                  {isSpecialOffer ? "Special Offer Combo" : (resolvedPackage?.package_type || "Catering Package")}
+                                </span>
+                              </div>
+                              <h3 className="font-extrabold text-sm sm:text-base text-foreground font-sans tracking-tight">
+                                {resolvedPackage?.name || booking?.package_name_snapshot || activeQuotation?.package_name}
+                              </h3>
+                              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2 max-w-xl">
+                                {resolvedPackage?.description || "Curated catering and event setup package tailored for your event."}
+                              </p>
+
+                              {/* Badges Summary */}
+                              <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                                {totalDishesCount > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white border border-border px-2 py-0.5 rounded-md text-foreground shadow-2xs">
+                                    <Utensils className="w-3 h-3 text-[#2C4B8A]" />
+                                    <span>{totalDishesCount} dishes</span>
+                                  </span>
+                                )}
+
+                                {totalPackageInclusionsCount > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white border border-border px-2 py-0.5 rounded-md text-foreground shadow-2xs">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>{totalPackageInclusionsCount} setup inclusions</span>
+                                  </span>
+                                )}
+
+                                {resolvedScaffoldSize && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white border border-border px-2 py-0.5 rounded-md text-foreground shadow-2xs">
+                                    <Store className="w-3 h-3 text-[#2C4B8A]" />
+                                    <span>{resolvedScaffoldSize.formatted}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Toggle Details Accordion Button */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsPackageExpanded((prev) => !prev)}
+                            className="border-slate-300 hover:border-[#2C4B8A] text-[#1E3563] bg-white hover:bg-blue-50 font-bold text-xs h-8 px-3 rounded-lg gap-1.5 cursor-pointer shadow-2xs shrink-0 self-start sm:self-center transition-all"
+                          >
+                            <span>{isPackageExpanded ? "Hide Package Details" : "View Package Details"}</span>
+                            {isPackageExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        </div>
+
+                        {/* EXPANDED ACCORDION CONTENT */}
+                        {isPackageExpanded && (
+                          <div className="pt-4 border-t border-border space-y-4 animate-in fade-in-50 duration-200">
+                            {/* Full description if present */}
+                            {resolvedPackage?.fullDescription && resolvedPackage.fullDescription !== resolvedPackage.description && (
+                              <p className="text-xs text-muted-foreground leading-relaxed bg-white p-3.5 rounded-xl border border-border">
+                                {resolvedPackage.fullDescription}
+                              </p>
+                            )}
+
+                            {/* 1. PACKAGE BREAKDOWN & QUOTATION ADJUSTMENTS (Default package vs final quote) */}
+                            {showPackageBreakdown && (
+                              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-border space-y-2.5">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                  <span className="font-bold text-xs text-foreground uppercase tracking-wider font-sans">
+                                    Package Quotation Breakdown
+                                  </span>
+                                  <span className="text-xs font-semibold text-muted-foreground">
+                                    Base &amp; Adjustments
+                                  </span>
+                                </div>
+                                <dl className="space-y-1.5 text-xs">
+                                  {packageStartingPrice > 0 && (
+                                    <div className="flex items-center justify-between gap-4">
+                                      <dt className="text-muted-foreground">Original Package Starting Price</dt>
+                                      <dd className="font-sans font-semibold tabular-nums text-foreground">
+                                        {formatCurrency(packageStartingPrice)}
+                                      </dd>
+                                    </div>
+                                  )}
+                                  {removedInclusions.map((entry, idx) => (
+                                    <div key={`rem-${idx}`} className="flex items-center justify-between gap-4 text-xs">
+                                      <dt className="text-rose-600 flex items-center gap-1.5">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                        <span>Removed: {entry.name || entry}</span>
+                                      </dt>
+                                      <dd className="font-sans font-semibold tabular-nums text-emerald-700">
+                                        − {formatCurrency(entry.deduction || 0)}
+                                      </dd>
+                                    </div>
+                                  ))}
+                                  {inclusionAdjustments.map((entry, idx) => {
+                                    const amt = Number(entry.amount) || 0;
+                                    return (
+                                      <div key={`adj-${idx}`} className="flex items-center justify-between gap-4 text-xs">
+                                        <dt className="text-muted-foreground flex items-center gap-1.5">
+                                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                          <span>{entry.name} ({entry.quantity} instead of {entry.base_quantity})</span>
+                                        </dt>
+                                        <dd className={cn("font-sans font-semibold tabular-nums", amt < 0 ? "text-emerald-700" : "text-foreground")}>
+                                          {amt < 0 ? "− " : "+ "}{formatCurrency(Math.abs(amt))}
+                                        </dd>
+                                      </div>
+                                    );
+                                  })}
+                                  {packageFinalPrice > 0 && (
+                                    <div className="flex items-center justify-between gap-4 pt-2 border-t border-slate-100 font-bold">
+                                      <dt className="text-foreground">Final Adjusted Package Price</dt>
+                                      <dd className="font-sans text-sm tabular-nums text-[#1E3563]">
+                                        {formatCurrency(packageFinalPrice)}
+                                      </dd>
+                                    </div>
+                                  )}
+                                </dl>
+                              </div>
+                            )}
+
+                            {/* 2. SETUP & INVENTORY INCLUSIONS */}
+                            {packageInclusionGroups.length > 0 && (
+                              <div className="space-y-3 bg-white p-3.5 sm:p-4 rounded-xl border border-border">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                  <div className="flex items-center gap-2">
+                                    <Layers className="w-4 h-4 text-[#2C4B8A]" />
+                                    <h4 className="font-bold text-xs text-foreground uppercase tracking-wider font-sans">
+                                      Active Package Inclusions &amp; Setup ({totalPackageInclusionsCount} items)
+                                    </h4>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                  {packageInclusionGroups.map(({ category, items }) => (
+                                    <div key={category} className="space-y-1.5">
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                                        {category}
+                                      </span>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {items.map((item, idx) => (
+                                          <div
+                                            key={idx}
+                                            className="flex items-start justify-between gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200/70 text-xs text-slate-800"
+                                          >
+                                            <div className="flex items-start gap-2 min-w-0">
+                                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                              <span className="leading-snug">{item}</span>
+                                            </div>
+                                            <span className="shrink-0 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                              Included
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 3. ITEMS REMOVED FROM DEFAULT PACKAGE */}
+                            {removedInclusions.length > 0 && !showPackageBreakdown && (
+                              <div className="space-y-2.5 bg-rose-50/50 p-3.5 sm:p-4 rounded-xl border border-rose-200/80">
+                                <div className="flex items-center gap-2 pb-1.5 border-b border-rose-200/60">
+                                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                                  <h4 className="font-bold text-xs text-rose-900 uppercase tracking-wider font-sans">
+                                    Items Removed from Default Package ({removedInclusions.length})
+                                  </h4>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {removedInclusions.map((entry, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-rose-200 text-xs shadow-2xs"
+                                    >
+                                      <span className="text-rose-900 font-medium line-through">
+                                        {entry.name || entry}
+                                      </span>
+                                      <span className="font-sans font-bold text-xs tabular-nums text-emerald-700 shrink-0">
+                                        − {formatCurrency(entry.deduction || 0)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 4. SCAFFOLD SIZE SPECIFICATIONS (IF CONFIGURED) */}
+                            {resolvedScaffoldSize && (
+                              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-border space-y-2 text-xs">
+                                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                                  <Store className="w-4 h-4 text-[#2C4B8A]" />
+                                  <h4 className="font-bold text-xs text-foreground uppercase tracking-wider font-sans">
+                                    Configured Package Scaffold Size
+                                  </h4>
+                                </div>
+                                <div className="flex items-center gap-3 flex-wrap pt-1">
+                                  <div className="flex items-center gap-1.5 font-bold text-foreground text-sm">
+                                    <span>{resolvedScaffoldSize.formatted}</span>
+                                    {resolvedScaffoldSize.label && (
+                                      <span className="text-xs text-muted-foreground font-normal">({resolvedScaffoldSize.label})</span>
+                                    )}
+                                  </div>
+                                  {resolvedScaffoldSize.area && (
+                                    <span className="text-muted-foreground font-normal">• Total Area: {resolvedScaffoldSize.area}</span>
+                                  )}
+                                  {resolvedScaffoldSize.capacity && (
+                                    <span className="text-muted-foreground font-normal">• Optimal for {resolvedScaffoldSize.capacity}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Selected Dishes — 2 column dense grid */}
                     {booking.menu_items && booking.menu_items.length > 0 ? (
                       <div>
@@ -1317,33 +1756,53 @@ export default function CustomerEventDashboard() {
                           </h4>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {booking.menu_items.map((item, idx) => (
-                            <div key={idx} className="flex items-start justify-between gap-2 p-2.5 rounded-md border border-border bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-semibold text-foreground leading-snug">
-                                  {item.name}
-                                  {menuAmountLabel(item) && (
-                                    <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                                      {menuAmountLabel(item)}
+                          {booking.menu_items.map((item, idx) => {
+                            const lineTotal = getItemLineTotal(item, guestCount);
+                            const byQuantity = item?.pricing_type === MENU_PRICING.QUANTITY || (item?.quantity > 1 && item?.unit);
+                            const qty = Number(item?.quantity) || 1;
+                            const unitLabel = item?.unit || "unit";
+                            const amountLabel = menuAmountLabel(item) || (byQuantity ? `${qty} ${unitLabel}` : "");
+
+                            return (
+                              <div key={idx} className="flex items-start justify-between gap-2 p-2.5 rounded-md border border-border bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-foreground leading-snug">
+                                    {item.name}
+                                    {amountLabel && (
+                                      <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                                        {amountLabel}
+                                      </span>
+                                    )}
+                                  </p>
+                                  {item.category && (
+                                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide block mt-0.5">
+                                      {item.category}
                                     </span>
                                   )}
-                                </p>
-                                {item.category && (
-                                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide block mt-0.5">
-                                    {item.category}
+                                  {item.note && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{item.note}</p>}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <span className="font-sans text-xs tabular-nums font-semibold">
+                                    {lineTotal > 0 ? (
+                                      <span className="text-foreground font-bold">+{formatCurrency(lineTotal)}</span>
+                                    ) : (
+                                      <span className="text-muted-foreground font-normal text-[11px]">Included</span>
+                                    )}
                                   </span>
-                                )}
-                                {item.note && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{item.note}</p>}
+                                  {lineTotal > 0 && byQuantity && qty > 1 && item.price > 0 && (
+                                    <span className="block text-[10px] text-muted-foreground font-normal tabular-nums leading-tight mt-0.5">
+                                      ({formatCurrency(item.price)}/{unitLabel})
+                                    </span>
+                                  )}
+                                  {lineTotal > 0 && item.pricing_type === MENU_PRICING.PER_GUEST && guestCount > 1 && item.price > 0 && (
+                                    <span className="block text-[10px] text-muted-foreground font-normal tabular-nums leading-tight mt-0.5">
+                                      ({formatCurrency(item.price)}/guest)
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <span className="shrink-0 font-sans text-xs tabular-nums font-semibold">
-                                {item.price > 0 ? (
-                                  <span className="text-foreground">+{formatCurrency(item.price)}</span>
-                                ) : (
-                                  <span className="text-muted-foreground font-normal text-[11px]">Included</span>
-                                )}
-                              </span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ) : (

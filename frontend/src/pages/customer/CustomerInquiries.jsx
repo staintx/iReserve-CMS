@@ -538,7 +538,7 @@ export default function CustomerInquiries() {
           </div>
 
           <Button
-            onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+            onClick={() => navigate("/packages")}
             className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-md font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -548,274 +548,274 @@ export default function CustomerInquiries() {
 
         {/* WORKSPACE AREA: FULL CONTENT WIDTH */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-4 sm:p-6 space-y-4 w-full">
-            {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
-              {/* Search Bar */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search by event name or reference..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filter Controls */}
-              <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
-                {/* Status Filter Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                        statusFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
-                      )}
-                    >
-                      <span>
-                        {statusFilter === "all"
-                          ? "All inquiries"
-                          : statusFilter === "pending_review"
-                          ? "Pending review"
-                          : statusFilter === "quote_ready"
-                          ? "Quotation ready"
-                          : statusFilter === "accepted"
-                          ? "Accepted"
-                          : "Cancelled"}
-                      </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                      Filter Status
-                    </DropdownMenuLabel>
-                    {[
-                      { id: "all", label: "All inquiries" },
-                      { id: "pending_review", label: "Pending review" },
-                      { id: "quote_ready", label: "Quotation ready" },
-                      { id: "accepted", label: "Accepted" },
-                      { id: "cancelled", label: "Cancelled" },
-                    ].map((item) => (
-                      <DropdownMenuItem
-                        key={item.id}
-                        onClick={() => setStatusFilter(item.id)}
-                        className={cn(
-                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                        )}
-                      >
-                        <span>{item.label}</span>
-                        {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Service Type Filter */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                        serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
-                      )}
-                    >
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                      <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60 rounded-xl p-1.5 shadow-lg border-slate-200 max-h-96 overflow-y-auto [scrollbar-width:thin]">
-                    <DropdownMenuItem
-                      onClick={() => setServiceTypeFilter("all")}
-                      className={cn(
-                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        serviceTypeFilter === "all" ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                      )}
-                    >
-                      <span>All Services</span>
-                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                    </DropdownMenuItem>
-
-                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
-
-                    {/* Category 1: Regular Package */}
-                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                      Regular Package
-                    </DropdownMenuLabel>
-                    {["Regular Package", "Regular Package + Menu"].map((opt) => (
-                      <DropdownMenuItem
-                        key={opt}
-                        onClick={() => setServiceTypeFilter(opt)}
-                        className={cn(
-                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                        )}
-                      >
-                        <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                      </DropdownMenuItem>
-                    ))}
-
-                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
-
-                    {/* Category 2: Combo Packs */}
-                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                      Combo Packs
-                    </DropdownMenuLabel>
-                    {comboPackNames.length > 0 ? (
-                      comboPackNames.map((name) => (
-                        <DropdownMenuItem
-                          key={name}
-                          onClick={() => setServiceTypeFilter(name)}
-                          className={cn(
-                            "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                            serviceTypeFilter === name ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                          )}
-                        >
-                          <span className="truncate">{name}</span>
-                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />}
-                        </DropdownMenuItem>
-                      ))
-                    ) : (
-                      <div className="px-3 py-1 text-[11px] text-slate-400 italic">No combo packs configured</div>
-                    )}
-
-                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
-
-                    {/* Category 3: Request Custom */}
-                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                      Request Custom
-                    </DropdownMenuLabel>
-                    {["Food Only", "Event Setup Only", "Food and Event Setup"].map((opt) => (
-                      <DropdownMenuItem
-                        key={opt}
-                        onClick={() => setServiceTypeFilter(opt)}
-                        className={cn(
-                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                        )}
-                      >
-                        <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Sort Order */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
-                    >
-                      <span>
-                        {sortBy === "newest"
-                          ? "Newest first"
-                          : sortBy === "oldest"
-                          ? "Oldest first"
-                          : "Event date"}
-                      </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                      Sort Order
-                    </DropdownMenuLabel>
-                    {[
-                      { id: "newest", label: "Newest first" },
-                      { id: "oldest", label: "Oldest first" },
-                      { id: "date", label: "Event date" },
-                    ].map((item) => (
-                      <DropdownMenuItem
-                        key={item.id}
-                        onClick={() => setSortBy(item.id)}
-                        className={cn(
-                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                        )}
-                      >
-                        <span>{item.label}</span>
-                        {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            {/* UNBOXED INQUIRIES CARDS LIST */}
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:thin]">
-              {loading ? (
-                <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
-                  Loading inquiries...
-                </div>
-              ) : displayedInquiries.length === 0 ? (
-                <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
-                  <FileText className="w-10 h-10 text-slate-300 mb-2" />
-                  <h3 className="text-sm font-bold text-slate-800 font-sans">No inquiries found</h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
-                    {isFiltered
-                      ? "Try clearing active search or filters to see other inquiry requests."
-                      : "No active quote requests yet. Create a new request to get started."}
-                  </p>
-                  {isFiltered ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSearchQuery("");
-                        setStatusFilter("all");
-                        setServiceTypeFilter("all");
-                      }}
-                      className="mt-4 text-xs font-semibold rounded-md border-slate-200"
-                    >
-                      Clear all filters
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                      className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-md"
-                    >
-                      Create Quote Request
-                    </Button>
-                  )}
-                </div>
-              ) : statusFilter === "all" ? (
-                <>
-                  {activeInquiries.map(renderInquiryCard)}
-                  {cancelledInquiries.length > 0 && (
-                    <div className="pt-4 pb-1 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-px bg-slate-200/90 flex-1" />
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2.5 py-0.5 rounded bg-slate-100 select-none">
-                          Cancelled Inquiries
-                        </span>
-                        <div className="h-px bg-slate-200/90 flex-1" />
-                      </div>
-                      {cancelledInquiries.map(renderInquiryCard)}
-                    </div>
-                  )}
-                </>
-              ) : (
-                displayedInquiries.map(renderInquiryCard)
+          {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+            {/* Search Bar */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by event name or reference..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
+
+            {/* Filter Controls */}
+            <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
+              {/* Status Filter Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                      statusFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                    )}
+                  >
+                    <span>
+                      {statusFilter === "all"
+                        ? "All inquiries"
+                        : statusFilter === "pending_review"
+                          ? "Pending review"
+                          : statusFilter === "quote_ready"
+                            ? "Quotation ready"
+                            : statusFilter === "accepted"
+                              ? "Accepted"
+                              : "Cancelled"}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    Filter Status
+                  </DropdownMenuLabel>
+                  {[
+                    { id: "all", label: "All inquiries" },
+                    { id: "pending_review", label: "Pending review" },
+                    { id: "quote_ready", label: "Quotation ready" },
+                    { id: "accepted", label: "Accepted" },
+                    { id: "cancelled", label: "Cancelled" },
+                  ].map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => setStatusFilter(item.id)}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                      {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Service Type Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                      serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                    )}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                    <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 rounded-xl p-1.5 shadow-lg border-slate-200 max-h-96 overflow-y-auto [scrollbar-width:thin]">
+                  <DropdownMenuItem
+                    onClick={() => setServiceTypeFilter("all")}
+                    className={cn(
+                      "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                      serviceTypeFilter === "all" ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                    )}
+                  >
+                    <span>All Services</span>
+                    {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                  {/* Category 1: Regular Package */}
+                  <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                    Regular Package
+                  </DropdownMenuLabel>
+                  {["Regular Package", "Regular Package + Menu"].map((opt) => (
+                    <DropdownMenuItem
+                      key={opt}
+                      onClick={() => setServiceTypeFilter(opt)}
+                      className={cn(
+                        "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{opt}</span>
+                      {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+
+                  <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                  {/* Category 2: Combo Packs */}
+                  <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                    Combo Packs
+                  </DropdownMenuLabel>
+                  {comboPackNames.length > 0 ? (
+                    comboPackNames.map((name) => (
+                      <DropdownMenuItem
+                        key={name}
+                        onClick={() => setServiceTypeFilter(name)}
+                        className={cn(
+                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === name ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span className="truncate">{name}</span>
+                        {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <div className="px-3 py-1 text-[11px] text-slate-400 italic">No combo packs configured</div>
+                  )}
+
+                  <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                  {/* Category 3: Request Custom */}
+                  <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                    Request Custom
+                  </DropdownMenuLabel>
+                  {["Food Only", "Event Setup Only", "Food and Event Setup"].map((opt) => (
+                    <DropdownMenuItem
+                      key={opt}
+                      onClick={() => setServiceTypeFilter(opt)}
+                      className={cn(
+                        "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{opt}</span>
+                      {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Sort Order */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <span>
+                      {sortBy === "newest"
+                        ? "Newest first"
+                        : sortBy === "oldest"
+                          ? "Oldest first"
+                          : "Event date"}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    Sort Order
+                  </DropdownMenuLabel>
+                  {[
+                    { id: "newest", label: "Newest first" },
+                    { id: "oldest", label: "Oldest first" },
+                    { id: "date", label: "Event date" },
+                  ].map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => setSortBy(item.id)}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                      {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* UNBOXED INQUIRIES CARDS LIST */}
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:thin]">
+            {loading ? (
+              <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
+                Loading inquiries...
+              </div>
+            ) : displayedInquiries.length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
+                <FileText className="w-10 h-10 text-slate-300 mb-2" />
+                <h3 className="text-sm font-bold text-slate-800 font-sans">No inquiries found</h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
+                  {isFiltered
+                    ? "Try clearing active search or filters to see other inquiry requests."
+                    : "No active quote requests yet. Create a new request to get started."}
+                </p>
+                {isFiltered ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setStatusFilter("all");
+                      setServiceTypeFilter("all");
+                    }}
+                    className="mt-4 text-xs font-semibold rounded-md border-slate-200"
+                  >
+                    Clear all filters
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                    className="mt-4 bg-[#2C4B8A] hover:bg-[#1E3563] text-white text-xs font-semibold rounded-md"
+                  >
+                    Create Quote Request
+                  </Button>
+                )}
+              </div>
+            ) : statusFilter === "all" ? (
+              <>
+                {activeInquiries.map(renderInquiryCard)}
+                {cancelledInquiries.length > 0 && (
+                  <div className="pt-4 pb-1 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px bg-slate-200/90 flex-1" />
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2.5 py-0.5 rounded bg-slate-100 select-none">
+                        Cancelled Inquiries
+                      </span>
+                      <div className="h-px bg-slate-200/90 flex-1" />
+                    </div>
+                    {cancelledInquiries.map(renderInquiryCard)}
+                  </div>
+                )}
+              </>
+            ) : (
+              displayedInquiries.map(renderInquiryCard)
+            )}
+          </div>
         </div>
       </div>
 

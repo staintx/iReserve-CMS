@@ -49,7 +49,7 @@ import useToast from "../../hooks/useToast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { createConversation } from "../../api/messages";
-import { menuAmountLabel } from "../../utils/quotationPricing";
+import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
 import { isFoodOnly, isSetupOnly, isOcularRequired } from "../../components/customer/portal/statusMeta";
 
 export default function AdminBookingDetails() {
@@ -327,7 +327,7 @@ export default function AdminBookingDetails() {
     0
   );
   const menuItemsAddonSubtotal = (booking.menu_items || []).reduce(
-    (sum, item) => sum + (Number(item.price) || 0),
+    (sum, item) => sum + menuLineTotal(item, guestCount),
     0
   );
   const addOnsSubtotal = serviceItemsSubtotal + additionalChargesSubtotal + menuItemsAddonSubtotal;
@@ -1171,22 +1171,25 @@ export default function AdminBookingDetails() {
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Selected Menu Dishes</span>
                 <div className="border border-slate-200 rounded-md overflow-hidden text-xs shadow-2xs">
                   {booking.menu_items && booking.menu_items.length > 0 ? (
-                    booking.menu_items.map((item, idx) => (
-                      <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
-                        <div>
-                          <strong className="text-slate-900">{item.name || item}</strong>
-                          {/* The amount the quotation settled on, so the kitchen
-                              reads the same order the customer accepted. */}
-                          {menuAmountLabel(item) && (
-                            <span className="ml-1.5 text-[11px] font-semibold text-slate-500">
-                              {menuAmountLabel(item)}
-                            </span>
-                          )}
-                          {item.note && <span className="block text-slate-400 text-[11px]">{item.note}</span>}
+                    booking.menu_items.map((item, idx) => {
+                      const itemTotal = menuLineTotal(item, guestCount);
+                      return (
+                        <div key={idx} className="p-3 border-b border-slate-100 last:border-0 flex justify-between items-center bg-white">
+                          <div>
+                            <strong className="text-slate-900">{item.name || item}</strong>
+                            {/* The amount the quotation settled on, so the kitchen
+                                reads the same order the customer accepted. */}
+                            {menuAmountLabel(item) && (
+                              <span className="ml-1.5 text-[11px] font-semibold text-slate-500">
+                                {menuAmountLabel(item)}
+                              </span>
+                            )}
+                            {item.note && <span className="block text-slate-400 text-[11px]">{item.note}</span>}
+                          </div>
+                          <span className="font-semibold text-slate-700">{itemTotal > 0 ? fmt(itemTotal) : "Included"}</span>
                         </div>
-                        <span className="font-semibold text-slate-700">{item.price ? fmt(item.price) : "Included"}</span>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <p className="p-4 text-center text-slate-400 text-xs">No specific menu items listed.</p>
                   )}

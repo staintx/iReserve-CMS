@@ -521,7 +521,7 @@ export default function CustomerInquiryDetails() {
     },
     {
       id: "review",
-      title: "Under Review",
+      title: "Pending review",
       desc: "Preparing pricing & venue check",
       status: ["Pending Review", "Under Review", "Revision Requested", "Quotation Sent", "Quote Accepted", "Converted to Booking"].includes(inquiry.status)
         ? inquiry.status === "Pending Review" || inquiry.status === "Under Review" || inquiry.status === "Revision Requested"
@@ -531,7 +531,7 @@ export default function CustomerInquiryDetails() {
     },
     {
       id: "quote",
-      title: "Quotation Ready",
+      title: "Quotation ready",
       desc: "Proposal ready for review",
       status: isQuotationSent
         ? "active"

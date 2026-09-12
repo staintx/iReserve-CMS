@@ -160,43 +160,85 @@ export default function CustomerInquiries() {
 
   useRealTimeRefresh(fetchInquiries);
 
-  // Filtered & Sorted Inquiries
-  const filteredInquiries = useMemo(() => {
-    return inquiries
-      .filter((inq) => {
-        if (statusFilter !== "all" && inquiryStatusGroup(inq) !== statusFilter) {
-          return false;
-        }
-        if (serviceTypeFilter !== "all" && resolveServiceType(inq) !== serviceTypeFilter) {
-          return false;
-        }
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const ref = (inq.reference || "").toLowerCase();
-          const type = (inq.event_type || "").toLowerCase();
-          const name = `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.toLowerCase();
-          const city = (inq.municipality || inq.province || "").toLowerCase();
-
-          return ref.includes(q) || type.includes(q) || name.includes(q) || city.includes(q);
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "oldest") {
-          const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
-          const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
-          return timeA - timeB;
-        }
-        if (sortBy === "date") {
-          const timeA = new Date(a.event_date || 0).getTime();
-          const timeB = new Date(b.event_date || 0).getTime();
-          return timeA - timeB;
-        }
-        // Default: newest
+  // Sort helper function
+  const sortInquiriesList = (list, isCancelledSection = false) => {
+    return [...list].sort((a, b) => {
+      if (sortBy === "oldest") {
         const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
         const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+        return timeA - timeB;
+      }
+      if (sortBy === "date") {
+        const timeA = new Date(a.event_date || 0).getTime();
+        const timeB = new Date(b.event_date || 0).getTime();
+        return timeA - timeB;
+      }
+      // Default: newest
+      if (isCancelledSection) {
+        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
         return timeB - timeA;
-      });
+      }
+      const timeA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      return timeB - timeA;
+    });
+  };
+
+  // Filtered & Sorted Inquiries
+  const { activeInquiries, cancelledInquiries, displayedInquiries } = useMemo(() => {
+    // Exclude inquiries converted to Bookings — they are managed in My Bookings
+    const baseList = inquiries.filter((inq) => {
+      if (inquiryStatusGroup(inq) === "converted") {
+        return false;
+      }
+      if (serviceTypeFilter !== "all" && resolveServiceType(inq) !== serviceTypeFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const ref = (inq.reference || "").toLowerCase();
+        const type = (inq.event_type || "").toLowerCase();
+        const name = `${inq.contact_first_name || ""} ${inq.contact_last_name || ""}`.toLowerCase();
+        const city = (inq.municipality || inq.province || "").toLowerCase();
+
+        return ref.includes(q) || type.includes(q) || name.includes(q) || city.includes(q);
+      }
+      return true;
+    });
+
+    if (statusFilter === "cancelled") {
+      const cancelled = sortInquiriesList(
+        baseList.filter((inq) => inquiryStatusGroup(inq) === "cancelled"),
+        true
+      );
+      return { activeInquiries: [], cancelledInquiries: cancelled, displayedInquiries: cancelled };
+    }
+
+    if (statusFilter !== "all") {
+      const active = sortInquiriesList(
+        baseList.filter((inq) => inquiryStatusGroup(inq) === statusFilter),
+        false
+      );
+      return { activeInquiries: active, cancelledInquiries: [], displayedInquiries: active };
+    }
+
+    // Default: statusFilter === "all"
+    // Active inquiries first, Cancelled inquiries always placed at the bottom
+    const active = sortInquiriesList(
+      baseList.filter((inq) => inquiryStatusGroup(inq) !== "cancelled"),
+      false
+    );
+    const cancelled = sortInquiriesList(
+      baseList.filter((inq) => inquiryStatusGroup(inq) === "cancelled"),
+      true
+    );
+
+    return {
+      activeInquiries: active,
+      cancelledInquiries: cancelled,
+      displayedInquiries: [...active, ...cancelled],
+    };
   }, [inquiries, statusFilter, serviceTypeFilter, searchQuery, sortBy]);
 
   const isFiltered = Boolean(searchQuery.trim()) || statusFilter !== "all" || serviceTypeFilter !== "all";
@@ -404,6 +446,83 @@ export default function CustomerInquiries() {
     );
   };
 
+  // Reusable Inquiry Card Renderer
+  const renderInquiryCard = (inq) => {
+    const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
+    const thumbnail = getEventThumbnail(inq);
+    const titleStr = recordTitle(inq);
+    const meta = inquiryStatusMeta(inq);
+    const locationStr = [inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_address || "Location TBD";
+
+    return (
+      <div
+        key={inq._id}
+        onClick={() => handleViewInquiry(inq)}
+        className="group p-4 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer relative shadow-2xs"
+      >
+        {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
+          {/* Cols 1-5: Thumbnail Image & Core Event Specs */}
+          <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
+            {thumbnail ? (
+              <img
+                src={thumbnail}
+                alt={titleStr}
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+              />
+            ) : (
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
+                <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
+              </div>
+            )}
+
+            <div className="min-w-0 space-y-1">
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
+                {titleStr}
+              </h3>
+
+              <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  {resolveServiceType(inq)}
+                </span>
+                <span>•</span>
+                <span>{formatShortDate(inq.event_date)}</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-slate-400" />
+                  {inq.guest_count ? `${inq.guest_count} guests` : "Guests TBD"}
+                </span>
+              </div>
+
+              <div className="text-xs text-slate-500 flex items-center gap-1 truncate">
+                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">{locationStr}</span>
+              </div>
+
+              <div className="text-[11px] font-mono text-slate-400 pt-0.5">
+                Ref: {refCode}
+              </div>
+            </div>
+          </div>
+
+          {/* Cols 6-9: Modern Status Badge & Notice Sentence */}
+          <div className="md:col-span-4 space-y-1.5 min-w-0">
+            {renderStatusBadge(inq)}
+            <p className="text-xs text-slate-500 leading-snug line-clamp-2">
+              {meta.notice?.text || "Our team is reviewing your event request details."}
+            </p>
+          </div>
+
+          {/* Cols 10-12: Action Area (Right-Aligned, Valid CTAs Only) */}
+          <div className="md:col-span-3 flex items-center justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
+            {renderCardActionButton(inq)}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <CustomerDashboardLayout fullBleed>
       <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
@@ -458,18 +577,21 @@ export default function CustomerInquiries() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className={cn(
+                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                        statusFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                      )}
                     >
                       <span>
                         {statusFilter === "all"
                           ? "All inquiries"
-                          : statusFilter === "under_review"
-                          ? "Under Review"
+                          : statusFilter === "pending_review"
+                          ? "Pending review"
                           : statusFilter === "quote_ready"
-                          ? "Quotation Ready"
+                          ? "Quotation ready"
                           : statusFilter === "accepted"
                           ? "Accepted"
-                          : "Closed"}
+                          : "Cancelled"}
                       </span>
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                     </Button>
@@ -480,10 +602,10 @@ export default function CustomerInquiries() {
                     </DropdownMenuLabel>
                     {[
                       { id: "all", label: "All inquiries" },
-                      { id: "under_review", label: "Under Review" },
-                      { id: "quote_ready", label: "Quotation Ready" },
+                      { id: "pending_review", label: "Pending review" },
+                      { id: "quote_ready", label: "Quotation ready" },
                       { id: "accepted", label: "Accepted" },
-                      { id: "closed", label: "Closed" },
+                      { id: "cancelled", label: "Cancelled" },
                     ].map((item) => (
                       <DropdownMenuItem
                         key={item.id}
@@ -642,7 +764,7 @@ export default function CustomerInquiries() {
                 <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
                   Loading inquiries...
                 </div>
-              ) : filteredInquiries.length === 0 ? (
+              ) : displayedInquiries.length === 0 ? (
                 <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
                   <FileText className="w-10 h-10 text-slate-300 mb-2" />
                   <h3 className="text-sm font-bold text-slate-800 font-sans">No inquiries found</h3>
@@ -674,82 +796,24 @@ export default function CustomerInquiries() {
                     </Button>
                   )}
                 </div>
-              ) : (
-                filteredInquiries.map((inq) => {
-                  const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
-                  const thumbnail = getEventThumbnail(inq);
-                  const titleStr = recordTitle(inq);
-                  const meta = inquiryStatusMeta(inq);
-                  const locationStr = [inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_address || "Location TBD";
-
-                  return (
-                    <div
-                      key={inq._id}
-                      onClick={() => handleViewInquiry(inq)}
-                      className="group p-4 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer relative shadow-2xs"
-                    >
-                      {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
-                        {/* Cols 1-5: Thumbnail Image & Core Event Specs */}
-                        <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
-                          {thumbnail ? (
-                            <img
-                              src={thumbnail}
-                              alt={titleStr}
-                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
-                            />
-                          ) : (
-                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
-                              <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
-                            </div>
-                          )}
-
-                          <div className="min-w-0 space-y-1">
-                            <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
-                              {titleStr}
-                            </h3>
-
-                            <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                {resolveServiceType(inq)}
-                              </span>
-                              <span>•</span>
-                              <span>{formatShortDate(inq.event_date)}</span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3.5 h-3.5 text-slate-400" />
-                                {inq.guest_count ? `${inq.guest_count} guests` : "Guests TBD"}
-                              </span>
-                            </div>
-
-                            <div className="text-xs text-slate-500 flex items-center gap-1 truncate">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate">{locationStr}</span>
-                            </div>
-
-                            <div className="text-[11px] font-mono text-slate-400 pt-0.5">
-                              Ref: {refCode}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Cols 6-9: Modern Status Badge & Notice Sentence */}
-                        <div className="md:col-span-4 space-y-1.5 min-w-0">
-                          {renderStatusBadge(inq)}
-                          <p className="text-xs text-slate-500 leading-snug line-clamp-2">
-                            {meta.notice?.text || "Our team is reviewing your event request details."}
-                          </p>
-                        </div>
-
-                        {/* Cols 10-12: Action Area (Right-Aligned, Valid CTAs Only) */}
-                        <div className="md:col-span-3 flex items-center justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
-                          {renderCardActionButton(inq)}
-                        </div>
+              ) : statusFilter === "all" ? (
+                <>
+                  {activeInquiries.map(renderInquiryCard)}
+                  {cancelledInquiries.length > 0 && (
+                    <div className="pt-4 pb-1 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-px bg-slate-200/90 flex-1" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2.5 py-0.5 rounded bg-slate-100 select-none">
+                          Cancelled Inquiries
+                        </span>
+                        <div className="h-px bg-slate-200/90 flex-1" />
                       </div>
+                      {cancelledInquiries.map(renderInquiryCard)}
                     </div>
-                  );
-                })
+                  )}
+                </>
+              ) : (
+                displayedInquiries.map(renderInquiryCard)
               )}
             </div>
         </div>

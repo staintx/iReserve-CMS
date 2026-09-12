@@ -785,7 +785,7 @@ export default function StepMenuSelection({
               </span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500 pl-6">
-              Choose dishes from our menu. Catering rate is quoted per guest.
+              Choose dishes from our menu. The price will be discussed and finalized through the quotation.
             </p>
           </button>
 

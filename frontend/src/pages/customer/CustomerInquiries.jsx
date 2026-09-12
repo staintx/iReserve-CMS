@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "../../components/ui/dropdown-menu";
 import {
   inquiryStatusGroup,
@@ -29,30 +30,25 @@ import {
   recordTitle,
   resolveServiceType,
 } from "../../components/customer/portal/statusMeta";
+import { isSpecialOffer } from "../../lib/specialOffers";
 import { cn } from "@/lib/utils";
-import { formatEventDateWithDay, formatShortDate } from "../../utils/format";
+import { formatShortDate } from "../../utils/format";
 import {
   FileText,
   Plus,
   CreditCard,
   FileCheck2,
   XCircle,
-  Clock,
   MapPin,
   Users,
   Calendar,
   Search,
   ChevronRight,
   Utensils,
-  ArrowLeft,
   ChevronDown,
-  ArrowRight,
-  Package,
   Check,
   SlidersHorizontal,
 } from "lucide-react";
-
-const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
 
 export default function CustomerInquiries() {
   const navigate = useNavigate();
@@ -61,6 +57,7 @@ export default function CustomerInquiries() {
   const { notify } = useToast();
 
   const [inquiries, setInquiries] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search, Filter, Sort State
@@ -68,9 +65,6 @@ export default function CustomerInquiries() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [serviceTypeFilter, setServiceTypeFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
-
-  // Mobile View Toggle: 'list' | 'detail'
-  const [mobileView, setMobileView] = useState("list");
 
   // Modal State for viewing Quotation
   const [activeQuotation, setActiveQuotation] = useState(null);
@@ -86,9 +80,6 @@ export default function CustomerInquiries() {
   // Edit Details Modal State
   const [editingInquiry, setEditingInquiry] = useState(null);
 
-  // Selected inquiry ID for overview panel
-  const [selectedInquiryId, setSelectedInquiryId] = useState(params.id || null);
-
   const openEditModal = async (inq) => {
     if (!inq?._id) return;
     try {
@@ -102,8 +93,12 @@ export default function CustomerInquiries() {
   const fetchInquiries = async () => {
     try {
       setLoading(true);
-      const inqRes = await CustomerAPI.getInquiries();
+      const [inqRes, pkgRes] = await Promise.all([
+        CustomerAPI.getInquiries(),
+        CustomerAPI.getPackages().catch(() => ({ data: [] })),
+      ]);
       setInquiries(inqRes.data || []);
+      setPackages(pkgRes.data || []);
     } catch (err) {
       notify("Failed to load inquiries.", "error");
       setInquiries([]);
@@ -116,12 +111,8 @@ export default function CustomerInquiries() {
     fetchInquiries();
   }, []);
 
-  // Handle URL parameters for deep-linking
+  // Handle URL parameters for edit route
   useEffect(() => {
-    if (params.id) {
-      setSelectedInquiryId(params.id);
-      setMobileView("detail");
-    }
     const isEditRoute = location.pathname.includes("/edit");
     if (isEditRoute && params.id) {
       const match = inquiries.find((i) => i._id === params.id);
@@ -210,33 +201,31 @@ export default function CustomerInquiries() {
 
   const isFiltered = Boolean(searchQuery.trim()) || statusFilter !== "all" || serviceTypeFilter !== "all";
 
-  // Auto-select first inquiry for desktop detail pane
-  useEffect(() => {
-    if (filteredInquiries.length > 0) {
-      if (!selectedInquiryId || !filteredInquiries.some((i) => i._id === selectedInquiryId)) {
-        setSelectedInquiryId(filteredInquiries[0]._id);
+  // Dynamically derive configured Combo Pack names from packages and existing inquiries
+  const comboPackNames = useMemo(() => {
+    const names = new Set();
+    (packages || []).forEach((pkg) => {
+      if (pkg.offer_type === "special" || isSpecialOffer(pkg)) {
+        if (pkg.name) names.add(pkg.name);
       }
-    } else {
-      setSelectedInquiryId(null);
-    }
-  }, [filteredInquiries, selectedInquiryId]);
-
-  const selectedInquiry = useMemo(() => {
-    return inquiries.find((i) => i._id === selectedInquiryId) || filteredInquiries[0] || null;
-  }, [inquiries, filteredInquiries, selectedInquiryId]);
-
-  const handleSelectInquiry = (id) => {
-    setSelectedInquiryId(id);
-    setMobileView("detail");
-  };
+    });
+    (inquiries || []).forEach((inq) => {
+      const isSpecial =
+        inq.booking_type === "special" ||
+        inq.package_id?.offer_type === "special" ||
+        inq.event_type === "Special Offer Catering" ||
+        Boolean(inq.package_id?.is_special_offer) ||
+        (Array.isArray(inq.offer_food_snapshot) && inq.offer_food_snapshot.length > 0);
+      if (isSpecial) {
+        const name = inq.package_name_snapshot || inq.package_id?.name;
+        if (name) names.add(name);
+      }
+    });
+    return Array.from(names);
+  }, [packages, inquiries]);
 
   const handleViewInquiry = (inq) => {
-    setSelectedInquiryId(inq._id);
-    if (typeof window !== "undefined" && window.innerWidth >= 768) {
-      navigate(`/customer/inquiries/${inq._id}`);
-    } else {
-      setMobileView("detail");
-    }
+    navigate(`/customer/inquiries/${inq._id}`);
   };
 
   // Open Quotation Modal
@@ -415,18 +404,6 @@ export default function CustomerInquiries() {
     );
   };
 
-  const selectedMeta = useMemo(() => inquiryStatusMeta(selectedInquiry), [selectedInquiry]);
-
-  // Determine active step index (0-3) for 4-Step Catering Journey Timeline
-  const activeInquiryStep = useMemo(() => {
-    if (!selectedInquiry) return 0;
-    const status = selectedInquiry.status;
-    if (status === "Converted to Booking" || selectedInquiry.converted_booking_id) return 3;
-    if (status === "Quote Accepted" || status === "Awaiting Final Confirmation" || selectedInquiry.is_deposit_paid) return 2;
-    if (status === "Quotation Sent" || status === "Revision Requested") return 1;
-    return 0; // Pending Review, Under Review, etc.
-  }, [selectedInquiry]);
-
   return (
     <CustomerDashboardLayout fullBleed>
       <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
@@ -451,14 +428,7 @@ export default function CustomerInquiries() {
         </div>
 
         {/* WORKSPACE AREA: FULL CONTENT WIDTH */}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row p-6 gap-6 w-full">
-          {/* LEFT MAIN SECTION: UNBOXED LIST AREA WITH SEARCH & FILTERS ABOVE */}
-          <div
-            className={cn(
-              "flex-1 min-w-0 flex flex-col space-y-4 overflow-hidden",
-              mobileView === "detail" ? "hidden md:flex" : "flex"
-            )}
-          >
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-4 sm:p-6 space-y-4 w-full">
             {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
               {/* Search Bar */}
@@ -545,24 +515,79 @@ export default function CustomerInquiries() {
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                      Filter Service Type
+                  <DropdownMenuContent align="end" className="w-60 rounded-xl p-1.5 shadow-lg border-slate-200 max-h-96 overflow-y-auto [scrollbar-width:thin]">
+                    <DropdownMenuItem
+                      onClick={() => setServiceTypeFilter("all")}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        serviceTypeFilter === "all" ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>All Services</span>
+                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                    {/* Category 1: Regular Package */}
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                      Regular Package
                     </DropdownMenuLabel>
-                    {[
-                      { id: "all", label: "All Services" },
-                      ...SERVICE_TYPES.map((t) => ({ id: t, label: t })),
-                    ].map((item) => (
+                    {["Regular Package", "Regular Package + Menu"].map((opt) => (
                       <DropdownMenuItem
-                        key={item.id}
-                        onClick={() => setServiceTypeFilter(item.id)}
+                        key={opt}
+                        onClick={() => setServiceTypeFilter(opt)}
                         className={cn(
-                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
                         )}
                       >
-                        <span>{item.label}</span>
-                        {serviceTypeFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        <span>{opt}</span>
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      </DropdownMenuItem>
+                    ))}
+
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                    {/* Category 2: Combo Packs */}
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                      Combo Packs
+                    </DropdownMenuLabel>
+                    {comboPackNames.length > 0 ? (
+                      comboPackNames.map((name) => (
+                        <DropdownMenuItem
+                          key={name}
+                          onClick={() => setServiceTypeFilter(name)}
+                          className={cn(
+                            "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                            serviceTypeFilter === name ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          )}
+                        >
+                          <span className="truncate">{name}</span>
+                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <div className="px-3 py-1 text-[11px] text-slate-400 italic">No combo packs configured</div>
+                    )}
+
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                    {/* Category 3: Request Custom */}
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                      Request Custom
+                    </DropdownMenuLabel>
+                    {["Food Only", "Event Setup Only", "Food and Event Setup"].map((opt) => (
+                      <DropdownMenuItem
+                        key={opt}
+                        onClick={() => setServiceTypeFilter(opt)}
+                        className={cn(
+                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span>{opt}</span>
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -651,7 +676,6 @@ export default function CustomerInquiries() {
                 </div>
               ) : (
                 filteredInquiries.map((inq) => {
-                  const isSelected = inq._id === selectedInquiryId;
                   const refCode = inq.reference || `INQ-${inq._id.substring(0, 6).toUpperCase()}`;
                   const thumbnail = getEventThumbnail(inq);
                   const titleStr = recordTitle(inq);
@@ -661,13 +685,8 @@ export default function CustomerInquiries() {
                   return (
                     <div
                       key={inq._id}
-                      onClick={() => handleSelectInquiry(inq._id)}
-                      className={cn(
-                        "group p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs",
-                        isSelected
-                          ? "bg-blue-50/40 border-l-4 border-l-blue-600 border-y border-r border-blue-200/90 shadow-sm"
-                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-xs"
-                      )}
+                      onClick={() => handleViewInquiry(inq)}
+                      className="group p-4 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer relative shadow-2xs"
                     >
                       {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
@@ -724,10 +743,7 @@ export default function CustomerInquiries() {
                         </div>
 
                         {/* Cols 10-12: Action Area (Right-Aligned, Valid CTAs Only) */}
-                        <div className="md:col-span-3 flex items-center justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
-                          <span className="text-xs text-slate-400 font-medium md:hidden flex items-center gap-1">
-                            <span>Tap to view summary</span>
-                          </span>
+                        <div className="md:col-span-3 flex items-center justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
                           {renderCardActionButton(inq)}
                         </div>
                       </div>
@@ -736,155 +752,6 @@ export default function CustomerInquiries() {
                 })
               )}
             </div>
-          </div>
-
-          {/* RIGHT ACTION & GUIDANCE CENTER SIDE PANEL WITH ABOVE-THE-FOLD VIEWPORT LAYOUT */}
-          <div
-            className={cn(
-              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-fit max-h-none md:max-h-[calc(100vh-6.5rem)] overflow-hidden",
-              mobileView === "list" ? "hidden md:flex" : "flex"
-            )}
-          >
-            {/* Mobile Back Button */}
-            <div className="md:hidden pb-2 border-b border-slate-100 shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileView("list")}
-                className="text-xs font-semibold text-[#2C4B8A] gap-1 p-0 hover:bg-transparent cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" /> Back to Inquiries List
-              </Button>
-            </div>
-
-            {selectedInquiry ? (
-              <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin]">
-                  {/* Header Card */}
-                  <div className="flex items-start justify-between gap-2.5 border-b border-slate-100 pb-2.5">
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Request</span>
-                      <h3 className="font-bold text-base text-slate-900 font-sans leading-snug truncate">
-                        {recordTitle(selectedInquiry)}
-                      </h3>
-                      <div className="text-[11px] font-mono text-slate-400 mt-0.5">
-                        Ref: {selectedInquiry.reference || `INQ-${selectedInquiry._id.substring(0, 6).toUpperCase()}`}
-                      </div>
-                    </div>
-                    {renderStatusBadge(selectedInquiry)}
-                  </div>
-
-                  {/* 4-STEP CATERING JOURNEY PROGRESSION TRACKER - COMPACT */}
-                  <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Catering Journey Progress
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-semibold relative pt-0.5 pb-0.5">
-                      {/* Connecting Background Line */}
-                      <div className="absolute top-3.5 left-3 right-3 h-0.5 bg-slate-200 -z-0" />
-                      {/* Active Filled Progress Line */}
-                      <div
-                        className="absolute top-3.5 left-3 h-0.5 bg-blue-600 transition-all duration-300 -z-0"
-                        style={{ width: `${(activeInquiryStep / 3) * 100}%` }}
-                      />
-
-                      {[
-                        { label: "Inquiry", step: 0 },
-                        { label: "Quotation", step: 1 },
-                        { label: "Booking", step: 2 },
-                        { label: "Event", step: 3 },
-                      ].map((s) => {
-                        const isDone = activeInquiryStep > s.step;
-                        const isCurrent = activeInquiryStep === s.step;
-
-                        return (
-                          <div key={s.label} className="flex flex-col items-center gap-0.5 z-10">
-                            <div
-                              className={cn(
-                                "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all shadow-2xs",
-                                isDone
-                                  ? "bg-emerald-600 text-white"
-                                  : isCurrent
-                                  ? "bg-blue-600 text-white ring-3 ring-blue-600/15 scale-105"
-                                  : "bg-white text-slate-400 border border-slate-300"
-                              )}
-                            >
-                              {isDone ? <Check className="w-3 h-3" /> : s.step + 1}
-                            </div>
-                            <span
-                              className={cn(
-                                "text-[10px] font-medium leading-tight",
-                                isCurrent ? "font-bold text-blue-900" : isDone ? "text-slate-700" : "text-slate-400"
-                              )}
-                            >
-                              {s.label}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* ACTION REQUIRED & NEXT STEP FOCUS CARD - COMPACT */}
-                  <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-2.5 space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">
-                        <ArrowRight className="w-3 h-3" />
-                      </span>
-                      <h4 className="font-bold text-[#1E3563] text-[11px] uppercase tracking-wider font-sans">
-                        {selectedInquiry.status === "Quotation Sent" ? "Action Required" : "Current Status Guidance"}
-                      </h4>
-                    </div>
-
-                    <p className="text-slate-700 text-xs leading-snug font-medium">
-                      {selectedMeta.notice?.text || "We're reviewing your request specifications and preparing your quote."}
-                    </p>
-
-                    {/* Direct Action Button in Guidance Box */}
-                    {selectedInquiry.status === "Quotation Sent" && (
-                      <Button
-                        onClick={() => openQuotationView(selectedInquiry)}
-                        disabled={isLoadingQuotation}
-                        className="w-full bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-7.5 rounded-md cursor-pointer shadow-xs gap-1.5 mt-0.5 active:scale-[0.98]"
-                      >
-                        <FileCheck2 className="w-3.5 h-3.5" />
-                        <span>Review Official Quotation</span>
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* COMPACT KEY EVENT SPECS */}
-                  <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-2.5 space-y-1 text-xs">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
-                      Event Overview
-                    </div>
-                    <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
-                      <span className="text-slate-500 font-medium">Event Date</span>
-                      <span className="font-semibold text-slate-900">{formatEventDateWithDay(selectedInquiry.event_date)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
-                      <span className="text-slate-500 font-medium">Guest Count</span>
-                      <span className="font-semibold text-slate-900">{selectedInquiry.guest_count ? `${selectedInquiry.guest_count} guests` : "TBD"}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
-                      <span className="text-slate-500 font-medium">Service Type</span>
-                      <span className="font-semibold text-slate-900">{resolveServiceType(selectedInquiry)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-700 py-0.5 text-xs">
-                      <span className="text-slate-500 font-medium">Package</span>
-                      <span className="font-semibold text-slate-900 truncate max-w-[160px]">
-                        {selectedInquiry.package_name || selectedInquiry.package_id?.name || "Custom Event Package"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-8 text-center text-slate-400 text-xs my-auto">
-                Select an inquiry to view summary.
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -899,7 +766,7 @@ export default function CustomerInquiries() {
           }}
           quotation={activeQuotation}
           versions={quotationVersions}
-          inquiry={activeQuotationInquiry || selectedInquiry}
+          inquiry={activeQuotationInquiry}
           onUpdated={fetchInquiries}
         />
       )}

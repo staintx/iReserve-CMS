@@ -31,6 +31,7 @@ import {
   ArrowRight,
   FileText,
   Calendar,
+  CalendarCheck,
   ChevronRight,
   Sparkles,
   X,
@@ -42,6 +43,7 @@ import {
   Check,
   ChevronDown
 } from "lucide-react";
+import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 
 export default function CustomerDashboard() {
@@ -201,6 +203,7 @@ export default function CustomerDashboard() {
 
       const isCompleted = b.status.toLowerCase() === "completed" || (dateKey < todayKey && b.status.toLowerCase() !== "cancelled");
       const statusMeta = bookingStatusMeta(b);
+      const ocularMeta = getBookingOcularActionMeta(b);
 
       if (isCompleted) {
         addToMap(dateKey, {
@@ -229,10 +232,39 @@ export default function CustomerDashboard() {
           guests: b.guest_count,
           reference: b.reference,
           statusPill: statusMeta ? { tone: statusMeta.tone, label: statusMeta.label, icon: statusMeta.icon } : null,
+          ocularReminder: ocularMeta?.state === "action_required" ? "Action Required: Ocular visit needs to be scheduled" : null,
           actionText: "View Booking",
           onAction: () => navigate(`/customer/bookings/${b._id}`),
         });
       }
+    });
+
+    // 2b. Ocular Visits (PURPLE = Ocular Visit)
+    bookings.forEach((b) => {
+      if (["cancelled", "refunded"].includes(b.status.toLowerCase())) return;
+      const ocularMeta = getBookingOcularActionMeta(b);
+      if (!ocularMeta || !ocularMeta.scheduledDate) return;
+
+      const dateKeyOcular = formatDateToYYYYMMDD(ocularMeta.scheduledDate);
+      if (!dateKeyOcular) return;
+
+      addToMap(dateKeyOcular, {
+        id: `ocular-${b._id}`,
+        type: "ocular",
+        categoryLabel: "Ocular Visit",
+        title: `Ocular Visit — ${recordTitle(b)}`,
+        subtitle: ocularMeta.scheduledTime ? `Site Inspection at ${ocularMeta.scheduledTime}` : "Venue Inspection",
+        time: ocularMeta.scheduledTime || "To be confirmed",
+        location: [b.municipality, b.province].filter(Boolean).join(", ") || b.venue_address || "Venue confirmed",
+        reference: b.reference,
+        statusPill: {
+          tone: ocularMeta.state === "completed" ? "success" : "info",
+          label: ocularMeta.state === "completed" ? "Ocular Completed" : "Ocular Scheduled",
+          icon: ocularMeta.state === "completed" ? CheckCircle2 : CalendarCheck
+        },
+        actionText: "View Booking Details",
+        onAction: () => navigate(`/customer/bookings/${b._id}`),
+      });
     });
 
     // 3. Payment Due & Overdue Payment (BLUE = Payment Due, RED = Overdue Payment)
@@ -335,70 +367,54 @@ export default function CustomerDashboard() {
             </div>
 
             {/* Right Side: Two Stacked Action Cards */}
-            <div className="lg:col-span-5 flex flex-col gap-4 justify-between">
+            <div className="lg:col-span-5 flex flex-col gap-4 sm:gap-5 justify-between">
               {/* Card 1: Custom Event Quote */}
               <div
                 onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="group flex-1 flex flex-col justify-between p-5 sm:p-6 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
+                className="group flex-1 flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
               >
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-700 flex items-center justify-center transition-transform group-hover:scale-105">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                <div className="space-y-3.5">
+                  <div className="w-11 h-11 rounded-full bg-amber-50/90 border border-amber-200/80 text-amber-600 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                    <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
                       Custom Event Quote
                     </h3>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                    <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
                       Customize your catering menu, guest count, and event setup details for a tailored quotation.
                     </p>
                   </div>
                 </div>
-                <div className="pt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-xs font-semibold justify-between border-slate-200 group-hover:border-slate-300 group-hover:bg-slate-50 cursor-pointer pointer-events-none"
-                  >
-                    <span>Request a Quote</span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                  </Button>
+
+                <div className="pt-4 sm:pt-5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-900 group-hover:text-[#2C4B8A] transition-colors">
+                  <span>Request a Quote</span>
+                  <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-[#2C4B8A] group-hover:translate-x-1 transition-all" />
                 </div>
               </div>
 
               {/* Card 2: Browse Menu Package */}
               <div
                 onClick={() => navigate("/packages")}
-                className="group flex-1 flex flex-col justify-between p-5 sm:p-6 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
+                className="group flex-1 flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
               >
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/70 text-[#2C4B8A] flex items-center justify-center transition-transform group-hover:scale-105">
-                      <Utensils className="w-5 h-5" />
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                <div className="space-y-3.5">
+                  <div className="w-11 h-11 rounded-full bg-blue-50/90 border border-blue-200/80 text-[#2C4B8A] flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                    <Utensils className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
                       Browse Menu Package
                     </h3>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                    <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
                       Explore curated all-inclusive packages, special offers, and chef-crafted dishes.
                     </p>
                   </div>
                 </div>
-                <div className="pt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-xs font-semibold justify-between border-slate-200 group-hover:border-slate-300 group-hover:bg-slate-50 cursor-pointer pointer-events-none"
-                  >
-                    <span>Browse Packages</span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                  </Button>
+
+                <div className="pt-4 sm:pt-5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-900 group-hover:text-[#2C4B8A] transition-colors">
+                  <span>Explore Packages</span>
+                  <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-[#2C4B8A] group-hover:translate-x-1 transition-all" />
                 </div>
               </div>
             </div>

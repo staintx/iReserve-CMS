@@ -47,8 +47,8 @@ export default function BookingCard({
 
   // Ocular schedule form state
   const [showOcularForm, setShowOcularForm] = useState(false);
-  const [ocularDate, setOcularDate] = useState("");
-  const [ocularTime, setOcularTime] = useState("");
+  const [ocularDate, _setOcularDate] = useState("");
+  const [ocularTime, _setOcularTime] = useState("");
   const [isRequestingOcular, setIsRequestingOcular] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -237,6 +237,7 @@ export default function BookingCard({
               initialDate={ocularDate}
               initialTime={ocularTime}
               submitting={isRequestingOcular}
+              eventDate={booking?.event_date}
               eventTitle={recordTitle(booking)}
             />
           )}

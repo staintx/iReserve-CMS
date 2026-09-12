@@ -203,6 +203,7 @@ export default function CustomerCalendarCard({
                         "w-1.5 h-1.5 rounded-full shrink-0 transition-transform group-hover:scale-125",
                         ev.type === "confirmed" && "bg-emerald-500",
                         ev.type === "inquiry" && "bg-orange-500",
+                        ev.type === "ocular" && "bg-purple-600",
                         ev.type === "payment_due" && "bg-blue-600",
                         ev.type === "overdue_payment" && "bg-rose-600",
                         ev.type === "completed" && "bg-slate-400"
@@ -232,6 +233,10 @@ export default function CustomerCalendarCard({
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
           <span>Confirmed</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
+          <span>Ocular Visit</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />

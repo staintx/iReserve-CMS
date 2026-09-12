@@ -6,7 +6,8 @@ import {
   ChevronRight, 
   CheckCircle2, 
   X, 
-  CalendarDays 
+  CalendarDays,
+  AlertTriangle
 } from "lucide-react";
 import { Dialog, DialogContent } from "../ui/dialog";
 import { cn } from "@/lib/utils";
@@ -31,45 +32,140 @@ const MONTH_NAMES = [
 ];
 
 const parseLocalDate = (value) => {
-  if (!value) return new Date();
-  const [year, month, day] = String(value).split("-").map(Number);
-  return new Date(year, month - 1, day);
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null;
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const dateStr = String(value).split("T")[0];
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 };
 
 const getDateKey = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  if (!date) return "";
+  const d = date instanceof Date ? date : parseLocalDate(date);
+  if (!d || isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
 
 export default function OcularDatePickerModal({
   open,
+  isOpen,
   onClose,
   onSubmit,
   initialDate = "",
   initialTime = "10:00 AM",
   submitting = false,
+  isSubmitting = false,
+  eventDate,
   eventTitle = "Event Venue Inspection"
 }) {
+  const isOpenModal = Boolean(open || isOpen);
+  const isSubmittingForm = Boolean(submitting || isSubmitting);
+
+  // TODAY normalized to start of day
   const today = useMemo(() => {
     const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState(() => initialDate || getDateKey(today));
+  const todayKey = useMemo(() => getDateKey(today), [today]);
+
+  // EVENT DATE normalized to start of day
+  const parsedEventDate = useMemo(() => {
+    return parseLocalDate(eventDate);
+  }, [eventDate]);
+
+  const eventDateKey = useMemo(() => {
+    return parsedEventDate ? getDateKey(parsedEventDate) : "";
+  }, [parsedEventDate]);
+
+  // minimumAllowedDate = TODAY + 1 day
+  const minAllowedDate = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }, [today]);
+
+  const minAllowedDateKey = useMemo(() => getDateKey(minAllowedDate), [minAllowedDate]);
+
+  // maximumAllowedDate = EVENT_DATE - 1 day
+  const maxAllowedDate = useMemo(() => {
+    if (!parsedEventDate) return null;
+    const d = new Date(parsedEventDate);
+    d.setDate(d.getDate() - 1);
+    return d;
+  }, [parsedEventDate]);
+
+  const maxAllowedDateKey = useMemo(() => {
+    return maxAllowedDate ? getDateKey(maxAllowedDate) : "";
+  }, [maxAllowedDate]);
+
+  // Check if there are ANY valid dates between TODAY and EVENT_DATE
+  // Selectable dates must satisfy: TODAY < selectedDate < EVENT_DATE
+  const hasAvailableDates = useMemo(() => {
+    if (!maxAllowedDateKey) return true;
+    return minAllowedDateKey <= maxAllowedDateKey;
+  }, [minAllowedDateKey, maxAllowedDateKey]);
+
+  // Function to validate if a date can be selected
+  const isDateValid = useMemo(() => {
+    return (dateObj) => {
+      if (!dateObj) return false;
+      const key = getDateKey(dateObj);
+      if (!key) return false;
+      if (key < minAllowedDateKey) return false; // TODAY or earlier
+      if (maxAllowedDateKey && key > maxAllowedDateKey) return false; // EVENT_DATE or later
+      return true;
+    };
+  }, [minAllowedDateKey, maxAllowedDateKey]);
+
+  const [selectedDate, setSelectedDate] = useState(() => {
+    if (initialDate) {
+      const d = parseLocalDate(initialDate);
+      if (d && isDateValid(d)) return getDateKey(d);
+    }
+    return hasAvailableDates ? minAllowedDateKey : "";
+  });
+
   const [selectedTime, setSelectedTime] = useState(() => initialTime || "10:00 AM");
 
   const [currentMonth, setCurrentMonth] = useState(() => {
-    const d = initialDate ? parseLocalDate(initialDate) : new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
+    if (initialDate) {
+      const d = parseLocalDate(initialDate);
+      if (d && isDateValid(d)) return new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    if (hasAvailableDates) {
+      return new Date(minAllowedDate.getFullYear(), minAllowedDate.getMonth(), 1);
+    }
+    return new Date(today.getFullYear(), today.getMonth(), 1);
   });
 
-  const isCurrentMonthOrPast = useMemo(() => {
-    const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    return currentMonth <= thisMonth;
-  }, [currentMonth, today]);
+  const isPrevMonthDisabled = useMemo(() => {
+    const curYear = currentMonth.getFullYear();
+    const curMonth = currentMonth.getMonth();
+    const minYear = minAllowedDate.getFullYear();
+    const minMonth = minAllowedDate.getMonth();
+    return curYear < minYear || (curYear === minYear && curMonth <= minMonth);
+  }, [currentMonth, minAllowedDate]);
+
+  const isNextMonthDisabled = useMemo(() => {
+    if (!maxAllowedDate) return false;
+    const curYear = currentMonth.getFullYear();
+    const curMonth = currentMonth.getMonth();
+    const maxYear = maxAllowedDate.getFullYear();
+    const maxMonth = maxAllowedDate.getMonth();
+    return curYear > maxYear || (curYear === maxYear && curMonth >= maxMonth);
+  }, [currentMonth, maxAllowedDate]);
 
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -88,40 +184,33 @@ export default function OcularDatePickerModal({
   }, [currentMonth]);
 
   const prevMonth = () => {
-    if (isCurrentMonthOrPast) return;
+    if (isPrevMonthDisabled) return;
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
 
   const nextMonth = () => {
+    if (isNextMonthDisabled) return;
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  const isPastDate = (date) => {
-    if (!date) return true;
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d < today;
-  };
-
-  const isTodayDate = (date) => {
-    if (!date) return false;
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime() === today.getTime();
-  };
-
   const handleSelectDay = (dateObj) => {
-    if (!dateObj || isPastDate(dateObj)) return;
+    if (!dateObj || !isDateValid(dateObj)) return;
     setSelectedDate(getDateKey(dateObj));
   };
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
+    if (!hasAvailableDates) return;
     if (!selectedDate || !selectedTime) return;
+    const parsed = parseLocalDate(selectedDate);
+    if (!isDateValid(parsed)) return;
     onSubmit(selectedDate, selectedTime);
   };
 
-  const formattedSelectedDate = selectedDate ? new Date(parseLocalDate(selectedDate)).toLocaleDateString("en-US", {
+  // Safe selected date that is guaranteed to be valid
+  const effectiveSelectedDate = isDateValid(parseLocalDate(selectedDate)) ? selectedDate : "";
+
+  const formattedSelectedDate = effectiveSelectedDate ? new Date(parseLocalDate(effectiveSelectedDate)).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -129,11 +218,11 @@ export default function OcularDatePickerModal({
   }) : null;
 
   return (
-    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+    <Dialog open={isOpenModal} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="sm:max-w-[480px] w-[92vw] max-h-[85vh] p-0 overflow-hidden rounded-2xl border-0 shadow-2xl flex flex-col bg-white [&>button:last-child]:hidden">
         <form onSubmit={handleFormSubmit} className="flex flex-col h-full min-h-0">
           
-          {/* Header matched with Caezelle Inquiry Form Brand Navy (#2C4B8A) & Gold (#D2B67C) */}
+          {/* Header matched with Caezelle Brand Navy (#2C4B8A) & Gold (#D2B67C) */}
           <div className="p-4 sm:p-5 bg-[#2C4B8A] text-white flex items-start justify-between shrink-0 relative">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#D2B67C]/20 text-[#E8D4A8] text-[11px] font-semibold border border-[#D2B67C]/40">
@@ -143,21 +232,34 @@ export default function OcularDatePickerModal({
                 Schedule Ocular Visit
               </h3>
               <p className="text-xs text-white/80 font-normal">
-                Pick a date and time slot to physically inspect the venue layout with our team.
+                Pick a date and time slot to inspect the venue layout for {eventTitle}.
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors shrink-0"
+              className="text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Scrollable Body */}
-          <div className="p-4 sm:p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
+          <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
             
+            {/* Edge Case Warning: No Available Dates */}
+            {!hasAvailableDates && (
+              <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900 shadow-2xs">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-xs text-amber-950">No Available Dates</p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    No available dates for an ocular visit before your event.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Interactive Calendar */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
@@ -168,8 +270,8 @@ export default function OcularDatePickerModal({
                   <button
                     type="button"
                     onClick={prevMonth}
-                    disabled={isCurrentMonthOrPast}
-                    className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-[#F7F4EE] hover:text-[#2C4B8A] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    disabled={isPrevMonthDisabled}
+                    className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-[#F7F4EE] hover:text-[#2C4B8A] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   >
                     <ChevronLeft size={15} />
                   </button>
@@ -179,7 +281,8 @@ export default function OcularDatePickerModal({
                   <button
                     type="button"
                     onClick={nextMonth}
-                    className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-[#F7F4EE] hover:text-[#2C4B8A] transition-colors"
+                    disabled={isNextMonthDisabled}
+                    className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-[#F7F4EE] hover:text-[#2C4B8A] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   >
                     <ChevronRight size={15} />
                   </button>
@@ -197,27 +300,39 @@ export default function OcularDatePickerModal({
                   if (!d) return <div key={`empty-${idx}`} className="h-8 sm:h-9" />;
                   
                   const dateKey = getDateKey(d);
-                  const isSelected = selectedDate === dateKey;
-                  const past = isPastDate(d);
-                  const todayFlag = isTodayDate(d);
+                  const isValid = isDateValid(d);
+                  const isSelected = isValid && effectiveSelectedDate === dateKey;
+                  const isToday = dateKey === todayKey;
+                  const isEventDay = dateKey === eventDateKey;
 
                   return (
                     <button
                       key={dateKey}
                       type="button"
-                      disabled={past}
+                      disabled={!isValid}
                       onClick={() => handleSelectDay(d)}
+                      aria-disabled={!isValid}
                       className={cn(
-                        "h-8 sm:h-9 rounded-xl text-xs font-semibold transition-all flex items-center justify-center relative",
-                        past
-                          ? "text-slate-300 bg-slate-50/50 border border-slate-100/50 cursor-not-allowed text-[11px]"
+                        "h-8 sm:h-9 rounded-xl text-xs font-semibold transition-all flex items-center justify-center relative select-none",
+                        !isValid
+                          ? "text-slate-300/80 bg-slate-100/50 border border-slate-100/70 cursor-not-allowed text-[11px] opacity-40 pointer-events-none"
                           : isSelected
-                            ? "bg-[#2C4B8A] text-white font-bold shadow-md shadow-[#2C4B8A]/25 scale-[1.03] border border-[#2C4B8A]"
-                            : "text-[#5C402B] bg-[#F7F4EE]/60 border border-transparent hover:bg-[#F7F4EE] hover:border-[#D2B67C] hover:text-[#2C4B8A]",
-                        todayFlag && !isSelected && "ring-2 ring-[#2C4B8A]/70 font-bold text-[#2C4B8A]"
+                            ? "bg-[#2C4B8A] text-white font-bold shadow-md shadow-[#2C4B8A]/25 scale-[1.03] border border-[#2C4B8A] cursor-pointer"
+                            : "text-[#5C402B] bg-[#F7F4EE]/70 border border-slate-200/60 hover:bg-[#F7F4EE] hover:border-[#D2B67C] hover:text-[#2C4B8A] cursor-pointer"
                       )}
                     >
-                      {d.getDate()}
+                      <span>{d.getDate()}</span>
+                      {isToday && (
+                        <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-slate-400/80" title="Today" />
+                      )}
+                      {isEventDay && (
+                        <span
+                          className="absolute -top-1 -right-0.5 text-[8px] bg-amber-100 text-amber-900 font-bold px-1 rounded-xs border border-amber-300/80 leading-none py-0.5 pointer-events-none uppercase tracking-tighter"
+                          title="Event Date"
+                        >
+                          Event
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -237,12 +352,15 @@ export default function OcularDatePickerModal({
                     <button
                       key={slot}
                       type="button"
+                      disabled={!hasAvailableDates}
                       onClick={() => setSelectedTime(slot)}
                       className={cn(
                         "py-2 px-2 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5",
-                        isSelected
-                          ? "bg-[#2C4B8A] text-white border-[#2C4B8A] shadow-xs font-bold"
-                          : "bg-[#F7F4EE]/60 text-[#5C402B] border-slate-200 hover:bg-[#F7F4EE] hover:border-[#D2B67C] hover:text-[#2C4B8A]"
+                        !hasAvailableDates
+                          ? "opacity-40 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200"
+                          : isSelected
+                            ? "bg-[#2C4B8A] text-white border-[#2C4B8A] shadow-xs font-bold cursor-pointer"
+                            : "bg-[#F7F4EE]/60 text-[#5C402B] border-slate-200 hover:bg-[#F7F4EE] hover:border-[#D2B67C] hover:text-[#2C4B8A] cursor-pointer"
                       )}
                     >
                       {isSelected && <CheckCircle2 size={13} className="text-[#D2B67C] shrink-0" />}
@@ -253,12 +371,16 @@ export default function OcularDatePickerModal({
               </div>
             </div>
 
-            {/* Selection Summary Pill matched with Cream/Gold Design System */}
+            {/* Selection Summary Pill */}
             <div className="p-3 bg-[#F7F4EE] rounded-xl border border-[#D2B67C]/50 flex items-center justify-between text-xs text-[#5C402B] shadow-xs">
               <div className="flex items-center gap-2">
                 <CalendarIcon size={15} className="text-[#2C4B8A] shrink-0" />
                 <span>
-                  {selectedDate && selectedTime ? (
+                  {!hasAvailableDates ? (
+                    <span className="text-amber-900 font-semibold">
+                      No available dates for an ocular visit before your event.
+                    </span>
+                  ) : effectiveSelectedDate && selectedTime ? (
                     <>
                       <strong className="text-[#2C4B8A]">Selected Visit:</strong> {formattedSelectedDate} at <strong className="text-[#2C4B8A]">{selectedTime}</strong>
                     </>
@@ -276,22 +398,28 @@ export default function OcularDatePickerModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={submitting}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7B583C] hover:bg-[#F7F4EE] transition-colors"
+              disabled={isSubmittingForm}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7B583C] hover:bg-[#F7F4EE] transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={submitting || !selectedDate || !selectedTime}
-              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#2C4B8A] hover:bg-[#20396c] shadow-md shadow-[#2C4B8A]/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+              disabled={
+                isSubmittingForm ||
+                !hasAvailableDates ||
+                !effectiveSelectedDate ||
+                !selectedTime ||
+                !isDateValid(parseLocalDate(effectiveSelectedDate))
+              }
+              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#2C4B8A] hover:bg-[#20396c] shadow-md shadow-[#2C4B8A]/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none cursor-pointer"
             >
-              {submitting ? (
+              {isSubmittingForm ? (
                 <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <CheckCircle2 size={14} className="text-[#D2B67C]" />
               )}
-              {submitting ? "Submitting..." : "Confirm Schedule"}
+              {isSubmittingForm ? "Submitting..." : "Confirm Schedule"}
             </button>
           </div>
 

@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Calendar,
+  CalendarCheck,
   Info,
   ExternalLink,
   ChevronRight,
@@ -35,6 +36,7 @@ import {
   Star,
   AlertTriangle
 } from "lucide-react";
+import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
@@ -46,7 +48,7 @@ import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
-import { isFoodOnly, isSetupOnly, isOcularRequired } from "../../components/customer/portal/statusMeta";
+import { isFoodOnly, isSetupOnly } from "../../components/customer/portal/statusMeta";
 import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimeline";
 import BookingVersionHistory from "../../components/booking/BookingVersionHistory";
 import AmountSummary from "../../components/customer/portal/AmountSummary";
@@ -135,8 +137,8 @@ export default function CustomerEventDashboard() {
   };
 
   const [requestingOcular, setRequestingOcular] = useState(false);
-  const [ocularDate, setOcularDate] = useState("");
-  const [ocularTime, setOcularTime] = useState("");
+  const [ocularDate, _setOcularDate] = useState("");
+  const [ocularTime, _setOcularTime] = useState("");
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
 
   const [isAcceptingQuote, setIsAcceptingQuote] = useState(false);
@@ -144,7 +146,7 @@ export default function CustomerEventDashboard() {
 
   // Rating & Review State
   const [bookingRating, setBookingRating] = useState(null);
-  const [loadingRating, setLoadingRating] = useState(false);
+  const [_loadingRating, setLoadingRating] = useState(false);
   const [ratingStars, setRatingStars] = useState(5);
   const [ratingHoverStars, setRatingHoverStars] = useState(0);
   const [ratingReview, setRatingReview] = useState("");
@@ -249,7 +251,7 @@ export default function CustomerEventDashboard() {
     [bookingPayments]
   );
 
-  const pendingPayments = useMemo(
+  const _pendingPayments = useMemo(
     () => bookingPayments.filter((p) => p.status === "pending"),
     [bookingPayments]
   );
@@ -661,8 +663,9 @@ export default function CustomerEventDashboard() {
 
   const assignedStaff = booking.staff_assignments || [];
   const eventManager = booking.event_manager_id;
-  const needsOcular = !isFoodOnlyService && (!booking.ocular_visit || !booking.ocular_visit.status || booking.ocular_visit.status === "pending");
-  const pendingOcular = booking.ocular_visit && booking.ocular_visit.status === "requested";
+  const ocularActionMeta = getBookingOcularActionMeta(booking);
+  const needsOcular = Boolean(ocularActionMeta && ocularActionMeta.state === "action_required");
+  const pendingOcular = Boolean(ocularActionMeta && ocularActionMeta.state === "requested");
 
   // Status badge config
   const rawStatus = (booking.status || "").toLowerCase();
@@ -931,47 +934,151 @@ export default function CustomerEventDashboard() {
         </div>
 
         {/* DEDICATED SEPARATE VENUE & SITE OCULAR INSPECTION CARD */}
-        {needsOcular && (
-          <Card className="border-amber-200/90 bg-gradient-to-r from-amber-50/70 to-orange-50/40 rounded-xl p-4 sm:p-5 shadow-2xs space-y-3">
+        {ocularActionMeta && (
+          <Card
+            className={cn(
+              "rounded-xl p-4 sm:p-5 shadow-2xs space-y-3 transition-all",
+              ocularActionMeta.state === "action_required"
+                ? "border-amber-200/90 bg-gradient-to-r from-amber-50/80 to-orange-50/50"
+                : ocularActionMeta.state === "scheduled"
+                ? "border-blue-200/90 bg-gradient-to-r from-blue-50/70 to-indigo-50/40"
+                : ocularActionMeta.state === "requested"
+                ? "border-amber-200/80 bg-gradient-to-r from-amber-50/60 to-orange-50/30"
+                : "border-emerald-200/80 bg-gradient-to-r from-emerald-50/50 to-teal-50/30"
+            )}
+          >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0 shadow-2xs">
-                  <CalendarRange className="w-5 h-5" />
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs",
+                    ocularActionMeta.state === "action_required"
+                      ? "bg-amber-100 border-amber-200 text-amber-700"
+                      : ocularActionMeta.state === "scheduled"
+                      ? "bg-blue-100 border-blue-200 text-blue-700"
+                      : ocularActionMeta.state === "requested"
+                      ? "bg-amber-100 border-amber-200 text-amber-700"
+                      : "bg-emerald-100 border-emerald-200 text-emerald-700"
+                  )}
+                >
+                  {ocularActionMeta.state === "completed" ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : ocularActionMeta.state === "scheduled" ? (
+                    <CalendarCheck className="w-5 h-5" />
+                  ) : (
+                    <CalendarRange className="w-5 h-5" />
+                  )}
                 </div>
                 <div>
-                  <h4 className="font-bold text-amber-950 text-sm font-sans">Venue &amp; Site Ocular Inspection</h4>
-                  <p className="text-amber-800 text-xs mt-0.5 leading-relaxed font-medium">
-                    {pendingOcular
-                      ? "Your requested ocular date is under review by our catering team."
-                      : "Schedule a site visit with our team to inspect venue layout and catering logistics before your event."}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={cn(
+                        "w-2 h-2 rounded-full shrink-0",
+                        ocularActionMeta.state === "action_required"
+                          ? "bg-orange-500 animate-pulse"
+                          : ocularActionMeta.state === "scheduled"
+                          ? "bg-blue-600"
+                          : ocularActionMeta.state === "requested"
+                          ? "bg-amber-500"
+                          : "bg-emerald-600"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider",
+                        ocularActionMeta.state === "action_required"
+                          ? "text-amber-900"
+                          : ocularActionMeta.state === "scheduled"
+                          ? "text-blue-900"
+                          : ocularActionMeta.state === "requested"
+                          ? "text-amber-900"
+                          : "text-emerald-900"
+                      )}
+                    >
+                      {ocularActionMeta.headline} • {ocularActionMeta.subheadline}
+                    </span>
+                  </div>
+                  <h4
+                    className={cn(
+                      "font-bold text-sm sm:text-base font-sans",
+                      ocularActionMeta.state === "action_required"
+                        ? "text-amber-950"
+                        : ocularActionMeta.state === "scheduled"
+                        ? "text-blue-950"
+                        : ocularActionMeta.state === "requested"
+                        ? "text-amber-950"
+                        : "text-emerald-950"
+                    )}
+                  >
+                    {ocularActionMeta.state === "action_required"
+                      ? "Ocular Visit Required"
+                      : ocularActionMeta.state === "scheduled"
+                      ? "Ocular Visit Scheduled"
+                      : ocularActionMeta.state === "requested"
+                      ? "Ocular Visit Requested"
+                      : "Ocular Visit Completed"}
+                  </h4>
+                  <p
+                    className={cn(
+                      "text-xs mt-0.5 leading-relaxed font-medium",
+                      ocularActionMeta.state === "action_required"
+                        ? "text-amber-800"
+                        : ocularActionMeta.state === "scheduled"
+                        ? "text-blue-800"
+                        : ocularActionMeta.state === "requested"
+                        ? "text-amber-800"
+                        : "text-emerald-800"
+                    )}
+                  >
+                    {ocularActionMeta.description}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  onClick={() => setRequestingOcular(true)}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 px-4 rounded-lg cursor-pointer shadow-xs gap-1.5 active:scale-[0.98]"
-                >
-                  <CalendarRange className="w-3.5 h-3.5" />
-                  <span>{pendingOcular ? "Reschedule Ocular" : "Schedule Ocular Visit"}</span>
-                </Button>
-                {!booking.ocular_visit?.is_required && (
+                {ocularActionMeta.state === "action_required" && (
+                  <>
+                    <Button
+                      onClick={() => setRequestingOcular(true)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 px-4 rounded-lg cursor-pointer shadow-xs gap-1.5 active:scale-[0.98]"
+                    >
+                      <CalendarRange className="w-3.5 h-3.5" />
+                      <span>Schedule Ocular Visit</span>
+                    </Button>
+                    {!booking.ocular_visit?.is_required && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                            CustomerAPI.skipOcular(booking._id)
+                              .then(() => {
+                                notify("Ocular visit skipped successfully.", "success");
+                                fetchBooking();
+                              })
+                              .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                          }
+                        }}
+                        className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs h-8.5 px-3 rounded-lg cursor-pointer"
+                      >
+                        Skip Ocular
+                      </Button>
+                    )}
+                  </>
+                )}
+
+                {(ocularActionMeta.state === "requested" || ocularActionMeta.state === "scheduled") && (
                   <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
-                        CustomerAPI.skipOcular(booking._id)
-                          .then(() => {
-                            notify("Ocular visit skipped successfully.", "success");
-                            fetchBooking();
-                          })
-                          .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
-                      }
-                    }}
-                    className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs h-8.5 px-3 rounded-lg cursor-pointer"
+                    variant={ocularActionMeta.state === "scheduled" ? "outline" : "default"}
+                    onClick={() => setRequestingOcular(true)}
+                    className={cn(
+                      "text-xs font-bold h-8.5 px-4 rounded-lg cursor-pointer shadow-xs gap-1.5 active:scale-[0.98]",
+                      ocularActionMeta.state === "scheduled"
+                        ? "border-blue-300 bg-white hover:bg-blue-50 text-blue-900"
+                        : "bg-amber-600 hover:bg-amber-700 text-white"
+                    )}
                   >
-                    Skip Ocular
+                    <CalendarRange className="w-3.5 h-3.5" />
+                    <span>Reschedule Ocular</span>
                   </Button>
                 )}
               </div>
@@ -1948,6 +2055,7 @@ export default function CustomerEventDashboard() {
           initialDate={ocularDate}
           initialTime={ocularTime}
           submitting={isSubmittingOcular}
+          eventDate={booking?.event_date}
           eventTitle={booking?.event_type || "Event Venue Inspection"}
         />
       )}

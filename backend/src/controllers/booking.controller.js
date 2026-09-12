@@ -1849,6 +1849,52 @@ exports.requestOcular = asyncHandler(async (req, res) => {
   if (!scheduled_date)
     return res.status(400).json({ message: "Scheduled date is required" });
 
+  const parseDateKey = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) {
+      if (isNaN(val.getTime())) return null;
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, "0");
+      const d = String(val.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+    const str = String(val).trim();
+    const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+    const dateObj = new Date(str);
+    if (isNaN(dateObj.getTime())) return null;
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const d = String(dateObj.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const selectedDateKey = parseDateKey(scheduled_date);
+  if (!selectedDateKey) {
+    return res.status(400).json({ message: "Invalid scheduled date format." });
+  }
+
+  const todayKey = parseDateKey(new Date());
+  const eventDateKey = parseDateKey(booking.event_date);
+
+  if (!eventDateKey) {
+    return res.status(400).json({ message: "Booking does not have a valid event date." });
+  }
+
+  if (selectedDateKey <= todayKey) {
+    return res.status(400).json({
+      message: "Ocular visit date must be after today. You cannot select today or a past date.",
+    });
+  }
+
+  if (selectedDateKey >= eventDateKey) {
+    return res.status(400).json({
+      message: "Ocular visit date must be scheduled before the event date.",
+    });
+  }
+
   booking.ocular_visit = {
     ...(booking.ocular_visit?.toObject?.() || booking.ocular_visit || {}),
     scheduled_date: new Date(scheduled_date),

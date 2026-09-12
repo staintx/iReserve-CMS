@@ -252,124 +252,140 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
 /* ── Inquiries ────────────────────────────────────────────────── */
 
 export const INQUIRY_STATUS_GROUPS = {
+  pending_review: ["Pending Review", "Under Review", "Revision Requested"],
   quote_ready: ["Quotation Sent"],
-  under_review: ["Pending Review", "Under Review", "Revision Requested"],
-  accepted: ["Quote Accepted", "Awaiting Final Confirmation", "Converted to Booking"],
-  closed: ["Cancelled", "Quote Rejected", "Expired"],
+  accepted: ["Quote Accepted", "Awaiting Final Confirmation"],
+  cancelled: ["Cancelled", "Quote Rejected", "Expired"],
+};
+
+export const isDepositConfirmed = (inquiry) => {
+  return Boolean(
+    inquiry?.payment_status === "deposit_paid" ||
+    inquiry?.payment_status === "fully_paid" ||
+    inquiry?.is_deposit_paid
+  );
+};
+
+export const isConvertedBooking = (inquiry) => {
+  return inquiry?.status === "Converted to Booking" || Boolean(inquiry?.converted_booking_id);
+};
+
+export const isCancelledInquiry = (inquiry) => {
+  return ["Cancelled", "Quote Rejected", "Expired"].includes(inquiry?.status);
 };
 
 export const inquiryStatusGroup = (inquiry) => {
-  const match = Object.entries(INQUIRY_STATUS_GROUPS).find(([, values]) => values.includes(inquiry?.status));
-  return match ? match[0] : "other";
+  if (!inquiry) return "pending_review";
+  if (isConvertedBooking(inquiry)) return "converted";
+  if (isCancelledInquiry(inquiry)) return "cancelled";
+
+  const status = inquiry.status;
+
+  // Accepted requires customer quotation acceptance AND confirmed deposit payment
+  if (
+    ["Quote Accepted", "Awaiting Final Confirmation"].includes(status) &&
+    isDepositConfirmed(inquiry)
+  ) {
+    return "accepted";
+  }
+
+  // Quotation ready for customer or accepted pending deposit confirmation
+  if (
+    status === "Quotation Sent" ||
+    ["Quote Accepted", "Awaiting Final Confirmation"].includes(status)
+  ) {
+    return "quote_ready";
+  }
+
+  // Default: Pending review (includes "Pending Review", "Under Review", "Revision Requested")
+  return "pending_review";
 };
 
 export const inquiryStatusMeta = (inquiry) => {
-  switch (inquiry?.status) {
-    case "Quotation Sent":
-      return {
-        tone: "info",
-        label: "Quote Ready",
-        icon: FileCheck2,
-        notice: { tone: "info", title: "Your quote is ready.", text: "Review the pricing and accept it to continue to booking." },
-      };
+  const group = inquiryStatusGroup(inquiry);
 
-    case "Pending Review":
-      return {
-        tone: "warning",
-        label: "Pending Review",
-        icon: Clock,
-        notice: { tone: "warning", title: "Inquiry Received — Pending Review", text: "Your inquiry has been submitted and is awaiting initial review by our team." },
-      };
-
-    case "Under Review":
-      return {
-        tone: "info",
-        label: "Under Review",
-        icon: Clock,
-        notice: { tone: "info", title: "Under Review by Admin", text: "Our team is currently reviewing your event requirements, checking availability, and preparing your quotation." },
-      };
-
-    case "Revision Requested":
-      return {
-        tone: "warning",
-        label: "Revision in Progress",
-        icon: Clock,
-        notice: { tone: "warning", title: "We're updating your quote.", text: "You'll be notified as soon as the revised quote is ready." },
-      };
-
-    case "Awaiting Final Confirmation":
-      if (inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid" || inquiry.is_deposit_paid) {
-        return {
-          tone: "success",
-          label: "Deposit Paid · Awaiting Final Confirmation",
-          icon: CheckCircle2,
-          notice: {
-            tone: "success",
-            title: "Deposit payment verified.",
-            text: "Our team has received your deposit and is finalizing your manager assignment and event booking.",
-          },
-        };
-      }
-      return {
-        tone: "info",
-        label: "Awaiting Confirmation",
-        icon: Clock,
-        notice: { tone: "info", title: "We're finalising your booking.", text: "Our team will confirm the last details with you shortly." },
-      };
-
-    case "Quote Accepted":
-      if (inquiry.payment_status === "deposit_paid" || inquiry.payment_status === "fully_paid" || inquiry.is_deposit_paid) {
-        return {
-          tone: "success",
-          label: "Deposit Paid · Quote Accepted",
-          icon: CheckCircle2,
-          notice: {
-            tone: "success",
-            title: "Deposit payment verified.",
-            text: "Your deposit payment has been confirmed. Our team is finalizing your booking.",
-          },
-        };
-      }
-      return {
+  if (group === "converted") {
+    return {
+      group: "converted",
+      tone: "success",
+      label: "Booked",
+      icon: CheckCircle2,
+      notice: {
         tone: "success",
-        label: "Quote Accepted",
-        icon: CheckCircle2,
-        notice: { tone: "success", title: "Your quote is accepted.", text: "Please complete the deposit payment to confirm your booking." },
-      };
-
-    case "Converted to Booking":
-      return {
-        tone: "success",
-        label: "Booked",
-        icon: CheckCircle2,
-        notice: { tone: "success", title: "This request is now a booking.", text: "You can track it under My Bookings." },
-      };
-
-    case "Cancelled":
-    case "Quote Rejected":
-      return {
-        tone: "danger",
-        label: inquiry.status === "Quote Rejected" ? "Quote Declined" : "Cancelled",
-        icon: XCircle,
-        notice: { tone: "neutral", title: "This request is closed.", text: "Send a new request any time you're ready." },
-      };
-
-    case "Expired":
-      return {
-        tone: "neutral",
-        label: "Expired",
-        icon: Clock,
-        notice: { tone: "neutral", title: "This request expired.", text: "Send a new request and we'll quote it again." },
-      };
-
-    default:
-      return {
-        tone: "neutral",
-        label: inquiry?.status ? toTitleCase(inquiry.status) : "Submitted",
-        icon: Clock,
-        notice: null,
-      };
+        title: "This request is now a booking.",
+        text: "You can track and manage this event under My Bookings.",
+      },
+    };
   }
+
+  if (group === "cancelled") {
+    return {
+      group: "cancelled",
+      tone: "danger",
+      label: "Cancelled",
+      icon: XCircle,
+      notice: {
+        tone: "neutral",
+        title: "This request is closed.",
+        text: "Send a new request any time you're ready.",
+      },
+    };
+  }
+
+  if (group === "accepted") {
+    return {
+      group: "accepted",
+      tone: "success",
+      label: "Accepted",
+      icon: CheckCircle2,
+      notice: {
+        tone: "success",
+        title: "Quotation accepted & deposit confirmed.",
+        text: "Your deposit payment has been confirmed. Our team is finalizing your booking.",
+      },
+    };
+  }
+
+  if (group === "quote_ready") {
+    const isAcceptedPendingDeposit = ["Quote Accepted", "Awaiting Final Confirmation"].includes(inquiry?.status);
+    return {
+      group: "quote_ready",
+      tone: isAcceptedPendingDeposit ? "warning" : "info",
+      label: "Quotation ready",
+      icon: FileCheck2,
+      notice: isAcceptedPendingDeposit
+        ? {
+            tone: "warning",
+            title: "Quotation accepted · Awaiting deposit",
+            text: "Please complete the required deposit payment to confirm your booking.",
+          }
+        : {
+            tone: "info",
+            title: "Your quotation is ready.",
+            text: "Review the pricing and accept it to continue to booking.",
+          },
+    };
+  }
+
+  // group === "pending_review"
+  const isRevision = inquiry?.status === "Revision Requested";
+  return {
+    group: "pending_review",
+    tone: "warning",
+    label: "Pending review",
+    icon: Clock,
+    notice: isRevision
+      ? {
+          tone: "warning",
+          title: "Revision in progress.",
+          text: "Our team is reviewing your requested revisions and will prepare an updated quotation.",
+        }
+      : {
+          tone: "warning",
+          title: "Inquiry received — Pending review",
+          text: "Your inquiry has been submitted and is awaiting initial review by our team.",
+        },
+  };
 };
 
 function toTitleCase(value) {

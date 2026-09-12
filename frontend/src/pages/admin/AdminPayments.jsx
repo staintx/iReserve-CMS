@@ -21,7 +21,13 @@ import {
   User,
   ShieldCheck,
   ExternalLink,
-  Tag
+  Tag,
+  Phone,
+  Mail,
+  MapPin,
+  AlertTriangle,
+  ArrowUpRight,
+  History
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -37,8 +43,6 @@ import TableToolbar from "../../components/admin/table/TableToolbar";
 import FilterPopover from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
-import DetailDrawer from "../../components/admin/table/DetailDrawer";
-import DrawerField from "../../components/admin/table/DrawerField";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
@@ -135,6 +139,10 @@ export default function AdminPayments() {
 
   const getCustomerEmail = (p) => {
     return p.customer_id?.email || p.booking_id?.contact_email || p.inquiry_id?.contact_email || "N/A";
+  };
+
+  const getCustomerPhone = (p) => {
+    return p.customer_id?.phone || p.booking_id?.contact_phone || p.inquiry_id?.contact_phone || "N/A";
   };
 
   const getBookingRef = (p) => {
@@ -261,6 +269,31 @@ export default function AdminPayments() {
 
   // Active advanced filters count
   const advancedActiveCount = (methodFilter !== "all" ? 1 : 0) + (typeFilter !== "all" ? 1 : 0) + (dateRange.from || dateRange.to ? 1 : 0);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && drawerRow) {
+        setDrawerRow(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [drawerRow]);
+
+  // Related Booking and Financial Ledger calculations for Drawer
+  const relatedBooking = useMemo(() => {
+    if (!drawerRow?.booking_id) return null;
+    const bId = drawerRow.booking_id?._id || drawerRow.booking_id;
+    return bookings.find((b) => String(b._id) === String(bId)) || (typeof drawerRow.booking_id === "object" ? drawerRow.booking_id : null);
+  }, [drawerRow, bookings]);
+
+  const bookingPayments = useMemo(() => {
+    if (!drawerRow) return [];
+    const bId = String(drawerRow.booking_id?._id || drawerRow.booking_id || "");
+    if (!bId) return [drawerRow];
+    return payments.filter((p) => String(p.booking_id?._id || p.booking_id) === bId);
+  }, [drawerRow, payments]);
 
   // Action handlers
   const handleVerify = async (p) => {
@@ -730,108 +763,344 @@ export default function AdminPayments() {
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
 
-        {/* Detail Drawer */}
-        <DetailDrawer
-          open={!!drawerRow}
-          onOpenChange={(open) => !open && setDrawerRow(null)}
-          title={drawerRow ? `Payment Details: PAY-${drawerRow._id.slice(-6).toUpperCase()}` : ""}
-          description={drawerRow ? getCustomerName(drawerRow) : ""}
-          footer={
-            drawerRow && (
-              <div className="flex items-center justify-between w-full gap-2">
-                <div className="flex items-center gap-2">
-                  <Btn variant="secondary" size="sm" onClick={() => setReceiptModalRow(drawerRow)}>
-                    <Printer size={13} /> Official Receipt
-                  </Btn>
-                  {drawerRow.booking_id?.reference && (
-                    <Btn
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => navigate(`/admin/bookings/${drawerRow.booking_id.reference}/details`)}
-                    >
-                      <ExternalLink size={13} /> Open Booking
-                    </Btn>
-                  )}
+        {/* Slide-Over Payment Summary Drawer */}
+        {drawerRow && (
+          <div
+            className="fixed inset-0 z-50 flex justify-end"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-drawer-title"
+          >
+            {/* Backdrop Scrim */}
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity animate-in fade-in-0 duration-200"
+              onClick={() => setDrawerRow(null)}
+              aria-hidden="true"
+            />
+
+            {/* Slide-Over Panel */}
+            <div className="relative w-full max-w-[460px] h-full bg-card border-l border-border/80 shadow-2xl flex flex-col z-10 text-xs animate-in slide-in-from-right duration-200">
+              
+              {/* Pinned Drawer Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-xs shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 id="payment-drawer-title" className="font-bold text-sm text-foreground truncate">
+                    Payment Summary
+                  </h3>
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md shrink-0">
+                    PAY-{drawerRow._id.slice(-6).toUpperCase()}
+                  </span>
                 </div>
-                {getStatusBadgeLabel(drawerRow.status) === "Pending" && (
-                  <div className="flex items-center gap-2">
-                    {drawerRow.method === "paymongo" ? (
-                      <Btn variant="secondary" size="sm" onClick={() => handleVerify(drawerRow)} disabled={actionLoading}>
-                        <ShieldCheck size={13} /> Sync with Gateway
-                      </Btn>
-                    ) : (
-                      <>
-                        <Btn variant="danger" size="sm" onClick={() => handleUpdateStatus(drawerRow, "rejected")} disabled={actionLoading}>
-                          <XCircle size={13} /> Reject
-                        </Btn>
-                        <Btn variant="primary" size="sm" onClick={() => handleUpdateStatus(drawerRow, "approved")} disabled={actionLoading}>
-                          <CheckCircle2 size={13} /> Approve Payment
-                        </Btn>
-                      </>
+                <button
+                  onClick={() => setDrawerRow(null)}
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Close details panel"
+                  aria-label="Close details panel"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Scrollable Drawer Body: Compact Payment-Focused View */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                
+                {/* 1. Essential Payment Hero Card */}
+                <div className="p-3.5 bg-muted/40 rounded-xl border border-border/70 space-y-3 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                        Transaction Amount
+                      </span>
+                      <div className="text-2xl sm:text-3xl font-bold font-mono text-emerald-600 tracking-tight">
+                        {fmt(drawerRow.amount)}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <Badge status={getStatusBadgeLabel(drawerRow.status)} />
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border ${getMethodBadge(drawerRow.method).cls}`}>
+                        {(() => {
+                          const MethodIcon = getMethodBadge(drawerRow.method).icon;
+                          return <MethodIcon size={11} />;
+                        })()}
+                        {getMethodBadge(drawerRow.method).label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Essential Payment Details Grid */}
+                  <div className="grid grid-cols-2 gap-2.5 pt-2.5 border-t border-border/50 text-xs">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Payment Reference</span>
+                      <span className="font-mono font-bold text-foreground">PAY-{drawerRow._id.slice(-6).toUpperCase()}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Milestone</span>
+                      <span className="font-semibold text-foreground">{getMilestoneLabel(drawerRow.payment_type)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Date &amp; Time</span>
+                      <span className="font-semibold text-foreground">{formatDateTime(drawerRow.paid_at || drawerRow.createdAt)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Booking / Inquiry Ref</span>
+                      {getBookingRef(drawerRow) !== "—" ? (
+                        <span
+                          className="inline-flex items-center gap-1 font-mono font-bold text-primary hover:underline cursor-pointer"
+                          onClick={() => {
+                            if (drawerRow.booking_id?.reference) {
+                              navigate(`/admin/bookings/${drawerRow.booking_id.reference}/details`);
+                            } else if (drawerRow.inquiry_id?.reference) {
+                              navigate(`/admin/inquiries?search=${drawerRow.inquiry_id.reference}`);
+                            }
+                          }}
+                        >
+                          {getBookingRef(drawerRow)}
+                          <ExternalLink size={10} />
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    {(drawerRow.gateway_reference || drawerRow.gateway_checkout_id) && (
+                      <div className="col-span-2 pt-1 border-t border-border/40">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Gateway / Checkout Ref</span>
+                        <span className="font-mono text-[11px] text-foreground block truncate" title={drawerRow.gateway_reference || drawerRow.gateway_checkout_id}>
+                          {drawerRow.gateway_reference || drawerRow.gateway_checkout_id}
+                        </span>
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            )
-          }
-        >
-          {drawerRow && (
-            <div className="space-y-6">
-              {/* Payment Summary Box */}
-              <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-accent-foreground uppercase tracking-wide">Transaction Amount</span>
-                  <Badge status={getStatusBadgeLabel(drawerRow.status)} />
-                </div>
-                <div className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-                  {fmt(drawerRow.amount)}
                 </div>
 
-                <div className="text-xs text-gray-600 flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold">{getMilestoneLabel(drawerRow.payment_type)}</span>
-                  <span>•</span>
-                  <span>Method: {getMethodBadge(drawerRow.method).label}</span>
-                </div>
-              </div>
+                {/* 2. Customer & Status Section */}
+                <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-md bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold font-mono shrink-0">
+                        {getCustomerName(drawerRow).split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "CU"}
+                      </div>
+                      <div className="min-w-0 space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Customer</span>
+                        <h4 className="font-bold text-foreground text-sm truncate">{getCustomerName(drawerRow)}</h4>
+                      </div>
+                    </div>
+                    {getEventType(drawerRow) && (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                        {getEventType(drawerRow)}
+                      </span>
+                    )}
+                  </div>
 
-              {/* Grid Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <DrawerField label="Booking Ref" value={getBookingRef(drawerRow)} />
-                <DrawerField label="Event Type" value={getEventType(drawerRow) || "—"} />
-                <DrawerField label="Customer Name" value={getCustomerName(drawerRow)} />
-                <DrawerField label="Customer Email" value={getCustomerEmail(drawerRow)} />
-                <DrawerField label="Payment Method" value={getMethodBadge(drawerRow.method).label} />
-                <DrawerField label="Milestone" value={getMilestoneLabel(drawerRow.payment_type)} />
-                <DrawerField label="Date Paid" value={formatDateTime(drawerRow.paid_at || drawerRow.createdAt)} />
-                <DrawerField label="Gateway Reference" value={drawerRow.gateway_reference || drawerRow.gateway_checkout_id || "—"} />
-              </div>
-
-              {/* Proof of Payment Viewer */}
-              {drawerRow.proof_url ? (
-                <div className="border-t border-gray-100 pt-4 space-y-2">
-                  <label className="text-xs font-semibold text-gray-700 block">Proof of Payment Upload</label>
-                  <div className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 max-h-48 flex items-center justify-center p-2">
-                    <img
-                      src={drawerRow.proof_url}
-                      alt="Proof of Payment"
-                      className="max-h-44 object-contain rounded-lg shadow-sm"
-                    />
-                    <div
-                      onClick={() => setProofModalUrl(drawerRow.proof_url)}
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold cursor-pointer gap-1.5"
-                    >
-                      <Eye size={16} /> Click to View Fullscreen
+                  {/* Quick Contact Line */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Phone size={12} className="shrink-0 text-primary" />
+                      <a href={`tel:${getCustomerPhone(drawerRow)}`} className="truncate hover:text-foreground hover:underline">
+                        {getCustomerPhone(drawerRow)}
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Mail size={12} className="shrink-0 text-primary" />
+                      <a href={`mailto:${getCustomerEmail(drawerRow)}`} className="truncate hover:text-foreground hover:underline">
+                        {getCustomerEmail(drawerRow)}
+                      </a>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="border-t border-gray-100 pt-4">
-                  <span className="text-xs text-gray-400 italic">No proof image attached to this payment record.</span>
+
+                {/* 3. Contextual Action Required Alert */}
+                {getStatusBadgeLabel(drawerRow.status) === "Pending" && (
+                  <div className="p-3 bg-amber-50/90 border border-amber-300/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <Clock size={14} className="text-amber-600 shrink-0" />
+                      <span>Action Required: Verification Pending</span>
+                    </div>
+                    <p className="text-amber-800 text-[11px] pl-5 leading-relaxed">
+                      {drawerRow.method === "paymongo"
+                        ? "This online transaction is awaiting gateway confirmation. Sync with PayMongo or verify in gateway dashboard."
+                        : "Manual transaction submission awaiting admin approval or rejection."}
+                    </p>
+                  </div>
+                )}
+                {getStatusBadgeLabel(drawerRow.status) === "Failed" && (
+                  <div className="p-3 bg-rose-50/90 border border-rose-300/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                      <XCircle size={14} className="text-rose-600 shrink-0" />
+                      <span>Payment Rejected or Failed</span>
+                    </div>
+                    <p className="text-rose-800 text-[11px] pl-5 leading-relaxed">
+                      This transaction was rejected or failed processing.
+                    </p>
+                  </div>
+                )}
+
+                {/* 4. Payment Proof Section */}
+                <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                  <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Eye size={12} className="text-primary" /> Payment Proof
+                  </h5>
+                  {drawerRow.proof_url ? (
+                    <div className="space-y-2">
+                      <div className="relative group rounded-xl overflow-hidden border border-border/70 bg-muted/40 max-h-44 flex items-center justify-center p-2">
+                        <img
+                          src={drawerRow.proof_url}
+                          alt="Proof of Payment"
+                          className="max-h-40 object-contain rounded-lg shadow-2xs"
+                        />
+                        <div
+                          onClick={() => setProofModalUrl(drawerRow.proof_url)}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold cursor-pointer gap-1.5"
+                        >
+                          <Eye size={16} /> Click to View Fullscreen
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProofModalUrl(drawerRow.proof_url)}
+                        className="w-full py-1 text-xs text-muted-foreground hover:text-foreground font-medium flex items-center justify-center gap-1 hover:bg-muted rounded-md transition-colors cursor-pointer"
+                      >
+                        <ExternalLink size={12} /> Open Fullscreen Image
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-center text-muted-foreground italic text-xs">
+                      No proof image attached to this payment record.
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* 5. Booking Payment History */}
+                {bookingPayments.length > 0 && (
+                  <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <History size={12} className="text-primary" /> Booking Payment History
+                      </h5>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {bookingPayments.length} {bookingPayments.length === 1 ? "record" : "records"}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {bookingPayments.map((p) => {
+                        const isCurrent = p._id === drawerRow._id;
+                        const pStatus = getStatusBadgeLabel(p.status);
+                        return (
+                          <div
+                            key={p._id}
+                            onClick={() => !isCurrent && setDrawerRow(p)}
+                            className={`p-2.5 rounded-lg border transition-all flex items-center justify-between gap-2 ${
+                              isCurrent
+                                ? "bg-primary/5 border-primary/40 ring-1 ring-primary/20 cursor-default"
+                                : "bg-muted/20 border-border/60 hover:bg-muted/40 cursor-pointer"
+                            }`}
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-xs text-foreground">
+                                  PAY-{p._id.slice(-6).toUpperCase()}
+                                </span>
+                                {isCurrent && (
+                                  <span className="text-[9px] bg-primary text-primary-foreground font-bold px-1.5 py-0.2 rounded">
+                                    Viewing
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10.5px] text-muted-foreground flex items-center gap-1.5">
+                                <span>{getMilestoneLabel(p.payment_type)}</span>
+                                <span>•</span>
+                                <span>{formatDate(p.paid_at || p.createdAt)}</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              <div className={`font-mono font-bold text-xs ${pStatus === "Paid" ? "text-emerald-600" : pStatus === "Pending" ? "text-amber-600" : "text-muted-foreground"}`}>
+                                {fmt(p.amount)}
+                              </div>
+                              <Badge status={pStatus} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Pinned Drawer Footer: Refined Action Hierarchy */}
+              <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs space-y-2 shrink-0">
+                {getStatusBadgeLabel(drawerRow.status) === "Pending" && (
+                  <div>
+                    {drawerRow.method === "paymongo" ? (
+                      <button
+                        onClick={() => handleVerify(drawerRow)}
+                        disabled={actionLoading}
+                        className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer disabled:opacity-50"
+                        title="Sync with PayMongo Gateway"
+                      >
+                        <ShieldCheck size={14} className={actionLoading ? "animate-spin" : ""} />
+                        <span>Sync with Gateway</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleUpdateStatus(drawerRow, "rejected")}
+                          disabled={actionLoading}
+                          className="flex-1 py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs disabled:opacity-50"
+                          title="Reject Payment"
+                        >
+                          <XCircle size={14} />
+                          <span>Reject</span>
+                        </button>
+                        <button
+                          onClick={() => handleUpdateStatus(drawerRow, "approved")}
+                          disabled={actionLoading}
+                          className="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs disabled:opacity-50"
+                          title="Approve Payment"
+                        >
+                          <CheckCircle2 size={14} />
+                          <span>Approve Payment</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Secondary Actions Row */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setReceiptModalRow(drawerRow)}
+                    className="flex-1 py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-semibold text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                    title="View official receipt"
+                  >
+                    <Printer size={13} className="text-muted-foreground" />
+                    <span>Official Receipt</span>
+                  </button>
+
+                  {drawerRow.booking_id?.reference ? (
+                    <button
+                      onClick={() => navigate(`/admin/bookings/${drawerRow.booking_id.reference}/details`)}
+                      className="flex-1 py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                      title="Open full booking details"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Open Booking</span>
+                    </button>
+                  ) : drawerRow.inquiry_id?.reference ? (
+                    <button
+                      onClick={() => navigate(`/admin/inquiries?search=${drawerRow.inquiry_id.reference}`)}
+                      className="flex-1 py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                      title="Open inquiry"
+                    >
+                      <ExternalLink size={13} />
+                      <span>View Inquiry</span>
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
             </div>
-          )}
-        </DetailDrawer>
+          </div>
+        )}
 
         {/* Record Manual Payment Modal */}
         {recordModalOpen && (

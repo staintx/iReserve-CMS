@@ -20,7 +20,9 @@ import {
 import { TONE_ACCENT } from "../../components/customer/portal/tones";
 import { ACTION_PAY } from "../../components/customer/portal/actionStyles";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatEventDateTime, formatShortDate } from "../../utils/format";
+import { formatCurrency, formatEventDateTime, formatShortDate, formatDateToYYYYMMDD } from "../../utils/format";
+import CustomerCalendarCard from "../../components/customer/portal/CustomerCalendarCard";
+import CustomerDateEventsModal from "../../components/customer/portal/CustomerDateEventsModal";
 import {
   CalendarClock,
   CheckCircle2,
@@ -51,6 +53,11 @@ export default function CustomerDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showGetStarted, setShowGetStarted] = useState(true);
+
+  // Calendar State
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
+  const [selectedDateEvents, setSelectedDateEvents] = useState([]);
+  const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
 
   const loadData = () => {
     setLoading(true);
@@ -152,6 +159,117 @@ export default function CustomerDashboard() {
   const nextEventStatus = nextEvent ? bookingStatusMeta(nextEvent) : null;
   const firstName = user?.full_name ? user.full_name.split(" ")[0] : "Customer";
 
+  // Aggregate events for interactive calendar
+  const calendarEventsMap = useMemo(() => {
+    const map = {};
+    const addToMap = (dateKey, eventObj) => {
+      if (!dateKey) return;
+      if (!map[dateKey]) map[dateKey] = [];
+      map[dateKey].push(eventObj);
+    };
+
+    const todayKey = formatDateToYYYYMMDD(now);
+
+    // 1. Inquiries (ORANGE = Inquiry / Quote Request)
+    inquiries.forEach((inq) => {
+      if (["Converted to Booking", "Cancelled", "Quote Rejected"].includes(inq.status)) return;
+      const dateKey = formatDateToYYYYMMDD(inq.event_date);
+      if (!dateKey) return;
+
+      const statusMeta = inquiryStatusMeta(inq);
+      addToMap(dateKey, {
+        id: `inq-${inq._id}`,
+        type: "inquiry",
+        categoryLabel: "Inquiry / Quote Request",
+        title: recordTitle(inq) || inq.event_type || "Catering Inquiry",
+        subtitle: inq.package_name_snapshot || inq.package_id?.name || resolveServiceType(inq),
+        time: inq.start_time,
+        location: inq.municipality || inq.venue_type || "To be confirmed",
+        guests: inq.guest_count,
+        reference: inq.reference,
+        statusPill: statusMeta ? { tone: statusMeta.tone, label: statusMeta.label, icon: statusMeta.icon } : null,
+        actionText: "View Inquiry",
+        onAction: () => navigate(`/customer/inquiries/${inq._id}`),
+      });
+    });
+
+    // 2. Bookings (GREEN = Confirmed Booking, GRAY = Completed / Past Event)
+    bookings.forEach((b) => {
+      if (["cancelled", "refunded"].includes(b.status.toLowerCase())) return;
+      const dateKey = formatDateToYYYYMMDD(b.event_date);
+      if (!dateKey) return;
+
+      const isCompleted = b.status.toLowerCase() === "completed" || (dateKey < todayKey && b.status.toLowerCase() !== "cancelled");
+      const statusMeta = bookingStatusMeta(b);
+
+      if (isCompleted) {
+        addToMap(dateKey, {
+          id: `book-completed-${b._id}`,
+          type: "completed",
+          categoryLabel: "Completed / Past Event",
+          title: recordTitle(b) || "Catering Event",
+          subtitle: b.package_name || resolveServiceType(b),
+          time: b.start_time,
+          location: b.municipality || b.venue_type || "Venue confirmed",
+          guests: b.guest_count,
+          reference: b.reference,
+          statusPill: { tone: "neutral", label: "Completed" },
+          actionText: "View Booking",
+          onAction: () => navigate(`/customer/bookings/${b._id}`),
+        });
+      } else {
+        addToMap(dateKey, {
+          id: `book-confirmed-${b._id}`,
+          type: "confirmed",
+          categoryLabel: "Confirmed Booking",
+          title: recordTitle(b) || "Catering Event",
+          subtitle: b.package_name || resolveServiceType(b),
+          time: b.start_time,
+          location: b.municipality || b.venue_type || "Venue confirmed",
+          guests: b.guest_count,
+          reference: b.reference,
+          statusPill: statusMeta ? { tone: statusMeta.tone, label: statusMeta.label, icon: statusMeta.icon } : null,
+          actionText: "View Booking",
+          onAction: () => navigate(`/customer/bookings/${b._id}`),
+        });
+      }
+    });
+
+    // 3. Payment Due & Overdue Payment (BLUE = Payment Due, RED = Overdue Payment)
+    bookings.forEach((b) => {
+      if (["cancelled", "refunded"].includes(b.status.toLowerCase())) return;
+      const total = Number(b.total_price || 0);
+      const paid = payments
+        .filter((p) => String(p.booking_id?._id || p.booking_id) === String(b._id) && p.status === "approved")
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const balance = Math.max(0, total - paid);
+
+      if (balance > 0) {
+        const dueDateKey = formatDateToYYYYMMDD(b.event_date);
+        if (!dueDateKey) return;
+
+        const isOverdue = dueDateKey < todayKey;
+        addToMap(dueDateKey, {
+          id: `pay-${b._id}`,
+          type: isOverdue ? "overdue_payment" : "payment_due",
+          categoryLabel: isOverdue ? "Overdue Payment" : "Payment Due",
+          title: `${recordTitle(b)}`,
+          subtitle: `Booking Reference: ${b.reference || ""}`,
+          balance: balance,
+          dueDate: formatShortDate(b.event_date),
+          reference: b.reference,
+          statusPill: isOverdue
+            ? { tone: "danger", label: "Overdue" }
+            : { tone: "warning", label: "Payment Due" },
+          actionText: "View Payment",
+          onAction: () => navigate(`/customer/bookings/${b._id}?tab=financials`),
+        });
+      }
+    });
+
+    return map;
+  }, [inquiries, bookings, payments, now, navigate]);
+
   return (
     <CustomerDashboardLayout>
       <div className="space-y-6">
@@ -200,132 +318,198 @@ export default function CustomerDashboard() {
         </div>
 
         {/* ── Main Operational Grid ─────────────────────────────────── */}
-        <div className="max-w-5xl mx-auto">
-          <div className="space-y-6">
-            {/* Needs Attention items */}
-            {!loading && actionRequiredItems.length > 0 && (
-              <PortalSection
-                title={`Needs your attention (${actionRequiredItems.length})`}
-                description="Action required to advance your reservation."
-                bodyClassName="space-y-3"
-              >
-                {actionRequiredItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col gap-3.5 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5 hover:border-slate-300 shadow-2xs transition-all"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h3>
-                        <StatusPill tone={item.status.tone} label={item.status.label} icon={item.status.icon} />
-                      </div>
-                      <p className="text-xs text-slate-600 font-medium">{formatEventDateTime(item.date, item.startTime)}</p>
-                      {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
-                    </div>
+        <div className="max-w-5xl mx-auto space-y-6">
+          {/* ── Calendar & Two Stacked Cards Section ──────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            {/* Left Side: Square Calendar Card */}
+            <div className="lg:col-span-7 flex flex-col">
+              <CustomerCalendarCard
+                eventsMap={calendarEventsMap}
+                selectedDate={selectedCalendarDate}
+                onSelectDate={(date, events) => {
+                  setSelectedCalendarDate(date);
+                  setSelectedDateEvents(events);
+                  setIsEventsModalOpen(true);
+                }}
+              />
+            </div>
 
-                    <Button 
-                      onClick={item.onAction} 
-                      size="sm"
-                      className={cn(
-                        "shrink-0 font-semibold text-xs px-3.5 py-1.5 rounded-md transition-colors cursor-pointer shadow-2xs",
-                        item.isPayment 
-                          ? "bg-amber-600 hover:bg-amber-700 text-white" 
-                          : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
-                      )}
-                    >
-                      {item.actionText}
-                    </Button>
-                  </div>
-                ))}
-              </PortalSection>
-            )}
-
-            {/* Next Event Spotlight */}
-            <PortalSection
-              title="Your Next Event"
-              className="bg-slate-50 border-0 shadow-sm ring-1 ring-slate-900/5"
-              action={
-                <Button variant="ghost" size="sm" onClick={() => navigate("/customer/bookings")} className="text-xs font-bold text-[#2C4B8A] hover:bg-slate-100 cursor-pointer">
-                  All bookings <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                </Button>
-              }
-            >
-              {loading ? (
-                <LoadingState rows={1} label="Loading event details..." />
-              ) : nextEvent ? (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-base font-bold text-slate-900">{recordTitle(nextEvent)}</h3>
-                    {nextEventStatus && (
-                      <StatusPill tone={nextEventStatus.tone} label={nextEventStatus.label} icon={nextEventStatus.icon} />
-                    )}
-                  </div>
-
-                  <DetailGrid
-                    items={[
-                      { label: "Date & Time", value: formatEventDateTime(nextEvent.event_date, nextEvent.start_time) },
-                      { label: "Location", value: nextEvent.municipality || nextEvent.venue_type || "To be confirmed" },
-                      { label: "Service", value: nextEvent.package_name || resolveServiceType(nextEvent) },
-                      { label: "Guests", value: nextEvent.guest_count ? `${nextEvent.guest_count} guests` : "—" },
-                      { label: "Reference", value: nextEvent.reference || "—", mono: true },
-                      { label: "Total Cost", value: formatCurrency(nextEvent.total_price) },
-                    ]}
-                  />
-
-                  <div className="flex justify-end border-t border-slate-100 pt-3">
-                    <Button 
-                      size="sm"
-                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
-                      onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
-                    >
-                      View event workspace <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <EmptyState
-                  className="border-0 py-6"
-                  icon={CalendarClock}
-                  title="No upcoming events scheduled"
-                  description="Your confirmed event preparations and details will appear here."
-                  action={
-                    <Button 
-                      size="sm"
-                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
-                      onClick={() => navigate("/packages")}
-                    >
-                      <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Inquire now
-                    </Button>
-                  }
-                />
-              )}
-            </PortalSection>
-
-            {/* Quick Action Discovery Cards (Compact 2-card row) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div 
+            {/* Right Side: Two Stacked Action Cards */}
+            <div className="lg:col-span-5 flex flex-col gap-4 justify-between">
+              {/* Card 1: Custom Event Quote */}
+              <div
                 onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="p-5 rounded-md bg-white hover:bg-slate-50 ring-1 ring-slate-900/5 cursor-pointer transition-all shadow-sm"
+                className="group flex-1 flex flex-col justify-between p-5 sm:p-6 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs sm:text-sm font-bold text-slate-900 font-sans">Custom Event Quote</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-700 flex items-center justify-center transition-transform group-hover:scale-105">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                      Custom Event Quote
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                      Customize your catering menu, guest count, and event setup details for a tailored quotation.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">Customize catering menu, guest count, and event setup details.</p>
+                <div className="pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs font-semibold justify-between border-slate-200 group-hover:border-slate-300 group-hover:bg-slate-50 cursor-pointer pointer-events-none"
+                  >
+                    <span>Request a Quote</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                  </Button>
+                </div>
               </div>
 
-              <div 
+              {/* Card 2: Browse Menu Package */}
+              <div
                 onClick={() => navigate("/packages")}
-                className="p-5 rounded-md bg-white hover:bg-slate-50 ring-1 ring-slate-900/5 cursor-pointer transition-all shadow-sm"
+                className="group flex-1 flex flex-col justify-between p-5 sm:p-6 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-md transition-all cursor-pointer"
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs sm:text-sm font-bold text-slate-900 font-sans">Browse Menu Packages</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/70 text-[#2C4B8A] flex items-center justify-center transition-transform group-hover:scale-105">
+                      <Utensils className="w-5 h-5" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 font-sans">
+                      Browse Menu Package
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">
+                      Explore curated all-inclusive packages, special offers, and chef-crafted dishes.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">Explore curated all-inclusive packages and dishes.</p>
+                <div className="pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full text-xs font-semibold justify-between border-slate-200 group-hover:border-slate-300 group-hover:bg-slate-50 cursor-pointer pointer-events-none"
+                  >
+                    <span>Browse Packages</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Needs Attention items (if any action required) */}
+          {!loading && actionRequiredItems.length > 0 && (
+            <PortalSection
+              title={`Needs your attention (${actionRequiredItems.length})`}
+              description="Action required to advance your reservation."
+              bodyClassName="space-y-3"
+            >
+              {actionRequiredItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-3.5 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5 hover:border-slate-300 shadow-2xs transition-all"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h3>
+                      <StatusPill tone={item.status.tone} label={item.status.label} icon={item.status.icon} />
+                    </div>
+                    <p className="text-xs text-slate-600 font-medium">{formatEventDateTime(item.date, item.startTime)}</p>
+                    {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+                  </div>
+
+                  <Button 
+                    onClick={item.onAction} 
+                    size="sm"
+                    className={cn(
+                      "shrink-0 font-semibold text-xs px-3.5 py-1.5 rounded-md transition-colors cursor-pointer shadow-2xs",
+                      item.isPayment 
+                        ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                        : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
+                    )}
+                  >
+                    {item.actionText}
+                  </Button>
+                </div>
+              ))}
+            </PortalSection>
+          )}
+
+          {/* ── Below: Your Next Event Section ──────────────────────── */}
+          <PortalSection
+            title="Your Next Event"
+            className="bg-slate-50 border-0 shadow-sm ring-1 ring-slate-900/5"
+            action={
+              <Button variant="ghost" size="sm" onClick={() => navigate("/customer/bookings")} className="text-xs font-bold text-[#2C4B8A] hover:bg-slate-100 cursor-pointer">
+                All bookings <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            }
+          >
+            {loading ? (
+              <LoadingState rows={1} label="Loading event details..." />
+            ) : nextEvent ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-bold text-slate-900">{recordTitle(nextEvent)}</h3>
+                  {nextEventStatus && (
+                    <StatusPill tone={nextEventStatus.tone} label={nextEventStatus.label} icon={nextEventStatus.icon} />
+                  )}
+                </div>
+
+                <DetailGrid
+                  items={[
+                    { label: "Date & Time", value: formatEventDateTime(nextEvent.event_date, nextEvent.start_time) },
+                    { label: "Location", value: nextEvent.municipality || nextEvent.venue_type || "To be confirmed" },
+                    { label: "Service", value: nextEvent.package_name || resolveServiceType(nextEvent) },
+                    { label: "Guests", value: nextEvent.guest_count ? `${nextEvent.guest_count} guests` : "—" },
+                    { label: "Reference", value: nextEvent.reference || "—", mono: true },
+                    { label: "Total Cost", value: formatCurrency(nextEvent.total_price) },
+                  ]}
+                />
+
+                <div className="flex justify-end border-t border-slate-100 pt-3">
+                  <Button 
+                    size="sm"
+                    className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
+                    onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
+                  >
+                    View event workspace <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                className="border-0 py-6"
+                icon={CalendarClock}
+                title="No upcoming events scheduled"
+                description="Your confirmed event preparations and details will appear here."
+                action={
+                  <Button 
+                    size="sm"
+                    className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
+                    onClick={() => navigate("/packages")}
+                  >
+                    <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Inquire now
+                  </Button>
+                }
+              />
+            )}
+          </PortalSection>
+
+          {/* Date Events Dialog Modal */}
+          <CustomerDateEventsModal
+            isOpen={isEventsModalOpen}
+            onClose={() => setIsEventsModalOpen(false)}
+            selectedDate={selectedCalendarDate}
+            events={selectedDateEvents}
+          />
         </div>
       </div>
     </CustomerDashboardLayout>

@@ -87,6 +87,14 @@ export default function CustomerEventDashboard() {
   const [payingPaymentId, setPayingPaymentId] = useState(null);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
   const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
+
+  useEffect(() => {
+    const currentTab = searchParams.get("tab");
+    if (currentTab && currentTab !== activeTab) {
+      setActiveTab(currentTab);
+    }
+  }, [searchParams]);
 
   const [requestingChange, setRequestingChange] = useState(false);
   const [requestNote, setRequestNote] = useState("");
@@ -1089,7 +1097,7 @@ export default function CustomerEventDashboard() {
         )}
 
         {/* Main Tabbed Interface */}
-        <Tabs defaultValue="overview" className="w-full space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-4">
           <TabsList className="bg-slate-100/90 border border-slate-200 p-0.5 rounded-lg w-full sm:w-auto flex sm:inline-flex h-9 gap-0.5 overflow-x-auto justify-start">
             <TabsTrigger value="overview" className="shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-2xs transition-all">
               <Utensils className="w-3.5 h-3.5 mr-1.5 hidden sm:inline" />

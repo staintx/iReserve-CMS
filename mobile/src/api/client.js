@@ -86,13 +86,18 @@ client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error.response?.status;
-    const data = error.response?.data;
+    const url = error.config?.url || "";
 
     if (status === 401) {
-      if (data?.code === "TOKEN_EXPIRED" || data?.message === "Token expired" || data?.message === "No token") {
-        if (typeof onSessionExpiredCallback === "function") {
-          onSessionExpiredCallback();
-        }
+      // Do not trigger session expiration on login/register attempt failures
+      const isAuthAttempt =
+        url.includes("/auth/login") ||
+        url.includes("/auth/register") ||
+        url.includes("/auth/verify-otp") ||
+        url.includes("/auth/forgot-password");
+
+      if (!isAuthAttempt && typeof onSessionExpiredCallback === "function") {
+        onSessionExpiredCallback();
       }
     }
 

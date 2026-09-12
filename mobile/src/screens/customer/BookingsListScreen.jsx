@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   Search,
   X,
@@ -25,6 +26,7 @@ import {
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
 import { cacheData, getCachedData, CACHE_KEYS } from "../../utils/offlineStorage";
+import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import PillFilter from "../../components/common/PillFilter";
@@ -52,7 +54,7 @@ export const BookingsListScreen = ({ navigation }) => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedService, setSelectedService] = useState("All services");
 
-  const loadBookings = async () => {
+  const loadBookings = useCallback(async () => {
     setError("");
     try {
       const data = await customerApi.getBookings();
@@ -72,11 +74,19 @@ export const BookingsListScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadBookings();
-  }, []);
+  }, [loadBookings]);
+
+  useRealTimeRefresh(loadBookings);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadBookings();
+    }, [loadBookings])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   Search,
   X,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import customerApi from "../../api/customer";
+import useRealTimeRefresh from "../../utils/useRealTimeRefresh";
 import Card from "../../components/common/Card";
 import StatusBadge from "../../components/common/StatusBadge";
 import PillFilter from "../../components/common/PillFilter";
@@ -51,7 +53,7 @@ export const InquiriesListScreen = ({ navigation }) => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedService, setSelectedService] = useState("All Services");
 
-  const loadInquiries = async () => {
+  const loadInquiries = useCallback(async () => {
     setError("");
     try {
       const data = await customerApi.getInquiries();
@@ -62,11 +64,19 @@ export const InquiriesListScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadInquiries();
-  }, []);
+  }, [loadInquiries]);
+
+  useRealTimeRefresh(loadInquiries);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadInquiries();
+    }, [loadInquiries])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

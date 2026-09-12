@@ -79,6 +79,7 @@ export default function CustomerDateEventsModal({
                   "rounded-xl border p-4 sm:p-5 transition-all space-y-3 shadow-2xs",
                   event.type === "confirmed" && "border-emerald-200 bg-emerald-50/30",
                   event.type === "inquiry" && "border-amber-200 bg-amber-50/30",
+                  event.type === "ocular" && "border-purple-200 bg-purple-50/40",
                   event.type === "payment_due" && "border-blue-200 bg-blue-50/30",
                   event.type === "overdue_payment" && "border-rose-200 bg-rose-50/30",
                   event.type === "completed" && "border-slate-200 bg-slate-50/40"
@@ -92,6 +93,7 @@ export default function CustomerDateEventsModal({
                         "w-2.5 h-2.5 rounded-full shrink-0",
                         event.type === "confirmed" && "bg-emerald-500",
                         event.type === "inquiry" && "bg-orange-500",
+                        event.type === "ocular" && "bg-purple-600",
                         event.type === "payment_due" && "bg-blue-600",
                         event.type === "overdue_payment" && "bg-rose-600 animate-pulse",
                         event.type === "completed" && "bg-slate-400"
@@ -120,6 +122,14 @@ export default function CustomerDateEventsModal({
                     <p className="text-xs text-slate-500 mt-0.5">{event.subtitle}</p>
                   )}
                 </div>
+
+                {/* Optional Ocular Action Required Reminder Notice */}
+                {event.ocularReminder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-900 text-xs font-medium">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                    <span>{event.ocularReminder}</span>
+                  </div>
+                )}
 
                 {/* Content details depending on event type */}
                 {event.type === "payment_due" || event.type === "overdue_payment" ? (
@@ -185,6 +195,8 @@ export default function CustomerDateEventsModal({
                         "text-xs font-semibold px-4 h-8 rounded-md transition-all shadow-2xs gap-1.5 cursor-pointer",
                         (event.type === "payment_due" || event.type === "overdue_payment")
                           ? "bg-amber-600 hover:bg-amber-700 text-white"
+                          : event.type === "ocular"
+                          ? "bg-purple-700 hover:bg-purple-800 text-white"
                           : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
                       )}
                     >

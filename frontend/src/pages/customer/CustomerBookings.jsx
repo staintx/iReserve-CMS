@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
 import { isOcularEligibleBooking } from "../../utils/ocularEligibility";
+import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { getEventThumbnail } from "../../utils/eventThumbnails";
@@ -13,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "../../components/ui/dropdown-menu";
 import {
   bookingStatusGroup,
@@ -20,6 +22,7 @@ import {
   recordTitle,
   resolveServiceType,
 } from "../../components/customer/portal/statusMeta";
+import { isSpecialOffer } from "../../lib/specialOffers";
 import { formatCurrency, formatEventDateWithDay, formatShortDate } from "../../utils/format";
 import { cn } from "@/lib/utils";
 import {
@@ -52,7 +55,7 @@ export default function CustomerBookings() {
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
   const [packages, setPackages] = useState([]);
-  const [menuCatalog, setMenuCatalog] = useState([]);
+  const [_menuCatalog, setMenuCatalog] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters, Search, Sort State
@@ -102,7 +105,7 @@ export default function CustomerBookings() {
       setPayments(pRes.data || []);
       setPackages(pkgRes.data || []);
       setMenuCatalog(menuRes.data || []);
-    } catch (err) {
+    } catch {
       notify("Failed to load booking details.", "error");
     } finally {
       setLoading(false);
@@ -168,8 +171,30 @@ export default function CustomerBookings() {
         return timeB - timeA;
       });
   }, [bookings, statusFilter, serviceTypeFilter, searchQuery, sortBy]);
-
   const isFiltered = Boolean(searchQuery.trim()) || statusFilter !== "all" || serviceTypeFilter !== "all";
+
+  // Dynamically derive configured Combo Pack names from packages and existing bookings
+  const comboPackNames = useMemo(() => {
+    const names = new Set();
+    (packages || []).forEach((pkg) => {
+      if (pkg.offer_type === "special" || isSpecialOffer(pkg)) {
+        if (pkg.name) names.add(pkg.name);
+      }
+    });
+    (bookings || []).forEach((bkg) => {
+      const isSpecial =
+        bkg.booking_type === "special" ||
+        bkg.package_id?.offer_type === "special" ||
+        bkg.event_type === "Special Offer Catering" ||
+        Boolean(bkg.package_id?.is_special_offer) ||
+        (Array.isArray(bkg.offer_food_snapshot) && bkg.offer_food_snapshot.length > 0);
+      if (isSpecial) {
+        const name = bkg.package_name_snapshot || bkg.package_id?.name || bkg.package_name;
+        if (name) names.add(name);
+      }
+    });
+    return Array.from(names);
+  }, [packages, bookings]);
 
   // Auto-select first booking for desktop pane
   useEffect(() => {
@@ -451,24 +476,79 @@ export default function CustomerBookings() {
                       <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                      Filter Service Type
+                  <DropdownMenuContent align="end" className="w-60 rounded-xl p-1.5 shadow-lg border-slate-200 max-h-96 overflow-y-auto [scrollbar-width:thin]">
+                    <DropdownMenuItem
+                      onClick={() => setServiceTypeFilter("all")}
+                      className={cn(
+                        "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                        serviceTypeFilter === "all" ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                      )}
+                    >
+                      <span>All Services</span>
+                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                    {/* Category 1: Regular Package */}
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                      Regular Package
                     </DropdownMenuLabel>
-                    {[
-                      { id: "all", label: "All Services" },
-                      ...SERVICE_TYPES.map((t) => ({ id: t, label: t })),
-                    ].map((item) => (
+                    {["Regular Package", "Regular Package + Menu"].map((opt) => (
                       <DropdownMenuItem
-                        key={item.id}
-                        onClick={() => setServiceTypeFilter(item.id)}
+                        key={opt}
+                        onClick={() => setServiceTypeFilter(opt)}
                         className={cn(
-                          "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
                         )}
                       >
-                        <span>{item.label}</span>
-                        {serviceTypeFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        <span>{opt}</span>
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      </DropdownMenuItem>
+                    ))}
+
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                    {/* Category 2: Combo Packs */}
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                      Combo Packs
+                    </DropdownMenuLabel>
+                    {comboPackNames.length > 0 ? (
+                      comboPackNames.map((name) => (
+                        <DropdownMenuItem
+                          key={name}
+                          onClick={() => setServiceTypeFilter(name)}
+                          className={cn(
+                            "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                            serviceTypeFilter === name ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          )}
+                        >
+                          <span className="truncate">{name}</span>
+                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <div className="px-3 py-1 text-[11px] text-slate-400 italic">No combo packs configured</div>
+                    )}
+
+                    <DropdownMenuSeparator className="my-1 bg-slate-100" />
+
+                    {/* Category 3: Request Custom */}
+                    <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
+                      Request Custom
+                    </DropdownMenuLabel>
+                    {["Food Only", "Event Setup Only", "Food and Event Setup"].map((opt) => (
+                      <DropdownMenuItem
+                        key={opt}
+                        onClick={() => setServiceTypeFilter(opt)}
+                        className={cn(
+                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span>{opt}</span>
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -556,6 +636,7 @@ export default function CustomerBookings() {
                   const bal = balanceOf(bkg);
                   const meta = bookingStatusMeta(bkg, { balance: bal });
                   const locationStr = [bkg.municipality, bkg.province].filter(Boolean).join(", ") || bkg.venue_address || "Location TBD";
+                  const ocularMeta = getBookingOcularActionMeta(bkg);
 
                   return (
                     <div
@@ -630,6 +711,52 @@ export default function CustomerBookings() {
                           {renderCardActionButton(bkg)}
                         </div>
                       </div>
+
+                      {/* Ocular / Next Step Action Reminder Strip */}
+                      {ocularMeta && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/customer/bookings/${bkg._id}`);
+                          }}
+                          className={cn(
+                            "mt-3 pt-2.5 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-all cursor-pointer group/strip",
+                            ocularMeta.state === "action_required"
+                              ? "bg-amber-50/80 border-amber-200/80 hover:bg-amber-100/70 text-amber-950"
+                              : ocularMeta.state === "scheduled"
+                              ? "bg-blue-50/70 border-blue-200/80 hover:bg-blue-100/60 text-blue-950"
+                              : ocularMeta.state === "requested"
+                              ? "bg-amber-50/60 border-amber-200/70 hover:bg-amber-100/50 text-amber-950"
+                              : "bg-emerald-50/60 border-emerald-200/70 hover:bg-emerald-100/50 text-emerald-950"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span
+                              className={cn(
+                                "w-2 h-2 rounded-full shrink-0",
+                                ocularMeta.state === "action_required"
+                                  ? "bg-orange-500 animate-pulse"
+                                  : ocularMeta.state === "scheduled"
+                                  ? "bg-blue-600"
+                                  : ocularMeta.state === "requested"
+                                  ? "bg-amber-500"
+                                  : "bg-emerald-600"
+                              )}
+                            />
+                            <span className="font-bold uppercase tracking-wider text-[10px] shrink-0 opacity-90">
+                              {ocularMeta.headline}
+                            </span>
+                            <span className="hidden sm:inline text-slate-300">•</span>
+                            <span className="truncate font-medium text-xs">
+                              {ocularMeta.subheadline}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 font-semibold text-[11px] shrink-0 sm:ml-auto text-[#2C4B8A] group-hover/strip:underline">
+                            <span>{ocularMeta.state === "action_required" ? "Schedule ocular visit →" : "View details →"}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -637,15 +764,15 @@ export default function CustomerBookings() {
             </div>
           </div>
 
-          {/* RIGHT ACTION & FINANCIAL TRACKER SIDE PANEL WITH ABOVE-THE-FOLD VIEWPORT LAYOUT */}
+          {/* RIGHT ACTION & FINANCIAL TRACKER SIDE PANEL WITH PINNED FOOTER LAYOUT */}
           <div
             className={cn(
-              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex flex-col justify-between h-fit max-h-none md:max-h-[calc(100vh-6.5rem)] overflow-hidden",
+              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl shadow-2xs flex flex-col h-full max-h-full min-h-0 overflow-hidden",
               mobileView === "list" ? "hidden md:flex" : "flex"
             )}
           >
             {/* Mobile Back Button */}
-            <div className="md:hidden pb-2 border-b border-slate-100 shrink-0">
+            <div className="md:hidden px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-white">
               <Button
                 variant="ghost"
                 size="sm"
@@ -664,10 +791,10 @@ export default function CustomerBookings() {
               const isDepositNeeded = (selectedBooking.status || "").toLowerCase().includes("deposit") || (selectedBooking.payment_status === "deposit_pending" && bal > 0);
 
               return (
-                <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
-                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 [scrollbar-width:thin]">
-                    {/* Header Card */}
-                    <div className="flex items-start justify-between gap-2.5 border-b border-slate-100 pb-2.5">
+                <>
+                  {/* TOP HEADER: SELECTED BOOKING & STATUS BADGE */}
+                  <div className="p-3.5 pb-2.5 border-b border-slate-100 shrink-0 bg-white">
+                    <div className="flex items-start justify-between gap-2.5">
                       <div className="min-w-0">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Booking</span>
                         <h3 className="font-bold text-base text-slate-900 font-sans leading-snug truncate">
@@ -679,7 +806,10 @@ export default function CustomerBookings() {
                       </div>
                       {renderStatusBadge(selectedBooking)}
                     </div>
+                  </div>
 
+                  {/* SCROLLABLE CONTENT AREA */}
+                  <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5 [scrollbar-width:thin]">
                     {/* 4-STEP CATERING JOURNEY PROGRESSION TRACKER - COMPACT */}
                     <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -758,6 +888,55 @@ export default function CustomerBookings() {
                       )}
                     </div>
 
+                    {/* OCULAR / NEXT ACTION REMINDER BOX */}
+                    {(() => {
+                      const selectedOcular = getBookingOcularActionMeta(selectedBooking);
+                      if (!selectedOcular) return null;
+
+                      return (
+                        <div
+                          onClick={() => navigate(`/customer/bookings/${selectedBooking._id}`)}
+                          className={cn(
+                            "border rounded-lg p-2.5 space-y-1.5 cursor-pointer transition-all shadow-2xs group/oc",
+                            selectedOcular.state === "action_required"
+                              ? "bg-gradient-to-r from-amber-50 to-orange-50/50 border-amber-200/90 hover:border-amber-300"
+                              : selectedOcular.state === "scheduled"
+                              ? "bg-blue-50/70 border-blue-200/80 hover:border-blue-300"
+                              : selectedOcular.state === "requested"
+                              ? "bg-amber-50/60 border-amber-200/70 hover:border-amber-300"
+                              : "bg-emerald-50/60 border-emerald-200/70"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className={cn(
+                                  "w-2 h-2 rounded-full shrink-0",
+                                  selectedOcular.state === "action_required"
+                                    ? "bg-orange-500 animate-pulse"
+                                    : selectedOcular.state === "scheduled"
+                                    ? "bg-blue-600"
+                                    : selectedOcular.state === "requested"
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-600"
+                                )}
+                              />
+                              <h4 className="font-bold text-[#1E3563] text-[11px] uppercase tracking-wider font-sans truncate">
+                                {selectedOcular.headline}: {selectedOcular.subheadline}
+                              </h4>
+                            </div>
+                            <span className="text-[10px] font-semibold text-[#2C4B8A] flex items-center gap-0.5 shrink-0 group-hover/oc:underline">
+                              <span>{selectedOcular.state === "action_required" ? "Schedule" : "Details"}</span>
+                              <ChevronRight className="w-3 h-3" />
+                            </span>
+                          </div>
+                          <p className="text-slate-700 text-xs leading-snug font-medium">
+                            {selectedOcular.description}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
                     {/* FINANCIAL & PAYMENT TRACKER CARD - COMPACT */}
                     <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
@@ -816,19 +995,19 @@ export default function CustomerBookings() {
                     </div>
                   </div>
 
-                  {/* BOTTOM FULL DASHBOARD CTA - PROMINENT & PINNED ACCESSIBLE ABOVE THE FOLD */}
-                  <div className="pt-2 border-t border-slate-100 shrink-0">
+                  {/* FIXED FOOTER: VIEW FULL DETAILS ACTION */}
+                  <div className="p-3.5 bg-white border-t border-slate-100 shrink-0">
                     <Button
                       variant="outline"
                       onClick={() => navigate(`/customer/bookings/${selectedBooking._id}`)}
-                      className="w-full border-blue-200 bg-blue-50/40 hover:bg-blue-100/60 text-[#1E3563] font-bold text-xs h-8.5 rounded-md cursor-pointer shadow-2xs gap-1.5 shrink-0 transition-all"
+                      className="w-full border-blue-200 bg-blue-50/40 hover:bg-blue-100/60 text-[#1E3563] font-bold text-xs h-8.5 rounded-md cursor-pointer shadow-2xs gap-1.5 shrink-0 transition-all flex items-center justify-center"
                     >
                       <Eye className="w-4 h-4 text-[#1E3563]" />
                       <span>View Full Details</span>
                       <ChevronRight className="w-4 h-4 text-[#1E3563]" />
                     </Button>
                   </div>
-                </div>
+                </>
               );
             })() : (
               <div className="p-8 text-center text-slate-400 text-xs my-auto">
@@ -846,6 +1025,8 @@ export default function CustomerBookings() {
           onClose={() => setRequestingOcularBooking(null)}
           onSubmit={submitOcularRequest}
           isSubmitting={isSubmittingOcular}
+          eventDate={requestingOcularBooking?.event_date}
+          eventTitle={requestingOcularBooking?.event_type}
         />
       )}
     </CustomerDashboardLayout>

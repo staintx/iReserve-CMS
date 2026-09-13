@@ -24,6 +24,7 @@ const UserSchema = new mongoose.Schema({
   email_verify_expires: Date,
   email_otp_hash: String,
   email_otp_expires: Date,
+  email_otp_attempts: { type: Number, default: 0 },
   reset_password_token: String,
   reset_password_expires: Date
 }, { timestamps: true });

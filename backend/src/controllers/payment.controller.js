@@ -289,29 +289,10 @@ exports.create = asyncHandler(async (req, res) => {
 	res.status(201).json(payment);
 });
 exports.getAll = asyncHandler(async (req, res) => {
-	const pendingGatewayPayments = await Payment.find({
-		gateway: "paymongo",
-		status: "pending",
-	}).limit(20);
-
-	await Promise.allSettled(
-		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
-	);
-
 	res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id").lean());
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
-	const pendingGatewayPayments = await Payment.find({
-		customer_id: req.user._id,
-		gateway: "paymongo",
-		status: "pending",
-	}).limit(20);
-
-	await Promise.allSettled(
-		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
-	);
-
 	// Perform stale pending cleanup for customer bookings
 	const customerBookings = await Booking.find({ customer_id: req.user._id }).select("_id payment_status").lean();
 	for (const b of customerBookings) {
@@ -421,6 +402,55 @@ async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type = "d
 	return null;
 }
 
+const calculatePayableAmount = async ({ targetDoc, payment_type, isCustomer, requestedAmount }) => {
+	// If privileged user and requestedAmount is a valid positive number, allow custom amount
+	if (!isCustomer && Number.isFinite(Number(requestedAmount)) && Number(requestedAmount) > 0) {
+		return Number(requestedAmount);
+	}
+
+	let expectedAmount = 0;
+	const totalPrice = Number(targetDoc.total_price || 0);
+
+	// Check if inquiry or booking
+	if (targetDoc.inquiry_number !== undefined || targetDoc.estimated_budget !== undefined) {
+		const quotation = await Quotation.findOne({ inquiry_id: targetDoc._id }).sort({ version_number: -1 });
+		const depositAmount = Number(quotation?.deposit_amount || (totalPrice > 0 ? Math.round(totalPrice * 0.5) : 0));
+		const fullAmount = Number(quotation?.total_amount || totalPrice);
+
+		if (payment_type === "full") {
+			expectedAmount = fullAmount;
+		} else {
+			expectedAmount = depositAmount > 0 ? depositAmount : fullAmount;
+		}
+	} else {
+		const approvedPayments = await Payment.find({ booking_id: targetDoc._id, status: "approved" });
+		const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+		const remainingBalance = Math.max(0, totalPrice - totalPaid);
+
+		if (payment_type === "balance") {
+			expectedAmount = remainingBalance;
+		} else if (payment_type === "full") {
+			expectedAmount = totalPrice;
+		} else {
+			let depositAmount = 0;
+			if (targetDoc.quotation_id) {
+				const quotation = await Quotation.findById(targetDoc.quotation_id);
+				depositAmount = Number(quotation?.deposit_amount || 0);
+			}
+			if (!depositAmount && targetDoc.inquiry_id) {
+				const quotation = await Quotation.findOne({ inquiry_id: targetDoc.inquiry_id }).sort({ version_number: -1 });
+				depositAmount = Number(quotation?.deposit_amount || 0);
+			}
+			if (!depositAmount && totalPrice > 0) {
+				depositAmount = Math.round(totalPrice * 0.5);
+			}
+			expectedAmount = depositAmount > 0 ? depositAmount : totalPrice;
+		}
+	}
+
+	return expectedAmount;
+};
+
 exports.createCheckout = asyncHandler(async (req, res) => {
 	const {
 		booking_id,
@@ -463,15 +493,12 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 	}
 
-	let payableAmount = Number(amount);
-	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
-		if (inquiry_id) {
-			const quotation = await Quotation.findOne({ inquiry_id: targetDoc._id }).sort({ version_number: -1 });
-			payableAmount = Number(quotation?.deposit_amount || targetDoc.total_price || 0);
-		} else {
-			payableAmount = Number(targetDoc.total_price || 0);
-		}
-	}
+	const payableAmount = await calculatePayableAmount({
+		targetDoc,
+		payment_type,
+		isCustomer: req.user.role === "customer",
+		requestedAmount: amount
+	});
 
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
 		return res.status(400).json({ message: "Invalid payment amount" });
@@ -612,7 +639,12 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 
-	const payableAmount = Number(amount || targetDoc.total_price || 0);
+	const payableAmount = await calculatePayableAmount({
+		targetDoc,
+		payment_type,
+		isCustomer: req.user.role === "customer",
+		requestedAmount: amount
+	});
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
 	const pendingQuery = {

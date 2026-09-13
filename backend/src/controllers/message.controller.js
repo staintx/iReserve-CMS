@@ -59,7 +59,8 @@ const ensureCustomerSupportConversation = async (customerId) => {
 };
 
 exports.listConversations = asyncHandler(async (req, res) => {
-  if (req.user.role !== "admin" && req.user.role !== "customer") {
+  const allowedRoles = ["admin", "customer", "manager", "staff"];
+  if (!allowedRoles.includes(req.user.role)) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -83,6 +84,13 @@ exports.listConversations = asyncHandler(async (req, res) => {
     }
   }
 
+  if (req.user.role === "manager") {
+    const managerBookings = await Booking.find({ event_manager_id: req.user._id }, "_id customer_id event_manager_id").lean();
+    if (managerBookings.length > 0) {
+      await ensureBookingConversations(managerBookings);
+    }
+  }
+
   if (req.user.role === "customer") {
     const [bookings, inquiries] = await Promise.all([
       Booking.find({ customer_id: req.user._id }),
@@ -96,7 +104,20 @@ exports.listConversations = asyncHandler(async (req, res) => {
   }
 
   const query = {};
-  if (req.user.role === "customer") query.customer_id = req.user._id;
+  if (req.user.role === "customer") {
+    query.customer_id = req.user._id;
+  } else if (req.user.role === "manager") {
+    const managerBookings = await Booking.find({ event_manager_id: req.user._id }, "_id").lean();
+    const bIds = managerBookings.map((b) => b._id);
+    query.$or = [
+      { event_manager_id: req.user._id },
+      { booking_id: { $in: bIds } }
+    ];
+  } else if (req.user.role === "staff") {
+    const staffBookings = await Booking.find({ "staff_assignments.user_id": req.user._id }, "_id").lean();
+    const bIds = staffBookings.map((b) => b._id);
+    query.booking_id = { $in: bIds };
+  }
 
   const conversations = await Conversation.find(query)
     .populate("customer_id", "full_name email phone")
@@ -116,7 +137,7 @@ exports.getConversation = asyncHandler(async (req, res) => {
     .populate("inquiry_id", "inquiry_number event_type event_date status estimated_budget");
 
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-  if (!canAccessConversation(req.user, conversation)) {
+  if (!(await canAccessConversation(req.user, conversation))) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -126,7 +147,7 @@ exports.getConversation = asyncHandler(async (req, res) => {
 exports.getMessages = asyncHandler(async (req, res) => {
   const conversation = await Conversation.findById(req.params.id);
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-  if (!canAccessConversation(req.user, conversation)) {
+  if (!(await canAccessConversation(req.user, conversation))) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -141,7 +162,7 @@ exports.getMessages = asyncHandler(async (req, res) => {
 exports.sendMessage = asyncHandler(async (req, res) => {
   const conversation = await Conversation.findById(req.params.id);
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-  if (!canAccessConversation(req.user, conversation)) {
+  if (!(await canAccessConversation(req.user, conversation))) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -220,7 +241,7 @@ exports.sendMessage = asyncHandler(async (req, res) => {
 exports.markAsRead = asyncHandler(async (req, res) => {
   const conversation = await Conversation.findById(req.params.id);
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-  if (!canAccessConversation(req.user, conversation)) {
+  if (!(await canAccessConversation(req.user, conversation))) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
@@ -255,9 +276,12 @@ exports.createConversation = asyncHandler(async (req, res) => {
 
     const isCustomer = String(booking.customer_id) === String(req.user._id);
     const isManager = booking.event_manager_id && String(booking.event_manager_id) === String(req.user._id);
+    const isAssignedStaff = Array.isArray(booking.staff_assignments) && booking.staff_assignments.some(
+      (sa) => String(sa.user_id) === String(req.user._id)
+    );
     const isAdmin = req.user.role === "admin";
 
-    if (!isCustomer && !isManager && !isAdmin) {
+    if (!isCustomer && !isManager && !isAssignedStaff && !isAdmin) {
       return res.status(403).json({ message: "Forbidden" });
     }
 

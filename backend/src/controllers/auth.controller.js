@@ -99,15 +99,10 @@ exports.register = async (req, res, next) => {
 
     const response = {
       message: emailSent
-        ? "Registration successful. Please verify your email."
-        : "Registration successful, but verification email failed to send.",
+        ? "Registration successful. Please check your email for the verification code."
+        : "Registration successful, but the verification email could not be sent. Please click resend on the verification screen.",
       user: sanitizeUser(user)
     };
-
-    if (!emailSent) {
-      response.verify_link = verifyLink;
-      response.otp = otp;
-    }
 
     res.status(201).json(response);
   } catch (err) {
@@ -202,10 +197,22 @@ exports.verifyOtp = async (req, res, next) => {
       return res.status(400).json({ message: "OTP expired. Please request a new code." });
     }
 
-    const cleanOtp = otp.trim();
+    // Enforce 5 attempts max to protect against brute-force
+    user.email_otp_attempts = (user.email_otp_attempts || 0) + 1;
+    if (user.email_otp_attempts > 5) {
+      user.email_otp_hash = undefined;
+      user.email_otp_expires = undefined;
+      user.email_otp_attempts = 0;
+      await user.save();
+      return res.status(429).json({ message: "Too many failed attempts. This code has been invalidated. Please request a new code." });
+    }
+
+    const cleanOtp = String(otp || "").trim();
     const otpHash = hashToken(cleanOtp);
     if (otpHash !== user.email_otp_hash) {
-      return res.status(400).json({ message: "Invalid OTP" });
+      await user.save();
+      const remaining = Math.max(0, 5 - user.email_otp_attempts);
+      return res.status(400).json({ message: `Invalid OTP. ${remaining} attempt(s) remaining.` });
     }
 
     user.is_verified = true;
@@ -213,6 +220,7 @@ exports.verifyOtp = async (req, res, next) => {
     user.email_verify_expires = undefined;
     user.email_otp_hash = undefined;
     user.email_otp_expires = undefined;
+    user.email_otp_attempts = 0;
     await user.save();
 
     res.json({ message: "Email verified. You may now log in." });
@@ -234,6 +242,7 @@ exports.resendOtp = async (req, res, next) => {
     const otp = generateOtp();
     user.email_otp_hash = hashToken(otp);
     user.email_otp_expires = new Date(Date.now() + 10 * 60 * 1000);
+    user.email_otp_attempts = 0;
     await user.save();
 
     let emailSent = true;
@@ -265,12 +274,8 @@ exports.resendOtp = async (req, res, next) => {
     }
 
     const response = {
-      message: emailSent ? "OTP sent." : "OTP generated, but email failed to send."
+      message: emailSent ? "OTP sent to your email." : "Failed to deliver OTP email. Please verify your email address or try again."
     };
-
-    if (!emailSent) {
-      response.otp = otp;
-    }
 
     res.json(response);
   } catch (err) {

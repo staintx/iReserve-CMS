@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import useToast from "../../../hooks/useToast";
+import useAuth from "../../../hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -14,6 +15,7 @@ export default function CustomCheckout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { notify } = useToast();
+  const { user } = useAuth();
   
   const [bookingId, setBookingId] = useState(location.state?.bookingId);
   const [amount, setAmount] = useState(location.state?.amount);
@@ -82,7 +84,7 @@ export default function CustomCheckout() {
         intent_id: intentId,
         payment_method_type: selectedMethod,
         details: selectedMethod === "card" ? details : undefined,
-        billing: selectedMethod === "card" ? { name: cardDetails.name, email: "customer@example.com" } : undefined
+        billing: selectedMethod === "card" ? { name: cardDetails.name, email: user?.email || "" } : undefined
       });
 
       const { status, next_action_url } = res.data;

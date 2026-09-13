@@ -102,10 +102,26 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     try {
       if (currentPaymentId) {
         const res = await customerApi.verifyPayment(currentPaymentId);
-        if (res?.payment?.booking_id) {
-          setConfirmedBookingId(res.payment.booking_id);
+        const pStatus = res?.payment?.status;
+        if (pStatus === "approved") {
+          if (res.payment?.booking_id) {
+            setConfirmedBookingId(res.payment.booking_id);
+          }
+          setSuccess(true);
+          return;
+        } else if (pStatus === "rejected") {
+          showNotice(
+            "Payment Failed",
+            "The payment transaction was rejected or failed. Please retry with another payment method."
+          );
+          return;
+        } else {
+          showNotice(
+            "Payment Processing",
+            "Payment is still being processed by the gateway. Please wait a few moments and tap 'Verify Payment Status' again."
+          );
+          return;
         }
-        setSuccess(true);
       } else if (params.inquiryId) {
         const inq = await customerApi.getInquiryById(params.inquiryId);
         if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
@@ -114,7 +130,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         } else {
           showNotice(
             "Payment Verification",
-            "We haven't received confirmation from PayMongo yet. If you just completed paying, please allow 10-15 seconds and try verifying again."
+            "We haven't received confirmation from the gateway yet. If you just completed paying, please allow 10-15 seconds and try verifying again."
           );
         }
       } else {
@@ -143,15 +159,37 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
       try {
         if (currentPaymentId) {
           const res = await customerApi.verifyPayment(currentPaymentId);
-          if (res?.payment?.booking_id) {
-            setConfirmedBookingId(res.payment.booking_id);
+          if (res?.payment?.status === "approved") {
+            if (res.payment?.booking_id) {
+              setConfirmedBookingId(res.payment.booking_id);
+            }
+            setSuccess(true);
+          } else {
+            showNotice(
+              "Payment Processing",
+              "We received your return from checkout, but confirmation is still processing. Please tap 'Verify Payment Status' to update."
+            );
           }
+        } else if (params.inquiryId) {
+          const inq = await customerApi.getInquiryById(params.inquiryId);
+          if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
+            if (inq.converted_booking_id) setConfirmedBookingId(inq.converted_booking_id);
+            setSuccess(true);
+          } else {
+            showNotice(
+              "Payment Processing",
+              "Payment processing is underway. Please tap 'Verify Payment Status' once complete."
+            );
+          }
+        } else {
+          setSuccess(true);
         }
-        setSuccess(true);
       } catch (err) {
         console.warn("Payment verification note", err);
-        // Even if verify had network hiccup, the webhook might have synced it
-        setSuccess(true);
+        showNotice(
+          "Verification Note",
+          "Redirect received, but verification check failed. Please tap 'Verify Payment Status'."
+        );
       } finally {
         setVerifying(false);
       }

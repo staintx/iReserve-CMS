@@ -203,7 +203,7 @@ export default function StepEventDetails({
             <SectionTitle icon={Store}>Pickup location</SectionTitle>
             <InfoNote icon={Store} title="Kitchen pickup">
               Your {offer.name} order will be prepared fresh and packed ready for pickup at{" "}
-              <strong>{pickupAddress || "Caezelle's Catering Kitchen (Batangas)"}</strong> on your selected date and time.
+              <strong>{pickupAddress || "Caezelle’s Food, Catering & Services Kitchen (Batangas)"}</strong> on your selected date and time.
             </InfoNote>
           </Card>
         </div>

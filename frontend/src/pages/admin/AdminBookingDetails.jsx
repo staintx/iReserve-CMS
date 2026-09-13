@@ -43,6 +43,8 @@ import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipme
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
+import InvoiceModal from "../../components/common/invoice/InvoiceModal";
+import useBusinessInfo from "../../hooks/useBusinessInfo";
 import AdminOcularDateTimePicker from "../../components/admin/ui/AdminOcularDateTimePicker";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
@@ -80,7 +82,9 @@ export default function AdminBookingDetails() {
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showVerifyReturnsModal, setShowVerifyReturnsModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [sourceQuotation, setSourceQuotation] = useState(null);
+  const businessInfo = useBusinessInfo();
 
   // Form states
   const [quoteForm, setQuoteForm] = useState({ total_price: "", notes: "" });
@@ -219,7 +223,7 @@ export default function AdminBookingDetails() {
   if (loading) {
     return (
       <AdminLayout>
-        <div className="p-12 min-h-screen bg-background flex flex-col items-center justify-center space-y-3">
+        <div className="p-12 min-h-[50vh] flex flex-col items-center justify-center space-y-3">
           <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
           <p className="text-sm font-medium text-slate-500">Loading reservation details...</p>
         </div>
@@ -230,7 +234,7 @@ export default function AdminBookingDetails() {
   if (!booking) {
     return (
       <AdminLayout>
-        <div className="p-12 min-h-screen bg-background flex flex-col items-center justify-center text-center space-y-4">
+        <div className="p-12 min-h-[50vh] flex flex-col items-center justify-center text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-amber-500" />
           <h3 className="text-lg font-serif font-bold text-slate-900">Booking Record Not Found</h3>
           <p className="text-xs text-slate-500 max-w-sm">
@@ -558,7 +562,7 @@ export default function AdminBookingDetails() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-background min-h-screen">
+      <div className="w-full space-y-6 pb-12">
         
         {/* Top Breadcrumb & Action Navigation */}
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -577,7 +581,7 @@ export default function AdminBookingDetails() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Btn size="sm" variant="secondary" onClick={() => window.print()}>
+            <Btn size="sm" variant="secondary" onClick={() => setShowInvoiceModal(true)}>
               <Printer size={13} /> Print Invoice
             </Btn>
 
@@ -1805,8 +1809,18 @@ export default function AdminBookingDetails() {
           </DialogContent>
         </Dialog>
 
-        {/* Printable Invoice / Official Receipt for window.print() */}
-        <PrintableInvoice booking={booking} payments={payments} />
+        {/* Production-Quality Invoice Modal & Printable Document */}
+        <InvoiceModal
+          open={showInvoiceModal}
+          onClose={() => setShowInvoiceModal(false)}
+          booking={booking}
+          payments={payments}
+          businessInfo={businessInfo}
+          context="admin"
+        />
+
+        {/* Printable Invoice / Official Receipt for direct window.print() */}
+        <PrintableInvoice booking={booking} payments={payments} businessInfo={businessInfo} />
 
       </div>
     </AdminLayout>

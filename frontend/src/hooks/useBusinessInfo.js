@@ -3,7 +3,7 @@ import { CustomerAPI } from "../api/customer";
 import useRealTimeRefresh from "./useRealTimeRefresh";
 
 export const DEFAULT_BUSINESS_INFO = {
-  business_name: "Caezelle's Catering",
+  business_name: "Caezelle’s Food, Catering & Services",
   contact_number: "09123456789",
   email: "info@caezelle.com",
   address: "123 Culinary Street Food City",

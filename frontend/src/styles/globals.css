@@ -3922,6 +3922,16 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   INVOICE & QUOTATION DOCUMENT TYPOGRAPHY LOCK
+   Guarantees invoice documents are strictly professional system
+   sans-serif, completely overriding any global Playfair Display.
+   ═══════════════════════════════════════════════════════════════ */
+.caz-invoice-document,
+.caz-invoice-document * {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    PRINT STYLES (Printable Invoice & Receipts)
    ═══════════════════════════════════════════════════════════════ */
 @media print {
@@ -3960,8 +3970,9 @@
     width: 100% !important;
   }
 
-  /* Make printable invoice full-width on paper */
-  .printable-invoice {
+  /* Make printable invoice full-width on paper with dynamic flow */
+  .printable-invoice,
+  .caz-invoice-document {
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -3971,11 +3982,103 @@
     color: #0f172a !important;
     box-shadow: none !important;
     border: none !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  /* Support printing from Radix Dialog / InvoiceModal */
+  [data-radix-portal] {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  [data-radix-dialog-overlay] {
+    display: none !important;
+  }
+
+  [data-radix-dialog-content] {
+    position: static !important;
+    transform: none !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Dedicated A4 print table pagination */
+  .caz-print-table {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .caz-print-thead {
+    display: table-header-group !important;
+  }
+
+  .caz-print-tfoot {
+    display: table-footer-group !important;
+  }
+
+  .caz-print-tbody {
+    display: table-row-group !important;
+  }
+
+  /* Dynamic A4 page flow: containers must break across pages naturally without clipping */
+  .caz-invoice-document > div,
+  .caz-invoice-document > section,
+  .caz-invoice-document > footer,
+  .caz-print-charges,
+  .caz-print-financials,
+  .caz-print-terms {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  /* Tables: dynamic page break with clean repeating headers */
+  table thead,
+  .caz-charges-table thead {
+    display: table-header-group !important;
+  }
+
+  table tfoot,
+  .caz-charges-table tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Headings avoid being orphaned at page bottom */
+  h1, h2, h3, h4 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Atomic units that should not be split awkwardly across pages */
+  .caz-avoid-break,
+  .caz-signature-block,
+  .caz-print-running-header,
+  .caz-print-running-footer,
+  .caz-terms-item {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 12mm 14mm 12mm 14mm;
   }
 }
 

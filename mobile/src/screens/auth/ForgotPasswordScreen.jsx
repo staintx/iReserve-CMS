@@ -92,10 +92,17 @@ export const ForgotPasswordScreen = ({ navigation }) => {
           <View style={styles.successCard}>
             <Text style={styles.emailHighlight}>{email}</Text>
             <AppButton
-              title="Go to Login"
-              onPress={() => navigation.navigate("Login")}
+              title="Enter Code & Set New Password"
+              onPress={() => navigation.navigate("ResetPassword")}
               size="lg"
-              style={{ marginTop: spacing.xl, width: "100%" }}
+              style={{ marginTop: spacing.lg, width: "100%" }}
+            />
+            <AppButton
+              title="Back to Sign In"
+              variant="outline"
+              onPress={() => navigation.navigate("Login")}
+              size="md"
+              style={{ marginTop: spacing.sm, width: "100%" }}
             />
             <TouchableOpacity
               onPress={() => setSubmitted(false)}
@@ -129,6 +136,14 @@ export const ForgotPasswordScreen = ({ navigation }) => {
               size="lg"
               style={{ marginTop: spacing.sm }}
             />
+
+            <TouchableOpacity
+              onPress={() => navigation.navigate("ResetPassword")}
+              style={{ alignSelf: "center", marginTop: spacing.lg }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resendLinkText}>Already have a reset code? Set new password</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>

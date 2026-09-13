@@ -32,7 +32,7 @@ import { formatCurrency } from "../../utils/format";
 
 export const PackageDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { id } = route.params;
+  const { id } = route?.params || {};
 
   const [packageData, setPackageData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +40,12 @@ export const PackageDetailScreen = ({ route, navigation }) => {
   const [lightboxImage, setLightboxImage] = useState(null);
 
   useEffect(() => {
+    if (!id) {
+      setError("Package reference is missing.");
+      setLoading(false);
+      return;
+    }
+
     const fetchPackage = async () => {
       try {
         const data = await customerApi.getPackageById(id);

@@ -188,8 +188,8 @@ export default function AppRoutes() {
         <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={adminOnly}><AdminAnalytics /></ProtectedRoute>} />
         <Route path="/admin/business-info" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBusinessInfo /></ProtectedRoute>} />
         <Route path="/admin/logs" element={<ProtectedRoute allowedRoles={adminOnly}><AdminSystemLogs /></ProtectedRoute>} />
-        <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuotesList /></ProtectedRoute>} />
-        <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminQuoteDetails /></ProtectedRoute>} />
+        <Route path="/admin/quotes" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuotesList /></ProtectedRoute>} />
+        <Route path="/admin/quotes/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
         <Route path="/admin/messages" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesList /></ProtectedRoute>} />
         <Route path="/admin/messages/:id" element={<ProtectedRoute allowedRoles={adminOnly}><AdminMessagesChat /></ProtectedRoute>} />
         <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={adminOnly}><AdminProfile /></ProtectedRoute>} />

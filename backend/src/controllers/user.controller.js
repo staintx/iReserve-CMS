@@ -7,6 +7,12 @@ const bcrypt = require("bcryptjs");
 
 const VIP_SPENDING_THRESHOLD = 100000;
 
+const crypto = require("crypto");
+const { sendEmail, wrapHtml } = require("../utils/email");
+
+const hashToken = (value) => crypto.createHash("sha256").update(value).digest("hex");
+const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
+
 exports.getMe = asyncHandler(async (req, res) => {
   const token = req.cookies?.token || (req.headers.authorization ? req.headers.authorization.split(" ")[1] : null);
   const userData = req.user.toObject ? req.user.toObject() : { ...req.user };
@@ -15,11 +21,18 @@ exports.getMe = asyncHandler(async (req, res) => {
 });
 
 exports.updateMe = asyncHandler(async (req, res) => {
+  let emailChanged = false;
+  let newEmail = null;
+
   if (req.body.email) {
     const emailToTest = req.body.email.trim().toLowerCase();
     const existing = await User.findOne({ email: emailToTest, _id: { $ne: req.user._id } });
     if (existing) {
       return res.status(409).json({ message: "Email already in use" });
+    }
+    if (emailToTest !== req.user.email?.toLowerCase()) {
+      emailChanged = true;
+      newEmail = emailToTest;
     }
   }
 
@@ -31,10 +44,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
     }
   }
 
-  // Name updates keep both representations in step. This path uses
-  // findByIdAndUpdate, which bypasses the model's pre-save hook, so the
-  // derivation is repeated here rather than silently skipped — otherwise a
-  // profile edit would leave first/last and full_name disagreeing.
+  // Name updates keep both representations in step.
   const firstName = req.body.first_name !== undefined ? String(req.body.first_name).trim() : null;
   const lastName = req.body.last_name !== undefined ? String(req.body.last_name).trim() : null;
   const nameUpdates = {};
@@ -47,8 +57,6 @@ exports.updateMe = asyncHandler(async (req, res) => {
     nameUpdates.last_name = nextLast;
     nameUpdates.full_name = [nextFirst, nextLast].filter(Boolean).join(" ");
   } else if (req.body.full_name) {
-    // Legacy callers that still send one combined value: split it so the two
-    // fields do not go stale behind it.
     const full = req.body.full_name.trim();
     const parts = full.split(/\s+/);
     nameUpdates.full_name = full;
@@ -65,8 +73,41 @@ exports.updateMe = asyncHandler(async (req, res) => {
     ...(req.body.position !== undefined && { position: req.body.position ? req.body.position.trim() : "" }),
     ...(req.body.username !== undefined && { username: req.body.username ? req.body.username.trim() : undefined })
   };
+
+  // If email changed on a customer account, require re-verification
+  if (emailChanged && req.user.role === "customer") {
+    const otp = generateOtp();
+    updates.is_verified = false;
+    updates.email_otp_hash = hashToken(otp);
+    updates.email_otp_expires = new Date(Date.now() + 10 * 60 * 1000);
+    updates.email_otp_attempts = 0;
+
+    try {
+      const bodyContent = `
+        <h2>Verify Your New Email Address 🔐</h2>
+        <p style="text-align: center; color: #475569;">You recently changed your account email. Please use the verification code below to verify your new email address:</p>
+        <div class="otp-card">
+          <div class="otp-label">Your Verification Code</div>
+          <div class="otp-code">${otp}</div>
+          <div class="otp-note">Valid for 10 minutes</div>
+        </div>
+      `;
+      await sendEmail({
+        to: newEmail,
+        subject: "Verify your new email address | Caezelle's Catering",
+        text: `Your verification code is ${otp}.`,
+        html: wrapHtml("Email Verification", bodyContent)
+      });
+    } catch (e) {
+      console.error("Failed to send email verification for email update:", e.message);
+    }
+  }
+
   const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true }).select("-password");
-  res.json(user);
+  res.json({
+    ...user.toObject(),
+    requires_verification: emailChanged && req.user.role === "customer"
+  });
 });
 
 exports.changePassword = asyncHandler(async (req, res) => {

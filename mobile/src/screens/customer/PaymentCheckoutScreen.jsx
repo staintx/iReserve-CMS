@@ -102,10 +102,26 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
     try {
       if (currentPaymentId) {
         const res = await customerApi.verifyPayment(currentPaymentId);
-        if (res?.payment?.booking_id) {
-          setConfirmedBookingId(res.payment.booking_id);
+        const pStatus = res?.payment?.status;
+        if (pStatus === "approved") {
+          if (res.payment?.booking_id) {
+            setConfirmedBookingId(res.payment.booking_id);
+          }
+          setSuccess(true);
+          return;
+        } else if (pStatus === "rejected") {
+          showNotice(
+            "Payment Failed",
+            "The payment transaction was rejected or failed. Please retry with another payment method."
+          );
+          return;
+        } else {
+          showNotice(
+            "Payment Processing",
+            "Payment is still being processed by the gateway. Please wait a few moments and tap 'Verify Payment Status' again."
+          );
+          return;
         }
-        setSuccess(true);
       } else if (params.inquiryId) {
         const inq = await customerApi.getInquiryById(params.inquiryId);
         if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
@@ -114,7 +130,7 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         } else {
           showNotice(
             "Payment Verification",
-            "We haven't received confirmation from PayMongo yet. If you just completed paying, please allow 10-15 seconds and try verifying again."
+            "We haven't received confirmation from the gateway yet. If you just completed paying, please allow 10-15 seconds and try verifying again."
           );
         }
       } else {
@@ -143,30 +159,64 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
       try {
         if (currentPaymentId) {
           const res = await customerApi.verifyPayment(currentPaymentId);
-          if (res?.payment?.booking_id) {
-            setConfirmedBookingId(res.payment.booking_id);
+          if (res?.payment?.status === "approved") {
+            if (res.payment?.booking_id) {
+              setConfirmedBookingId(res.payment.booking_id);
+            }
+            setSuccess(true);
+          } else {
+            showNotice(
+              "Payment Processing",
+              "We received your return from checkout, but confirmation is still processing. Please tap 'Verify Payment Status' to update."
+            );
           }
+        } else if (params.inquiryId) {
+          const inq = await customerApi.getInquiryById(params.inquiryId);
+          if (inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid") {
+            if (inq.converted_booking_id) setConfirmedBookingId(inq.converted_booking_id);
+            setSuccess(true);
+          } else {
+            showNotice(
+              "Payment Processing",
+              "Payment processing is underway. Please tap 'Verify Payment Status' once complete."
+            );
+          }
+        } else {
+          setSuccess(true);
         }
-        setSuccess(true);
       } catch (err) {
         console.warn("Payment verification note", err);
-        // Even if verify had network hiccup, the webhook might have synced it
-        setSuccess(true);
+        showNotice(
+          "Verification Note",
+          "Redirect received, but verification check failed. Please tap 'Verify Payment Status'."
+        );
       } finally {
         setVerifying(false);
       }
     } else if (url.includes("payment=cancelled") || url.includes("status=cancelled")) {
+      const returnButtonText = params.bookingId ? "Return to Booking" : "Return to Inquiries";
+
       if (Platform.OS === "web" && typeof window !== "undefined") {
         window.alert("Your payment transaction was cancelled. You can retry paying at any time.");
-        navigation.navigate("InquiriesList");
+        if (params.bookingId) {
+          navigation.navigate("BookingDetail", { id: params.bookingId });
+        } else {
+          navigation.navigate("InquiriesList");
+        }
       } else {
         Alert.alert(
           "Payment Cancelled",
           "Your payment transaction was cancelled. You can retry paying at any time.",
           [
             {
-              text: "Return to Inquiries",
-              onPress: () => navigation.navigate("InquiriesList"),
+              text: returnButtonText,
+              onPress: () => {
+                if (params.bookingId) {
+                  navigation.navigate("BookingDetail", { id: params.bookingId });
+                } else {
+                  navigation.navigate("InquiriesList");
+                }
+              },
             },
           ]
         );
@@ -304,7 +354,9 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
             </Text>
             {currentAmount ? (
               <View style={styles.webAmountBadge}>
-                <Text style={styles.webAmountLabel}>Payable Deposit</Text>
+                <Text style={styles.webAmountLabel}>
+                  {params.bookingId ? "Remaining Balance Due" : "Payable Deposit"}
+                </Text>
                 <Text style={styles.webAmountValue}>{formatCurrency(currentAmount)}</Text>
               </View>
             ) : null}

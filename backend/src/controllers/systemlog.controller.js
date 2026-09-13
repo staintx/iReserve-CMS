@@ -32,7 +32,8 @@ exports.getAll = asyncHandler(async (req, res) => {
 
   // Text search across details field
   if (search) {
-    filter.details = { $regex: search, $options: "i" };
+    const escapedSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.details = { $regex: escapedSearch, $options: "i" };
   }
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);

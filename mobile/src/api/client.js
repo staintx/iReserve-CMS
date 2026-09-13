@@ -66,6 +66,7 @@ const client = axios.create({
     "Content-Type": "application/json",
     Accept: "application/json",
     "x-client-platform": "mobile",
+    "x-app-client-key": process.env.EXPO_PUBLIC_APP_CLIENT_KEY || "ireserve_mobile_v1_secure_key",
   },
 });
 

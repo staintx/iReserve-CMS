@@ -57,6 +57,15 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.remove = asyncHandler(async (req, res) => {
+	const rating = await Rating.findById(req.params.id);
+	if (!rating) return res.status(404).json({ message: "Rating not found" });
+
+	const isAuthor = String(rating.customer_id) === String(req.user._id);
+	const isAdmin = req.user.role === "admin";
+	if (!isAuthor && !isAdmin) {
+		return res.status(403).json({ message: "Forbidden: You are not authorized to delete this review" });
+	}
+
 	await Rating.findByIdAndDelete(req.params.id);
 	res.json({ message: "Deleted" });
 });

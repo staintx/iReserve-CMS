@@ -223,9 +223,10 @@ exports.assignStaff = asyncHandler(async (req, res) => {
 
   booking.staff_assignments = staff_assignments;
 
-  // If status is Deposit Pending or Confirmed, update to Ready for Event only for upcoming events
+  // Only advance to Ready for Event if the booking is already confirmed and deposit has been paid
   const isPastEvent = booking.event_date && new Date(booking.event_date) < new Date();
-  if (!isPastEvent && ["pending deposit", "Deposit Pending", "Confirmed", "confirmed"].includes(booking.status)) {
+  const hasPaidDeposit = ["deposit_paid", "fully_paid"].includes(booking.payment_status);
+  if (!isPastEvent && hasPaidDeposit && ["Confirmed", "confirmed"].includes(booking.status)) {
     booking.status = "Ready for Event";
   }
 

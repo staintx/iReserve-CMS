@@ -10,47 +10,39 @@ import {
   Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { User, Mail, Lock, ChevronLeft } from "lucide-react-native";
+import { KeyRound, Lock, Key, ChevronLeft } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
 import AppInput from "../../components/common/AppInput";
 import AppButton from "../../components/common/AppButton";
-import { useAuth } from "../../context/AuthContext";
-
+import authApi from "../../api/auth";
 import { evaluatePassword, describePasswordGap } from "../../utils/passwordPolicy";
 
-export const RegisterScreen = ({ navigation }) => {
+export const ResetPasswordScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { register } = useAuth();
+  const initialToken = route?.params?.token || "";
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [token, setToken] = useState(initialToken);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const firstNameRef = useRef(null);
-  const lastNameRef = useRef(null);
-  const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const confirmPasswordRef = useRef(null);
 
-  const handleRegister = async () => {
-    if (!firstName.trim()) {
-      setError("First name is required.");
+  const passwordEvaluation = evaluatePassword(password);
+
+  const handleResetPassword = async () => {
+    if (!token.trim()) {
+      setError("Please enter your reset token or code.");
       return;
     }
-    if (!lastName.trim()) {
-      setError("Last name is required.");
+
+    if (!password) {
+      setError("Please enter your new password.");
       return;
     }
-    if (!email.trim() || !email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    
+
     const { isValid } = evaluatePassword(password);
     if (!isValid) {
       setError(describePasswordGap(password));
@@ -66,28 +58,25 @@ export const RegisterScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const response = await register({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim().toLowerCase(),
+      await authApi.resetPassword({
+        token: token.trim(),
         password,
       });
 
       Alert.alert(
-        "Verification Code Sent",
-        `We've sent a 6-digit verification code to ${email.trim()}.`,
+        "Password Reset Complete! 🎉",
+        "Your password has been updated. You can now sign in with your new credentials.",
         [
           {
-            text: "Enter Code",
-            onPress: () =>
-              navigation.navigate("OtpVerification", { email: email.trim().toLowerCase() }),
+            text: "Sign In",
+            onPress: () => navigation.navigate("Login"),
           },
         ]
       );
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Registration failed. Please check your information and try again."
+          "Failed to reset password. Please check your reset code or request a new one."
       );
     } finally {
       setLoading(false);
@@ -119,10 +108,14 @@ export const RegisterScreen = ({ navigation }) => {
           <ChevronLeft size={22} color={colors.foreground} />
         </TouchableOpacity>
 
+        <View style={styles.iconCircle}>
+          <KeyRound size={34} color={colors.primary} />
+        </View>
+
         <View style={styles.header}>
-          <Text style={styles.title}>Create your account</Text>
+          <Text style={styles.title}>Set New Password</Text>
           <Text style={styles.subtitle}>
-            Join iReserve to browse catering packages, customize event menus, and track quotations.
+            Enter the reset token from your email and choose a strong new password for your iReserve account.
           </Text>
         </View>
 
@@ -134,46 +127,14 @@ export const RegisterScreen = ({ navigation }) => {
 
         <View style={styles.form}>
           <AppInput
-            ref={firstNameRef}
-            label="First Name"
-            placeholder="e.g. Juan"
-            value={firstName}
+            label="Reset Token / Code"
+            placeholder="Paste reset token here"
+            value={token}
             onChangeText={(text) => {
-              setFirstName(text);
+              setToken(text);
               if (error) setError("");
             }}
-            leftIcon={User}
-            autoCapitalize="words"
-            returnKeyType="next"
-            onSubmitEditing={() => lastNameRef.current?.focus()}
-          />
-
-          <AppInput
-            ref={lastNameRef}
-            label="Last Name"
-            placeholder="e.g. Dela Cruz"
-            value={lastName}
-            onChangeText={(text) => {
-              setLastName(text);
-              if (error) setError("");
-            }}
-            leftIcon={User}
-            autoCapitalize="words"
-            returnKeyType="next"
-            onSubmitEditing={() => emailRef.current?.focus()}
-          />
-
-          <AppInput
-            ref={emailRef}
-            label="Email Address"
-            placeholder="name@example.com"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (error) setError("");
-            }}
-            leftIcon={Mail}
-            keyboardType="email-address"
+            leftIcon={Key}
             autoCapitalize="none"
             returnKeyType="next"
             onSubmitEditing={() => passwordRef.current?.focus()}
@@ -181,7 +142,7 @@ export const RegisterScreen = ({ navigation }) => {
 
           <AppInput
             ref={passwordRef}
-            label="Password"
+            label="New Password"
             placeholder="Min 6 chars (A-Z, a-z, 0-9, special)"
             value={password}
             onChangeText={(text) => {
@@ -197,7 +158,7 @@ export const RegisterScreen = ({ navigation }) => {
           {password.length > 0 && (
             <View style={styles.passwordHintBox}>
               <View style={styles.policyRow}>
-                {evaluatePassword(password).results.map((rule) => (
+                {passwordEvaluation.results.map((rule) => (
                   <View
                     key={rule.id}
                     style={[
@@ -222,8 +183,8 @@ export const RegisterScreen = ({ navigation }) => {
 
           <AppInput
             ref={confirmPasswordRef}
-            label="Confirm Password"
-            placeholder="Repeat your password"
+            label="Confirm New Password"
+            placeholder="Re-enter your new password"
             value={confirmPassword}
             onChangeText={(text) => {
               setConfirmPassword(text);
@@ -232,12 +193,12 @@ export const RegisterScreen = ({ navigation }) => {
             leftIcon={Lock}
             secureTextEntry
             returnKeyType="done"
-            onSubmitEditing={handleRegister}
+            onSubmitEditing={handleResetPassword}
           />
 
           <AppButton
-            title="Create Account"
-            onPress={handleRegister}
+            title="Reset Password"
+            onPress={handleResetPassword}
             loading={loading}
             size="lg"
             style={styles.submitBtn}
@@ -245,7 +206,7 @@ export const RegisterScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+          <Text style={styles.footerText}>Remember your password? </Text>
           <TouchableOpacity
             onPress={() => navigation.navigate("Login")}
             activeOpacity={0.7}
@@ -265,6 +226,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.xl,
+    alignItems: "center",
   },
   backButton: {
     width: 40,
@@ -276,22 +238,37 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     alignSelf: "flex-start",
   },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.base,
+    borderWidth: 1.5,
+    borderColor: colors.primaryBorder,
+  },
   header: {
     marginBottom: spacing.xl,
+    alignItems: "center",
   },
   title: {
     fontSize: typography.sizes.title,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.foreground,
+    textAlign: "center",
     letterSpacing: -0.4,
   },
   subtitle: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
+    textAlign: "center",
     marginTop: spacing.xs,
     lineHeight: 20,
+    paddingHorizontal: spacing.sm,
   },
   errorBanner: {
     backgroundColor: colors.errorLight,
@@ -300,11 +277,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.base,
+    width: "100%",
   },
   errorBannerText: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamilies.medium,
     color: colors.error,
+    textAlign: "center",
   },
   passwordHintBox: {
     backgroundColor: colors.powder,
@@ -344,6 +323,7 @@ const styles = StyleSheet.create({
     color: colors.foregroundMuted,
   },
   form: {
+    width: "100%",
     marginBottom: spacing.lg,
   },
   submitBtn: {
@@ -367,4 +347,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RegisterScreen;
+export default ResetPasswordScreen;

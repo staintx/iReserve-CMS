@@ -48,6 +48,7 @@ export const LoginScreen = ({ navigation }) => {
     } catch (err) {
       const msg =
         err.response?.data?.message ||
+        err.message ||
         "Unable to sign in. Please verify your credentials.";
       setError(msg);
       if (msg.toLowerCase().includes("verify your email")) {
@@ -62,6 +63,12 @@ export const LoginScreen = ({ navigation }) => {
             },
             { text: "Cancel", style: "cancel" },
           ]
+        );
+      } else if (msg.toLowerCase().includes("admin portal") || msg.toLowerCase().includes("desktop browser")) {
+        Alert.alert(
+          "Admin Portal on Web",
+          "The Admin Portal is available exclusively on the web. Please sign in via your desktop browser.",
+          [{ text: "OK" }]
         );
       }
     } finally {

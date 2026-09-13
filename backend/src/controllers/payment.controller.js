@@ -106,7 +106,9 @@ async function convertInquiryToBooking(inquiryId, payment, io = null) {
 
 	// Always mark inquiry as deposit_paid if payment is approved
 	if (payment && payment.status === "approved") {
-		inquiry.payment_status = (payment.payment_type === "full" || payment.amount >= (inquiry.total_price || 0))
+		const quotation = await Quotation.findOne({ inquiry_id: inquiry._id }).sort({ version_number: -1 });
+		const fullTotal = Number(quotation?.total_cost || inquiry.total_price || 0);
+		inquiry.payment_status = (payment.payment_type === "full" || (fullTotal > 0 && payment.amount >= fullTotal))
 			? "fully_paid"
 			: "deposit_paid";
 		await inquiry.save();
@@ -289,29 +291,10 @@ exports.create = asyncHandler(async (req, res) => {
 	res.status(201).json(payment);
 });
 exports.getAll = asyncHandler(async (req, res) => {
-	const pendingGatewayPayments = await Payment.find({
-		gateway: "paymongo",
-		status: "pending",
-	}).limit(20);
-
-	await Promise.allSettled(
-		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
-	);
-
 	res.json(await Payment.find().sort({ createdAt: -1 }).populate("booking_id customer_id inquiry_id").lean());
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
-	const pendingGatewayPayments = await Payment.find({
-		customer_id: req.user._id,
-		gateway: "paymongo",
-		status: "pending",
-	}).limit(20);
-
-	await Promise.allSettled(
-		pendingGatewayPayments.map((payment) => exports.syncPaymentFromGateway(payment)),
-	);
-
 	// Perform stale pending cleanup for customer bookings
 	const customerBookings = await Booking.find({ customer_id: req.user._id }).select("_id payment_status").lean();
 	for (const b of customerBookings) {
@@ -421,6 +404,89 @@ async function checkDuplicatePayment({ booking_id, inquiry_id, payment_type = "d
 	return null;
 }
 
+const calculatePayableAmount = async ({ targetDoc, payment_type, isCustomer, requestedAmount, isInquiry }) => {
+	// If privileged user and requestedAmount is a valid positive number, allow custom amount
+	if (!isCustomer && Number.isFinite(Number(requestedAmount)) && Number(requestedAmount) > 0) {
+		return Number(requestedAmount);
+	}
+
+	const isTargetInquiry = isInquiry !== undefined
+		? Boolean(isInquiry)
+		: (
+			targetDoc?.constructor?.modelName === "Inquiry" ||
+			Boolean(targetDoc?.reference && targetDoc.reference.startsWith("INQ")) ||
+			Boolean(targetDoc?.status && !targetDoc?.booking_status && targetDoc?.total_price === undefined)
+		);
+
+	let expectedAmount = 0;
+
+	if (isTargetInquiry) {
+		const quoteFilter = { inquiry_id: targetDoc._id };
+		if (isCustomer) {
+			quoteFilter.status = { $nin: ["Draft", "Rejected"] };
+		}
+		let quotation = await Quotation.findOne(quoteFilter).sort({ version_number: -1 });
+		if (!quotation) {
+			quotation = await Quotation.findOne({ inquiry_id: targetDoc._id }).sort({ version_number: -1 });
+		}
+
+		const fullAmount = Number(
+			quotation?.total_cost ||
+			quotation?.total_amount ||
+			targetDoc.total_price ||
+			targetDoc.estimated_total ||
+			targetDoc.offer_base_price ||
+			0
+		);
+
+		const depositAmount = Number(
+			quotation?.deposit_amount ||
+			(fullAmount > 0 ? Math.round(fullAmount * 0.5) : 0)
+		);
+
+		if (payment_type === "full") {
+			expectedAmount = fullAmount;
+		} else if (payment_type === "balance") {
+			expectedAmount = Number(quotation?.remaining_balance || Math.max(0, fullAmount - depositAmount));
+		} else {
+			// default to deposit
+			expectedAmount = depositAmount > 0 ? depositAmount : fullAmount;
+		}
+	} else {
+		const totalPrice = Number(targetDoc.total_price || 0);
+		const approvedPayments = await Payment.find({ booking_id: targetDoc._id, status: "approved" });
+		const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+		const remainingBalance = Math.max(0, totalPrice - totalPaid);
+
+		if (payment_type === "balance") {
+			expectedAmount = remainingBalance;
+		} else if (payment_type === "full") {
+			expectedAmount = totalPrice;
+		} else {
+			let depositAmount = 0;
+			if (targetDoc.quotation_id) {
+				const quotation = await Quotation.findById(targetDoc.quotation_id);
+				depositAmount = Number(quotation?.deposit_amount || 0);
+			}
+			if (!depositAmount && targetDoc.inquiry_id) {
+				const quotation = await Quotation.findOne({ inquiry_id: targetDoc.inquiry_id }).sort({ version_number: -1 });
+				depositAmount = Number(quotation?.deposit_amount || 0);
+			}
+			if (!depositAmount && totalPrice > 0) {
+				depositAmount = Math.round(totalPrice * 0.5);
+			}
+			expectedAmount = depositAmount > 0 ? depositAmount : totalPrice;
+		}
+	}
+
+	// Fallback to requestedAmount if calculated expectedAmount is non-positive or non-finite
+	if ((!Number.isFinite(expectedAmount) || expectedAmount <= 0) && Number.isFinite(Number(requestedAmount)) && Number(requestedAmount) > 0) {
+		expectedAmount = Number(requestedAmount);
+	}
+
+	return expectedAmount;
+};
+
 exports.createCheckout = asyncHandler(async (req, res) => {
 	const {
 		booking_id,
@@ -436,7 +502,9 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		return res.status(400).json({ message: "booking_id or inquiry_id is required" });
 	}
 
-	const duplicateErr = await checkDuplicatePayment({ booking_id, inquiry_id, payment_type });
+	const normalizedPaymentType = payment_type === "final" ? "balance" : payment_type;
+
+	const duplicateErr = await checkDuplicatePayment({ booking_id, inquiry_id, payment_type: normalizedPaymentType });
 	if (duplicateErr) {
 		return res.status(400).json({ message: duplicateErr });
 	}
@@ -463,15 +531,13 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 	}
 
-	let payableAmount = Number(amount);
-	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
-		if (inquiry_id) {
-			const quotation = await Quotation.findOne({ inquiry_id: targetDoc._id }).sort({ version_number: -1 });
-			payableAmount = Number(quotation?.deposit_amount || targetDoc.total_price || 0);
-		} else {
-			payableAmount = Number(targetDoc.total_price || 0);
-		}
-	}
+	const payableAmount = await calculatePayableAmount({
+		targetDoc,
+		payment_type: normalizedPaymentType,
+		isCustomer: req.user.role === "customer",
+		requestedAmount: amount,
+		isInquiry: Boolean(inquiry_id)
+	});
 
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) {
 		return res.status(400).json({ message: "Invalid payment amount" });
@@ -488,7 +554,7 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		: `${appBaseUrl}/customer/bookings/${booking_id || ''}?payment=cancelled`);
 
 	const pendingQuery = {
-		payment_type,
+		payment_type: normalizedPaymentType,
 		status: "pending",
 		gateway: "paymongo"
 	};
@@ -514,14 +580,14 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 			customer_id: customerId || req.user._id,
 			amount: payableAmount,
 			currency: "PHP",
-			payment_type,
+			payment_type: normalizedPaymentType,
 			method: "paymongo",
 			status: "pending",
 			gateway: "paymongo"
 		});
 	}
 
-	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
+	const paymentLabel = normalizedPaymentType === "deposit" ? "Deposit" : normalizedPaymentType === "full" ? "Full Payment" : "Balance";
 	const formattedDescription = `${eventName} Booking - ${paymentLabel}`;
 
 	const contactName = (targetDoc.contact_first_name && targetDoc.contact_last_name) 
@@ -538,6 +604,7 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 		: `${appBaseUrl}/customer/bookings/${booking_id || ''}?payment=success`;
 	const successUrlObj = new URL(
 		success_url || defaultSuccessUrl,
+		appBaseUrl
 	);
 	successUrlObj.searchParams.set("payment_id", String(payment._id));
 
@@ -562,7 +629,7 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 			booking_id: booking_id ? String(targetDoc._id) : undefined,
 			inquiry_id: inquiry_id ? String(targetDoc._id) : undefined,
 			customer_id: String(customerId || req.user._id),
-			payment_type
+			payment_type: normalizedPaymentType
 		},
 		customer: customerDetails
 	});
@@ -587,7 +654,9 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	
 	if (!booking_id && !inquiry_id) return res.status(400).json({ message: "booking_id or inquiry_id is required" });
 	
-	const duplicateErr = await checkDuplicatePayment({ booking_id, inquiry_id, payment_type });
+	const normalizedPaymentType = payment_type === "final" ? "balance" : payment_type;
+
+	const duplicateErr = await checkDuplicatePayment({ booking_id, inquiry_id, payment_type: normalizedPaymentType });
 	if (duplicateErr) {
 		return res.status(400).json({ message: duplicateErr });
 	}
@@ -612,11 +681,17 @@ exports.createIntent = asyncHandler(async (req, res) => {
 	const isPrivileged = ["admin", "staff"].includes(req.user.role);
 	if (!isOwner && !isPrivileged) return res.status(403).json({ message: "Not allowed to pay for this transaction" });
 
-	const payableAmount = Number(amount || targetDoc.total_price || 0);
+	const payableAmount = await calculatePayableAmount({
+		targetDoc,
+		payment_type: normalizedPaymentType,
+		isCustomer: req.user.role === "customer",
+		requestedAmount: amount,
+		isInquiry: Boolean(inquiry_id)
+	});
 	if (!Number.isFinite(payableAmount) || payableAmount <= 0) return res.status(400).json({ message: "Invalid amount" });
 
 	const pendingQuery = {
-		payment_type,
+		payment_type: normalizedPaymentType,
 		status: "pending",
 		gateway: "paymongo"
 	};
@@ -641,14 +716,14 @@ exports.createIntent = asyncHandler(async (req, res) => {
 			customer_id: customerId || req.user._id,
 			amount: payableAmount,
 			currency: "PHP",
-			payment_type,
+			payment_type: normalizedPaymentType,
 			method: "paymongo",
 			status: "pending",
 			gateway: "paymongo"
 		});
 	}
 
-	const paymentLabel = payment_type === "deposit" ? "Deposit" : payment_type === "full" ? "Full Payment" : "Balance";
+	const paymentLabel = normalizedPaymentType === "deposit" ? "Deposit" : normalizedPaymentType === "full" ? "Full Payment" : "Balance";
 	
 	const intent = await createPaymentIntent({
 		amount: payableAmount,
@@ -658,7 +733,7 @@ exports.createIntent = asyncHandler(async (req, res) => {
 			booking_id: booking_id ? String(targetDoc._id) : undefined,
 			inquiry_id: inquiry_id ? String(targetDoc._id) : undefined,
 			customer_id: String(customerId || req.user._id),
-			payment_type
+			payment_type: normalizedPaymentType
 		}
 	});
 

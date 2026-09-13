@@ -22,7 +22,7 @@ import {
   Sparkles,
   MessageSquare,
   HelpCircle,
-  Utensils,
+  LayoutDashboard,
   Camera,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
@@ -252,16 +252,16 @@ export const CustomerProfileScreen = ({ navigation }) => {
               <ChevronRight size={18} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 3. Banquet Menu */}
+            {/* 3. Customer Dashboard */}
             <TouchableOpacity
               style={styles.menuItemRow}
-              onPress={() => navigation.navigate("Menu")}
+              onPress={() => navigation.navigate("CustomerDashboard")}
               activeOpacity={0.65}
             >
               <View style={styles.menuIconWrap}>
-                <Utensils size={20} color={colors.primary} />
+                <LayoutDashboard size={20} color={colors.primary} />
               </View>
-              <Text style={styles.menuItemLabel}>Banquet Menu & Dishes</Text>
+              <Text style={styles.menuItemLabel}>Customer Dashboard</Text>
               <ChevronRight size={18} color={colors.textDisabled} />
             </TouchableOpacity>
 
@@ -592,6 +592,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 22,
     paddingTop: 24,
+    paddingBottom: 130, // Clearance for floating tab bar
   },
   sheetTitle: {
     fontSize: 26,
@@ -608,14 +609,15 @@ const styles = StyleSheet.create({
   menuItemRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    minHeight: 56,
+    paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderLight,
   },
   menuIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",

@@ -35,7 +35,7 @@ import {
   X,
   Plus,
 } from "lucide-react-native";
-import { colors, radius, shadows, spacing, typography } from "../../constants/theme";
+import { colors, radius, shadows, spacing, typography, layout } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
 import { useSocket } from "../../context/SocketContext";
 import customerApi from "../../api/customer";
@@ -250,22 +250,12 @@ export const CustomerHomeScreen = ({ navigation }) => {
       {/* 1. Header (Baemin Reference 1) */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
         <View style={styles.brandRow}>
-          <View style={styles.brandBadge}>
-            <View style={styles.brandLogoDot} />
-            <Text style={styles.brandText} numberOfLines={1}>
-              iReserve • Caezelle's Catering
-            </Text>
-          </View>
-
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.iconBtn}
-              onPress={() =>
-                navigation.navigate("CustomerMessages", {
-                  initialTab: "notifications",
-                })
-              }
+              onPress={() => navigation.navigate("Notifications")}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Bell size={20} color={colors.foreground} />
               <NotificationBadge count={unreadCount} />
@@ -367,6 +357,51 @@ export const CustomerHomeScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
       >
+        {/* In-Flow Active Catering Reservation / Quotation Live Tracker Card */}
+        {(activeBooking || activeInquiry) && (
+          <TouchableOpacity
+            style={styles.liveTrackerCard}
+            onPress={() => {
+              if (activeBooking) {
+                navigation.navigate("BookingDetail", { id: activeBooking._id });
+              } else if (activeInquiry) {
+                navigation.navigate("QuotationDetail", { inquiryId: activeInquiry._id });
+              }
+            }}
+            activeOpacity={0.88}
+          >
+            <View style={styles.trackerLeft}>
+              <View style={styles.trackerIconWrap}>
+                <Calendar size={20} color={colors.primary} />
+              </View>
+              <View style={styles.trackerInfo}>
+                <View style={styles.trackerBadgeRow}>
+                  <Text style={styles.trackerKicker}>
+                    {activeBooking ? "Active Reservation" : "Quotation Update"}
+                  </Text>
+                  <StatusBadge
+                    status={activeBooking ? activeBooking.status : activeInquiry?.status}
+                    size="sm"
+                  />
+                </View>
+                <Text style={styles.trackerTitle} numberOfLines={1}>
+                  {activeBooking
+                    ? activeBooking.event_name || "Confirmed Catering Event"
+                    : activeInquiry?.event_name || "Pending Event Proposal"}
+                </Text>
+                <Text style={styles.trackerSub} numberOfLines={1}>
+                  {activeBooking?.event_date
+                    ? `Date: ${formatDate(activeBooking.event_date)} • Tap to view milestones`
+                    : "Tap to review pricing & menu options"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.trackerActionBtn}>
+              <ChevronRight size={18} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Promotional Hero Card (Baemin Reference 1) */}
         <View style={styles.heroPromoCard}>
           <View style={styles.heroPromoLeft}>
@@ -794,50 +829,6 @@ export const CustomerHomeScreen = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* 4. Glovo-style Floating Active Event Tracking Capsule */}
-      {(activeBooking || activeInquiry) && (
-        <View style={styles.floatingCapsuleDock}>
-          <TouchableOpacity
-            style={styles.floatingCapsule}
-            onPress={() => {
-              if (activeBooking) {
-                navigation.navigate("BookingDetail", { id: activeBooking._id });
-              } else if (activeInquiry) {
-                navigation.navigate("QuotationDetail", { inquiryId: activeInquiry._id });
-              }
-            }}
-            activeOpacity={0.9}
-          >
-            <View style={styles.capsuleIconContainer}>
-              <Calendar size={18} color={colors.white} />
-            </View>
-
-            <View style={styles.capsuleInfo}>
-              <View style={styles.capsuleTopRow}>
-                <Text style={styles.capsuleTitle} numberOfLines={1}>
-                  {activeBooking
-                    ? activeBooking.event_name || "Active Catering Booking"
-                    : activeInquiry?.event_name || "Pending Quote Review"}
-                </Text>
-                <StatusBadge
-                  status={activeBooking ? activeBooking.status : activeInquiry?.status}
-                  size="sm"
-                />
-              </View>
-              <Text style={styles.capsuleSubtitle} numberOfLines={1}>
-                {activeBooking?.event_date
-                  ? `Event Date: ${formatDate(activeBooking.event_date)}`
-                  : "Tap to track catering milestones"}
-              </Text>
-            </View>
-
-            <View style={styles.capsuleAction}>
-              <ChevronRight size={18} color={colors.primary} />
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Lightbox & Detail Modals */}
       <GalleryLightboxModal
         visible={Boolean(selectedGalleryItem)}
@@ -881,29 +872,8 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     marginBottom: spacing.xs,
-  },
-  brandBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    maxWidth: "75%",
-  },
-  brandLogoDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
-  },
-  brandText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
   },
   headerIcons: {
     flexDirection: "row",
@@ -955,8 +925,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.sm,
+    minHeight: 46,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     position: "relative",
   },
   tabNavItemActive: {},
@@ -981,7 +952,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: 130, // Clearance for Baemin floating navigation dock
+    paddingBottom: 130, // Generous clearance for FloatingTabBar
   },
   heroPromoCard: {
     backgroundColor: colors.primary,
@@ -1003,44 +974,45 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: colors.white,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   promoTagText: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     fontFamily: typography.fontFamily.bold,
     color: colors.primary,
   },
   heroPromoTitle: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.lg,
     fontFamily: typography.fontFamily.extraBold,
     color: colors.white,
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 24,
+    marginBottom: 6,
   },
   heroPromoSub: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.regular,
-    color: "rgba(255, 255, 255, 0.85)",
-    lineHeight: 15,
-    marginBottom: spacing.sm,
+    color: "rgba(255, 255, 255, 0.9)",
+    lineHeight: 17,
+    marginBottom: spacing.md,
   },
   heroCtaBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    gap: 6,
+    minHeight: 44,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingHorizontal: spacing.base,
+    paddingVertical: 10,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.4)",
   },
   heroCtaText: {
-    fontSize: 11,
+    fontSize: typography.sizes.sm,
     fontFamily: typography.fontFamily.bold,
     color: colors.white,
   },
@@ -1057,8 +1029,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   filterPill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 9,
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
     borderWidth: 1,
@@ -1417,59 +1392,66 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 2,
   },
-  floatingCapsuleDock: {
-    position: "absolute",
-    bottom: 84, // Anchored directly above Baemin FloatingTabBar
-    left: 14,
-    right: 14,
-    zIndex: 99,
-  },
-  floatingCapsule: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    gap: spacing.sm,
-    ...shadows.dock,
-  },
-  capsuleIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  capsuleInfo: {
-    flex: 1,
-  },
-  capsuleTopRow: {
+  liveTrackerCard: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 4,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    borderWidth: 1.5,
+    borderColor: colors.primaryBorder,
+    marginBottom: spacing.base,
+    ...shadows.sm,
   },
-  capsuleTitle: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.foreground,
+  trackerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  trackerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+  trackerInfo: {
     flex: 1,
   },
-  capsuleSubtitle: {
-    fontSize: 10,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.foregroundMuted,
-    marginTop: 1,
+  trackerBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
   },
-  capsuleAction: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryLight,
+  trackerKicker: {
+    fontSize: typography.sizes.micro,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  trackerTitle: {
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamilies.bold,
+    color: colors.foreground,
+    marginBottom: 2,
+  },
+  trackerSub: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.regular,
+    color: colors.foregroundMuted,
+  },
+  trackerActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.powder,
     alignItems: "center",
     justifyContent: "center",
   },

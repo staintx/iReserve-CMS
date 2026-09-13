@@ -48,7 +48,7 @@ import { groupInclusions } from "../../utils/packageDisplay";
 
 export const QuotationDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { inquiryId, quotationId } = route.params;
+  const { inquiryId, quotationId } = route?.params || {};
 
   const [quotation, setQuotation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +115,11 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
 
   const loadQuotation = async () => {
     setError("");
+    if (!quotationId && !inquiryId) {
+      setError("No quotation or inquiry reference was provided.");
+      setLoading(false);
+      return;
+    }
     try {
       if (quotationId) {
         const data = await customerApi.getQuotationById(quotationId);
@@ -417,7 +422,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + (isActionable ? 108 : 36) },
+          { paddingBottom: insets.bottom + (isActionable || isDepositPaid || isRevisionPending ? 120 : 40) },
         ]}
         showsVerticalScrollIndicator={false}
       >

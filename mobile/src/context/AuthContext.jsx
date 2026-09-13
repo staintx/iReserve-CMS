@@ -59,8 +59,11 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const data = await authApi.login({ email, password });
     if (data?.user && !ALLOWED_MOBILE_ROLES.includes(data.user.role)) {
+      await removeStoredToken();
+      setToken(null);
+      setUser(null);
       throw new Error(
-        "Mobile access is reserved for Customers, Managers, and Staff only. Please use the Web Admin Portal."
+        "The Admin Portal is available exclusively on the web. Please sign in via your desktop browser."
       );
     }
     if (data?.token) {
@@ -109,7 +112,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         updateUser,
         clearSessionExpired,
-        isAuthenticated: Boolean(user && token),
+        isAuthenticated: Boolean(user && token && ALLOWED_MOBILE_ROLES.includes(user?.role)),
         role: user?.role || null,
       }}
     >

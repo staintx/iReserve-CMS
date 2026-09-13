@@ -219,8 +219,9 @@ export const ManagerStaffScreen = ({ navigation }) => {
                       <TouchableOpacity
                         style={styles.contactBtn}
                         onPress={() => handleCall(person.phone)}
+                        hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                       >
-                        <Phone size={13} color={colors.primary} />
+                        <Phone size={14} color={colors.primary} />
                         <Text style={styles.contactBtnText}>{person.phone}</Text>
                       </TouchableOpacity>
                     ) : null}
@@ -228,8 +229,9 @@ export const ManagerStaffScreen = ({ navigation }) => {
                       <TouchableOpacity
                         style={styles.contactBtn}
                         onPress={() => handleEmail(person.email)}
+                        hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                       >
-                        <Mail size={13} color={colors.foregroundMuted} />
+                        <Mail size={14} color={colors.foregroundMuted} />
                         <Text style={styles.contactBtnText} numberOfLines={1}>
                           {person.email}
                         </Text>
@@ -240,10 +242,11 @@ export const ManagerStaffScreen = ({ navigation }) => {
                   <TouchableOpacity
                     style={styles.scheduleActionBtn}
                     onPress={() => setSelectedStaff(person)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
-                    <Calendar size={13} color={colors.primary} />
+                    <Calendar size={14} color={colors.primary} />
                     <Text style={styles.scheduleActionText}>Schedule</Text>
-                    <ChevronRight size={13} color={colors.primary} />
+                    <ChevronRight size={14} color={colors.primary} />
                   </TouchableOpacity>
                 </View>
               </Card>
@@ -277,7 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    height: 44,
+    minHeight: 48,
   },
   searchInput: {
     flex: 1,
@@ -294,7 +297,9 @@ const styles = StyleSheet.create({
   },
   pill: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    minHeight: 40,
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: radius.full,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -315,6 +320,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
+    paddingBottom: 130,
   },
   staffCard: {
     marginBottom: spacing.md,
@@ -345,7 +351,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   staffName: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.base,
     fontWeight: "800",
     color: colors.foreground,
   },
@@ -357,11 +363,11 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: radius.full,
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     fontWeight: "700",
   },
   cardFooter: {
@@ -382,22 +388,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    paddingVertical: 4,
   },
   contactBtnText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
   },
   scheduleActionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: 4,
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.md,
+    minHeight: 36,
     borderRadius: radius.full,
   },
   scheduleActionText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: "700",
     color: colors.primary,
   },

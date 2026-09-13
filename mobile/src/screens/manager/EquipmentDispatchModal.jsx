@@ -26,7 +26,7 @@ import AppButton from "../../components/common/AppButton";
 
 export const EquipmentDispatchModal = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { bookingId, inventoryItems = [], alreadyVerified = false, onSuccess } = route.params;
+  const { bookingId, inventoryItems = [], alreadyVerified = false, onSuccess } = route?.params || {};
 
   // Track checked items by index or inventory_id
   const [checkedMap, setCheckedMap] = useState(() => {

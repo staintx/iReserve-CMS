@@ -11,6 +11,18 @@ const BusinessInfoSchema = new mongoose.Schema({
   instagram: String,
   terms_url: String,
   privacy_url: String,
+  terms_file: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  privacy_file: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  social_links: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
   years_of_experience: { type: Number, default: 10 },
   deposit_percentage: { type: Number, default: 20 },
   custom_event_setup_price: { type: Number, default: 15000 },

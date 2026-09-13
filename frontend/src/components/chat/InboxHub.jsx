@@ -87,13 +87,15 @@ const getThreadSubtitle = (conv, currentUser) => {
 };
 
 const getCodeBadge = (conv) => {
-  if (conv?.booking_id?._id || conv?.booking_id?.booking_number) {
-    const idStr = conv.booking_id.booking_number || conv.booking_id._id.slice(-6).toUpperCase();
-    return { text: `EVT-${idStr}`, type: "event" };
+  if (conv?.booking_id?._id || conv?.booking_id?.booking_number || conv?.booking_id?.reference) {
+    const ref = conv.booking_id.reference || conv.booking_id.booking_number;
+    const text = ref ? (ref.startsWith("BK-") ? ref : `EVT-${ref}`) : `EVT-${conv.booking_id._id.slice(-6).toUpperCase()}`;
+    return { text, type: "event" };
   }
-  if (conv?.inquiry_id?._id || conv?.inquiry_id?.inquiry_number) {
-    const idStr = conv.inquiry_id.inquiry_number || conv.inquiry_id._id.slice(-6).toUpperCase();
-    return { text: `INQ-${idStr}`, type: "inquiry" };
+  if (conv?.inquiry_id?._id || conv?.inquiry_id?.inquiry_number || conv?.inquiry_id?.reference) {
+    const ref = conv.inquiry_id.reference || conv.inquiry_id.inquiry_number;
+    const text = ref ? (ref.startsWith("INQ-") ? ref : `INQ-${ref}`) : `INQ-${conv.inquiry_id._id.slice(-6).toUpperCase()}`;
+    return { text, type: "inquiry" };
   }
   return { text: "SUPPORT", type: "support" };
 };
@@ -1169,7 +1171,7 @@ export default function InboxHub({ basePath = "/admin/messages" }) {
             <div className="p-4 bg-white rounded-md border border-slate-200 shadow-2xs space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700">
-                  INQ-{activeInquiry.inquiry_number || activeInquiry._id.slice(-6).toUpperCase()}
+                  {activeInquiry.reference || (activeInquiry.inquiry_number ? `INQ-${activeInquiry.inquiry_number}` : `INQ-${activeInquiry._id.slice(-6).toUpperCase()}`)}
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   {activeInquiry.status}

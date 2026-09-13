@@ -40,7 +40,7 @@ const COMMON_ROLES = [
 
 export const AssignStaffModal = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { bookingId, eventDate, existingAssignments = [], onSuccess } = route.params;
+  const { bookingId, eventDate, existingAssignments = [], onSuccess } = route?.params || {};
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

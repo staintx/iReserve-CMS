@@ -47,25 +47,59 @@ const startCronJobs = require("./jobs/cron");
 connectDB();
 
 const app = express();
-const allowedOrigins = process.env.FRONTEND_URL 
+const rateLimit = require("express-rate-limit");
+
+const defaultAllowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:8081",
+  "http://localhost:19006"
+];
+
+const envOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',').map(u => u.trim().replace(/\/$/, "")) 
-  : ["http://localhost:5173"];
+  : [];
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
 
 const corsOptions = {
 	origin: (origin, callback) => {
 		if (!origin) return callback(null, true);
 		const originNoSlash = origin.replace(/\/$/, "");
 		if (allowedOrigins.includes(originNoSlash)) {
-			callback(null, true);
-		} else {
-			// Reflect origin to bypass CORS issues in production deployments
-			callback(null, origin);
+			return callback(null, true);
 		}
+		if (process.env.NODE_ENV !== "production") {
+			// In non-production local development, permit local network/preview hosts
+			return callback(null, true);
+		}
+		return callback(new Error("CORS policy violation: Origin not allowed"));
 	},
 	credentials: true
 };
 
 app.use(cors(corsOptions));
+
+// Global API rate limiter: 500 requests per 15 minutes
+const apiLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000,
+	max: 500,
+	standardHeaders: true,
+	legacyHeaders: false,
+	message: { message: "Too many requests from this IP, please try again after 15 minutes" }
+});
+app.use("/api", apiLimiter);
+
+// Stricter auth rate limiter: 30 requests per 15 minutes on login/register/otp
+const authLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000,
+	max: 30,
+	standardHeaders: true,
+	legacyHeaders: false,
+	message: { message: "Too many authentication attempts, please try again later" }
+});
+app.use("/api/auth", authLimiter);
+
 app.use(express.json({
 	verify: (req, res, buf) => {
 		req.rawBody = buf.toString();
@@ -186,7 +220,7 @@ io.on("connection", (socket) => {
 		if (!conversation) {
 			throw new Error("Conversation not found");
 		}
-		if (!canAccessConversation(socket.data.user, conversation)) {
+		if (!(await canAccessConversation(socket.data.user, conversation))) {
 			throw new Error("Forbidden");
 		}
 
@@ -305,7 +339,7 @@ io.on("connection", (socket) => {
 				return;
 			}
 
-			if (!canAccessConversation(socket.data.user, conversation)) {
+			if (!(await canAccessConversation(socket.data.user, conversation))) {
 				if (ack) ack({ ok: false, message: "Forbidden" });
 				return;
 			}

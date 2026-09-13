@@ -493,8 +493,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   headerChatBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   menuItemCategory: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
@@ -830,7 +830,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   addonSub: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
@@ -849,8 +849,8 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
   chatHelperIconWrap: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
@@ -863,11 +863,11 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   chatHelperSubtitle: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
     marginTop: 2,
-    lineHeight: 16,
+    lineHeight: 17,
   },
 
   // Bottom Actions

@@ -112,7 +112,7 @@ export const ManagerDashboardScreen = ({ navigation }) => {
             {/* Quick Metrics Bar */}
             <View style={styles.statsRow}>
               <Card
-                style={[styles.statBox, { borderLeftColor: colors.warning, borderLeftWidth: 3.5 }]}
+                style={styles.statBox}
                 onPress={() => navigation.navigate("ManagerBookings", { tab: "pending" })}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.warningLight }]}>
@@ -123,7 +123,7 @@ export const ManagerDashboardScreen = ({ navigation }) => {
               </Card>
 
               <Card
-                style={[styles.statBox, { borderLeftColor: colors.primary, borderLeftWidth: 3.5 }]}
+                style={styles.statBox}
                 onPress={() => navigation.navigate("ManagerBookings", { tab: "upcoming" })}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.primaryLight }]}>
@@ -134,7 +134,7 @@ export const ManagerDashboardScreen = ({ navigation }) => {
               </Card>
 
               <Card
-                style={[styles.statBox, { borderLeftColor: colors.success, borderLeftWidth: 3.5 }]}
+                style={styles.statBox}
                 onPress={() => navigation.navigate("ManagerBookings", { tab: "completed" })}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.successLight }]}>
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: 120,
+    paddingBottom: 130, // Clearance for floating tab bar
   },
   loadingContainer: {
     marginTop: spacing.md,
@@ -355,15 +355,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.sm + 2,
+    padding: spacing.md,
+    minHeight: 104,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderLeftWidth: 4,
-    ...shadows.sm,
+    borderColor: colors.cardBorder,
+    ...shadows.xs,
   },
   statIconWrap: {
-    width: 32,
-    height: 32,
+    width: 38,
+    height: 38,
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
@@ -376,9 +376,9 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fontFamily.medium,
+    fontFamily: typography.fontFamily.bold,
     color: colors.foregroundMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   calendarBanner: {
     marginBottom: spacing.lg,
@@ -474,8 +474,8 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   cardReference: {
-    fontSize: 11,
-    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fontFamilies.medium,
     color: colors.foregroundMuted,
     marginTop: 2,
   },

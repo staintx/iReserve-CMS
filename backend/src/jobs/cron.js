@@ -216,19 +216,34 @@ const startCronJobs = (io) => {
                 console.log(`Transitioned ${todayResult.modifiedCount} bookings to 'ongoing'.`);
             }
 
-            // Events from yesterday → completed
+            // Events from yesterday → completed (guarded against unverified equipment returns)
             const yesterdayStart = new Date(todayStart);
             yesterdayStart.setDate(yesterdayStart.getDate() - 1);
             const yesterdayEnd = new Date(yesterdayStart);
             yesterdayEnd.setHours(23, 59, 59, 999);
 
-            const yesterdayResult = await Booking.updateMany(
-                { event_date: { $gte: yesterdayStart, $lte: yesterdayEnd }, status: { $in: ["ongoing", "Ready for Event", "ready for event", "confirmed", "Confirmed", "preparing"] } },
-                { $set: { status: "completed", completed_at: new Date() } }
-            );
+            const yesterdayCandidates = await Booking.find({
+                event_date: { $gte: yesterdayStart, $lte: yesterdayEnd },
+                status: { $in: ["ongoing", "Ready for Event", "ready for event", "confirmed", "Confirmed", "preparing"] }
+            });
 
-            if (yesterdayResult.modifiedCount > 0) {
-                console.log(`Transitioned ${yesterdayResult.modifiedCount} bookings to 'completed'.`);
+            let completedCount = 0;
+            for (const b of yesterdayCandidates) {
+                const hasPendingEquipment = (Array.isArray(b.inventory_items) && b.inventory_items.length > 0) &&
+                    (!b.equipment_manager_verified?.confirmed &&
+                     Array.isArray(b.equipment_returns) &&
+                     b.equipment_returns.some(eq => !eq.verified_at));
+
+                if (!hasPendingEquipment) {
+                    b.status = "Completed";
+                    b.completed_at = new Date();
+                    await b.save();
+                    completedCount++;
+                }
+            }
+
+            if (completedCount > 0) {
+                console.log(`Transitioned ${completedCount} bookings to 'Completed'.`);
             }
         } catch (error) {
             console.error('Error in auto-status transition cron:', error);

@@ -114,8 +114,9 @@ export const StatusBadge = ({ status, size = "md", showDot = true, style }) => {
         {
           backgroundColor: bgColor,
           borderColor: borderColor,
-          paddingVertical: size === "sm" ? 3 : 4,
-          paddingHorizontal: size === "sm" ? spacing.sm : spacing.md,
+          minHeight: size === "sm" ? 26 : 30,
+          paddingVertical: size === "sm" ? 4 : 5,
+          paddingHorizontal: size === "sm" ? 10 : 14,
         },
         style,
       ]}

@@ -610,7 +610,7 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
             keyExtractor={(item) => item._id}
             contentContainerStyle={[
               styles.listContent,
-              { paddingBottom: insets.bottom + 90 },
+              { paddingBottom: 130 },
             ]}
             refreshControl={
               <RefreshControl
@@ -639,7 +639,7 @@ export const CustomerMessagesScreen = ({ route, navigation }) => {
           keyExtractor={(item) => item._id}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 90 },
+            { paddingBottom: 130 },
           ]}
           refreshControl={
             <RefreshControl
@@ -727,12 +727,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.full,
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 1.5,
     marginLeft: 6,
   },
   tabBadgeText: {
     color: colors.white,
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
   },
@@ -765,8 +765,8 @@ const styles = StyleSheet.create({
   categoryPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    minHeight: 38,
     borderRadius: radius.full,
     backgroundColor: "#F1F5F9",
     borderWidth: 1,
@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   categoryPillText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontFamily: typography.fontFamilies.medium,
     color: "#475569",
     fontWeight: "600",
@@ -790,14 +790,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
     borderRadius: 10,
     paddingHorizontal: 6,
-    paddingVertical: 1,
+    paddingVertical: 2,
     marginLeft: 5,
   },
   categoryPillBadgeSelected: {
     backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
   categoryPillBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     color: "#475569",
     fontWeight: "700",
@@ -915,7 +915,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   badgeChipText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
   },

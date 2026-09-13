@@ -386,6 +386,25 @@ const getCachedBusinessInfo = async () => {
   return _businessInfoCache;
 };
 
+const ACTIVE_BOOKING_STATUSES = [
+  "pending deposit",
+  "Deposit Pending",
+  "deposit pending",
+  "deposit_paid",
+  "Confirmed",
+  "confirmed",
+  "Ocular Scheduled",
+  "ocular scheduled",
+  "Final Payment Pending",
+  "final payment pending",
+  "Ready for Event",
+  "ready for event",
+  "preparing",
+  "ongoing",
+  "customer_accepted",
+  "converted to booking",
+];
+
 const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
   if (!eventDate) return false;
   const date = new Date(eventDate);
@@ -397,7 +416,7 @@ const checkMaxBookingsLimit = async (eventDate, excludeId = null) => {
   dayEnd.setHours(23, 59, 59, 999);
   
   const query = {
-    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    status: { $in: ACTIVE_BOOKING_STATUSES },
     event_date: { $gte: dayStart, $lte: dayEnd },
   };
   if (excludeId) query._id = { $ne: excludeId };
@@ -2001,7 +2020,7 @@ exports.getBookedDates = asyncHandler(async (req, res) => {
   const limit = businessInfo?.max_bookings_per_day || 2;
 
   const bookings = await Booking.find({
-    status: { $in: ["pending deposit", "confirmed", "preparing", "ongoing"] },
+    status: { $in: ACTIVE_BOOKING_STATUSES },
     event_date: { $gte: startOfMonth, $lte: endOfMonth }
   });
 

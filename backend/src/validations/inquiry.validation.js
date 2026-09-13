@@ -9,16 +9,14 @@ const noPastDate = (value, helpers) => {
   return value;
 };
 
-exports.bookingSchema = Joi.object({
-  customer_id: Joi.string().allow("").optional(),
+exports.inquirySchema = Joi.object({
   package_id: Joi.string().allow("").optional(),
-  event_manager_id: Joi.string().allow("").optional(),
-  staff_ids: Joi.array().items(Joi.string()).optional(),
-
+  customer_id: Joi.string().allow("").optional(),
   event_type: Joi.string().required(),
   booking_for: Joi.string().valid("myself", "someone_else").optional(),
   celebrant_name: Joi.string().allow("").optional(),
   event_theme: Joi.string().allow("").optional(),
+  event_palette: Joi.array().items(Joi.string()).optional(),
   event_date: Joi.date()
     .required()
     .custom(noPastDate, "no past dates")
@@ -27,36 +25,32 @@ exports.bookingSchema = Joi.object({
       "date.min": "Event date must be today or later."
     }),
   start_time: Joi.string().allow("").optional(),
-  guest_count: Joi.number().required(),
+  guest_count: Joi.number().min(1).required(),
   duration_hours: Joi.number().allow(null, "").optional(),
+  service_type: Joi.string().valid("Food Only", "Event Setup Only", "Food and Event Setup").allow("").optional(),
+  delivery_method: Joi.string().valid("delivery", "pickup", "setup").allow("").optional(),
   include_food: Joi.boolean().optional(),
   venue_type: Joi.string().allow("").optional(),
-  indoor_outdoor: Joi.string().allow("").optional(),
   province: Joi.string().allow("").optional(),
   municipality: Joi.string().allow("").optional(),
   barangay: Joi.string().allow("").optional(),
   street: Joi.string().allow("").optional(),
   landmark: Joi.string().allow("").optional(),
   zip_code: Joi.string().allow("").optional(),
-  venue_contact_name: Joi.string().allow("").optional(),
-  venue_contact_phone: Joi.string().allow("").optional(),
-  selected_menu: Joi.array().items(Joi.string()).optional(),
+  selected_menu: Joi.array().optional(),
+  dietary_requirements: Joi.string().allow("").optional(),
   dietary_restrictions: Joi.string().allow("").optional(),
   allergies: Joi.string().allow("").optional(),
   special_requests: Joi.string().allow("").optional(),
-  budget_min: Joi.alternatives().try(Joi.string(), Joi.number()).allow("").optional(),
-  budget_max: Joi.alternatives().try(Joi.string(), Joi.number()).allow("").optional(),
-  additional_services: Joi.array().items(Joi.string()).optional(),
+  custom_setup_notes: Joi.string().allow("").optional(),
+  custom_setup_scope: Joi.array().optional(),
+  inspiration_images: Joi.array().items(Joi.string()).optional(),
+  budget_range: Joi.string().allow("").optional(),
+  estimated_budget: Joi.alternatives().try(Joi.string(), Joi.number()).allow("").optional(),
   contact_first_name: Joi.string().allow("").optional(),
   contact_last_name: Joi.string().allow("").optional(),
   contact_email: Joi.string().email().allow("").optional(),
   contact_phone: Joi.string().allow("").optional(),
   contact_alt_phone: Joi.string().allow("").optional(),
-  contact_method: Joi.string().allow("").optional(),
-  total_price: Joi.number().required(),
-  payment_method: Joi.string().allow("").optional(),
-  payment_status: Joi.string().valid("pending", "deposit_paid", "fully_paid", "refund_requested", "refunded").allow("").optional(),
-  paymongo_checkout_session_id: Joi.string().allow("").optional(),
-  paymongo_payment_intent_id: Joi.string().allow("").optional(),
-  status: Joi.string().valid("pending deposit", "confirmed", "preparing", "ongoing", "completed", "cancelled").allow("").optional()
+  cf_turnstile_token: Joi.string().allow("").optional(),
 }).unknown(true);

@@ -121,9 +121,10 @@ export const typography = {
     return this.fontFamilies;
   },
   sizes: {
-    xxs: 10,
+    micro: 11,
+    xxs: 11, // Aliased to 11px to enforce accessible microcopy floor
     xs: 12,
-    sm: 13,
+    sm: 13.5,
     base: 15,
     md: 16,
     lg: 18,
@@ -137,6 +138,13 @@ export const typography = {
     normal: 1.4,
     relaxed: 1.6,
   },
+};
+
+export const layout = {
+  tabBarClearance: Platform.OS === "ios" ? 116 : 100,
+  minTouchTarget: Platform.OS === "ios" ? 44 : 48,
+  cardRadius: 16,
+  modalRadius: 20,
 };
 
 export const spacing = {
@@ -223,4 +231,5 @@ export default {
   spacing,
   radius,
   shadows,
+  layout,
 };

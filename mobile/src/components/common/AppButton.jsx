@@ -68,9 +68,9 @@ export const AppButton = ({
   };
 
   const getHeight = () => {
-    if (size === "sm") return 40;
-    if (size === "lg") return 54;
-    return 48;
+    if (size === "sm") return 44;
+    if (size === "lg") return 56;
+    return 50;
   };
 
   const getFontSize = () => {
@@ -86,6 +86,7 @@ export const AppButton = ({
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={disabled || loading}
+        hitSlop={size === "sm" ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel || (typeof title === "string" ? title : undefined)}
         accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
@@ -95,8 +96,8 @@ export const AppButton = ({
             backgroundColor: getBackgroundColor(),
             borderColor: getBorderColor(),
             borderWidth: isOutline ? 1.5 : 0,
-            height: getHeight(),
-            paddingHorizontal: size === "sm" ? spacing.md : spacing.xl,
+            minHeight: getHeight(),
+            paddingHorizontal: size === "sm" ? spacing.base : spacing.xl,
           },
         ]}
       >

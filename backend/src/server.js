@@ -343,4 +343,4 @@ server.listen(PORT, () => {
   // Verify SMTP connection on startup so issues appear in deploy logs
   verifyEmailConnection();
   verifyPayMongoConfig();
-});
+});

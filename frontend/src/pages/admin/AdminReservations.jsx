@@ -79,6 +79,36 @@ const getRelativeTime = (dateStr) => {
   return `${diffDays}d ago`;
 };
 
+/**
+ * Avatar Initials with deterministic background color
+ */
+const AvatarInitials = ({ name, className = "w-9 h-9 text-xs" }) => {
+  const getInitials = (str) => {
+    if (!str) return "RS";
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return str.substring(0, 2).toUpperCase();
+  };
+
+  const colors = [
+    "bg-blue-100 text-blue-700 border-blue-200/60",
+    "bg-indigo-100 text-indigo-700 border-indigo-200/60",
+    "bg-purple-100 text-purple-700 border-purple-200/60",
+    "bg-emerald-100 text-emerald-700 border-emerald-200/60",
+    "bg-amber-100 text-amber-700 border-amber-200/60",
+    "bg-teal-100 text-teal-700 border-teal-200/60",
+  ];
+
+  const hash = (name || "").split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colorClass = colors[hash % colors.length];
+
+  return (
+    <div className={`${className} rounded-full flex items-center justify-center font-bold shrink-0 border ${colorClass}`}>
+      {getInitials(name)}
+    </div>
+  );
+};
+
 export default function AdminReservations() {
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -137,6 +167,17 @@ export default function AdminReservations() {
   }, []);
 
   useRealTimeRefresh(loadData);
+
+  // Close details drawer on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && selectedBooking) {
+        setSelectedBooking(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedBooking]);
 
   // Map API fields to structured table & detail models
   const formattedBookings = useMemo(() => {
@@ -821,12 +862,17 @@ export default function AdminReservations() {
                 {/* Scrollable Drawer Body */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
                   
-                  {/* Status & Customer Summary Card */}
-                  <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 space-y-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Customer</span>
-                        <h4 className="font-bold text-foreground text-sm truncate">{selectedBooking.customer}</h4>
+                  {/* Customer Section (Compact & Scannable) */}
+                  <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2">
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <AvatarInitials name={selectedBooking.customer} className="w-9 h-9 text-xs" />
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-foreground text-sm truncate">{selectedBooking.customer}</h4>
+                          <span className="text-[10px] text-muted-foreground block mt-0.5">
+                            Coordinator: <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
+                          </span>
+                        </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <Badge status={selectedBooking.status} />
@@ -843,25 +889,29 @@ export default function AdminReservations() {
                     </div>
 
                     {/* Quick Contact Line */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
-                      <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
-                        <Phone size={12} className="shrink-0 text-primary" />
-                        <a href={`tel:${selectedBooking.phone}`} className="truncate hover:text-foreground hover:underline">
-                          {selectedBooking.phone || "N/A"}
-                        </a>
-                      </div>
-                      <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
-                        <Mail size={12} className="shrink-0 text-primary" />
-                        <a href={`mailto:${selectedBooking.email}`} className="truncate hover:text-foreground hover:underline">
-                          {selectedBooking.email || "N/A"}
-                        </a>
-                      </div>
+                    <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-border/40 text-xs">
+                      <a
+                        href={`tel:${selectedBooking.phone}`}
+                        className="flex items-center gap-1.5 min-w-0 text-muted-foreground hover:text-foreground group transition-colors"
+                        title="Call customer"
+                      >
+                        <Phone size={12} className="shrink-0 text-primary group-hover:scale-110 transition-transform" />
+                        <span className="truncate">{selectedBooking.phone || "—"}</span>
+                      </a>
+                      <a
+                        href={`mailto:${selectedBooking.email}`}
+                        className="flex items-center gap-1.5 min-w-0 text-muted-foreground hover:text-foreground group transition-colors"
+                        title="Email customer"
+                      >
+                        <Mail size={12} className="shrink-0 text-primary group-hover:scale-110 transition-transform" />
+                        <span className="truncate">{selectedBooking.email || "—"}</span>
+                      </a>
                     </div>
                   </div>
 
                   {/* Pending Change Request Alert (Prominent when present) */}
                   {selectedBooking.hasChangeRequest && (
-                    <div className="p-3 bg-amber-50/90 border border-amber-300/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="p-3 bg-amber-50/90 border border-amber-300/80 rounded-xl text-xs space-y-1">
                       <div className="flex items-center gap-1.5 font-bold text-amber-900">
                         <AlertTriangle size={14} className="text-amber-600 shrink-0" />
                         <span>Pending Customer Change Request</span>
@@ -872,7 +922,7 @@ export default function AdminReservations() {
                     </div>
                   )}
 
-                  {/* Drawer Tabs: Booking Details vs Revision History */}
+                  {/* Segment Switcher: Booking Overview vs Revision History */}
                   <div className="flex border-b border-border text-xs font-semibold">
                     <button
                       onClick={() => setDrawerTab("overview")}
@@ -893,14 +943,70 @@ export default function AdminReservations() {
                       }`}
                     >
                       <History size={13} /> Revision History
+                      {selectedBooking.revisionCount > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                          {selectedBooking.revisionCount}
+                        </span>
+                      )}
                     </button>
                   </div>
 
                   {/* Tab Content: Booking Details */}
                   {drawerTab === "overview" && (
                     <div className="space-y-3 text-xs">
+                      {/* Unified Payment & Financial Summary */}
+                      <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-3">
+                        <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <CreditCard size={12} className="text-primary" /> Financial Overview
+                        </h5>
+
+                        {/* 3 Key Metric Blocks */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Total Cost</span>
+                            <span className="font-mono font-bold text-xs text-foreground block truncate mt-0.5">{fmt(selectedBooking.total)}</span>
+                          </div>
+                          <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Deposit / Paid</span>
+                            <span className="font-mono font-bold text-xs text-emerald-600 block truncate mt-0.5">
+                              {selectedBooking.depositPaid ? fmt(selectedBooking.paidAmount) : "₱0.00"}
+                            </span>
+                          </div>
+                          <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Balance Due</span>
+                            <span className={`font-mono font-bold text-xs block truncate mt-0.5 ${
+                              selectedBooking.remainingBalance > 0 ? "text-amber-600" : "text-emerald-600"
+                            }`}>
+                              {fmt(selectedBooking.remainingBalance)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price Breakdown Details */}
+                        <div className="space-y-1.5 pt-1.5 border-t border-border/50 text-xs">
+                          <div className="flex justify-between py-0.5 text-muted-foreground">
+                            <span>Base Package</span>
+                            <span className="font-mono font-medium text-foreground">{fmt(selectedBooking.basePackagePrice)}</span>
+                          </div>
+                          <div className="flex justify-between py-0.5 text-muted-foreground">
+                            <span>Add-ons & Services</span>
+                            <span className="font-mono font-medium text-foreground">{fmt(selectedBooking.addOnsPrice)}</span>
+                          </div>
+                          {selectedBooking.discountAmount > 0 && (
+                            <div className="flex justify-between py-0.5 text-emerald-600">
+                              <span>Discount Applied</span>
+                              <span className="font-mono font-semibold">-{fmt(selectedBooking.discountAmount)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between pt-1.5 border-t border-border/60 font-bold text-xs">
+                            <span className="text-foreground">Grand Total</span>
+                            <span className="font-mono text-primary text-sm">{fmt(selectedBooking.total)}</span>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Event & Schedule Card */}
-                      <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                      <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5">
                         <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                           <Calendar size={12} className="text-primary" /> Event & Venue
                         </h5>
@@ -931,111 +1037,76 @@ export default function AdminReservations() {
                           </div>
                         </div>
                       </div>
-
-                      {/* Unified Payment & Financial Summary Card */}
-                      <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-3 shadow-2xs">
-                        <div className="flex items-center justify-between pb-1 border-b border-border/60">
-                          <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                            <CreditCard size={12} className="text-primary" /> Payment & Financials
-                          </h5>
-                        </div>
-
-                        {/* 3 Key Metric Blocks */}
-                        <div className="grid grid-cols-3 gap-2 text-center sm:text-left">
-                          <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
-                            <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Total Cost</span>
-                            <span className="font-mono font-bold text-xs text-foreground">{fmt(selectedBooking.total)}</span>
-                          </div>
-                          <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
-                            <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Deposit Paid</span>
-                            <span className="font-mono font-bold text-xs text-emerald-600">
-                              {selectedBooking.depositPaid ? fmt(selectedBooking.paidAmount) : "₱0.00"}
-                            </span>
-                          </div>
-                          <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
-                            <span className="text-[9.5px] uppercase font-bold text-muted-foreground block">Balance Due</span>
-                            <span className={`font-mono font-bold text-xs ${
-                              selectedBooking.remainingBalance > 0 ? "text-amber-600" : "text-emerald-600"
-                            }`}>
-                              {fmt(selectedBooking.remainingBalance)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Price Breakdown Details */}
-                        <div className="space-y-1.5 pt-1.5 border-t border-border/50 text-xs">
-                          <div className="flex justify-between py-0.5 text-muted-foreground">
-                            <span>Base Package</span>
-                            <span className="font-mono font-medium text-foreground">{fmt(selectedBooking.basePackagePrice)}</span>
-                          </div>
-                          <div className="flex justify-between py-0.5 text-muted-foreground">
-                            <span>Add-ons & Services</span>
-                            <span className="font-mono font-medium text-foreground">{fmt(selectedBooking.addOnsPrice)}</span>
-                          </div>
-                          {selectedBooking.discountAmount > 0 && (
-                            <div className="flex justify-between py-0.5 text-emerald-600">
-                              <span>Discount Applied</span>
-                              <span className="font-mono font-semibold">-{fmt(selectedBooking.discountAmount)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between pt-1.5 border-t border-border/60 font-bold text-xs">
-                            <span className="text-foreground">Grand Total</span>
-                            <span className="font-mono text-primary text-sm">{fmt(selectedBooking.total)}</span>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
                   {/* Tab Content: Revision History */}
                   {drawerTab === "timeline" && (
-                    <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-3 shadow-2xs text-xs">
-                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Booking Lifecycle & Revision Log
+                    <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-3 text-xs">
+                      <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <History size={12} className="text-primary" /> Booking Lifecycle & Revision Log
                       </h5>
                       <BookingRevisionHistory booking={selectedBooking.rawBooking} />
                     </div>
                   )}
                 </div>
 
-                {/* Pinned Drawer Footer: Refined Action Hierarchy */}
-                <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs space-y-2 shrink-0">
-                  {canApprove && (
-                    <button
-                      onClick={() => handleApprove(selectedBooking._id)}
-                      className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
-                      title="Approve / Confirm Reservation"
-                    >
-                      <Check size={14} /> Confirm Reservation
-                    </button>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => navigate(`/admin/bookings/${selectedBooking._id}/details`)}
-                      className={`flex-1 py-2 px-3 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                        canApprove
-                          ? "bg-card border border-border/80 text-foreground hover:bg-muted"
-                          : "bg-primary text-primary-foreground hover:bg-primary/90"
-                      }`}
-                    >
-                      <Edit3 size={13} /> Open Full Booking Details
-                    </button>
-
-                    {canCancel && (
+                {/* Pinned Drawer Footer: Non-Duplicate Action Hierarchy */}
+                <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs shrink-0">
+                  {canApprove ? (
+                    <div className="space-y-2">
                       <button
-                        onClick={() => {
-                          const row = selectedBooking;
-                          setSelectedBooking(null);
-                          setCancelTarget(row);
-                        }}
-                        className="py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shrink-0"
-                        title="Cancel Booking"
+                        onClick={() => handleApprove(selectedBooking._id)}
+                        className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Approve / Confirm Reservation"
                       >
-                        <XCircle size={13} /> Cancel
+                        <Check size={14} /> Confirm Reservation
                       </button>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => navigate(`/admin/bookings/${selectedBooking._id}/details`)}
+                          className="flex-1 py-1.5 px-3 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer bg-card border border-border/80 text-foreground hover:bg-muted"
+                        >
+                          <Edit3 size={13} /> Open Full Details
+                        </button>
+                        {canCancel && (
+                          <button
+                            onClick={() => {
+                              const row = selectedBooking;
+                              setSelectedBooking(null);
+                              setCancelTarget(row);
+                            }}
+                            className="py-1.5 px-3 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                            title="Cancel Booking"
+                          >
+                            <XCircle size={13} /> Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => navigate(`/admin/bookings/${selectedBooking._id}/details`)}
+                        className="flex-1 py-2 px-3 rounded-lg font-semibold text-xs text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        <Edit3 size={13} /> Open Full Booking Details
+                      </button>
+                      {canCancel && (
+                        <button
+                          onClick={() => {
+                            const row = selectedBooking;
+                            setSelectedBooking(null);
+                            setCancelTarget(row);
+                          }}
+                          className="py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                          title="Cancel Booking"
+                        >
+                          <XCircle size={13} /> Cancel
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -3997,7 +3997,8 @@
     display: none !important;
   }
 
-  [data-radix-dialog-content] {
+  /* Only format radix dialogs that contain the invoice document */
+  [data-radix-dialog-content]:has(.caz-invoice-document) {
     position: static !important;
     transform: none !important;
     max-width: 100% !important;
@@ -4010,6 +4011,11 @@
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  /* Automatically suppress any open non-invoice Radix dialogs during print */
+  [data-radix-dialog-content]:not(:has(.caz-invoice-document)) {
+    display: none !important;
   }
 
   /* Dedicated A4 print table pagination */

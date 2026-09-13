@@ -52,7 +52,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "../../components/ui/input";
 import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
-import { isFoodOnly, isSetupOnly, isOcularRequired } from "../../components/customer/portal/statusMeta";
+import { isFoodOnly, isSetupOnly } from "../../components/customer/portal/statusMeta";
 
 const safeDateToIsoString = (val) => {
   if (!val) return "";
@@ -123,7 +123,7 @@ export default function AdminBookingDetails() {
       try {
         const bRes = await AdminAPI.getBooking(id);
         bookingData = bRes.data;
-      } catch (err) {
+      } catch {
         // Fallback: check if id is an inquiry or converted booking ID
         try {
           const inqRes = await AdminAPI.getInquiry(id);
@@ -133,7 +133,7 @@ export default function AdminBookingDetails() {
           } else {
             bookingData = inqRes.data;
           }
-        } catch (inqErr) {
+        } catch {
           // Fallback: search in getBookings list
           const allB = await AdminAPI.getBookings();
           bookingData = allB.data.find(b => b._id === id || b.reference === id || b.converted_booking_id === id);
@@ -153,7 +153,7 @@ export default function AdminBookingDetails() {
         const staffRes = await AdminAPI.getStaff();
         const staffList = Array.isArray(staffRes.data) ? staffRes.data : [];
         setManagers(staffList.filter((s) => s.role === "manager" && s.is_active !== false));
-      } catch (sErr) {
+      } catch {
         setManagers([]);
       }
 
@@ -162,7 +162,7 @@ export default function AdminBookingDetails() {
         const pRes = await AdminAPI.getPayments();
         const bId = bookingData._id;
         setPayments((pRes.data || []).filter(p => String(p.booking_id?._id || p.booking_id) === String(bId) || String(p.inquiry_id?._id || p.inquiry_id) === String(bId)));
-      } catch (pErr) {
+      } catch {
         setPayments([]);
       }
 
@@ -187,7 +187,7 @@ export default function AdminBookingDetails() {
         } else {
           setSourceQuotation(null);
         }
-      } catch (qErr) {
+      } catch {
         setSourceQuotation(null);
       }
 
@@ -207,7 +207,7 @@ export default function AdminBookingDetails() {
         setOcularOutcome(bookingData.ocular_visit.outcome || "proceed");
         setOcularInspectionNotes(bookingData.ocular_visit.notes || "");
       }
-    } catch (err) {
+    } catch {
       notify("Failed to load booking details.", "error");
     } finally {
       setLoading(false);
@@ -395,15 +395,6 @@ export default function AdminBookingDetails() {
       loadData();
     })
     .catch((err) => notify(err.response?.data?.message || "Failed to send quote.", "error"));
-  };
-
-  const handleResolveChange = () => {
-    AdminAPI.resolveChangeRequest(booking._id, { status: "approved" })
-      .then(() => {
-        notify("Change request marked as resolved.", "success");
-        loadData();
-      })
-      .catch((err) => notify(err.response?.data?.message || "Failed to resolve change request.", "error"));
   };
 
   const handleOpenEditModal = () => {
@@ -1819,8 +1810,10 @@ export default function AdminBookingDetails() {
           context="admin"
         />
 
-        {/* Printable Invoice / Official Receipt for direct window.print() */}
-        <PrintableInvoice booking={booking} payments={payments} businessInfo={businessInfo} />
+        {/* Printable Invoice / Official Receipt for direct window.print() (only rendered when modal is closed to prevent double printing) */}
+        {!showInvoiceModal && (
+          <PrintableInvoice booking={booking} payments={payments} businessInfo={businessInfo} />
+        )}
 
       </div>
     </AdminLayout>

@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Tag,
   FolderPlus,
+  Lock,
+  Package,
 } from "lucide-react";
 import Btn from "./Btn";
 import SingleImageField from "./SingleImageField";
@@ -33,6 +35,66 @@ const cleanTextValue = (str) => {
   }
   return val;
 };
+
+const parseInclusion = (str) => {
+  const parsed = parseInclusionDisplay(str);
+  if (!parsed) {
+    return { category: "Event Setup & Furniture", name: "", qty: "" };
+  }
+  return {
+    category: parsed.category || "Event Setup & Furniture",
+    name: cleanTextValue(parsed.name),
+    qty: parsed.qty || "",
+  };
+};
+
+function getPackageSnapshot(data, imgFile, galFiles, galRemove) {
+  if (!data) return "";
+  return JSON.stringify({
+    name: String(data.name || "").trim(),
+    available: Boolean(data.available),
+    guest_min: String(data.guest_min ?? "").trim(),
+    guest_max: String(data.guest_max ?? "").trim(),
+    guest_count: String(data.guest_count ?? "").trim(),
+    setup_price: String(data.setup_price ?? "").trim(),
+    price_per_guest: String(data.price_per_guest ?? "").trim(),
+    description: String(data.description || "").trim(),
+    fullDescription: String(data.fullDescription || "").trim(),
+    inclusions: (data.inclusions || [])
+      .map((inc) => String(inc || "").trim())
+      .filter(Boolean),
+    add_ons: (data.add_ons || [])
+      .map((a) => ({
+        name: String(a?.name || "").trim(),
+        qty: String(a?.qty || "").trim(),
+      }))
+      .filter((a) => a.name || a.qty),
+    setup_equipment: (data.setup_equipment || []).map((item) => ({
+      name: String(item?.name || "").trim(),
+      qty: String(item?.qty || "").trim(),
+      category: String(item?.category || "").trim(),
+    })),
+    scaffold_size_options: (data.scaffold_size_options || []).map((opt) => ({
+      label: String(opt?.label || "").trim(),
+      width_ft: String(opt?.width_ft ?? "").trim(),
+      length_ft: String(opt?.length_ft ?? "").trim(),
+      guest_min: String(opt?.guest_min ?? "").trim(),
+      guest_max: String(opt?.guest_max ?? "").trim(),
+      free_setup: Boolean(opt?.free_setup),
+      price: String(opt?.price ?? "").trim(),
+    })),
+    default_scaffold_option_id: String(data.default_scaffold_option_id || "").trim(),
+    offer_food_items: (data.offer_food_items || [])
+      .map((item) => ({
+        menu_category: String(item?.menu_category || "").trim(),
+        item_name: String(item?.item_name || "").trim(),
+      }))
+      .filter((item) => item.menu_category || item.item_name),
+    hasImageFile: Boolean(imgFile),
+    galleryFilesCount: (galFiles || []).length,
+    galleryToRemove: [...(galRemove || [])].sort(),
+  });
+}
 
 /**
  * One form for both kinds of package.
@@ -132,6 +194,7 @@ export default function PackageModal({
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
   const [isParserOpen, setIsParserOpen] = useState(false);
+  const [baseSnapshot, setBaseSnapshot] = useState(null);
 
   // ============ FORM STATE ============
   const [formData, setFormData] = useState({
@@ -228,6 +291,8 @@ export default function PackageModal({
   // ============ EFFECTS ============
   useEffect(() => {
     setGalleryToRemove([]);
+    setImageFile(null);
+    setGalleryFiles([]);
 
     if (pkg) {
       // Normalize add_ons
@@ -236,7 +301,7 @@ export default function PackageModal({
         qty: a.qty || "",
       }));
 
-      setFormData({
+      const initialData = {
         name: pkg.name || "",
         package_type: pkg.package_type || "Event Setup Only",
         // A saved package keeps its own type. Records written before Special
@@ -282,10 +347,14 @@ export default function PackageModal({
         setup_equipment: pkg.setup_equipment || [],
         scaffold_size_options: pkg.scaffold_size_options || [],
         default_scaffold_option_id: pkg.default_scaffold_option_id || "",
-      });
+      };
+
+      setFormData(initialData);
+      setBaseSnapshot(getPackageSnapshot(initialData, null, [], []));
     } else {
       // A brand new record starts as whichever tab it was created from.
       setFormData((prev) => ({ ...prev, offer_type: defaultOfferType }));
+      setBaseSnapshot(null);
     }
   }, [pkg, defaultOfferType]);
 
@@ -302,6 +371,18 @@ export default function PackageModal({
 
   const isOffer = formData.offer_type === OFFER_TYPES.SPECIAL;
   const scaffoldOptions = formData.scaffold_size_options || [];
+
+  // Determine if editable fields have been modified compared to original state
+  const isDirty = useMemo(() => {
+    if (!pkg || !baseSnapshot) return false;
+    const current = getPackageSnapshot(
+      formData,
+      imageFile,
+      galleryFiles,
+      galleryToRemove,
+    );
+    return current !== baseSnapshot;
+  }, [pkg, baseSnapshot, formData, imageFile, galleryFiles, galleryToRemove]);
 
   const foodItems = useMemo(
     () => formData.offer_food_items || [],
@@ -402,17 +483,7 @@ export default function PackageModal({
   };
 
   // ============ INCLUSION HELPERS & CATEGORIZATION ============
-  const parseInclusion = (str) => {
-    const parsed = parseInclusionDisplay(str);
-    if (!parsed) {
-      return { category: "Event Setup & Furniture", name: "", qty: "" };
-    }
-    return {
-      category: parsed.category || "Event Setup & Furniture",
-      name: cleanTextValue(parsed.name),
-      qty: parsed.qty || "",
-    };
-  };
+
 
   const isDiningInclusion = (incStr) => {
     const parsed = parseInclusion(incStr);
@@ -1092,13 +1163,53 @@ export default function PackageModal({
 
       const noun = isOffer ? "Combo" : "Package";
       if (pkg && pkg._id) {
-        await AdminAPI.updatePackage(pkg._id, data);
+        const res = await AdminAPI.updatePackage(pkg._id, data);
         notify(`${noun} updated successfully`, "success");
+
+        // Clear newly staged files now that they are uploaded
+        setImageFile(null);
+        setGalleryFiles([]);
+        setGalleryToRemove([]);
+
+        const updatedDoc = res?.data;
+        const normalizedSavedAddOns = (updatedDoc?.add_ons || normalizedFormData.add_ons || []).map((a) => ({
+          name: cleanTextValue(a.name || (typeof a === "string" ? a : "")),
+          qty: a.qty || "",
+        }));
+
+        const savedState = {
+          ...normalizedFormData,
+          name: updatedDoc?.name || normalizedFormData.name,
+          description: updatedDoc?.description || normalizedFormData.description,
+          fullDescription: updatedDoc?.fullDescription || normalizedFormData.fullDescription,
+          add_ons: normalizedSavedAddOns,
+          inclusions:
+            updatedDoc?.offer_type === OFFER_TYPES.SPECIAL
+              ? offerInclusions(updatedDoc)
+              : normalizedInclusions,
+          setup_equipment: updatedDoc?.setup_equipment || normalizedFormData.setup_equipment,
+          scaffold_size_options: updatedDoc?.scaffold_size_options || normalizedFormData.scaffold_size_options,
+          offer_food_items: isOffer
+            ? offerFoodItems(updatedDoc || pkg).map((item) => ({
+                menu_category: cleanTextValue(item.menu_category),
+                item_name: cleanTextValue(item.item_name),
+              }))
+            : [],
+        };
+
+        setFormData(savedState);
+        setBaseSnapshot(getPackageSnapshot(savedState, null, [], []));
+
+        if (onSave) {
+          onSave(true, updatedDoc);
+        }
       } else {
-        await AdminAPI.createPackage(data);
+        const res = await AdminAPI.createPackage(data);
         notify(`${noun} created successfully`, "success");
+        if (onSave) {
+          onSave(false, res?.data);
+        }
       }
-      onSave();
     } catch (error) {
       notify(
         error.response?.data?.message || "Failed to save package",
@@ -1143,8 +1254,8 @@ export default function PackageModal({
               <h2 className="text-lg font-bold text-foreground">
                 {pkg
                   ? isOffer
-                    ? "Edit Combo"
-                    : "Edit Package"
+                    ? "View Special Offer"
+                    : "View Package"
                   : isOffer
                     ? "Add New Combo"
                     : "Add New Package"}
@@ -1172,72 +1283,126 @@ export default function PackageModal({
           <section>
             <h3 className="font-bold text-foreground mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              {/* Package type. Prefilled from the tab the admin created from,
-                  and still changeable here — one form, two kinds of record. */}
+              {/* Package Type (Locked / Read-Only for existing packages) */}
               <div className="col-span-2">
-                <label className="block text-sm text-gray-600 mb-1.5">
-                  Package Type <span className="text-red-400">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    {
-                      id: OFFER_TYPES.REGULAR,
-                      title: "Regular Package",
-                      blurb: "Priced by setup size. Guest count is an estimate.",
-                    },
-                    {
-                      id: OFFER_TYPES.SPECIAL,
-                      title: "Special Offer",
-                      blurb: "A fixed combo meal for a set guest count, priced per pax.",
-                    },
-                  ].map((option) => {
-                    const selected = formData.offer_type === option.id;
-                    const offerOption = option.id === OFFER_TYPES.SPECIAL;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() =>
-                          setFormData((prev) => {
-                            const next = { ...prev, offer_type: option.id };
-                            // A regular package supports one size. Switching
-                            // down keeps the first and drops the rest, rather
-                            // than storing a list the type cannot express.
-                            if (option.id === OFFER_TYPES.REGULAR) {
-                              next.scaffold_size_options = (
-                                prev.scaffold_size_options || []
-                              )
-                                .slice(0, 1)
-                                // Free set-up is an offer promise; a regular
-                                // package makes none, so the flag goes with it.
-                                .map((option) => ({ ...option, free_setup: false }));
-                              next.default_scaffold_option_id = "";
-                            }
-                            return next;
-                          })
-                        }
-                        className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                          selected
-                            ? offerOption
-                              ? "border-amber-400 bg-amber-50 ring-1 ring-amber-400"
-                              : "border-primary bg-primary/5 ring-1 ring-primary"
-                            : "border-gray-200 bg-white hover:border-gray-300"
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Package Type {!pkg && <span className="text-red-400">*</span>}
+                  </label>
+                  {pkg && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                      <Lock size={11} className="text-gray-400" />
+                      Locked / Non-changeable
+                    </span>
+                  )}
+                </div>
+
+                {pkg ? (
+                  <div
+                    className={`rounded-xl border px-3.5 py-3 flex items-center justify-between transition-colors ${
+                      isOffer
+                        ? "border-amber-200/80 bg-amber-50/40"
+                        : "border-primary/20 bg-primary/5"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                          isOffer
+                            ? "bg-amber-100 text-amber-600"
+                            : "bg-primary/10 text-primary"
                         }`}
                       >
-                        <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                          {offerOption && (
-                            <Tag size={13} className="text-amber-500" />
-                          )}
-                          {option.title}
-                        </span>
+                        {isOffer ? <Tag size={16} /> : <Package size={16} />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {isOffer ? "Special Offer" : "Regular Package"}
+                          </span>
+                          <span
+                            className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                              isOffer
+                                ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                : "bg-primary/10 text-primary border border-primary/20"
+                            }`}
+                          >
+                            Fixed Type
+                          </span>
+                        </div>
                         <span className="mt-0.5 block text-xs text-gray-500">
-                          {option.blurb}
+                          {isOffer
+                            ? "A fixed combo meal for a set guest count, priced per pax."
+                            : "Priced by setup size. Guest count is an estimate."}
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                      </div>
+                    </div>
+                    <div className="text-gray-400 pl-2">
+                      <Lock size={14} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        id: OFFER_TYPES.REGULAR,
+                        title: "Regular Package",
+                        blurb: "Priced by setup size. Guest count is an estimate.",
+                      },
+                      {
+                        id: OFFER_TYPES.SPECIAL,
+                        title: "Special Offer",
+                        blurb: "A fixed combo meal for a set guest count, priced per pax.",
+                      },
+                    ].map((option) => {
+                      const selected = formData.offer_type === option.id;
+                      const offerOption = option.id === OFFER_TYPES.SPECIAL;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() =>
+                            setFormData((prev) => {
+                              const next = { ...prev, offer_type: option.id };
+                              // A regular package supports one size. Switching
+                              // down keeps the first and drops the rest, rather
+                              // than storing a list the type cannot express.
+                              if (option.id === OFFER_TYPES.REGULAR) {
+                                next.scaffold_size_options = (
+                                  prev.scaffold_size_options || []
+                                )
+                                  .slice(0, 1)
+                                  // Free set-up is an offer promise; a regular
+                                  // package makes none, so the flag goes with it.
+                                  .map((option) => ({ ...option, free_setup: false }));
+                                next.default_scaffold_option_id = "";
+                              }
+                              return next;
+                            })
+                          }
+                          className={`rounded-xl border px-3 py-2.5 text-left transition-colors cursor-pointer ${
+                            selected
+                              ? offerOption
+                                ? "border-amber-400 bg-amber-50 ring-1 ring-amber-400"
+                                : "border-primary bg-primary/5 ring-1 ring-primary"
+                              : "border-gray-200 bg-white hover:border-gray-300"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                            {offerOption && (
+                              <Tag size={13} className="text-amber-500" />
+                            )}
+                            {option.title}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            {option.blurb}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Package Name */}
@@ -2833,10 +2998,18 @@ export default function PackageModal({
           </Btn>
           <Btn
             variant="primary"
-            onClick={handleSubmit}
+            onClick={pkg && !isDirty ? onClose : handleSubmit}
             disabled={loading}
           >
-            {loading ? "Saving..." : pkg ? "Save Changes" : "Create Package"}
+            {loading
+              ? "Saving..."
+              : !pkg
+                ? isOffer
+                  ? "Create Combo"
+                  : "Create Package"
+                : isDirty
+                  ? "Update Changes"
+                  : "Done"}
           </Btn>
         </div>
       </div>

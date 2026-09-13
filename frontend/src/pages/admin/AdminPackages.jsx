@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Search,
-  Edit3,
+  Eye,
   Trash2,
   Filter,
   X,
@@ -573,7 +573,7 @@ export default function AdminPackages() {
                         className="flex-1 justify-center"
                         onClick={() => handleOpenModal(pkg)}
                       >
-                        <Edit3 size={13} /> Edit
+                        <Eye size={13} /> View Package
                       </Btn>
                       <Btn
                         variant="ghost"
@@ -631,9 +631,13 @@ export default function AdminPackages() {
           // whichever tab the admin was on.
           defaultOfferType={activeTab.id}
           onClose={handleCloseModal}
-          onSave={() => {
-            handleCloseModal();
+          onSave={(keepOpen, updatedPkg) => {
             loadData();
+            if (!keepOpen) {
+              handleCloseModal();
+            } else if (updatedPkg) {
+              setActivePkg(updatedPkg);
+            }
           }}
         />
       )}

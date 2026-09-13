@@ -94,21 +94,6 @@ const parseInclusions = (inclusions = []) => {
   }));
 };
 
-// Group menu items by category
-const categorizeMenuItems = (items = []) => {
-  if (!Array.isArray(items) || items.length === 0) return [];
-  const groups = {};
-  items.forEach((dish) => {
-    const cat = dish?.category || "Main Course";
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push(dish);
-  });
-  return Object.entries(groups).map(([category, dishes]) => ({
-    category,
-    dishes,
-  }));
-};
-
 // Computes the final total price of a dish line
 const getItemLineTotal = (item, guestCount) => {
   if (item?.total_price != null && Number(item.total_price) >= 0) {
@@ -436,10 +421,6 @@ export default function CustomerEventDashboard() {
     }
     return null;
   }, [resolvedPackage, booking, sourceQuotation]);
-
-  const categorizedMenu = useMemo(() => {
-    return categorizeMenuItems(booking?.menu_items || []);
-  }, [booking?.menu_items]);
 
   const serviceItemsSubtotal = (booking?.service_items || []).reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),

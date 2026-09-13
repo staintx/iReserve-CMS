@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import { AdminAPI } from "../../api/admin";
@@ -22,8 +22,7 @@ import {
   priceLabel, 
   capacityLabel, 
   eventSpaceLabel, 
-  groupInclusions,
-  parseInclusion 
+  groupInclusions 
 } from "../../lib/packageDisplay";
 import {
   BOOKING_TYPES,
@@ -31,12 +30,11 @@ import {
   bookingIdentity,
   offerFoodByCategory,
   offerFoodForDisplay,
-  offerInclusions,
   offerPricePerPax,
   offerBaseFoodPrice,
 } from "../../lib/specialOffers";
 import { formatCurrency, formatShortDate, formatTime } from "../../utils/format";
-import { menuAmountLabel, menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
+import { menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
 
 /* --- Refined Section Container --- */
 const SectionContainer = ({ title, icon: Icon, badge, headerRight, children, className = "" }) => (
@@ -298,6 +296,11 @@ export default function AdminQuoteDetails() {
   // Progressive disclosure toggles
   const [showAllInclusions, setShowAllInclusions] = useState(false);
   const [showAllMenu, setShowAllMenu] = useState(false);
+
+  // Sticky header observation
+  const headerRef = useRef(null);
+  const [isStickyVisible, setIsStickyVisible] = useState(false);
+
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
@@ -320,6 +323,18 @@ export default function AdminQuoteDetails() {
     load();
     return () => { isMounted = false; };
   }, [id, notify]);
+
+  // Track scroll position for sticky action summary header
+  useEffect(() => {
+    const handleScroll = () => {
+      if (headerRef.current) {
+        const rect = headerRef.current.getBoundingClientRect();
+        setIsStickyVisible(rect.bottom < 40);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
 
   if (loading) {
@@ -378,7 +393,6 @@ export default function AdminQuoteDetails() {
   const isFoodOnly = quote.service_type === "Food Only";
   const offerPackage = quote.package_id && typeof quote.package_id === "object" ? quote.package_id : null;
   const offerCourses = isOffer ? offerFoodByCategory(offerFoodForDisplay(quote, offerPackage)) : [];
-  const offerExtras = isOffer ? offerInclusions(offerPackage) : [];
   const offerPerPax = isOffer ? offerPricePerPax(offerPackage) : 0;
   const offerBase = Number(quote.offer_base_price) || (isOffer ? offerBaseFoodPrice(offerPackage, Number(quote.guest_count)) : 0);
 
@@ -416,10 +430,55 @@ export default function AdminQuoteDetails() {
 
   return (
     <AdminLayout>
+      {/* --- Sticky Summary & Action Bar --- */}
+      <div 
+        className={`fixed top-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs px-4 sm:px-6 py-2.5 transition-all duration-200 ${
+          isStickyVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="font-mono text-xs font-bold text-slate-900 shrink-0">
+              {quote.reference || `INQ-${String(quote._id).slice(-6).toUpperCase()}`}
+            </span>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs font-semibold text-slate-800 truncate">
+              {quote.contact_first_name} {quote.contact_last_name}
+            </span>
+            <span className="hidden md:inline text-xs text-slate-500 font-mono">
+              • {quote.guest_count || "—"} Pax • {quote.event_type || "Event"}
+            </span>
+            <Badge status={quote.status} />
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {currentQuotation && (
+              <button 
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold rounded-md shadow-2xs transition-colors cursor-pointer"
+                onClick={() => setShowInvoiceModal(true)}
+                title="Print or Export Official Catering Quotation"
+              >
+                <Printer size={13} className="text-slate-500" />
+                <span className="hidden sm:inline">Print / Export</span>
+              </button>
+            )}
+            {!isConverted && (
+              <button 
+                onClick={() => setShowConvertModal(true)}
+                className="px-3.5 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Activity size={13} />
+                <span>{primaryActionLabel}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="w-full max-w-[1600px] mx-auto space-y-5 pb-16">
         
         {/* --- Top Header & Inquiry Identity --- */}
-        <div className="bg-white rounded-lg border border-slate-200/80 p-5 sm:p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] space-y-4">
+        <div ref={headerRef} className="bg-white rounded-lg border border-slate-200/80 p-5 sm:p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] space-y-4">
           {/* Back Navigation & Main Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>

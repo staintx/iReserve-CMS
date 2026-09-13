@@ -32,6 +32,16 @@ export default function InvoiceModal({
   const remainingBalance = Math.max(0, grandTotal - totalPaid);
   const isPaidInFull = remainingBalance <= 0 && grandTotal > 0;
 
+  // Determine required deposit vs balance for customer payment CTA (aligned with backend 10bdaa0 logic)
+  const depositPercentage = Number(businessInfo?.deposit_percentage || 50);
+  const depositRequired = quotation?.deposit_amount 
+    ? Number(quotation.deposit_amount)
+    : Math.round(grandTotal * (depositPercentage / 100));
+
+  const isDepositDue = totalPaid === 0 && depositRequired > 0 && depositRequired < grandTotal;
+  const payableAmount = isDepositDue ? depositRequired : remainingBalance;
+  const payableLabel = isDepositDue ? "Pay Deposit" : "Pay Balance";
+
   const handlePrint = () => {
     window.print();
   };
@@ -67,7 +77,7 @@ export default function InvoiceModal({
                 className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#1E3563] hover:bg-[#152542] text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>{isPaying ? "Processing..." : `Pay ${totalPaid === 0 ? "Deposit / Balance" : "Balance"} (${formatCurrency(remainingBalance)})`}</span>
+                <span>{isPaying ? "Processing..." : `${payableLabel} (${formatCurrency(payableAmount)})`}</span>
               </button>
             )}
 
@@ -117,7 +127,7 @@ export default function InvoiceModal({
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#1E3563] text-white font-bold text-xs shadow-md"
               >
                 <CreditCard className="w-4 h-4" />
-                <span>Pay Balance ({formatCurrency(remainingBalance)})</span>
+                <span>{isPaying ? "Processing..." : `${payableLabel} (${formatCurrency(payableAmount)})`}</span>
               </button>
             </div>
           )}

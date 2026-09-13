@@ -272,20 +272,6 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
    * The customer pays this from their dashboard once the admin converts the inquiry to a booking.
    */
   const dueOnAcceptance = deposit > 0 ? deposit : total;
-  const headline = isDepositPaid
-    ? {
-        label: "Deposit status: Paid & Confirmed",
-        amount: deposit,
-        note: "Your deposit payment was confirmed in real time. Your event date is secured.",
-      }
-    : {
-        label: deposit > 0 ? "Deposit required to confirm booking" : "Amount due to confirm booking",
-    value: formatCurrency(dueOnAcceptance),
-    hint: deposit > 0
-      ? "Pay this deposit to reserve your event date. Once paid, our team will provide final booking confirmation."
-      : "Pay this amount to confirm your booking and secure your event date.",
-    tone: "warning",
-  };
 
   // Named charges the caterer added while quoting. The two fixed fee fields are
   // no longer issued, but quotations sent before custom fees existed still
@@ -344,7 +330,7 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
           Radix renders this in a body portal, outside the layout wrapper that
           normally scopes them, so without it the dialog inherits the warm
           boutique palette and renders body text in brown/gold. */}
-      <DialogContent className="block w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl focus:outline-none [scrollbar-width:thin]">
+      <DialogContent className="block w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl focus:outline-none [scrollbar-width:thin] print:hidden">
 
         {/* Header Bar */}
         <div className="relative border-b border-slate-200 bg-slate-50/80 px-5 py-4.5 pr-14 sm:px-6 sm:py-5">

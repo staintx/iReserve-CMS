@@ -10,9 +10,10 @@ const HOME_BY_ROLE = {
   admin: "/admin/dashboard",
   manager: "/manager/dashboard",
   staff: "/staff/dashboard",
+  customer: "/customer/dashboard",
 };
 
-const homeFor = (role) => HOME_BY_ROLE[role] || "/";
+const homeFor = (role) => HOME_BY_ROLE[role] || "/customer/dashboard";
 
 export default function Login() {
   const { user, isReady, login, clearSessionExpired } = useAuth();
@@ -32,6 +33,12 @@ export default function Login() {
   const redirectTo = location.state?.from;
 
   const destinationFor = (role) => {
+    if (role === "customer" && redirectTo?.pathname) {
+      return {
+        path: `${redirectTo.pathname}${redirectTo.search || ""}`,
+        state: redirectTo.state ?? undefined,
+      };
+    }
     if (HOME_BY_ROLE[role]) return { path: homeFor(role), state: undefined };
     if (redirectTo?.pathname) {
       return {
@@ -39,7 +46,7 @@ export default function Login() {
         state: redirectTo.state ?? undefined,
       };
     }
-    return { path: "/", state: undefined };
+    return { path: "/customer/dashboard", state: undefined };
   };
 
   // Clear the sessionExpired flag in context once the login page mounts

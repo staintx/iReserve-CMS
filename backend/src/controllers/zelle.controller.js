@@ -104,8 +104,15 @@ exports.getCustomerConversationById = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Conversation not found." });
   }
 
-  if (req.user && conversation.user_id && String(conversation.user_id) !== String(req.user._id)) {
-    return res.status(403).json({ message: "Access denied." });
+  if (conversation.user_id) {
+    if (!req.user || String(conversation.user_id) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+  } else if (conversation.session_id) {
+    const callerSessionId = req.query.session_id || req.headers["x-session-id"];
+    if (!callerSessionId || callerSessionId !== conversation.session_id) {
+      return res.status(403).json({ message: "Access denied." });
+    }
   }
 
   res.json({
@@ -128,8 +135,15 @@ exports.deleteCustomerConversation = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Conversation not found." });
   }
 
-  if (req.user && conversation.user_id && String(conversation.user_id) !== String(req.user._id)) {
-    return res.status(403).json({ message: "Access denied." });
+  if (conversation.user_id) {
+    if (!req.user || String(conversation.user_id) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+  } else if (conversation.session_id) {
+    const callerSessionId = req.query.session_id || req.headers["x-session-id"] || req.body?.session_id;
+    if (!callerSessionId || callerSessionId !== conversation.session_id) {
+      return res.status(403).json({ message: "Access denied." });
+    }
   }
 
   await ZelleConversation.findByIdAndDelete(id);

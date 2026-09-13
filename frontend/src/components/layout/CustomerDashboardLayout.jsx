@@ -16,7 +16,8 @@ import {
   UserRound, 
   Plus,
   Sparkles,
-  Bot
+  Bot,
+  CreditCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
@@ -38,6 +39,7 @@ const navGroups = [
       { to: "/customer/agent", label: "Agent", desc: "AI catering concierge", icon: Sparkles },
       { to: "/customer/inquiries", label: "My Inquiries", desc: "View quote requests", icon: FileText },
       { to: "/customer/bookings", label: "My Bookings", desc: "Track your event status", icon: Calendar },
+      { to: "/customer/payments", label: "Payments", desc: "View payments & receipts", icon: CreditCard },
       { to: "/customer/messages", label: "Messages", desc: "Chat with our team", icon: MessageSquare, hasBadge: "messages" }
     ]
   },
@@ -61,10 +63,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
     try {
       const convoRes = await CustomerAPI.getConversations().catch(() => ({ data: [] }));
       const convos = convoRes.data || [];
-      const unread = convos.filter(c => {
-        const p = c.participants?.find(part => String(part.user._id || part.user) === String(user?._id));
-        return p && p.unread_count > 0;
-      }).length;
+      const unread = convos.reduce((acc, c) => acc + (Number(c.unread_customer_count) || 0), 0);
       setUnreadMessages(unread);
     } catch {
       // ignore

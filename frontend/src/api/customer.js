@@ -71,5 +71,5 @@ export const CustomerAPI = {
   getConversations: () => api.get("/messages/conversations"),
 
   // custom quote
-  submitQuote: (data) => api.post("/quotes", data) // ensure this exists in backend
+  submitQuote: (data) => api.post("/quotations", data)
 };

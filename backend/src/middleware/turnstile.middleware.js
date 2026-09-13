@@ -1,9 +1,9 @@
 const turnstileMiddleware = async (req, res, next) => {
   const isMobileClient = req.headers['x-client-platform'] === 'mobile';
-  const expectedMobileKey = process.env.MOBILE_APP_KEY || "ireserve_mobile_v1_secure_key";
+  const expectedMobileKey = process.env.MOBILE_APP_KEY;
   const providedMobileKey = req.headers['x-app-client-key'];
 
-  if (process.env.SKIP_TURNSTILE === 'true' || (isMobileClient && providedMobileKey === expectedMobileKey)) {
+  if (process.env.SKIP_TURNSTILE === 'true' || (expectedMobileKey && isMobileClient && providedMobileKey === expectedMobileKey)) {
     if (req.body) {
       delete req.body['cf-turnstile-response'];
       delete req.body['cfTurnstileResponse'];

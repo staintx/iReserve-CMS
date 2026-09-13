@@ -81,7 +81,11 @@ export default function CustomerPayments() {
 
   const startPayment = async (payment) => {
     const bookingId = payment.booking_id?._id || payment.booking_id;
-    if (!bookingId) return;
+    const inquiryId = payment.inquiry_id?._id || payment.inquiry_id;
+    if (!bookingId && !inquiryId) {
+      notify("Payment is missing a valid booking or inquiry reference.", "error");
+      return;
+    }
 
     const amount = Number(payment.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -93,9 +97,9 @@ export default function CustomerPayments() {
     try {
       notify("Opening secure PayMongo checkout...", "info");
       const res = await CustomerAPI.createPaymentCheckout({
-        booking_id: bookingId,
+        ...(bookingId ? { booking_id: bookingId } : { inquiry_id: inquiryId }),
         amount,
-        payment_type: payment.payment_type || "balance"
+        payment_type: payment.payment_type || (bookingId ? "balance" : "deposit")
       });
 
       if (res.data?.checkout_url) {
@@ -118,12 +122,12 @@ export default function CustomerPayments() {
   const pendingPayments = useMemo(() => {
     const pending = payments.filter((p) => p.status === "pending");
     const uniquePending = [];
-    const seenBookings = new Set();
+    const seenTargets = new Set();
     
     for (const p of pending) {
-      const bookingId = p.booking_id?._id || p.booking_id;
-      if (!seenBookings.has(bookingId)) {
-        seenBookings.add(bookingId);
+      const targetId = (p.booking_id?._id || p.booking_id) || (p.inquiry_id?._id || p.inquiry_id) || p._id;
+      if (!seenTargets.has(String(targetId))) {
+        seenTargets.add(String(targetId));
         uniquePending.push(p);
       }
     }

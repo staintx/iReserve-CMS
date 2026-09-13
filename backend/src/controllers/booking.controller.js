@@ -1103,19 +1103,37 @@ exports.upgradeBooking = asyncHandler(async (req, res) => {
   }
 
   if (req.body.added_services && Array.isArray(req.body.added_services)) {
+    const Addon = require("../models/Addon");
     for (const service of req.body.added_services) {
-      const qty = Number(service.quantity) || 1;
-      const price = Number(service.price) || 0;
-      if (price > 0) {
-        amountDue += price * qty;
-        upgradeDescription += `Added ${service.name} (x${qty}). `;
-        if (!booking.service_items) booking.service_items = [];
-        booking.service_items.push({
-          name: service.name,
-          quantity: qty,
-          price: price,
+      const qty = Math.max(1, parseInt(service.quantity, 10) || 1);
+      let catalogAddon = null;
+      if (service.addon_id || service._id) {
+        catalogAddon = await Addon.findById(service.addon_id || service._id);
+      } else if (service.name) {
+        catalogAddon = await Addon.findOne({ name: service.name, available: true });
+      }
+
+      if (!catalogAddon) {
+        return res.status(400).json({
+          message: `Service/Add-on '${service.name || "item"}' not found in catalog.`,
         });
       }
+
+      const price = Number(catalogAddon.price) || 0;
+      if (price <= 0) {
+        return res.status(400).json({
+          message: `Service/Add-on '${catalogAddon.name}' requires a custom quote and cannot be added directly.`,
+        });
+      }
+
+      amountDue += price * qty;
+      upgradeDescription += `Added ${catalogAddon.name} (x${qty}). `;
+      if (!booking.service_items) booking.service_items = [];
+      booking.service_items.push({
+        name: catalogAddon.name,
+        quantity: qty,
+        price: price,
+      });
     }
   }
 
@@ -2168,6 +2186,10 @@ exports.proposeRevision = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
+  if (req.user.role === "customer" && String(booking.customer_id) !== String(req.user._id)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
   const proposedBy = req.user.role === "customer" ? "customer" : "admin";
   const targetStatus = proposedBy === "admin" ? "pending_customer_approval" : "pending_admin_approval";
 
@@ -2294,8 +2316,18 @@ exports.acceptRevision = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-  if (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) {
-    return res.status(400).json({ message: "No pending revision proposal to confirm." });
+  const isCustomer = req.user.role === "customer";
+  if (isCustomer) {
+    if (String(booking.customer_id) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    if (!booking.pending_revision || booking.pending_revision.status !== "pending_customer_approval") {
+      return res.status(400).json({ message: "This revision proposal is awaiting catering management approval, not customer approval." });
+    }
+  } else {
+    if (!booking.pending_revision || booking.pending_revision.status !== "pending_admin_approval") {
+      return res.status(400).json({ message: "This revision proposal is awaiting customer approval." });
+    }
   }
 
   const snapshot = booking.pending_revision.proposed_snapshot || {};
@@ -2389,11 +2421,19 @@ exports.rejectRevision = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-  if (!booking.pending_revision || !["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status)) {
-    return res.status(400).json({ message: "No pending revision proposal to decline." });
-  }
-
   const actorRole = req.user.role === "customer" ? "customer" : "admin";
+  if (actorRole === "customer") {
+    if (String(booking.customer_id) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    if (!booking.pending_revision || booking.pending_revision.status !== "pending_customer_approval") {
+      return res.status(400).json({ message: "This revision proposal is awaiting catering management action." });
+    }
+  } else {
+    if (!booking.pending_revision || booking.pending_revision.status !== "pending_admin_approval") {
+      return res.status(400).json({ message: "This revision proposal is awaiting customer action." });
+    }
+  }
   const reason = req.body.reason || "Proposal declined by recipient";
 
   booking.pending_revision.status = "rejected";
@@ -2506,6 +2546,10 @@ exports.sendQuote = asyncHandler(async (req, res) => {
 exports.acceptQuote = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+  if (req.user.role === "customer" && String(booking.customer_id) !== String(req.user._id)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
 
   if (booking.status !== "quote_sent") {
     return res.status(400).json({ message: "Only sent quotes can be accepted." });
@@ -2638,18 +2682,28 @@ exports.executeInquiryConversion = async ({
   const inquiry = await Inquiry.findById(inquiryId).populate("package_id customer_id");
   if (!inquiry) throw new Error("Inquiry not found");
 
-  // If already converted, return existing booking
+  // If already converted, return existing booking (checking both converted_booking_id and inquiry_id)
+  let existingBooking = null;
   if (inquiry.converted_booking_id) {
-    const existingBooking = await Booking.findById(inquiry.converted_booking_id);
-    if (existingBooking) {
-      if (paymentDoc) {
-        paymentDoc.booking_id = existingBooking._id;
-        await paymentDoc.save();
-        const { syncBookingStatus } = require("./payment.controller");
-        if (syncBookingStatus) await syncBookingStatus(existingBooking._id);
-      }
-      return existingBooking;
+    existingBooking = await Booking.findById(inquiry.converted_booking_id);
+  }
+  if (!existingBooking) {
+    existingBooking = await Booking.findOne({ inquiry_id: inquiryId });
+  }
+
+  if (existingBooking) {
+    if (!inquiry.converted_booking_id) {
+      inquiry.converted_booking_id = existingBooking._id;
+      inquiry.status = "Converted to Booking";
+      await inquiry.save();
     }
+    if (paymentDoc) {
+      paymentDoc.booking_id = existingBooking._id;
+      await paymentDoc.save();
+      const { syncBookingStatus } = require("./payment.controller");
+      if (syncBookingStatus) await syncBookingStatus(existingBooking._id);
+    }
+    return existingBooking;
   }
 
   // Check for approved deposit payment
@@ -2822,6 +2876,16 @@ exports.executeInquiryConversion = async ({
     status: approvedPayment ? "confirmed" : "pending deposit",
     ...(finalManagerId ? { event_manager_id: finalManagerId } : {}),
   };
+
+  // Concurrency guard: double-check before creation
+  const preCheckBooking = await Booking.findOne({ inquiry_id: inquiryId });
+  if (preCheckBooking) {
+    if (paymentDoc) {
+      paymentDoc.booking_id = preCheckBooking._id;
+      await paymentDoc.save();
+    }
+    return preCheckBooking;
+  }
 
   const newBooking = await Booking.create(payload);
 

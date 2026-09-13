@@ -74,10 +74,7 @@ export default function CustomerDashboard() {
       setPayments(payRes.data || []);
 
       const convos = convoRes.data || [];
-      const unread = convos.filter(c => {
-        const p = c.participants?.find(part => String(part.user._id || part.user) === String(user?._id));
-        return p && p.unread_count > 0;
-      }).length;
+      const unread = convos.reduce((acc, c) => acc + (Number(c.unread_customer_count) || 0), 0);
       setUnreadCount(unread);
     }).finally(() => setLoading(false));
   };
@@ -108,7 +105,7 @@ export default function CustomerDashboard() {
         status,
         description: status.notice?.text,
         actionText: "Review quote",
-        onAction: () => navigate("/customer/inquiries")
+        onAction: () => navigate(`/customer/inquiries/${i._id}`)
       };
     });
 

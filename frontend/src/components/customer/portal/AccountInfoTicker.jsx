@@ -290,7 +290,7 @@ export default function AccountInfoTicker() {
         badge: "Customer Portal",
         badgeTone: "gold",
         icon: Sparkles,
-        text: "Welcome to Caezelle's Catering. Track your bookings, quote requests, and event schedule in one place.",
+        text: "Welcome to Caezelle’s Food, Catering & Services. Track your bookings, quote requests, and event schedule in one place.",
         link: "/customer/book",
       });
     }

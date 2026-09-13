@@ -126,7 +126,7 @@ export default function StepDeliveryDetails({
           {isPickup ? (
             <InfoNote icon={Store} title="Kitchen pickup">
               Pick your food order up directly from{" "}
-              <strong>{pickupAddress || "Caezelle's Catering Kitchen (Batangas)"}</strong> on your
+              <strong>{pickupAddress || "Caezelle’s Food, Catering & Services Kitchen (Batangas)"}</strong> on your
               chosen date and time.
             </InfoNote>
           ) : (

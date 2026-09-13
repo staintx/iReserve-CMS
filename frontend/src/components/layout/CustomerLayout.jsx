@@ -277,7 +277,7 @@ export default function CustomerLayout({
               setIsNavVisible(true);
               navigate("/");
             }}
-            aria-label="Caezelle's Catering — home"
+            aria-label="Caezelle’s Food, Catering &amp; Services — home"
           >
             <img src={logo} alt="" className="ls-brand-logo" />
             <span>

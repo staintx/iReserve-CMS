@@ -25,7 +25,7 @@ export default function InquirySubmitted() {
   const estimate = Number(state?.estimatedTotal) || 0;
 
   useEffect(() => {
-    document.title = "Inquiry Submitted · Caezelle's Catering";
+    document.title = "Inquiry Submitted · Caezelle’s Food, Catering & Services";
   }, []);
 
   const handleCopy = () => {

@@ -57,7 +57,7 @@ export function TermsContent({ depositPercentage = 20 }) {
       <section>
         <H>Liability</H>
         <p>
-          Caezelle&apos;s Catering Service is not responsible for any delays or
+          Caezelle&apos;s Food, Catering &amp; Services is not responsible for any delays or
           failures in performance due to circumstances beyond our control (e.g.,
           natural disasters, extreme weather, or government restrictions).
         </p>

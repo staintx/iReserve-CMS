@@ -121,8 +121,8 @@ exports.listConversations = asyncHandler(async (req, res) => {
 
   const conversations = await Conversation.find(query)
     .populate("customer_id", "full_name email phone")
-    .populate("booking_id", "booking_number event_type event_date venue guests total_amount status")
-    .populate("inquiry_id", "inquiry_number event_type event_date status")
+    .populate("booking_id", "reference booking_number event_type event_date venue guests total_price total_amount status")
+    .populate("inquiry_id", "reference inquiry_number event_type event_date status")
     .sort({ last_message_at: -1, updatedAt: -1 })
     .lean();
 
@@ -133,8 +133,8 @@ exports.getConversation = asyncHandler(async (req, res) => {
   const conversation = await Conversation.findById(req.params.id)
     .populate("customer_id", "full_name email phone")
     .populate("event_manager_id", "full_name email")
-    .populate("booking_id", "booking_number event_type event_date venue guests total_amount status package_id setup_equipment")
-    .populate("inquiry_id", "inquiry_number event_type event_date status estimated_budget");
+    .populate("booking_id", "reference booking_number event_type event_date venue guests total_price total_amount status package_id setup_equipment")
+    .populate("inquiry_id", "reference inquiry_number event_type event_date status estimated_budget");
 
   if (!conversation) return res.status(404).json({ message: "Conversation not found" });
   if (!(await canAccessConversation(req.user, conversation))) {

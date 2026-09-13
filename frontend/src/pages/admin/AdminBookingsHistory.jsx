@@ -169,8 +169,8 @@ export default function AdminBookingsHistory() {
       header: "Customer",
       render: (r) => (
         <div>
-          <span className="text-sm font-bold text-slate-900 block">{r.customer}</span>
-          <span className="text-xs text-slate-500">{r.email}</span>
+          <span className="text-xs font-semibold text-foreground block">{r.customer}</span>
+          <span className="text-[11px] text-muted-foreground">{r.email}</span>
         </div>
       ),
     },
@@ -179,33 +179,33 @@ export default function AdminBookingsHistory() {
       header: "Event & Package",
       render: (r) => (
         <div>
-          <span className="text-sm font-semibold text-slate-800 block">{r.eventType}</span>
-          <span className="text-xs text-slate-500">{r.pkg}</span>
+          <span className="text-xs font-semibold text-foreground block">{r.eventType}</span>
+          <span className="text-[11px] text-muted-foreground">{r.pkg}</span>
         </div>
       ),
     },
     {
       key: "date",
       header: "Event Date",
-      className: "text-xs text-slate-700 font-semibold whitespace-nowrap",
+      className: "text-xs text-foreground font-medium whitespace-nowrap tabular-nums",
     },
     {
       key: "guests",
       header: "Guests",
-      render: (r) => <span className="text-xs font-semibold text-slate-700">{r.guests} pax</span>,
+      render: (r) => <span className="text-xs font-medium text-foreground tabular-nums">{r.guests} pax</span>,
     },
     {
       key: "total",
       header: "Historic Revenue",
-      render: (r) => <span className="text-xs font-bold text-slate-900">{fmt(r.total)}</span>,
+      render: (r) => <span className="text-xs font-mono font-bold text-foreground tabular-nums">{fmt(r.total)}</span>,
     },
     {
       key: "paymentLog",
       header: "Payment Ledger",
       render: (r) => (
-        <div className="text-xs space-y-0.5">
-          <span className="text-emerald-700 font-semibold block">Paid: {fmt(r.displayPaid)}</span>
-          {r.balanceDue > 0 && <span className="text-amber-600 font-bold block">Bal Due: {fmt(r.balanceDue)}</span>}
+        <div className="text-xs space-y-0.5 tabular-nums font-mono">
+          <span className="text-emerald-600 dark:text-emerald-400 font-semibold block">Paid: {fmt(r.displayPaid)}</span>
+          {r.balanceDue > 0 && <span className="text-amber-600 dark:text-amber-400 font-bold block">Bal: {fmt(r.balanceDue)}</span>}
         </div>
       ),
     },
@@ -245,9 +245,9 @@ export default function AdminBookingsHistory() {
         {/* Top KPI Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <KPICard title="Total History" value={kpiStats.totalCount} sub="All archived records" icon={History} />
-          <KPICard title="Completed Events" value={kpiStats.completedCount} sub="Successfully concluded" icon={CheckCircle2} />
+          <KPICard title="Completed Events" value={kpiStats.completedCount} sub="Concluded events" icon={CheckCircle2} />
           <KPICard title="Cancelled Events" value={kpiStats.cancelledCount} sub="Past cancellations" icon={XCircle} />
-          <KPICard title="Historic Revenue" value={fmt(kpiStats.totalRevenue)} sub="Total revenue realized" icon={DollarSign} />
+          <KPICard title="Historic Revenue" value={fmt(kpiStats.totalRevenue)} sub="Realized revenue" icon={DollarSign} />
         </div>
 
         {/* Toolbar & Filter Options */}
@@ -258,24 +258,30 @@ export default function AdminBookingsHistory() {
             <div className="flex items-center gap-1.5 overflow-x-auto">
               <button
                 onClick={() => setStatusTab("all")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  statusTab === "all" ? "bg-slate-900 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  statusTab === "all"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 All Archived ({kpiStats.totalCount})
               </button>
               <button
                 onClick={() => setStatusTab("completed")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  statusTab === "completed" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  statusTab === "completed"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 Completed ({kpiStats.completedCount})
               </button>
               <button
                 onClick={() => setStatusTab("cancelled")}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  statusTab === "cancelled" ? "bg-rose-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  statusTab === "cancelled"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 Cancelled ({kpiStats.cancelledCount})
@@ -284,13 +290,13 @@ export default function AdminBookingsHistory() {
 
             {/* Search Box */}
             <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search event, customer, ref..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>

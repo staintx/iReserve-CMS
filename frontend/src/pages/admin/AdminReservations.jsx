@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import ConflictModal from "../../components/admin/ui/ConflictModal";
 import { AdminAPI } from "../../api/admin";
@@ -474,66 +475,30 @@ export default function AdminReservations() {
             
             {/* 4 OPERATIONAL KPI CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Card 1: Total Active Bookings */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    TOTAL RESERVATIONS
-                  </span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-xl font-bold tracking-tight text-foreground">{kpiStats.total}</span>
-                    <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-0.5">
-                      <ArrowUpRight size={10} /> Active
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">In-scope confirmed records</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/50">
-                  <Calendar size={13} />
-                </div>
-              </div>
-
-              {/* Card 2: Upcoming This Week */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    UPCOMING THIS WEEK
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{kpiStats.upcomingThisWeek}</span>
-                  <p className="text-[10px] text-muted-foreground">Scheduled in next 7 days</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/50">
-                  <Clock size={13} />
-                </div>
-              </div>
-
-              {/* Card 3: Deposit Paid / Confirmed */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    DEPOSIT PAID
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{kpiStats.confirmedPaid}</span>
-                  <p className="text-[10px] text-muted-foreground">Confirmed & ready for event</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/50">
-                  <CheckCircle2 size={13} />
-                </div>
-              </div>
-
-              {/* Card 4: Change Requests */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    CHANGE REQUESTS
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{kpiStats.changeRequests}</span>
-                  <p className="text-[10px] text-muted-foreground">Pending customer updates</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/50">
-                  <Send size={13} />
-                </div>
-              </div>
+              <KPICard
+                title="Total Reservations"
+                value={kpiStats.total}
+                sub="In-scope confirmed records"
+                icon={Calendar}
+              />
+              <KPICard
+                title="Upcoming This Week"
+                value={kpiStats.upcomingThisWeek}
+                sub="Events in next 7 days"
+                icon={Clock}
+              />
+              <KPICard
+                title="Deposit Confirmed"
+                value={kpiStats.confirmedPaid}
+                sub="Confirmed secured bookings"
+                icon={CheckCircle2}
+              />
+              <KPICard
+                title="Change Requests"
+                value={kpiStats.changeRequests}
+                sub={kpiStats.changeRequests > 0 ? "Pending admin review" : "No pending changes"}
+                icon={AlertCircle}
+              />
             </div>
 
             {/* Reservation Search & Filter Controls Bar */}
@@ -664,8 +629,8 @@ export default function AdminReservations() {
                 <div className="w-full overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-muted/30 border-b border-border/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        <th className="py-2.5 pl-2.5 pr-1 w-7">
+                      <tr className="bg-muted/50 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <th className="py-2.5 pl-3 pr-1 w-8">
                           <input
                             type="checkbox"
                             checked={paginatedRows.length > 0 && selectedIds.length === paginatedRows.length}
@@ -673,17 +638,17 @@ export default function AdminReservations() {
                             className="rounded border-input text-primary focus:ring-primary"
                           />
                         </th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[110px]">BOOKING ID</th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[130px]">CUSTOMER</th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[130px]">EVENT & PACKAGE</th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[120px]">EVENT DATE</th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[100px]">TOTAL COST</th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[100px]">STATUS</th>
-                        <th className="py-2.5 px-2.5 font-semibold min-w-[100px]">DEPOSIT</th>
-                        <th className="py-2.5 pr-3 pl-1 text-right font-semibold shrink-0 whitespace-nowrap min-w-[80px]">ACTIONS</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[110px]">Booking Ref</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[130px]">Customer</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[130px]">Event & Package</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[120px]">Event Date</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[100px]">Total Cost</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[100px]">Status</th>
+                        <th className="py-2.5 px-3 font-semibold min-w-[100px]">Deposit</th>
+                        <th className="py-2.5 pr-3 pl-1 text-right font-semibold shrink-0 whitespace-nowrap min-w-[80px]">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/40">
+                    <tbody className="divide-y divide-border/50">
                       {paginatedRows.map((r) => {
                         const isSelected = selectedBooking?._id === r._id;
                         return (
@@ -692,12 +657,12 @@ export default function AdminReservations() {
                             onClick={() => setSelectedBooking(r)}
                             className={`group cursor-pointer transition-colors ${
                               isSelected
-                                ? "bg-primary/10 border-l-2 border-l-primary"
-                                : "hover:bg-muted/30"
+                                ? "bg-primary/5 border-l-2 border-l-primary"
+                                : "hover:bg-muted/40"
                             }`}
                           >
                             {/* Checkbox */}
-                            <td className="py-2.5 pl-2.5 pr-1" onClick={(e) => e.stopPropagation()}>
+                            <td className="py-2.5 pl-3 pr-1" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={selectedIds.includes(r._id)}
@@ -707,46 +672,46 @@ export default function AdminReservations() {
                             </td>
 
                             {/* Booking ID */}
-                            <td className="py-2.5 px-2.5 font-mono font-bold text-primary whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-mono font-bold text-primary whitespace-nowrap">
                               {r.id}
                             </td>
 
-                            {/* Customer (Clean text without avatar circle) */}
-                            <td className="py-2.5 px-2.5 min-w-[130px]">
+                            {/* Customer */}
+                            <td className="py-2.5 px-3 min-w-[130px]">
                               <div className="min-w-0 space-y-0.5">
-                                <p className="font-bold text-foreground text-xs truncate max-w-[140px]">{r.customer}</p>
-                                <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{r.email || r.phone}</p>
+                                <p className="font-semibold text-foreground text-xs truncate max-w-[140px]">{r.customer}</p>
+                                <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.email || r.phone}</p>
                               </div>
                             </td>
 
                             {/* Event & Package */}
-                            <td className="py-2.5 px-2.5">
+                            <td className="py-2.5 px-3">
                               <div className="space-y-0.5">
-                                <p className="font-semibold text-foreground text-xs truncate max-w-[140px]">{r.eventType}</p>
-                                <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{r.pkg}</p>
+                                <p className="font-medium text-foreground text-xs truncate max-w-[140px]">{r.eventType}</p>
+                                <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.pkg}</p>
                               </div>
                             </td>
 
                             {/* Event Date */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap">
-                              <div>
-                                <p className="font-semibold text-foreground text-xs">{r.dateFormatted}</p>
-                                <p className="text-[10px] text-muted-foreground">{r.startTime || "TBA"} · {r.guests} pax</p>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="space-y-0.5">
+                                <p className="font-medium text-foreground text-xs tabular-nums">{r.dateFormatted}</p>
+                                <p className="text-[11px] text-muted-foreground tabular-nums">{r.startTime || "TBA"} · {r.guests} pax</p>
                               </div>
                             </td>
 
                             {/* Total Cost */}
-                            <td className="py-2.5 px-2.5 font-bold font-mono text-foreground text-xs whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-bold font-mono text-foreground text-xs whitespace-nowrap tabular-nums">
                               {fmt(r.total)}
                             </td>
 
                             {/* Status Badge */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <Badge status={r.status} />
                             </td>
 
                             {/* Deposit Status Badge */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <div className="flex flex-col items-start gap-0.5">
                                 <Badge status={r.depositStatus} />
                                 {!r.depositPaid && !r.quotationBacked && (

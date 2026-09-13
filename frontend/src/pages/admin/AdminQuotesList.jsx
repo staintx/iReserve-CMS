@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import KPICard from "../../components/admin/ui/KPICard";
 import ConvertBookingModal from "../../components/admin/quotation/ConvertBookingModal";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
@@ -534,71 +535,32 @@ export default function AdminQuotesList() {
 
         {/* Main Content Area (Uncompressed 100% Full Width) */}
         <div className="space-y-3 w-full">
-            
-            {/* STRICTLY 4 KPI METRIC CARDS */}
+              {/* 4 KPI METRIC CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              
-              {/* Card 1: Total Quotations */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    TOTAL QUOTATIONS
-                  </span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-xl font-bold tracking-tight text-foreground">{metrics.totalQuotations}</span>
-                    <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-0.5">
-                      <ArrowUpRight size={10} /> 12%
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">vs. last 7 days</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/50">
-                  <FileText size={13} />
-                </div>
-              </div>
-
-              {/* Card 2: Sent to Customer */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    SENT TO CUSTOMER
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{metrics.sentCount}</span>
-                  <p className="text-[10px] text-muted-foreground">{metrics.sentPct}% of total</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/50">
-                  <Send size={13} />
-                </div>
-              </div>
-
-              {/* Card 3: Revisions Requested */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    REVISIONS REQUESTED
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{metrics.revisionCount}</span>
-                  <p className="text-[10px] text-muted-foreground">{metrics.revisionPct}% of total</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/50">
-                  <RotateCcw size={13} />
-                </div>
-              </div>
-
-              {/* Card 4: Accepted & Converted */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    ACCEPTED & BOOKED
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{metrics.acceptedCount}</span>
-                  <p className="text-[10px] text-muted-foreground">{metrics.acceptedPct}% of total</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/50">
-                  <CheckCircle size={13} />
-                </div>
-              </div>
-
+              <KPICard
+                title="Total Quotations"
+                value={metrics.totalQuotations}
+                sub="All generated quotes"
+                icon={FileText}
+              />
+              <KPICard
+                title="Sent to Customer"
+                value={metrics.sentCount}
+                sub={`${metrics.sentPct}% of total`}
+                icon={Send}
+              />
+              <KPICard
+                title="Revisions Requested"
+                value={metrics.revisionCount}
+                sub={`${metrics.revisionPct}% of total`}
+                icon={RotateCcw}
+              />
+              <KPICard
+                title="Accepted & Booked"
+                value={metrics.acceptedCount}
+                sub={`${metrics.acceptedPct}% of total`}
+                icon={CheckCircle2}
+              />
             </div>
 
             {/* Stacked Label Filter Controls Bar (With Sort By Control) */}
@@ -745,17 +707,17 @@ export default function AdminQuotesList() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-muted/40 text-muted-foreground text-[10.5px] font-bold uppercase tracking-wider border-b border-border/70">
-                        <th className="py-2.5 px-3">Quotation / Inquiry</th>
-                        <th className="py-2.5 px-3">Customer</th>
-                        <th className="py-2.5 px-3">Event Details</th>
-                        <th className="py-2.5 px-3">Amount</th>
-                        <th className="py-2.5 px-3">Status & Next Action</th>
-                        <th className="py-2.5 px-3">Last Activity</th>
-                        <th className="py-2.5 px-3 text-right">Actions</th>
+                      <tr className="bg-muted/50 text-muted-foreground text-[11px] font-bold uppercase tracking-wider border-b border-border">
+                        <th className="py-2.5 px-3.5">Quotation / Inquiry</th>
+                        <th className="py-2.5 px-3.5">Customer</th>
+                        <th className="py-2.5 px-3.5">Event Details</th>
+                        <th className="py-2.5 px-3.5">Amount</th>
+                        <th className="py-2.5 px-3.5">Status & Next Action</th>
+                        <th className="py-2.5 px-3.5">Last Activity</th>
+                        <th className="py-2.5 px-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/60 text-xs">
+                    <tbody className="divide-y divide-border/50 text-xs">
                       {paginatedItems.map((item) => {
                         const isSelected = selectedQuotation?.id === item.id;
                         const isExpanded = !!expandedRows[item.id];
@@ -767,11 +729,11 @@ export default function AdminQuotesList() {
                             <tr
                               onClick={() => setSelectedQuotation(item)}
                               className={`transition-colors cursor-pointer ${
-                                isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/30"
+                                isSelected ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/40"
                               }`}
                             >
                               {/* 1. QTN / Inquiry Ref */}
-                              <td className="py-3 px-3">
+                              <td className="py-2.5 px-3.5">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-bold text-primary font-mono text-xs">{item.quotationNumber}</span>
@@ -781,7 +743,7 @@ export default function AdminQuotesList() {
                                       </span>
                                     )}
                                   </div>
-                                  <span className="text-[10.5px] text-muted-foreground block font-mono">
+                                  <span className="text-[11px] text-muted-foreground block font-mono">
                                     From {item.reference}
                                   </span>
                                   {hasHistory && (
@@ -791,7 +753,7 @@ export default function AdminQuotesList() {
                                         e.stopPropagation();
                                         toggleExpand(item.id);
                                       }}
-                                      className="inline-flex items-center gap-1 text-[9.5px] font-semibold text-amber-700 hover:text-amber-800 transition-colors cursor-pointer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 hover:text-amber-800 transition-colors cursor-pointer"
                                     >
                                       <History size={10} />
                                       <span>{item.history.length} Revisions</span>
@@ -802,33 +764,33 @@ export default function AdminQuotesList() {
                               </td>
 
                               {/* 2. Customer */}
-                              <td className="py-3 px-3 min-w-[130px]">
+                              <td className="py-2.5 px-3.5 min-w-[130px]">
                                 <div className="min-w-0 space-y-0.5">
-                                  <span className="font-bold text-foreground block truncate max-w-[140px]">{item.customerName}</span>
-                                  <span className="text-[10px] text-muted-foreground block truncate max-w-[140px]">{item.customerPhone}</span>
+                                  <span className="font-semibold text-foreground text-xs block truncate max-w-[140px]">{item.customerName}</span>
+                                  <span className="text-[11px] text-muted-foreground block truncate max-w-[140px]">{item.customerPhone}</span>
                                 </div>
                               </td>
 
                               {/* 3. Event Details */}
-                              <td className="py-3 px-3">
+                              <td className="py-2.5 px-3.5">
                                 <div className="space-y-0.5 min-w-[120px]">
-                                  <div className="flex items-center gap-1 font-semibold text-foreground truncate">
+                                  <div className="flex items-center gap-1 font-medium text-foreground text-xs truncate">
                                     <Calendar size={11} className="text-primary shrink-0" />
                                     <span className="truncate">{item.eventType}</span>
                                   </div>
-                                  <span className="text-[10.5px] text-muted-foreground block">
+                                  <span className="text-[11px] text-muted-foreground block tabular-nums">
                                     {formatDateClean(item.eventDate)} • {item.guestCount} guests
                                   </span>
                                 </div>
                               </td>
 
                               {/* 4. Amount */}
-                              <td className="py-3 px-3 font-bold font-mono text-foreground text-xs whitespace-nowrap">
+                              <td className="py-2.5 px-3.5 font-bold font-mono text-foreground text-xs whitespace-nowrap tabular-nums">
                                 {formatPeso(item.totalCost)}
                               </td>
 
                               {/* 5. Status & Data-Driven Next Action Indicator */}
-                              <td className="py-3 px-3">
+                              <td className="py-2.5 px-3.5">
                                 <div className="flex flex-col items-start gap-1">
                                   {renderStatusBadge(item.status, item.expInfo?.isExpired)}
                                   <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold border tracking-tight ${nextAction.tone}`}>
@@ -838,17 +800,17 @@ export default function AdminQuotesList() {
                               </td>
 
                               {/* 6. Last Activity Indicator */}
-                              <td className="py-3 px-3 text-muted-foreground text-[10.5px]">
-                                <span className="font-semibold text-foreground block">
+                              <td className="py-2.5 px-3.5 text-muted-foreground text-[11px]">
+                                <span className="font-semibold text-foreground block tabular-nums">
                                   {item.updatedRelative}
                                 </span>
-                                <span className="text-[9.5px] text-muted-foreground block">
+                                <span className="text-[10px] text-muted-foreground block tabular-nums">
                                   {formatDateClean(item.updatedAt)}
                                 </span>
                               </td>
 
                               {/* 7. Actions (Standard View Button & Quick Convert) */}
-                              <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                              <td className="py-2.5 px-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-end gap-1.5">
                                   {(item.status === "Accepted" || item.status === "Quote Accepted") && (
                                     <button

@@ -384,23 +384,23 @@ export default function AdminOcular() {
       header: "Customer", 
       render: (o) => (
         <div>
-          <span className="text-sm font-bold text-slate-900 block">{o.customer}</span>
-          <span className="text-xs text-slate-500">{o.phone || o.email}</span>
+          <span className="text-xs font-semibold text-foreground block">{o.customer}</span>
+          <span className="text-[11px] text-muted-foreground">{o.phone || o.email}</span>
         </div>
       )
     },
     {
       key: "venue",
       header: "Venue Location",
-      render: (o) => <span className="text-xs text-slate-700 font-medium max-w-44 block truncate">{o.venue}</span>
+      render: (o) => <span className="text-xs text-foreground font-medium max-w-44 block truncate">{o.venue}</span>
     },
     { 
       key: "datetime", 
       header: "Visit Date & Time", 
       render: (o) => (
         <div>
-          <span className="text-xs font-semibold text-slate-900 block">{o.date}</span>
-          <span className="text-[11px] text-slate-500">{o.time !== "TBA" ? `@ ${o.time}` : "Time TBA"}</span>
+          <span className="text-xs font-semibold text-foreground block tabular-nums">{o.date}</span>
+          <span className="text-[11px] text-muted-foreground tabular-nums">{o.time !== "TBA" ? `@ ${o.time}` : "Time TBA"}</span>
         </div>
       )
     },
@@ -450,11 +450,11 @@ export default function AdminOcular() {
 
         {/* Top KPI Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          <KPICard title="Pending" value={kpiStats.requested} sub="Awaiting schedule" badge={kpiStats.requested > 0 ? "Action Req" : null} icon={Calendar} />
-          <KPICard title="Scheduled" value={kpiStats.scheduled} sub="Upcoming visits" icon={Clock} />
-          <KPICard title="Revisions Needed" value={kpiStats.revisionNeeded} sub="Updates required" badge={kpiStats.revisionNeeded > 0 ? "Review Needed" : null} icon={Edit3} />
+          <KPICard title="Pending Requests" value={kpiStats.requested} sub="Awaiting schedule" icon={Calendar} />
+          <KPICard title="Scheduled Visits" value={kpiStats.scheduled} sub="Upcoming visits" icon={Clock} />
+          <KPICard title="Revisions Needed" value={kpiStats.revisionNeeded} sub="Updates required" icon={Edit3} />
           <KPICard title="Completed" value={kpiStats.completed} sub="Inspections passed" icon={CheckCircle2} />
-          <KPICard title="Total Oculars" value={kpiStats.total} sub="All time visits" icon={MapPin} />
+          <KPICard title="Total Active" value={kpiStats.total} sub="All active visits" icon={MapPin} />
         </div>
 
         {/* Toolbar & Filter Tabs */}
@@ -462,63 +462,42 @@ export default function AdminOcular() {
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-1.5 overflow-x-auto">
-              <button
-                onClick={() => setFilterTab("all")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  filterTab === "all" ? "bg-slate-900 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                All Active ({kpiStats.total})
-              </button>
-              <button
-                onClick={() => setFilterTab("requested")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  filterTab === "requested" ? "bg-amber-500 text-slate-950 shadow-2xs" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Pending Requests ({kpiStats.requested})
-              </button>
-              <button
-                onClick={() => setFilterTab("scheduled")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  filterTab === "scheduled" ? "bg-blue-600 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Scheduled ({kpiStats.scheduled})
-              </button>
-              <button
-                onClick={() => setFilterTab("revise")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  filterTab === "revise" ? "bg-orange-500 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Revision Needed ({kpiStats.revisionNeeded})
-              </button>
-              <button
-                onClick={() => setFilterTab("completed")}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  filterTab === "completed" ? "bg-emerald-600 text-white shadow-2xs" : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                Completed ({kpiStats.completed})
-              </button>
+              {[
+                { key: "all", label: `All Active (${kpiStats.total})` },
+                { key: "requested", label: `Pending Requests (${kpiStats.requested})` },
+                { key: "scheduled", label: `Scheduled (${kpiStats.scheduled})` },
+                { key: "revise", label: `Revision Needed (${kpiStats.revisionNeeded})` },
+                { key: "completed", label: `Completed (${kpiStats.completed})` },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilterTab(tab.key)}
+                  className={`px-3 py-1.5 text-xs rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                    filterTab === tab.key
+                      ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                      : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted font-medium"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
             <div className="relative w-full md:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search customer, booking ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 text-xs rounded-md border-slate-200 shadow-2xs"
+                className="pl-9 text-xs rounded-lg"
               />
             </div>
           </div>
         </AdminCard>
 
         {/* Data Table */}
-        <AdminCard className="!p-0 overflow-hidden shadow-xs border border-slate-200">
+        <AdminCard className="!p-0 overflow-hidden shadow-xs border border-border/80">
           <DataTable
             columns={columns}
             rows={pageRows}

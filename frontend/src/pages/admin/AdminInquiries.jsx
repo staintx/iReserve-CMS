@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
+import KPICard from "../../components/admin/ui/KPICard";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -513,66 +514,30 @@ export default function AdminInquiries() {
         <div className="space-y-3.5 w-full">
             {/* KPI Summary Cards Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Card 1: Total Inquiries */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    TOTAL INQUIRIES
-                  </span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-xl font-bold tracking-tight text-foreground">{totalInquiriesCount}</span>
-                    <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-0.5">
-                      <ArrowUpRight size={10} /> 12%
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">vs. last 7 days</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-200/50">
-                  <Mail size={13} />
-                </div>
-              </div>
-
-              {/* Card 2: Pending Review */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    PENDING REVIEW
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{pendingCount}</span>
-                  <p className="text-[10px] text-muted-foreground">{pendingPct}% of total</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/50">
-                  <Clock size={13} />
-                </div>
-              </div>
-
-              {/* Card 3: Under Review */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    UNDER REVIEW
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{underReviewCount}</span>
-                  <p className="text-[10px] text-muted-foreground">{underReviewPct}% of total</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200/50">
-                  <Eye size={13} />
-                </div>
-              </div>
-
-              {/* Card 4: Quotation Sent */}
-              <div className="bg-card border border-border/70 rounded-xl p-3 flex items-start justify-between shadow-2xs">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    QUOTATION SENT
-                  </span>
-                  <span className="text-xl font-bold tracking-tight text-foreground">{quotationSentCount}</span>
-                  <p className="text-[10px] text-muted-foreground">{quotationSentPct}% of total</p>
-                </div>
-                <div className="w-7 h-7 rounded-md bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-200/50">
-                  <FileText size={13} />
-                </div>
-              </div>
+              <KPICard
+                title="Total Inquiries"
+                value={totalInquiriesCount}
+                sub="All customer requests"
+                icon={Mail}
+              />
+              <KPICard
+                title="Pending Review"
+                value={pendingCount}
+                sub={`${pendingPct}% of total`}
+                icon={Clock}
+              />
+              <KPICard
+                title="Under Review"
+                value={underReviewCount}
+                sub={`${underReviewPct}% of total`}
+                icon={Eye}
+              />
+              <KPICard
+                title="Quotation Sent"
+                value={quotationSentCount}
+                sub={`${quotationSentPct}% of total`}
+                icon={FileText}
+              />
             </div>
 
             {/* Stacked Label Filter Controls Bar (Labels Above Controls, Perfect Alignment) */}
@@ -769,8 +734,8 @@ export default function AdminInquiries() {
                 <div className="w-full">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-muted/30 border-b border-border/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        <th className="py-2.5 pl-2.5 pr-1 w-7">
+                      <tr className="bg-muted/50 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <th className="py-2.5 pl-3 pr-1 w-8">
                           <input
                             type="checkbox"
                             checked={paginatedRows.length > 0 && selectedIds.length === paginatedRows.length}
@@ -778,15 +743,15 @@ export default function AdminInquiries() {
                             className="rounded border-input text-primary focus:ring-primary"
                           />
                         </th>
-                        <th className="py-2.5 px-2.5 font-semibold">CUSTOMER</th>
-                        <th className="py-2.5 px-2.5 font-semibold">EVENT DETAILS</th>
-                        <th className="py-2.5 px-2.5 font-semibold">STATUS</th>
-                        <th className="py-2.5 px-2.5 font-semibold">PACKAGE TYPE</th>
-                        <th className="py-2.5 px-2.5 font-semibold">RECEIVED / UPDATED</th>
-                        <th className="py-2.5 pr-2.5 pl-1 text-right font-semibold">ACTIONS</th>
+                        <th className="py-2.5 px-3 font-semibold">Customer</th>
+                        <th className="py-2.5 px-3 font-semibold">Event Details</th>
+                        <th className="py-2.5 px-3 font-semibold">Status</th>
+                        <th className="py-2.5 px-3 font-semibold">Package Type</th>
+                        <th className="py-2.5 px-3 font-semibold">Received / Updated</th>
+                        <th className="py-2.5 pr-3 pl-1 text-right font-semibold">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/40">
+                    <tbody className="divide-y divide-border/50">
                       {paginatedRows.map((r) => {
                         const isSelected = selectedInquiry?._id === r._id;
                         return (
@@ -795,12 +760,12 @@ export default function AdminInquiries() {
                             onClick={() => setSelectedInquiry(r)}
                             className={`group cursor-pointer transition-colors ${
                               isSelected
-                                ? "bg-primary/10 border-l-2 border-l-primary"
-                                : "hover:bg-muted/30"
+                                ? "bg-primary/5 border-l-2 border-l-primary"
+                                : "hover:bg-muted/40"
                             }`}
                           >
                             {/* Checkbox */}
-                            <td className="py-2.5 pl-2.5 pr-1" onClick={(e) => e.stopPropagation()}>
+                            <td className="py-2.5 pl-3 pr-1" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={selectedIds.includes(r._id)}
@@ -810,28 +775,28 @@ export default function AdminInquiries() {
                             </td>
 
                             {/* Customer */}
-                            <td className="py-2.5 px-2.5 min-w-[130px]">
+                            <td className="py-2.5 px-3 min-w-[130px]">
                               <div className="min-w-0 space-y-0.5">
                                 <div className="flex items-center gap-1">
                                   {r.isNew && (
                                     <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" title="Recent activity" />
                                   )}
-                                  <p className="font-bold text-foreground text-xs truncate max-w-[140px]">{r.customer}</p>
+                                  <p className="font-semibold text-foreground text-xs truncate max-w-[140px]">{r.customer}</p>
                                 </div>
-                                <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{r.email || "—"}</p>
+                                <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.email || "—"}</p>
                               </div>
                             </td>
 
                             {/* Event Details */}
-                            <td className="py-2.5 px-2.5">
+                            <td className="py-2.5 px-3">
                               <div className="space-y-0.5">
-                                <div className="font-semibold text-foreground text-xs truncate">
+                                <div className="font-medium text-foreground text-xs truncate">
                                   {r.eventType}
                                 </div>
-                                <div className="text-[10px] text-muted-foreground truncate">
+                                <div className="text-[11px] text-muted-foreground tabular-nums truncate">
                                   {r.eventDateFormatted} · {r.guests} pax
                                 </div>
-                                <div className="text-[10px] text-muted-foreground/80 truncate max-w-[130px] flex items-center gap-1">
+                                <div className="text-[11px] text-muted-foreground/80 truncate max-w-[130px] flex items-center gap-1">
                                   <MapPin size={10} className="shrink-0 text-muted-foreground/70" />
                                   <span className="truncate">{r.venue}</span>
                                 </div>
@@ -839,22 +804,22 @@ export default function AdminInquiries() {
                             </td>
 
                             {/* Status */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <Badge status={r.status} />
                             </td>
 
                             {/* Package Type */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <PackageTypeTag type={r.bookingType} label={r.bookingTypeLabel} />
                             </td>
 
                             {/* Received / Updated (Clean Formatted Strings) */}
-                            <td className="py-2.5 px-2.5 whitespace-nowrap">
-                              <div>
-                                <p className="font-medium text-foreground text-xs">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="space-y-0.5">
+                                <p className="font-medium text-foreground text-xs tabular-nums">
                                   {r.createdDateStr}
                                 </p>
-                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <div className="flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
                                   <span>{r.createdTimeStr}</span>
                                   <span>·</span>
                                   <span className={r.isNew ? "text-primary font-semibold" : ""}>{r.updatedRelative}</span>
@@ -863,7 +828,7 @@ export default function AdminInquiries() {
                             </td>
 
                             {/* Actions (Icon-Only View Details Button with Tooltip) */}
-                            <td className="py-2.5 pr-2.5 pl-1 text-right whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => setSelectedInquiry(r)}

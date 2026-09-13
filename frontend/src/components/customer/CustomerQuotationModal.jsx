@@ -13,7 +13,10 @@ import {
   FileCheck2,
   FileText,
   ArrowRight,
+  Printer,
 } from "lucide-react";
+import InvoiceModal from "../common/invoice/InvoiceModal";
+import useBusinessInfo from "../../hooks/useBusinessInfo";
 import { CustomerAPI } from "../../api/customer";
 import useToast from "../../hooks/useToast";
 import { useConfirm } from "../feedback/confirmContext";
@@ -56,6 +59,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
   const [revisionError, setRevisionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pane, setPane] = useState("quotation");
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const businessInfo = useBusinessInfo();
   const revisionInputRef = useRef(null);
 
   // Opening the form used to look like nothing happened: it rendered at the
@@ -331,7 +336,8 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
     : null;
 
   return (
-    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+    <>
+      <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       {/* `block w-full` overrides Radix's grid layout so the content flows
           vertically without horizontal scrollbars or squeezed panels.
           `customer-shell` re-applies the portal's slate/royal-blue tokens —
@@ -379,7 +385,16 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                 </DialogDescription>
               </div>
             </div>
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs cursor-pointer transition-colors"
+                title="Print or download official quotation document"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline">Print / PDF</span>
+              </button>
               <StatusPill tone={status.tone} label={status.label} icon={status.icon} />
             </div>
           </div>
@@ -1026,5 +1041,18 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
         )}
       </DialogContent>
     </Dialog>
-  );
+
+    {/* Production-Quality Quotation / Invoice Modal */}
+    <InvoiceModal
+      open={showPrintModal}
+      onClose={() => setShowPrintModal(false)}
+      quotation={quotation}
+      inquiry={inquiry}
+      businessInfo={businessInfo}
+      context="customer"
+      onPay={canRespond || canRetryPayment ? handleAccept : null}
+      isPaying={isSubmitting}
+    />
+  </>
+);
 }

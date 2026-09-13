@@ -57,6 +57,8 @@ import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimel
 import BookingVersionHistory from "../../components/booking/BookingVersionHistory";
 import AmountSummary from "../../components/customer/portal/AmountSummary";
 import { ACTION_PAY, ACTION_MESSAGE } from "../../components/customer/portal/actionStyles";
+import InvoiceModal from "../../components/common/invoice/InvoiceModal";
+import useBusinessInfo from "../../hooks/useBusinessInfo";
 import { cn } from "@/lib/utils";
 import { selectSourceQuotation } from "../../utils/quotationDiff";
 import { formatShortDate } from "../../utils/format";
@@ -212,6 +214,8 @@ export default function CustomerEventDashboard() {
 
   const [isAcceptingQuote, setIsAcceptingQuote] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const businessInfo = useBusinessInfo();
 
   // Rating & Review State
   const [bookingRating, setBookingRating] = useState(null);
@@ -1035,6 +1039,16 @@ export default function CustomerEventDashboard() {
               >
                 <MessageSquare className="w-3.5 h-3.5 text-[#2C4B8A]" />
                 {isOpeningChat ? "Opening chat…" : "Message Staff"}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowInvoiceModal(true)}
+                className="gap-1.5 rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold h-8 px-3 cursor-pointer shadow-2xs"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                View Official Invoice
               </Button>
 
               {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
@@ -2559,6 +2573,18 @@ export default function CustomerEventDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Customer Official Invoice / Quotation Modal */}
+      <InvoiceModal
+        open={showInvoiceModal}
+        onClose={() => setShowInvoiceModal(false)}
+        booking={booking}
+        payments={payments}
+        businessInfo={businessInfo}
+        context="customer"
+        onPay={handlePayRemainingBalance}
+        isPaying={payingPaymentId !== null}
+      />
 
     </CustomerDashboardLayout>
   );

@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 22,
     paddingTop: 24,
-    paddingBottom: 120,
+    paddingBottom: 130, // Clearance for floating tab bar
   },
   sheetTitle: {
     fontSize: 26,
@@ -609,14 +609,15 @@ const styles = StyleSheet.create({
   menuItemRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    minHeight: 56,
+    paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderLight,
   },
   menuIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",

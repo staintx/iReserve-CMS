@@ -136,6 +136,9 @@ export const CustomerNavigator = () => {
       <Stack.Screen name="PackageDetail" component={PackageDetailScreen} />
       <Stack.Screen name="Menu" component={MenuScreen} />
       <Stack.Screen name="Gallery" component={GalleryScreen} />
+      <Stack.Screen name="BookingsList" component={BookingsListScreen} />
+      <Stack.Screen name="InquiriesList" component={InquiriesListScreen} />
+      <Stack.Screen name="CustomerMessages" component={CustomerMessagesScreen} />
       <Stack.Screen name="CustomerChatThread" component={CustomerChatThreadScreen} />
       <Stack.Screen
         name="ZelleChat"

@@ -32,6 +32,7 @@ const FilterPill = ({ item, isSelected, onSelect }) => {
         onPress={() => onSelect(key)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
         style={[styles.pill, isSelected ? styles.pillActive : styles.pillInactive]}
       >
         <Text style={[styles.pillText, isSelected ? styles.pillTextActive : styles.pillTextInactive]}>
@@ -91,8 +92,10 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md + 2,
+    justifyContent: "center",
+    minHeight: 42,
+    paddingVertical: 9,
+    paddingHorizontal: spacing.base,
     borderRadius: radius.full,
     borderWidth: 1.2,
   },

@@ -422,7 +422,7 @@ export const QuotationDetailScreen = ({ route, navigation }) => {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + (isActionable ? 108 : 36) },
+          { paddingBottom: insets.bottom + (isActionable || isDepositPaid || isRevisionPending ? 120 : 40) },
         ]}
         showsVerticalScrollIndicator={false}
       >

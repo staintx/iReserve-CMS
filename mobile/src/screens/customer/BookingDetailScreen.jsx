@@ -9,6 +9,8 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -920,7 +922,10 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
       {/* ── MODAL 1: Propose Revision / Change Request ── */}
       <Modal visible={showChangeModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Propose Booking Revisions</Text>
@@ -960,7 +965,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
 
               <Text style={styles.inputLabel}>Notes & Reasons for Revision</Text>
               <TextInput
-                style={[styles.modalInput, { height: 80 }]}
+                style={[styles.modalInput, { minHeight: 80, textAlignVertical: "top" }]}
                 placeholder="Explain the changes you would like to request..."
                 placeholderTextColor={colors.textDisabled}
                 multiline
@@ -976,12 +981,15 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               />
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── MODAL 2: Add Extra Guests ── */}
       <Modal visible={showAddGuestsModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Additional Guests</Text>
@@ -1011,12 +1019,15 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               style={{ marginTop: spacing.md }}
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── MODAL 3: Upgrade Package ── */}
       <Modal visible={showUpgradeModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={[styles.modalContainer, { maxHeight: "80%" }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Package Upgrade</Text>
@@ -1057,12 +1068,15 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               />
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── MODAL 4: Reject Revision ── */}
       <Modal visible={showRejectRevisionModal} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Decline Revision Proposal</Text>
@@ -1101,7 +1115,7 @@ export const BookingDetailScreen = ({ route, navigation }) => {
               />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1114,6 +1128,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.xl,
+    paddingBottom: 120, // Clear bottom edge
   },
   statusHeaderCard: {
     padding: spacing.lg,
@@ -1511,7 +1526,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   starBtn: {
-    padding: 2,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   reviewInput: {
     backgroundColor: colors.surfaceAlt,
@@ -1519,20 +1537,22 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     borderRadius: radius.md,
     padding: spacing.md,
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.base,
     color: colors.foreground,
-    minHeight: 70,
+    minHeight: 80,
     textAlignVertical: "top",
   },
   cancelBookingBtn: {
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
     paddingVertical: spacing.md,
     marginTop: spacing.sm,
   },
   cancelBookingText: {
-    fontSize: typography.sizes.xs,
+    fontSize: typography.sizes.sm,
     color: colors.error,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   modalOverlay: {
     flex: 1,
@@ -1575,9 +1595,10 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: typography.sizes.sm,
+    paddingVertical: spacing.sm + 2,
+    fontSize: typography.sizes.base,
     color: colors.foreground,
+    minHeight: 48,
   },
   pkgOption: {
     flexDirection: "row",

@@ -226,6 +226,8 @@ const styles = StyleSheet.create({
   filterChip: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
     paddingVertical: 8,
     paddingHorizontal: spacing.md + 2,
     borderRadius: radius.pill,
@@ -249,7 +251,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.base,
-    paddingBottom: 96,
+    paddingBottom: 130,
   },
   packageCard: {
     padding: 0,
@@ -282,7 +284,7 @@ const styles = StyleSheet.create({
   },
   eventBadgeText: {
     color: colors.white,
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
   },
@@ -297,7 +299,7 @@ const styles = StyleSheet.create({
   },
   comboCoverBadgeText: {
     color: colors.white,
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
   },
@@ -327,7 +329,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   specialBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
     color: colors.primary,
@@ -355,7 +357,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   priceUnit: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.regular,
     color: colors.foregroundMuted,
   },
@@ -378,22 +380,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.primaryLight,
-    paddingVertical: 4,
+    paddingVertical: 5,
     paddingHorizontal: spacing.sm + 2,
     borderRadius: radius.pill,
     marginRight: spacing.sm,
   },
   tagText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamilies.bold,
     color: colors.primaryDark,
     fontWeight: "700",
     marginLeft: 4,
   },
   addBtnCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.primaryLight,
     borderWidth: 1.2,
     borderColor: colors.primaryBorder,

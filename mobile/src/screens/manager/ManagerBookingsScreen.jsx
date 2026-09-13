@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
-    height: 44,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.borderLight,
     marginBottom: spacing.sm,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.base,
-    paddingBottom: 120,
+    paddingBottom: 130,
   },
   loadingWrapper: {
     padding: spacing.base,
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   referenceText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.medium,
     color: colors.foregroundMuted,
     marginTop: 2,

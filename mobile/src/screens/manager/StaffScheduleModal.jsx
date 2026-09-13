@@ -288,7 +288,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    padding: spacing.xs,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.full,
   },
   metricsRow: {
     flexDirection: "row",
@@ -309,7 +313,7 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   metricLabel: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     color: colors.foregroundMuted,
     fontWeight: "600",
   },
@@ -325,7 +329,10 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   arrowBtn: {
-    padding: spacing.xs,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   weekdaysRow: {
     flexDirection: "row",
@@ -335,7 +342,7 @@ const styles = StyleSheet.create({
   weekdayText: {
     width: "14%",
     textAlign: "center",
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: "700",
     color: colors.foregroundMuted,
   },
@@ -406,7 +413,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     color: colors.foregroundMuted,
     fontWeight: "500",
   },
@@ -448,12 +455,12 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   eventSubtitle: {
-    fontSize: 10,
+    fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
     marginTop: 1,
   },
   eventDateBadge: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     fontWeight: "700",
     color: colors.primary,
     backgroundColor: colors.surface,

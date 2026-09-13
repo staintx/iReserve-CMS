@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    height: 44,
+    minHeight: 48,
   },
   searchInput: {
     flex: 1,
@@ -232,7 +232,9 @@ const styles = StyleSheet.create({
   },
   pill: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    minHeight: 40,
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: radius.full,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -275,12 +277,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     backgroundColor: colors.primaryLight,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: 4,
     marginBottom: 4,
   },
   courseBadgeText: {
-    fontSize: 9,
+    fontSize: 10.5,
     fontWeight: "700",
     color: colors.primary,
     textTransform: "uppercase",
@@ -291,7 +293,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   dishDesc: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
     marginTop: 2,
   },

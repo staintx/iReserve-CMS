@@ -312,7 +312,7 @@ export const CustomerDashboardScreen = ({ navigation }) => {
               {/* Tile 1: Active Bookings */}
               <TouchableOpacity
                 style={styles.statTile}
-                onPress={() => navigation.navigate("BookingsList")}
+                onPress={() => navigation.navigate("CustomerTabs", { screen: "BookingsList" })}
                 activeOpacity={0.75}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.primaryLight }]}>
@@ -328,7 +328,7 @@ export const CustomerDashboardScreen = ({ navigation }) => {
               {/* Tile 2: Open Inquiries */}
               <TouchableOpacity
                 style={styles.statTile}
-                onPress={() => navigation.navigate("InquiriesList")}
+                onPress={() => navigation.navigate("CustomerTabs", { screen: "InquiriesList" })}
                 activeOpacity={0.75}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.warningLight }]}>
@@ -344,7 +344,7 @@ export const CustomerDashboardScreen = ({ navigation }) => {
               {/* Tile 3: Balance Due */}
               <TouchableOpacity
                 style={styles.statTile}
-                onPress={() => navigation.navigate("BookingsList")}
+                onPress={() => navigation.navigate("CustomerTabs", { screen: "BookingsList" })}
                 activeOpacity={0.75}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.successLight }]}>
@@ -362,7 +362,7 @@ export const CustomerDashboardScreen = ({ navigation }) => {
               {/* Tile 4: Inbox Messages */}
               <TouchableOpacity
                 style={styles.statTile}
-                onPress={() => navigation.navigate("CustomerMessages")}
+                onPress={() => navigation.navigate("CustomerTabs", { screen: "CustomerMessages" })}
                 activeOpacity={0.75}
               >
                 <View style={[styles.statIconWrap, { backgroundColor: colors.accentLight }]}>
@@ -651,6 +651,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
+    paddingBottom: 130, // Clearance for floating tab bar and screen bottom
   },
   loadingWrap: {
     paddingVertical: spacing.md,
@@ -667,31 +668,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: radius.lg,
     padding: spacing.md,
+    minHeight: 112,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     ...shadows.xs,
   },
   statIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm,
   },
   statNumber: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.xl,
     fontWeight: "800",
     color: colors.foreground,
   },
   statLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: typography.sizes.xs,
+    fontWeight: "700",
     color: colors.foregroundMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   statHint: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     color: colors.textSubtle,
     marginTop: 2,
   },
@@ -709,6 +711,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFDF5",
     borderColor: colors.warningBorder,
     borderWidth: 1.5,
+    padding: spacing.base,
   },
   attentionCardTop: {
     flexDirection: "row",
@@ -716,21 +719,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   attentionTitle: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.base,
     fontWeight: "700",
     color: colors.foreground,
   },
   attentionDateTime: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontWeight: "600",
     color: colors.foregroundMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   attentionDesc: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: colors.textSubtle,
     marginTop: 4,
-    lineHeight: 16,
+    lineHeight: 18,
   },
   attentionBtn: {
     marginTop: spacing.md,
@@ -797,13 +800,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.sm + 2,
+    minHeight: 46,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
-    gap: 6,
+    gap: 8,
   },
   workspaceBtnText: {
     color: colors.white,
-    fontSize: typography.sizes.xs,
+    fontSize: typography.sizes.sm,
     fontWeight: "700",
   },
   emptyNextEventCard: {
@@ -920,23 +925,23 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   timelineTitle: {
-    fontSize: typography.sizes.xs,
+    fontSize: typography.sizes.sm,
     fontWeight: "700",
     color: colors.foreground,
     flex: 1,
   },
   timelineSub: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: colors.foregroundMuted,
     marginTop: 2,
   },
   timelineVenueRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
+    marginTop: 3,
   },
   timelineVenueText: {
-    fontSize: 10,
+    fontSize: typography.sizes.micro,
     color: colors.textSubtle,
   },
 });

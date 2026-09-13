@@ -256,7 +256,7 @@ export const StaffTodayScreen = ({ navigation }) => {
                 <AppButton
                   title="Open Venue Directions"
                   variant="outline"
-                  size="sm"
+                  size="md"
                   icon={Navigation}
                   onPress={() => handleOpenMaps(currentDisplayEvent)}
                   style={{ marginTop: spacing.sm }}
@@ -267,7 +267,7 @@ export const StaffTodayScreen = ({ navigation }) => {
                   <AppButton
                     title="Event Details"
                     variant="secondary"
-                    size="sm"
+                    size="md"
                     icon={FileText}
                     onPress={() =>
                       navigation.navigate("StaffEventDetail", {
@@ -280,7 +280,7 @@ export const StaffTodayScreen = ({ navigation }) => {
                   <AppButton
                     title={unlocked ? "Equipment Returns" : "Returns Locked"}
                     variant={unlocked ? "primary" : "ghost"}
-                    size="sm"
+                    size="md"
                     icon={unlocked ? Unlock : Lock}
                     onPress={() => {
                       if (!unlocked) {
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.base,
-    paddingBottom: 120,
+    paddingBottom: 130,
   },
   heroCard: {
     marginBottom: spacing.base,
@@ -447,11 +447,11 @@ const styles = StyleSheet.create({
   },
   dayStatusBadge: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: radius.full,
   },
   dayStatusText: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.bold,
   },
   heroTitle: {
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   heroRef: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fontFamily.medium,
     color: colors.foregroundMuted,
     marginTop: 2,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   shiftRef: {
-    fontSize: 11,
+    fontSize: typography.sizes.xs,
     color: colors.textSubtle,
     marginTop: 1,
   },

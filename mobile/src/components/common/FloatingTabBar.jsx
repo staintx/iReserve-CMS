@@ -119,7 +119,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
+    minHeight: 48,
+    paddingVertical: 4,
     paddingHorizontal: 4,
     borderRadius: radius.xl,
   },
@@ -132,7 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   label: {
-    fontSize: 10,
+    fontSize: 11,
     marginTop: 2,
     letterSpacing: 0.1,
   },
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: colors.white,
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: typography.fontFamilies.bold,
     fontWeight: "700",
   },

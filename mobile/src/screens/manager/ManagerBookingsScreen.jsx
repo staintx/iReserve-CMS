@@ -39,7 +39,7 @@ const TABS = [
 
 export const ManagerBookingsScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const initialTab = route.params?.tab || "pending";
+  const initialTab = route?.params?.tab || "pending";
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,10 +48,10 @@ export const ManagerBookingsScreen = ({ navigation, route }) => {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (route.params?.tab) {
+    if (route?.params?.tab) {
       setActiveTab(route.params.tab);
     }
-  }, [route.params?.tab]);
+  }, [route?.params?.tab]);
 
   const loadBookings = useCallback(async (tabKey) => {
     try {

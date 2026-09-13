@@ -95,7 +95,8 @@ export const StaffScheduleModal = ({ visible, onClose, staffMember }) => {
   }, [calendarData.assignments]);
 
   const unavailableDatesSet = useMemo(() => {
-    return new Set(calendarData.unavailable || []);
+    const list = (calendarData.unavailable || []).map((d) => String(d || "").slice(0, 10));
+    return new Set(list);
   }, [calendarData.unavailable]);
 
   const monthLabel = currentDate.toLocaleString("default", { month: "long", year: "numeric" });

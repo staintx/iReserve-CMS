@@ -120,7 +120,21 @@ export const NotificationsScreen = ({ navigation }) => {
       if (isManager) {
         navigation.navigate("ManagerBookings", { tab: "all" });
       } else {
-        navigation.navigate("QuotationDetail", { inquiryId: item.meta.inquiry_id });
+        const isQuotationNotification =
+          Boolean(item.meta?.quotation_id) ||
+          String(item.title || "").toLowerCase().includes("quotation") ||
+          String(item.title || "").toLowerCase().includes("quote") ||
+          String(item.body || item.message || "").toLowerCase().includes("quotation") ||
+          String(item.body || item.message || "").toLowerCase().includes("quote");
+
+        if (isQuotationNotification) {
+          navigation.navigate("QuotationDetail", {
+            inquiryId: item.meta.inquiry_id,
+            quotationId: item.meta?.quotation_id,
+          });
+        } else {
+          navigation.navigate("InquiryDetail", { inquiryId: item.meta.inquiry_id });
+        }
       }
     } else if (item.meta?.conversation_id) {
       navigation.navigate("CustomerChatThread", {

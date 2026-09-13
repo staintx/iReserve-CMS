@@ -135,9 +135,13 @@ export const BookingDetailScreen = ({ route, navigation }) => {
   // Financial Calculations
   const totalPrice = Number(booking?.total_price || 0);
   const isDepositPaid = booking?.payment_status === "deposit_paid" || booking?.payment_status === "fully_paid";
-  const depositAmount = Number(booking?.deposit_amount || (totalPrice * 0.3));
-  const remainingBalance = isDepositPaid
-    ? Math.max(0, totalPrice - depositAmount)
+  const isFullyPaid = booking?.payment_status === "fully_paid";
+  const depositAmount = Number(booking?.deposit_amount || Math.round(totalPrice * 0.5));
+  const paidAmount = Number(booking?.paid_amount || (isFullyPaid ? totalPrice : isDepositPaid ? depositAmount : 0));
+  const remainingBalance = isFullyPaid
+    ? 0
+    : isDepositPaid
+    ? Math.max(0, totalPrice - paidAmount)
     : totalPrice;
   const canPayBalance = booking?.payment_status === "deposit_paid" && remainingBalance > 0;
 

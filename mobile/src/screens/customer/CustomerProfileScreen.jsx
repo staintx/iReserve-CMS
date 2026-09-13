@@ -592,6 +592,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 22,
     paddingTop: 24,
+    paddingBottom: 120,
   },
   sheetTitle: {
     fontSize: 26,

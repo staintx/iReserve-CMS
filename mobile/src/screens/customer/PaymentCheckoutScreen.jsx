@@ -194,17 +194,29 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
         setVerifying(false);
       }
     } else if (url.includes("payment=cancelled") || url.includes("status=cancelled")) {
+      const returnButtonText = params.bookingId ? "Return to Booking" : "Return to Inquiries";
+
       if (Platform.OS === "web" && typeof window !== "undefined") {
         window.alert("Your payment transaction was cancelled. You can retry paying at any time.");
-        navigation.navigate("InquiriesList");
+        if (params.bookingId) {
+          navigation.navigate("BookingDetail", { id: params.bookingId });
+        } else {
+          navigation.navigate("InquiriesList");
+        }
       } else {
         Alert.alert(
           "Payment Cancelled",
           "Your payment transaction was cancelled. You can retry paying at any time.",
           [
             {
-              text: "Return to Inquiries",
-              onPress: () => navigation.navigate("InquiriesList"),
+              text: returnButtonText,
+              onPress: () => {
+                if (params.bookingId) {
+                  navigation.navigate("BookingDetail", { id: params.bookingId });
+                } else {
+                  navigation.navigate("InquiriesList");
+                }
+              },
             },
           ]
         );
@@ -342,7 +354,9 @@ export const PaymentCheckoutScreen = ({ route, navigation }) => {
             </Text>
             {currentAmount ? (
               <View style={styles.webAmountBadge}>
-                <Text style={styles.webAmountLabel}>Payable Deposit</Text>
+                <Text style={styles.webAmountLabel}>
+                  {params.bookingId ? "Remaining Balance Due" : "Payable Deposit"}
+                </Text>
                 <Text style={styles.webAmountValue}>{formatCurrency(currentAmount)}</Text>
               </View>
             ) : null}

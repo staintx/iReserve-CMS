@@ -165,7 +165,7 @@ export const CustomerDashboardScreen = ({ navigation }) => {
         status: "Quotation Sent",
         description: "Official quotation ready for your review and approval.",
         actionText: "Review Quote",
-        onAction: () => navigation.navigate("InquiriesList"),
+        onAction: () => navigation.navigate("QuotationDetail", { inquiryId: i._id }),
       }));
 
     const depositNeededBookings = bookings
@@ -231,7 +231,10 @@ export const CustomerDashboardScreen = ({ navigation }) => {
         subtitle: i.package_name_snapshot || resolveServiceType(i),
         venue: i.municipality || i.venue_type || "Batangas Location",
         status: i.status,
-        onPress: () => navigation.navigate("InquiriesList"),
+        onPress: () =>
+          i.status === "Quotation Sent"
+            ? navigation.navigate("QuotationDetail", { inquiryId: i._id })
+            : navigation.navigate("InquiryDetail", { inquiryId: i._id }),
       });
     });
 

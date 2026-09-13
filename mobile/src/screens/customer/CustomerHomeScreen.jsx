@@ -260,12 +260,9 @@ export const CustomerHomeScreen = ({ navigation }) => {
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.iconBtn}
-              onPress={() =>
-                navigation.navigate("CustomerMessages", {
-                  initialTab: "notifications",
-                })
-              }
+              onPress={() => navigation.navigate("Notifications")}
               activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Bell size={20} color={colors.foreground} />
               <NotificationBadge count={unreadCount} />

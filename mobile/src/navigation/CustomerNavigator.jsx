@@ -17,6 +17,7 @@ import InquiriesListScreen from "../screens/customer/InquiriesListScreen";
 import BookingsListScreen from "../screens/customer/BookingsListScreen";
 import CustomerMessagesScreen from "../screens/customer/CustomerMessagesScreen";
 import CustomerProfileScreen from "../screens/customer/CustomerProfileScreen";
+import CustomerDashboardScreen from "../screens/customer/CustomerDashboardScreen";
 
 import InquiryWizardScreen from "../screens/customer/InquiryWizardScreen";
 import InquiryDetailScreen from "../screens/customer/InquiryDetailScreen";
@@ -131,6 +132,7 @@ export const CustomerNavigator = () => {
       />
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} />
       <Stack.Screen name="Packages" component={PackagesScreen} />
+      <Stack.Screen name="CustomerDashboard" component={CustomerDashboardScreen} />
       <Stack.Screen name="PackageDetail" component={PackageDetailScreen} />
       <Stack.Screen name="Menu" component={MenuScreen} />
       <Stack.Screen name="Gallery" component={GalleryScreen} />

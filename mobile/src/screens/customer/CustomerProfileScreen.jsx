@@ -22,7 +22,7 @@ import {
   Sparkles,
   MessageSquare,
   HelpCircle,
-  Utensils,
+  LayoutDashboard,
   Camera,
 } from "lucide-react-native";
 import { colors, radius, spacing, typography } from "../../constants/theme";
@@ -252,16 +252,16 @@ export const CustomerProfileScreen = ({ navigation }) => {
               <ChevronRight size={18} color={colors.textDisabled} />
             </TouchableOpacity>
 
-            {/* 3. Banquet Menu */}
+            {/* 3. Customer Dashboard */}
             <TouchableOpacity
               style={styles.menuItemRow}
-              onPress={() => navigation.navigate("Menu")}
+              onPress={() => navigation.navigate("CustomerDashboard")}
               activeOpacity={0.65}
             >
               <View style={styles.menuIconWrap}>
-                <Utensils size={20} color={colors.primary} />
+                <LayoutDashboard size={20} color={colors.primary} />
               </View>
-              <Text style={styles.menuItemLabel}>Banquet Menu & Dishes</Text>
+              <Text style={styles.menuItemLabel}>Customer Dashboard</Text>
               <ChevronRight size={18} color={colors.textDisabled} />
             </TouchableOpacity>
 

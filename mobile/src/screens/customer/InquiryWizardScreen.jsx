@@ -24,8 +24,6 @@ import {
   ChevronRight,
   Check,
   Sparkles,
-  Plus,
-  Minus,
   AlertCircle,
   FileCheck,
   Truck,
@@ -274,8 +272,8 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
   const [allergies, setAllergies] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
 
-  // Add-ons
-  const [selectedAddons, setSelectedAddons] = useState({}); // { [addonId]: quantity }
+  // Add-ons (Optional Selections)
+  const [selectedAddons, setSelectedAddons] = useState({}); // { [addonId]: boolean }
 
   // Contact Info
   const [contactFirstName, setContactFirstName] = useState(
@@ -580,12 +578,12 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
       }
     }
 
-    // Addons
-    Object.entries(selectedAddons).forEach(([addonId, qty]) => {
-      if (qty > 0) {
+    // Addons (optional selections)
+    Object.entries(selectedAddons).forEach(([addonId, isSelected]) => {
+      if (isSelected) {
         const addon = addons.find((a) => a._id === addonId);
         if (addon?.price) {
-          sum += addon.price * qty;
+          sum += Number(addon.price) || 0;
         }
       }
     });
@@ -700,10 +698,10 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleAddonQtyChange = (addonId, newQty) => {
+  const handleToggleAddon = (addonId) => {
     setSelectedAddons((prev) => ({
       ...prev,
-      [addonId]: Math.max(0, newQty),
+      [addonId]: !prev[addonId],
     }));
   };
 
@@ -718,13 +716,13 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
       const isPickup = activeDeliveryMethod === "pickup";
 
       const formattedAddons = Object.entries(selectedAddons)
-        .filter(([_, qty]) => qty > 0)
-        .map(([addonId, qty]) => {
+        .filter(([_, isSelected]) => Boolean(isSelected))
+        .map(([addonId]) => {
           const addon = addons.find((a) => a._id === addonId);
           return {
             name: addon?.name || "Add-on",
             description: addon?.description || "",
-            quantity: qty,
+            quantity: 1,
             price: addon?.price || 0,
           };
         });
@@ -1630,39 +1628,38 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
             ) : (
               <View style={styles.addonsList}>
                 {addons.map((addon) => {
-                  const qty = selectedAddons[addon._id] || 0;
+                  const isSelected = Boolean(selectedAddons[addon._id]);
                   return (
-                    <Card key={addon._id} style={styles.addonCard}>
+                    <TouchableOpacity
+                      key={addon._id}
+                      style={[styles.addonCard, isSelected && styles.addonCardSelected]}
+                      onPress={() => handleToggleAddon(addon._id)}
+                      activeOpacity={0.7}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isSelected }}
+                      accessibilityLabel={`${addon.name}, ${isSelected ? "selected" : "optional"}`}
+                    >
                       <View style={styles.addonCardTop}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.addonName}>{addon.name}</Text>
+                        <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                          <Text style={[styles.addonName, isSelected && styles.addonNameSelected]}>
+                            {addon.name}
+                          </Text>
                           {addon.description ? (
                             <Text style={styles.addonDesc}>{addon.description}</Text>
                           ) : null}
                           <Text style={styles.addonPrice}>
-                            Itemized on official quote
+                            {addon.price > 0
+                              ? `+₱${Number(addon.price).toLocaleString()} · Itemized on quote`
+                              : "Itemized on official quote"}
                           </Text>
                         </View>
 
-                        {/* Quantity Stepper */}
-                        <View style={styles.addonStepper}>
-                          <TouchableOpacity
-                            style={[styles.stepperBtn, qty === 0 && styles.stepperBtnDisabled]}
-                            onPress={() => handleAddonQtyChange(addon._id, qty - 1)}
-                            disabled={qty === 0}
-                          >
-                            <Minus size={14} color={qty === 0 ? colors.foregroundMuted : colors.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.stepperQty}>{qty}</Text>
-                          <TouchableOpacity
-                            style={styles.stepperBtn}
-                            onPress={() => handleAddonQtyChange(addon._id, qty + 1)}
-                          >
-                            <Plus size={14} color={colors.primary} />
-                          </TouchableOpacity>
+                        {/* Optional Selection Checkbox */}
+                        <View style={[styles.addonCheckbox, isSelected && styles.addonCheckboxSelected]}>
+                          {isSelected && <Check size={14} color={colors.white} strokeWidth={2.5} />}
                         </View>
                       </View>
-                    </Card>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -1916,6 +1913,28 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                   <View style={styles.summaryValueWithIcon}>
                     <Text style={styles.summaryValue}>
                       {selectedDishes.length > 0 ? `${selectedDishes.length} Dishes Selected` : "Full Menu Included"}
+                    </Text>
+                    <View style={styles.rowEditBadge}>
+                      <Pencil size={11} color={colors.primary} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Equipment & Extras if step is present */}
+              {steps.some((s) => s.id === "addons") && (
+                <TouchableOpacity
+                  style={styles.summaryRowTouchable}
+                  onPress={() => jumpToField("addons")}
+                  activeOpacity={0.65}
+                  accessibilityLabel="Edit equipment and add-ons"
+                >
+                  <Text style={styles.summaryLabel}>Equipment & Extras:</Text>
+                  <View style={styles.summaryValueWithIcon}>
+                    <Text style={styles.summaryValue}>
+                      {Object.values(selectedAddons).filter(Boolean).length > 0
+                        ? `${Object.values(selectedAddons).filter(Boolean).length} Add-on${Object.values(selectedAddons).filter(Boolean).length > 1 ? "s" : ""} Selected`
+                        : "Standard Inclusions"}
                     </Text>
                     <View style={styles.rowEditBadge}>
                       <Pencil size={11} color={colors.primary} />
@@ -2225,6 +2244,31 @@ export const InquiryWizardScreen = ({ route, navigation }) => {
                     <Text style={styles.editSectionTitle}>Menu & Dining</Text>
                     <Text style={styles.editSectionSubtitle}>
                       {selectedDishes.length > 0 ? `${selectedDishes.length} Dishes Selected` : "Full Menu Included"}
+                    </Text>
+                  </View>
+                  <View style={styles.editSectionActionBadge}>
+                    <Text style={styles.editSectionActionText}>Edit</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Option: Equipment & Extras */}
+              {steps.some((s) => s.id === "addons") && (
+                <TouchableOpacity
+                  style={styles.editSectionItem}
+                  onPress={() => jumpToField("addons")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.editSectionIconWrap}>
+                    <Sparkles size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.editSectionTextWrap}>
+                    <Text style={styles.editSectionTitle}>Equipment & Extras</Text>
+                    <Text style={styles.editSectionSubtitle}>
+                      {Object.values(selectedAddons).filter(Boolean).length > 0
+                        ? `${Object.values(selectedAddons).filter(Boolean).length} Add-on${Object.values(selectedAddons).filter(Boolean).length > 1 ? "s" : ""} Selected`
+                        : "Standard Inclusions (None added)"}
                     </Text>
                   </View>
                   <View style={styles.editSectionActionBadge}>
@@ -2965,8 +3009,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.borderLight,
+  },
+  addonCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "#F0F5FF",
   },
   addonCardTop: {
     flexDirection: "row",
@@ -2978,10 +3026,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.foreground,
   },
+  addonNameSelected: {
+    color: colors.primary,
+  },
   addonDesc: {
     fontSize: 11,
     color: colors.foregroundMuted,
     marginTop: 2,
+    lineHeight: 16,
   },
   addonPrice: {
     fontSize: typography.sizes.xs,
@@ -2989,32 +3041,19 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginTop: 4,
   },
-  addonStepper: {
-    flexDirection: "row",
-    alignItems: "center",
+  addonCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.xs,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     backgroundColor: colors.white,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    padding: 3,
-  },
-  stepperBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  stepperBtnDisabled: {
-    opacity: 0.4,
-  },
-  stepperQty: {
-    fontSize: typography.sizes.sm,
-    fontWeight: "700",
-    color: colors.foreground,
-    paddingHorizontal: spacing.sm,
-    minWidth: 28,
-    textAlign: "center",
+  addonCheckboxSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   reviewEditBanner: {
     flexDirection: "row",

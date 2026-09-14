@@ -159,6 +159,141 @@ async function validatePackageItems({
 }
 
 /**
+ * Sanitizes inclusions, add-ons, and equipment for AI-generated packages.
+ * Missing items that do not exist in Inventory or Addons are skipped
+ * individually, keeping all valid items and avoiding fatal import errors.
+ */
+async function sanitizeAIPackageItems({
+  isOffer,
+  inclusions = [],
+  add_ons = [],
+  setup_equipment = [],
+}) {
+  const inventoryItems = await Inventory.find({}, "item_name category quantity");
+  const addonItems = await Addon.find({}, "name");
+
+  const validAddonNames = new Set(
+    addonItems.map((a) => (a.name || "").toLowerCase().trim())
+  );
+
+  const filteredInclusions = [];
+  const skippedInclusions = [];
+
+  const filteredAddOns = [];
+  const skippedAddOns = [];
+
+  if (isOffer) {
+    // For Special Offers, combo inclusions must exist in Addons
+    for (const inc of inclusions) {
+      const clean = String(inc || "").trim();
+      if (!clean) continue;
+      if (validAddonNames.has(clean.toLowerCase())) {
+        filteredInclusions.push(clean);
+      } else {
+        skippedInclusions.push(clean);
+      }
+    }
+  } else {
+    // For Regular Packages:
+    // Inclusions must exist in Inventory under the appropriate category
+    for (const inc of inclusions) {
+      const cleanInc = String(inc || "").trim();
+      if (!cleanInc) continue;
+
+      const { category, name } = parseInclusionCategoryAndName(cleanInc);
+      const nameLower = name.toLowerCase().trim();
+
+      let matchedInvItem = null;
+      if (isSetupCategory(category)) {
+        matchedInvItem = inventoryItems.find(
+          (i) => isSetupCategory(i.category) && i.item_name.toLowerCase().trim() === nameLower
+        );
+      } else if (isDiningCategory(category)) {
+        matchedInvItem = inventoryItems.find(
+          (i) => isDiningCategory(i.category) && i.item_name.toLowerCase().trim() === nameLower
+        );
+      } else {
+        matchedInvItem = inventoryItems.find(
+          (i) => i.item_name.toLowerCase().trim() === nameLower
+        );
+      }
+
+      // Fallback: match by name across all inventory categories if category tag was omitted or ambiguous
+      if (!matchedInvItem) {
+        matchedInvItem = inventoryItems.find(
+          (i) => i.item_name.toLowerCase().trim() === nameLower
+        );
+      }
+
+      if (matchedInvItem) {
+        let finalInc = cleanInc;
+        // Clamp quantity if specified in parentheses and exceeds total quantity
+        if (matchedInvItem.quantity != null) {
+          const qtyMatch = cleanInc.match(/\(([^)]+)\)/);
+          if (qtyMatch) {
+            const digits = qtyMatch[1].match(/\d+/g);
+            if (digits && digits.length > 0) {
+              const enteredQty = Math.max(...digits.map((n) => parseInt(n, 10)));
+              if (enteredQty > matchedInvItem.quantity) {
+                finalInc = cleanInc.replace(qtyMatch[0], `(${matchedInvItem.quantity})`);
+              }
+            }
+          }
+        }
+        filteredInclusions.push(finalInc);
+      } else {
+        skippedInclusions.push(cleanInc);
+      }
+    }
+
+    // Addons must exist in Addons
+    for (const addon of add_ons) {
+      const addonName = typeof addon === "string" ? addon : addon?.name;
+      const cleanName = String(addonName || "").trim();
+      if (!cleanName) continue;
+      if (validAddonNames.has(cleanName.toLowerCase())) {
+        filteredAddOns.push(
+          typeof addon === "string"
+            ? { name: cleanName, qty: "" }
+            : { name: cleanName, qty: addon.qty || "" }
+        );
+      } else {
+        skippedAddOns.push(cleanName);
+      }
+    }
+  }
+
+  // Filter setup equipment if any
+  const filteredSetupEquipment = [];
+  if (Array.isArray(setup_equipment)) {
+    for (const eq of setup_equipment) {
+      if (!eq || !eq.inventory_id) continue;
+      const invItem = inventoryItems.find(
+        (i) => String(i._id) === String(eq.inventory_id)
+      );
+      if (invItem) {
+        const qty =
+          invItem.quantity != null
+            ? Math.min(Number(eq.quantity) || 1, invItem.quantity)
+            : Number(eq.quantity) || 1;
+        filteredSetupEquipment.push({
+          ...eq,
+          quantity: qty,
+        });
+      }
+    }
+  }
+
+  return {
+    inclusions: filteredInclusions,
+    add_ons: filteredAddOns,
+    setup_equipment: filteredSetupEquipment,
+    skippedInclusions,
+    skippedAddOns,
+  };
+}
+
+/**
  * Special Offers and regular packages share this collection, so a body that
  * says nothing about its type is a regular package — the value every package
  * written before offers existed has.
@@ -457,14 +592,28 @@ exports.create = async (req, res) => {
   // an offer however it was sent.
   const payload = isOffer ? comboPayload(basePayload) : basePayload;
 
-  const validationError = await validatePackageItems({
-    isOffer,
-    inclusions: payload.inclusions || [],
-    add_ons: payload.add_ons || [],
-    setup_equipment: payload.setup_equipment || [],
-  });
-  if (validationError) {
-    return res.status(400).json({ message: validationError });
+  if (req.body.is_ai_generated || req.body.skip_missing_items) {
+    const sanitized = await sanitizeAIPackageItems({
+      isOffer,
+      inclusions: payload.inclusions || [],
+      add_ons: payload.add_ons || [],
+      setup_equipment: payload.setup_equipment || [],
+    });
+    payload.inclusions = sanitized.inclusions;
+    payload.add_ons = sanitized.add_ons;
+    if (sanitized.setup_equipment?.length > 0) {
+      payload.setup_equipment = sanitized.setup_equipment;
+    }
+  } else {
+    const validationError = await validatePackageItems({
+      isOffer,
+      inclusions: payload.inclusions || [],
+      add_ons: payload.add_ons || [],
+      setup_equipment: payload.setup_equipment || [],
+    });
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
   }
 
   if (!isOffer && payload.package_type !== "Food Only") {
@@ -934,11 +1083,32 @@ Return ONLY valid JSON.`;
       packages = [parsedData];
     }
 
-    // Set offer_type on all parsed items
-    packages = packages.map((pkg) => ({
-      ...pkg,
-      offer_type: isOffer ? OFFER_TYPES.SPECIAL : OFFER_TYPES.REGULAR,
-    }));
+    // Sanitize each parsed package against current Inventory & Addons
+    const sanitizedPackages = [];
+    for (const rawPkg of packages) {
+      const isOfferPkg = isOffer || rawPkg.offer_type === OFFER_TYPES.SPECIAL;
+      const sanitized = await sanitizeAIPackageItems({
+        isOffer: isOfferPkg,
+        inclusions: isOfferPkg
+          ? normalizeOfferInclusions(rawPkg.inclusions)
+          : normalizeStringList(rawPkg.inclusions),
+        add_ons: Array.isArray(rawPkg.add_ons)
+          ? rawPkg.add_ons.map((a) => (typeof a === "string" ? { name: a, qty: "" } : { name: a.name || "", qty: a.qty || "" }))
+          : [],
+        setup_equipment: rawPkg.setup_equipment || [],
+      });
+
+      sanitizedPackages.push({
+        ...rawPkg,
+        offer_type: isOfferPkg ? OFFER_TYPES.SPECIAL : OFFER_TYPES.REGULAR,
+        inclusions: sanitized.inclusions,
+        add_ons: sanitized.add_ons,
+        skipped_inclusions: sanitized.skippedInclusions,
+        skipped_add_ons: sanitized.skippedAddOns,
+      });
+    }
+
+    packages = sanitizedPackages;
 
     // If only 1 package was extracted, also spread it for seamless backward compatibility
     const singlePayload = packages.length === 1 ? packages[0] : (packages[0] || {});
@@ -967,6 +1137,8 @@ exports.createBulk = async (req, res) => {
     }
 
     const createdList = [];
+    const allSkipped = [];
+
     for (const rawPkg of rawPackages) {
       const offer_type = normalizeOfferType(rawPkg.offer_type);
       const isOffer = offer_type === OFFER_TYPES.SPECIAL;
@@ -974,6 +1146,30 @@ exports.createBulk = async (req, res) => {
       const scaffold_size_options = Array.isArray(rawPkg.scaffold_size_options)
         ? normalizeScaffoldOptions(rawPkg.scaffold_size_options)
         : [];
+
+      const rawInclusions = isOffer
+        ? normalizeOfferInclusions(rawPkg.inclusions)
+        : normalizeStringList(rawPkg.inclusions);
+
+      const rawAddOns = Array.isArray(rawPkg.add_ons)
+        ? rawPkg.add_ons.map((a) => (typeof a === "string" ? { name: a, qty: "" } : { name: a.name || "", qty: a.qty || "" }))
+        : [];
+
+      // Sanitize AI-generated items: exclude unavailable items from inclusions and add_ons
+      const sanitized = await sanitizeAIPackageItems({
+        isOffer,
+        inclusions: rawInclusions,
+        add_ons: rawAddOns,
+        setup_equipment: rawPkg.setup_equipment || [],
+      });
+
+      if (sanitized.skippedInclusions.length > 0 || sanitized.skippedAddOns.length > 0) {
+        allSkipped.push({
+          packageName: rawPkg.name || "Untitled Package",
+          inclusions: sanitized.skippedInclusions,
+          add_ons: sanitized.skippedAddOns,
+        });
+      }
 
       const basePayload = {
         name: rawPkg.name || "Untitled Package",
@@ -989,12 +1185,8 @@ exports.createBulk = async (req, res) => {
         guest_count: isOffer ? Math.floor(Number(rawPkg.guest_count) || 1) : undefined,
         price_per_guest: isOffer ? Number(rawPkg.price_per_guest) || 0 : undefined,
         offer_food_items: isOffer ? normalizeOfferFoodItems(rawPkg.offer_food_items) : [],
-        inclusions: isOffer
-          ? normalizeOfferInclusions(rawPkg.inclusions)
-          : normalizeStringList(rawPkg.inclusions),
-        add_ons: Array.isArray(rawPkg.add_ons)
-          ? rawPkg.add_ons.map((a) => (typeof a === "string" ? { name: a, qty: "" } : { name: a.name || "", qty: a.qty || "" }))
-          : [],
+        inclusions: sanitized.inclusions,
+        add_ons: sanitized.add_ons,
         features: Array.isArray(rawPkg.features) ? rawPkg.features : [],
         scaffold_size_options: isOffer ? [] : scaffold_size_options,
         available: true,
@@ -1005,16 +1197,6 @@ exports.createBulk = async (req, res) => {
       if (!isOffer && payload.scaffold_size_options?.length > 0) {
         payload.default_scaffold_option_id =
           payload.scaffold_size_options[0]._id || payload.scaffold_size_options[0].id || "0";
-      }
-
-      const validationError = await validatePackageItems({
-        isOffer,
-        inclusions: payload.inclusions || [],
-        add_ons: payload.add_ons || [],
-        setup_equipment: payload.setup_equipment || [],
-      });
-      if (validationError) {
-        return res.status(400).json({ error: validationError });
       }
 
       const created = await Package.create(payload);
@@ -1030,14 +1212,25 @@ exports.createBulk = async (req, res) => {
       }).catch((err) => console.error("logAction error:", err));
     }
 
-    const io = req.app.get("io");
+    const io = req.app?.get ? req.app.get("io") : null;
     if (io) {
       io.emit("system:refresh", { type: "package", action: "bulk_create", count: createdList.length });
     }
 
+    const totalSkippedCount = allSkipped.reduce(
+      (acc, s) => acc + s.inclusions.length + s.add_ons.length,
+      0
+    );
+
     res.status(201).json({
       message: `Successfully created ${createdList.length} packages`,
       packages: createdList,
+      skippedItems: allSkipped,
+      totalSkippedCount,
+      warning:
+        totalSkippedCount > 0
+          ? "Some items were skipped because they are not currently available in Inventory/Addons."
+          : null,
     });
   } catch (error) {
     console.error("Bulk create packages error:", error);

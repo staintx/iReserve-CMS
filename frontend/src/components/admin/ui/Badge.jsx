@@ -1,5 +1,6 @@
-export default function Badge({ status, dot = false, className = "" }) {
-  const norm = String(status || "").toLowerCase().trim();
+export default function Badge({ status, variant, icon, children, dot = false, className = "" }) {
+  const resolvedStatus = status || (typeof children === "string" ? children : "") || (variant === "success" ? "available" : variant === "error" || variant === "destructive" ? "unavailable" : variant) || "";
+  const norm = String(resolvedStatus || "").toLowerCase().trim();
 
   // Specific custom inquiry status & priority tones
   if (norm === "pending review") {
@@ -116,7 +117,8 @@ export default function Badge({ status, dot = false, className = "" }) {
       className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold border ${toneClass} ${className} whitespace-nowrap`}
     >
       {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />}
-      <span className="capitalize">{status}</span>
+      {icon && <span className="shrink-0">{icon}</span>}
+      <span className="capitalize">{children || status || resolvedStatus}</span>
     </span>
   );
 }

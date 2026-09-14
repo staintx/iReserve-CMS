@@ -185,6 +185,156 @@ function ScaffoldFields({ value, onChange, compact = false }) {
   );
 }
 
+const isSetupCategory = (cat) => {
+  const c = String(cat || "").toLowerCase();
+  return (
+    c.includes("setup") ||
+    c.includes("furniture") ||
+    c.includes("equipment") ||
+    c.includes("decoration")
+  );
+};
+
+const isDiningCategory = (cat) => {
+  const c = String(cat || "").toLowerCase();
+  return c.includes("dining") || c.includes("service") || c.includes("tableware");
+};
+
+function AutocompleteInput({
+  value,
+  onChange,
+  placeholder,
+  candidates = [],
+  onSelect,
+  onSubmit,
+  sourceLabel = "Inventory",
+  className = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary",
+  disabled = false,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const containerRef = useRef(null);
+
+  const filteredCandidates = useMemo(() => {
+    const trimmed = String(value || "").trim().toLowerCase();
+    if (!trimmed) {
+      return candidates.slice(0, 10);
+    }
+    return candidates.filter((item) =>
+      item.toLowerCase().includes(trimmed)
+    );
+  }, [value, candidates]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelect = (item) => {
+    onChange(item);
+    if (onSelect) onSelect(item);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev < filteredCandidates.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === "ArrowUp") {
+      if (!isOpen) return;
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev > 0 ? prev - 1 : filteredCandidates.length - 1
+      );
+    } else if (e.key === "Enter") {
+      if (isOpen && highlightedIndex >= 0 && highlightedIndex < filteredCandidates.length) {
+        e.preventDefault();
+        handleSelect(filteredCandidates[highlightedIndex]);
+        return;
+      }
+      if (isOpen) {
+        setIsOpen(false);
+      }
+      if (onSubmit) {
+        e.preventDefault();
+        onSubmit();
+      }
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative flex-1 min-w-0">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+          setHighlightedIndex(-1);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={className}
+      />
+      {isOpen && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto py-1 text-sm">
+          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 flex items-center justify-between">
+            <span>Available from {sourceLabel}</span>
+            <span className="font-normal font-mono text-[9px]">{filteredCandidates.length} items</span>
+          </div>
+          {filteredCandidates.length === 0 ? (
+            <div className="px-3 py-2.5 text-center text-xs text-gray-400 italic">
+              No matching items found in {sourceLabel}.
+            </div>
+          ) : (
+            filteredCandidates.map((item, idx) => {
+              const isSelected = item.toLowerCase() === String(value || "").trim().toLowerCase();
+              const isHighlighted = highlightedIndex === idx;
+              return (
+                <div
+                  key={idx}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(item);
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
+                  className={`px-3 py-1.5 cursor-pointer flex items-center justify-between transition-colors text-xs ${
+                    isHighlighted
+                      ? "bg-primary/10 text-primary font-medium"
+                      : isSelected
+                      ? "bg-blue-50/70 text-blue-700 font-semibold"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <span>{item}</span>
+                  {isSelected && <Check size={12} className="text-primary shrink-0" />}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PackageModal({
   pkg,
   onClose,
@@ -195,6 +345,44 @@ export default function PackageModal({
   const [loading, setLoading] = useState(false);
   const [isParserOpen, setIsParserOpen] = useState(false);
   const [baseSnapshot, setBaseSnapshot] = useState(null);
+
+  // Dynamic items loaded from actual records
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [addonItems, setAddonItems] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.all([AdminAPI.getInventory(), AdminAPI.getAddons()])
+      .then(([invRes, addRes]) => {
+        if (!mounted) return;
+        setInventoryItems(invRes.data || []);
+        setAddonItems(addRes.data || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load inventory or addons:", err);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const setupInventoryItems = useMemo(() => {
+    return inventoryItems
+      .filter((item) => isSetupCategory(item.category) && item.item_name)
+      .map((item) => item.item_name.trim());
+  }, [inventoryItems]);
+
+  const diningInventoryItems = useMemo(() => {
+    return inventoryItems
+      .filter((item) => isDiningCategory(item.category) && item.item_name)
+      .map((item) => item.item_name.trim());
+  }, [inventoryItems]);
+
+  const addonNames = useMemo(() => {
+    return addonItems
+      .filter((item) => item.name)
+      .map((item) => item.name.trim());
+  }, [addonItems]);
 
   // ============ FORM STATE ============
   const [formData, setFormData] = useState({
@@ -237,8 +425,28 @@ export default function PackageModal({
     default_scaffold_option_id: "",
   });
 
-  // ============ LOCAL INPUT STATES ============
   const [activeClassTab, setActiveClassTab] = useState("setup"); // 'setup' | 'dining' | 'addons'
+
+  // Foldable/collapsible states for presets & active item lists
+  const [showPresets, setShowPresets] = useState({
+    setup: true,
+    dining: true,
+    addons: true,
+    combo: true,
+  });
+  const [showItemsList, setShowItemsList] = useState({
+    setup: true,
+    dining: true,
+    addons: true,
+  });
+
+  const togglePresets = (cat) => {
+    setShowPresets((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const toggleItemsList = (cat) => {
+    setShowItemsList((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
 
   const [setupInput, setSetupInput] = useState({ name: "", qty: "" });
   const [diningInput, setDiningInput] = useState({ name: "", qty: "" });
@@ -261,6 +469,37 @@ export default function PackageModal({
     name: "",
     qty: "",
   });
+
+  // Track currently selected inventory items to derive their live Total Quantity
+  const selectedSetupInvItem = useMemo(() => {
+    const clean = cleanTextValue(setupInput.name).toLowerCase();
+    if (!clean) return null;
+    return (
+      inventoryItems.find(
+        (item) => item.item_name && item.item_name.trim().toLowerCase() === clean
+      ) || null
+    );
+  }, [setupInput.name, inventoryItems]);
+
+  const selectedDiningInvItem = useMemo(() => {
+    const clean = cleanTextValue(diningInput.name).toLowerCase();
+    if (!clean) return null;
+    return (
+      inventoryItems.find(
+        (item) => item.item_name && item.item_name.trim().toLowerCase() === clean
+      ) || null
+    );
+  }, [diningInput.name, inventoryItems]);
+
+  const selectedEditInvItem = useMemo(() => {
+    const clean = cleanTextValue(editInclusionData.name).toLowerCase();
+    if (!clean) return null;
+    return (
+      inventoryItems.find(
+        (item) => item.item_name && item.item_name.trim().toLowerCase() === clean
+      ) || null
+    );
+  }, [editInclusionData.name, inventoryItems]);
 
   const [newScaffoldOption, setNewScaffoldOption] = useState({
     label: "",
@@ -504,17 +743,47 @@ export default function PackageModal({
     const rawName = customName || setupInput.name;
     const nameToAdd = cleanTextValue(rawName);
     if (!nameToAdd) return;
-    const qtyStr = setupInput.qty.trim() ? ` (${setupInput.qty.trim()})` : "";
-    const incStr = `[Event Setup & Furniture] ${nameToAdd}${qtyStr}`;
+
+    const matched = setupInventoryItems.find(
+      (item) => item.toLowerCase() === nameToAdd.toLowerCase()
+    );
+    if (!matched) {
+      notify(
+        `"${nameToAdd}" is not an existing item in Event Setup & Furniture inventory. Please select an existing item.`,
+        "error"
+      );
+      return;
+    }
+
+    const invItem = inventoryItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === matched.toLowerCase()
+    );
+    const maxQty = invItem?.quantity != null ? invItem.quantity : null;
+
+    const rawQty = setupInput.qty.trim();
+    if (rawQty) {
+      const qtyNum = parseInt(rawQty, 10);
+      if (isNaN(qtyNum) || qtyNum < 1) {
+        notify("Quantity must be a positive number.", "error");
+        return;
+      }
+      if (maxQty != null && qtyNum > maxQty) {
+        notify(`Maximum available quantity is ${maxQty}.`, "error");
+        return;
+      }
+    }
+
+    const qtyStr = rawQty ? ` (${rawQty})` : "";
+    const incStr = `[Event Setup & Furniture] ${matched}${qtyStr}`;
 
     setFormData((prev) => {
       const existing = prev.inclusions || [];
       const alreadyExists = existing.some((inc) => {
         const p = parseInclusion(inc);
-        return p.name.toLowerCase() === nameToAdd.toLowerCase();
+        return p.name.toLowerCase() === matched.toLowerCase();
       });
       if (alreadyExists) {
-        notify(`"${nameToAdd}" is already in the inclusions list.`, "info");
+        notify(`"${matched}" is already in the inclusions list.`, "info");
         return prev;
       }
       return {
@@ -524,23 +793,54 @@ export default function PackageModal({
     });
 
     setSetupInput({ name: "", qty: "" });
+    setShowItemsList((prev) => ({ ...prev, setup: true }));
   };
 
   const handleAddDiningInclusion = (customName) => {
     const rawName = customName || diningInput.name;
     const nameToAdd = cleanTextValue(rawName);
     if (!nameToAdd) return;
-    const qtyStr = diningInput.qty.trim() ? ` (${diningInput.qty.trim()})` : "";
-    const incStr = `[Dining & Service Inventory] ${nameToAdd}${qtyStr}`;
+
+    const matched = diningInventoryItems.find(
+      (item) => item.toLowerCase() === nameToAdd.toLowerCase()
+    );
+    if (!matched) {
+      notify(
+        `"${nameToAdd}" is not an existing item in Dining & Service inventory. Please select an existing item.`,
+        "error"
+      );
+      return;
+    }
+
+    const invItem = inventoryItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === matched.toLowerCase()
+    );
+    const maxQty = invItem?.quantity != null ? invItem.quantity : null;
+
+    const rawQty = diningInput.qty.trim();
+    if (rawQty) {
+      const qtyNum = parseInt(rawQty, 10);
+      if (isNaN(qtyNum) || qtyNum < 1) {
+        notify("Quantity must be a positive number.", "error");
+        return;
+      }
+      if (maxQty != null && qtyNum > maxQty) {
+        notify(`Maximum available quantity is ${maxQty}.`, "error");
+        return;
+      }
+    }
+
+    const qtyStr = rawQty ? ` (${rawQty})` : "";
+    const incStr = `[Dining & Service Inventory] ${matched}${qtyStr}`;
 
     setFormData((prev) => {
       const existing = prev.inclusions || [];
       const alreadyExists = existing.some((inc) => {
         const p = parseInclusion(inc);
-        return p.name.toLowerCase() === nameToAdd.toLowerCase();
+        return p.name.toLowerCase() === matched.toLowerCase();
       });
       if (alreadyExists) {
-        notify(`"${nameToAdd}" is already in the inclusions list.`, "info");
+        notify(`"${matched}" is already in the inclusions list.`, "info");
         return prev;
       }
       return {
@@ -550,6 +850,7 @@ export default function PackageModal({
     });
 
     setDiningInput({ name: "", qty: "" });
+    setShowItemsList((prev) => ({ ...prev, dining: true }));
   };
 
   const handleRemoveInclusionString = (targetStr) => {
@@ -571,10 +872,41 @@ export default function PackageModal({
   const handleSaveEditInclusion = (category, originalStr) => {
     const cleanName = cleanTextValue(editInclusionData.name);
     if (!cleanName) return;
-    const qtyStr = editInclusionData.qty.trim()
-      ? ` (${editInclusionData.qty.trim()})`
-      : "";
-    const newIncStr = `[${category}] ${cleanName}${qtyStr}`;
+
+    const listToCheck = isSetupCategory(category)
+      ? setupInventoryItems
+      : diningInventoryItems;
+    const matched = listToCheck.find(
+      (item) => item.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (!matched) {
+      notify(
+        `"${cleanName}" is not an existing item in ${category} inventory. Please select an existing item.`,
+        "error"
+      );
+      return;
+    }
+
+    const invItem = inventoryItems.find(
+      (item) => item.item_name && item.item_name.trim().toLowerCase() === matched.toLowerCase()
+    );
+    const maxQty = invItem?.quantity != null ? invItem.quantity : null;
+
+    const rawQty = editInclusionData.qty.trim();
+    if (rawQty) {
+      const qtyNum = parseInt(rawQty, 10);
+      if (isNaN(qtyNum) || qtyNum < 1) {
+        notify("Quantity must be a positive number.", "error");
+        return;
+      }
+      if (maxQty != null && qtyNum > maxQty) {
+        notify(`Maximum available quantity is ${maxQty}.`, "error");
+        return;
+      }
+    }
+
+    const qtyStr = rawQty ? ` (${rawQty})` : "";
+    const newIncStr = `[${category}] ${matched}${qtyStr}`;
 
     setFormData((prev) => ({
       ...prev,
@@ -598,13 +930,24 @@ export default function PackageModal({
     const nameToAdd = cleanTextValue(rawName);
     if (!nameToAdd) return;
 
+    const matched = addonNames.find(
+      (item) => item.toLowerCase() === nameToAdd.toLowerCase()
+    );
+    if (!matched) {
+      notify(
+        `"${nameToAdd}" is not an existing Add-on. Please select an existing add-on.`,
+        "error"
+      );
+      return;
+    }
+
     setFormData((prev) => {
       const existing = prev.add_ons || [];
       const alreadyExists = existing.some(
-        (addon) => cleanTextValue(addon.name).toLowerCase() === nameToAdd.toLowerCase()
+        (addon) => cleanTextValue(addon.name).toLowerCase() === matched.toLowerCase()
       );
       if (alreadyExists) {
-        notify(`"${nameToAdd}" is already in the add-ons list.`, "info");
+        notify(`"${matched}" is already in the add-ons list.`, "info");
         return prev;
       }
       return {
@@ -612,7 +955,7 @@ export default function PackageModal({
         add_ons: [
           ...existing,
           {
-            name: nameToAdd,
+            name: matched,
             qty: addOnInput.qty.trim() || "",
           },
         ],
@@ -623,6 +966,7 @@ export default function PackageModal({
       name: "",
       qty: "",
     });
+    setShowItemsList((prev) => ({ ...prev, addons: true }));
   };
 
   const handleRemoveAddOn = (index) => {
@@ -643,10 +987,22 @@ export default function PackageModal({
   const handleSaveEditAddOn = (idx) => {
     const cleanName = cleanTextValue(editAddOnData.name);
     if (!cleanName) return;
+
+    const matched = addonNames.find(
+      (item) => item.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (!matched) {
+      notify(
+        `"${cleanName}" is not an existing Add-on. Please select an existing add-on.`,
+        "error"
+      );
+      return;
+    }
+
     setFormData((prev) => {
       const nextAddOns = [...prev.add_ons];
       nextAddOns[idx] = {
-        name: cleanName,
+        name: matched,
         qty: editAddOnData.qty.trim() || "",
       };
       return { ...prev, add_ons: nextAddOns };
@@ -659,27 +1015,6 @@ export default function PackageModal({
     setEditingAddOnIdx(null);
     setEditAddOnData({ name: "", qty: "" });
   };
-
-  // Preset lists based directly on client catalog PDF
-  const SETUP_PRESETS = [
-    "Stage Setup", "Buffet Setup", "Balloon and Name Backdrop", "Couch",
-    "Grass Carpet", "Cake Table", "Giveaway Rack", "Set Cover / Ribbons",
-    "Round Tables", "Monoblock Chairs", "Tiffany Chairs", "Industrial Fan",
-    "Water Station", "Red Carpet", "Centerpiece", "Dove", "Chandelier",
-    "Separate Dining Setup for VIP", "Entourage Setup",
-  ];
-
-  const DINING_PRESETS = [
-    "Food Warmer", "Serving Spoons", "Plates", "Cutlery Sets", "Glasses",
-    "Highball Glass and Goblets", "Tissues", "Planggana", "Dishwashing Liquid",
-    "Styrofoam Containers", "Ice Cooler", "Ice Cubes", "Mineral Water Gallon",
-    "Water Jug", "Staff / Crew", "Tulyasi", "Tungko",
-  ];
-
-  const ADDON_PRESETS = [
-    "Standee", "Entourage Setup", "Candy Corner", "Host", "Clown",
-    "Cake", "Videoke", "Basic Lights & Sounds", "Pica-Pica Station", "Cake & Wine",
-  ];
 
   const SCAFFOLD_PRESETS = [
     { label: "20x20 Setup", width_ft: 20, length_ft: 20, guest_min: 50, guest_max: 80 },
@@ -927,20 +1262,31 @@ export default function PackageModal({
     });
   };
 
-  // Combo inclusions: plain lines, no inventory class. Duplicates are refused
-  // rather than silently added, because two "Serving utensils" rows read as a
-  // mistake on the customer's card.
-  const handleAddComboInclusion = () => {
-    const value = cleanTextValue(comboInclusionInput);
+  // Combo inclusions: based on actual Addons data
+  const handleAddComboInclusion = (overrideValue) => {
+    const rawValue = typeof overrideValue === "string" ? overrideValue : comboInclusionInput;
+    const value = cleanTextValue(rawValue);
     if (!value) return;
+
+    const matchedAddon = addonNames.find(
+      (a) => a.toLowerCase() === value.toLowerCase()
+    );
+    if (!matchedAddon) {
+      notify(
+        `"${value}" is not an existing Add-on. Please select an existing item from Addons.`,
+        "error"
+      );
+      return;
+    }
+
     const existing = formData.inclusions || [];
-    if (existing.some((entry) => cleanTextValue(entry).toLowerCase() === value.toLowerCase())) {
-      notify(`"${value}" is already included.`, "error");
+    if (existing.some((entry) => cleanTextValue(entry).toLowerCase() === matchedAddon.toLowerCase())) {
+      notify(`"${matchedAddon}" is already included.`, "info");
       return;
     }
     setFormData((prev) => ({
       ...prev,
-      inclusions: [...(prev.inclusions || []), value],
+      inclusions: [...(prev.inclusions || []), matchedAddon],
     }));
     setComboInclusionInput("");
   };
@@ -951,9 +1297,21 @@ export default function PackageModal({
       notify("An inclusion needs a name.", "error");
       return;
     }
+
+    const matchedAddon = addonNames.find(
+      (a) => a.toLowerCase() === value.toLowerCase()
+    );
+    if (!matchedAddon) {
+      notify(
+        `"${value}" is not an existing Add-on. Please select an existing item from Addons.`,
+        "error"
+      );
+      return;
+    }
+
     setFormData((prev) => {
       const items = [...(prev.inclusions || [])];
-      items[index] = value;
+      items[index] = matchedAddon;
       return { ...prev, inclusions: items };
     });
     setEditingComboInclusionIdx(null);
@@ -1039,6 +1397,30 @@ export default function PackageModal({
           "error",
         );
         return;
+      }
+    }
+
+    // Validate all inclusion quantities against live inventory before submitting
+    if (!isOffer) {
+      for (const inc of formData.inclusions || []) {
+        const p = parseInclusion(inc);
+        if (!p.name) continue;
+        const invItem = inventoryItems.find(
+          (item) => item.item_name && item.item_name.trim().toLowerCase() === p.name.trim().toLowerCase()
+        );
+        if (invItem && invItem.quantity != null && p.qty) {
+          const digits = String(p.qty).match(/\d+/g);
+          if (digits && digits.length > 0) {
+            const qtyNum = Math.max(...digits.map((n) => parseInt(n, 10)));
+            if (qtyNum > invItem.quantity) {
+              notify(
+                `Quantity for "${invItem.item_name}" (${qtyNum}) exceeds total inventory. Maximum available quantity is ${invItem.quantity}.`,
+                "error"
+              );
+              return;
+            }
+          }
+        }
       }
     }
 
@@ -2125,29 +2507,71 @@ export default function PackageModal({
               </div>
 
               <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                    placeholder="e.g. Buffet setup"
+                <div className="flex gap-2 items-center">
+                  <AutocompleteInput
+                    placeholder="Search addon for combo inclusion (e.g. Dessert station)"
                     value={comboInclusionInput}
-                    onChange={(e) => setComboInclusionInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      // Enter adds the line rather than submitting the form —
-                      // typing six inclusions should not need six trips to the
-                      // mouse.
-                      if (e.key !== "Enter") return;
-                      e.preventDefault();
-                      handleAddComboInclusion();
-                    }}
+                    onChange={setComboInclusionInput}
+                    candidates={addonNames}
+                    sourceLabel="Addons"
+                    onSubmit={() => handleAddComboInclusion()}
                   />
                   <Btn
                     variant="secondary"
                     size="sm"
-                    onClick={handleAddComboInclusion}
+                    className="shrink-0"
+                    onClick={() => handleAddComboInclusion()}
+                    disabled={!comboInclusionInput.trim()}
                   >
                     <Plus size={12} /> Add
                   </Btn>
+                </div>
+
+                {/* Quick Presets Chips for Combo from Addons */}
+                <div className="mb-1">
+                  <button
+                    type="button"
+                    onClick={() => togglePresets("combo")}
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                  >
+                    <span>Quick Add Presets from Addons</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                      {addonNames.length}
+                    </span>
+                    {showPresets.combo ? (
+                      <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                    ) : (
+                      <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                    )}
+                  </button>
+                  {showPresets.combo && (
+                    addonNames.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic py-1">No addons found in database.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                        {addonNames.map((addon, idx) => {
+                          const isAdded = (formData.inclusions || []).some(
+                            (inc) => cleanTextValue(inc).toLowerCase() === addon.toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleAddComboInclusion(addon)}
+                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                isAdded
+                                  ? "bg-amber-50 border-amber-200 text-amber-800 font-medium"
+                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                              }`}
+                            >
+                              {isAdded ? <Check size={10} className="text-amber-600" /> : <Plus size={10} />}
+                              {addon}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )
+                  )}
                 </div>
 
                 {(formData.inclusions || []).length === 0 ? (
@@ -2165,31 +2589,25 @@ export default function PackageModal({
                             key={index}
                             className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-2.5 py-2"
                           >
-                            <input
-                              type="text"
-                              autoFocus
-                              className="flex-1 rounded border border-blue-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                            <AutocompleteInput
                               value={editComboInclusionValue}
-                              onChange={(e) =>
-                                setEditComboInclusionValue(e.target.value)
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key !== "Enter") return;
-                                e.preventDefault();
-                                handleSaveComboInclusion(index);
-                              }}
+                              onChange={setEditComboInclusionValue}
+                              candidates={addonNames}
+                              sourceLabel="Addons"
+                              onSubmit={() => handleSaveComboInclusion(index)}
+                              className="flex-1 rounded border border-blue-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                             />
                             <button
                               type="button"
                               onClick={() => handleSaveComboInclusion(index)}
-                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-primary/90"
+                              className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-primary/90 shrink-0"
                             >
                               <Check size={12} /> Save
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingComboInclusionIdx(null)}
-                              className="rounded px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100"
+                              className="rounded px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 shrink-0"
                             >
                               Cancel
                             </button>
@@ -2326,25 +2744,36 @@ export default function PackageModal({
 
                     {/* Add Setup Item Form */}
                     <div className="flex gap-2 mb-3 items-center w-full">
-                      <input
-                        type="text"
-                        placeholder="Item name (e.g. Stage Setup, Round Tables, Couch)"
-                        className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      <AutocompleteInput
+                        placeholder="Search item name (e.g. Stage Setup, Round Tables, Couch)"
                         value={setupInput.name}
-                        onChange={(e) =>
-                          setSetupInput({ ...setupInput, name: e.target.value })
+                        onChange={(val) =>
+                          setSetupInput((prev) => ({ ...prev, name: val }))
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddSetupInclusion();
-                          }
-                        }}
+                        candidates={setupInventoryItems}
+                        sourceLabel="Event Setup Inventory"
+                        onSubmit={() => handleAddSetupInclusion()}
                       />
                       <input
-                        type="text"
-                        placeholder="Qty (e.g. 6, 60)"
-                        className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                        type="number"
+                        min="1"
+                        max={selectedSetupInvItem?.quantity != null ? selectedSetupInvItem.quantity : undefined}
+                        placeholder={
+                          selectedSetupInvItem?.quantity != null
+                            ? `1–${selectedSetupInvItem.quantity}`
+                            : "Qty (e.g. 6)"
+                        }
+                        title={
+                          selectedSetupInvItem?.quantity != null
+                            ? `Maximum available in inventory: ${selectedSetupInvItem.quantity}`
+                            : "Quantity"
+                        }
+                        className={`w-28 shrink-0 border rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none transition-colors ${
+                          selectedSetupInvItem?.quantity != null &&
+                          Number(setupInput.qty) > selectedSetupInvItem.quantity
+                            ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
+                            : "border-gray-200 focus:border-primary"
+                        }`}
                         value={setupInput.qty}
                         onChange={(e) =>
                           setSetupInput({ ...setupInput, qty: e.target.value })
@@ -2361,45 +2790,111 @@ export default function PackageModal({
                         size="sm"
                         className="shrink-0"
                         onClick={() => handleAddSetupInclusion()}
-                        disabled={!setupInput.name.trim()}
+                        disabled={
+                          !setupInput.name.trim() ||
+                          (selectedSetupInvItem?.quantity != null &&
+                            Number(setupInput.qty) > selectedSetupInvItem.quantity)
+                        }
                       >
                         <Plus size={14} className="mr-1" /> Add
                       </Btn>
                     </div>
 
+                    {selectedSetupInvItem && (
+                      <div className="text-[11px] text-gray-500 mb-2.5 flex items-center justify-between">
+                        <span>
+                          Inventory Total: <strong className="text-gray-800 font-semibold">{selectedSetupInvItem.quantity}</strong> available
+                        </span>
+                        {Number(setupInput.qty) > selectedSetupInvItem.quantity && (
+                          <span className="text-red-500 font-semibold">
+                            Maximum available quantity is {selectedSetupInvItem.quantity}.
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Quick Presets Chips */}
                     <div className="mb-1">
-                      <p className="text-[11px] text-gray-400 font-medium mb-1.5">
-                        Quick Add Presets from Catalog:
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {SETUP_PRESETS.map((preset, idx) => {
-                          const isAdded = setupInclusions.some(
-                            (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
-                          );
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handleAddSetupInclusion(preset)}
-                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
-                                isAdded
-                                  ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
-                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                              }`}
-                            >
-                              {isAdded ? <Check size={10} className="text-blue-600" /> : <Plus size={10} />}
-                              {preset}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => togglePresets("setup")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                      >
+                        <span>Quick Add Presets from Inventory</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                          {setupInventoryItems.length}
+                        </span>
+                        {showPresets.setup ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {showPresets.setup && (
+                        setupInventoryItems.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic py-1">
+                            No items found in Event Setup & Furniture inventory.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {setupInventoryItems.map((preset, idx) => {
+                              const isAdded = setupInclusions.some(
+                                (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                              );
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleAddSetupInclusion(preset)}
+                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                    isAdded
+                                      ? "bg-blue-50 border-blue-200 text-blue-700 font-medium"
+                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                  }`}
+                                >
+                                  {isAdded ? <Check size={10} className="text-blue-600" /> : <Plus size={10} />}
+                                  {preset}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
                     </div>
                   </div>
 
                   {/* Active List */}
-                  {setupInclusions.length > 0 ? (
-                    <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                  <div className="pt-2 border-t border-gray-200/80">
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleItemsList("setup")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                      >
+                        <span>Added Items</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
+                          {setupInclusions.length}
+                        </span>
+                        {showItemsList.setup ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {setupInclusions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleItemsList("setup")}
+                          className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                        >
+                          {showItemsList.setup ? "Minimize" : "Maximize"}
+                        </button>
+                      )}
+                    </div>
+
+                    {showItemsList.setup && (
+                      setupInclusions.length > 0 ? (
+                        <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                       {setupInclusions.map((inc, i) => {
                         const parsed = parseInclusion(inc);
                         const isEditing = editingInclusionStr === inc;
@@ -2410,33 +2905,44 @@ export default function PackageModal({
                               key={i}
                               className="flex items-center gap-2 text-sm bg-blue-50/70 p-2 rounded-lg border border-blue-200 shadow-2xs"
                             >
-                              <input
-                                type="text"
-                                className="flex-1 min-w-0 border border-blue-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                              <AutocompleteInput
                                 value={editInclusionData.name}
-                                onChange={(e) =>
-                                  setEditInclusionData({
-                                    ...editInclusionData,
-                                    name: e.target.value,
-                                  })
+                                onChange={(val) =>
+                                  setEditInclusionData((prev) => ({
+                                    ...prev,
+                                    name: val,
+                                  }))
                                 }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSaveEditInclusion(
-                                      "Event Setup & Furniture",
-                                      inc,
-                                    );
-                                  } else if (e.key === "Escape") {
-                                    handleCancelEditInclusion();
-                                  }
-                                }}
-                                autoFocus
+                                candidates={setupInventoryItems}
+                                sourceLabel="Event Setup Inventory"
+                                onSubmit={() =>
+                                  handleSaveEditInclusion(
+                                    "Event Setup & Furniture",
+                                    inc,
+                                  )
+                                }
+                                className="flex-1 min-w-0 border border-blue-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <input
-                                type="text"
-                                placeholder="Qty"
-                                className="w-20 shrink-0 border border-blue-300 rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                type="number"
+                                min="1"
+                                max={selectedEditInvItem?.quantity != null ? selectedEditInvItem.quantity : undefined}
+                                placeholder={
+                                  selectedEditInvItem?.quantity != null
+                                    ? `Max ${selectedEditInvItem.quantity}`
+                                    : "Qty"
+                                }
+                                title={
+                                  selectedEditInvItem?.quantity != null
+                                    ? `Maximum available in inventory: ${selectedEditInvItem.quantity}`
+                                    : "Quantity"
+                                }
+                                className={`w-24 shrink-0 border rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 transition-colors ${
+                                  selectedEditInvItem?.quantity != null &&
+                                  Number(editInclusionData.qty) > selectedEditInvItem.quantity
+                                    ? "border-red-400 focus:ring-red-500 bg-red-50/40 text-red-700"
+                                    : "border-blue-300 focus:ring-primary"
+                                }`}
                                 value={editInclusionData.qty}
                                 onChange={(e) =>
                                   setEditInclusionData({
@@ -2519,11 +3025,13 @@ export default function PackageModal({
                         );
                       })}
                     </ul>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                      No event setup & furniture items added yet
-                    </p>
-                  )}
+                      ) : (
+                        <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                          No event setup & furniture items added yet
+                        </p>
+                      )
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -2543,25 +3051,36 @@ export default function PackageModal({
 
                     {/* Add Dining Item Form */}
                     <div className="flex gap-2 mb-3 items-center w-full">
-                      <input
-                        type="text"
-                        placeholder="Item name (e.g. Food Warmer, Plates, Staff / Crew)"
-                        className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      <AutocompleteInput
+                        placeholder="Search item name (e.g. Food Warmer, Plates, Staff / Crew)"
                         value={diningInput.name}
-                        onChange={(e) =>
-                          setDiningInput({ ...diningInput, name: e.target.value })
+                        onChange={(val) =>
+                          setDiningInput((prev) => ({ ...prev, name: val }))
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddDiningInclusion();
-                          }
-                        }}
+                        candidates={diningInventoryItems}
+                        sourceLabel="Dining & Service Inventory"
+                        onSubmit={() => handleAddDiningInclusion()}
                       />
                       <input
-                        type="text"
-                        placeholder="Qty (e.g. 7, 150, 4-8)"
-                        className="w-24 shrink-0 border border-gray-200 rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                        type="number"
+                        min="1"
+                        max={selectedDiningInvItem?.quantity != null ? selectedDiningInvItem.quantity : undefined}
+                        placeholder={
+                          selectedDiningInvItem?.quantity != null
+                            ? `1–${selectedDiningInvItem.quantity}`
+                            : "Qty (e.g. 7, 150)"
+                        }
+                        title={
+                          selectedDiningInvItem?.quantity != null
+                            ? `Maximum available in inventory: ${selectedDiningInvItem.quantity}`
+                            : "Quantity"
+                        }
+                        className={`w-28 shrink-0 border rounded-lg px-2.5 py-2 text-sm bg-white focus:outline-none transition-colors ${
+                          selectedDiningInvItem?.quantity != null &&
+                          Number(diningInput.qty) > selectedDiningInvItem.quantity
+                            ? "border-red-400 focus:border-red-500 bg-red-50/40 text-red-700"
+                            : "border-gray-200 focus:border-primary"
+                        }`}
                         value={diningInput.qty}
                         onChange={(e) =>
                           setDiningInput({ ...diningInput, qty: e.target.value })
@@ -2578,45 +3097,111 @@ export default function PackageModal({
                         size="sm"
                         className="shrink-0"
                         onClick={() => handleAddDiningInclusion()}
-                        disabled={!diningInput.name.trim()}
+                        disabled={
+                          !diningInput.name.trim() ||
+                          (selectedDiningInvItem?.quantity != null &&
+                            Number(diningInput.qty) > selectedDiningInvItem.quantity)
+                        }
                       >
                         <Plus size={14} className="mr-1" /> Add
                       </Btn>
                     </div>
 
+                    {selectedDiningInvItem && (
+                      <div className="text-[11px] text-gray-500 mb-2.5 flex items-center justify-between">
+                        <span>
+                          Inventory Total: <strong className="text-gray-800 font-semibold">{selectedDiningInvItem.quantity}</strong> available
+                        </span>
+                        {Number(diningInput.qty) > selectedDiningInvItem.quantity && (
+                          <span className="text-red-500 font-semibold">
+                            Maximum available quantity is {selectedDiningInvItem.quantity}.
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {/* Quick Presets Chips */}
                     <div className="mb-1">
-                      <p className="text-[11px] text-gray-400 font-medium mb-1.5">
-                        Quick Add Presets from Catalog:
-                      </p>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {DINING_PRESETS.map((preset, idx) => {
-                          const isAdded = diningInclusions.some(
-                            (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
-                          );
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handleAddDiningInclusion(preset)}
-                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
-                                isAdded
-                                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
-                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                              }`}
-                            >
-                              {isAdded ? <Check size={10} className="text-emerald-600" /> : <Plus size={10} />}
-                              {preset}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => togglePresets("dining")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                      >
+                        <span>Quick Add Presets from Inventory</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                          {diningInventoryItems.length}
+                        </span>
+                        {showPresets.dining ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {showPresets.dining && (
+                        diningInventoryItems.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic py-1">
+                            No items found in Dining & Service inventory.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {diningInventoryItems.map((preset, idx) => {
+                              const isAdded = diningInclusions.some(
+                                (inc) => parseInclusion(inc).name.toLowerCase() === preset.toLowerCase()
+                              );
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleAddDiningInclusion(preset)}
+                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                    isAdded
+                                      ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
+                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                  }`}
+                                >
+                                  {isAdded ? <Check size={10} className="text-emerald-600" /> : <Plus size={10} />}
+                                  {preset}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
                     </div>
                   </div>
 
                   {/* Active List */}
-                  {diningInclusions.length > 0 ? (
-                    <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                  <div className="pt-2 border-t border-gray-200/80">
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleItemsList("dining")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                      >
+                        <span>Added Items</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                          {diningInclusions.length}
+                        </span>
+                        {showItemsList.dining ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {diningInclusions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleItemsList("dining")}
+                          className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                        >
+                          {showItemsList.dining ? "Minimize" : "Maximize"}
+                        </button>
+                      )}
+                    </div>
+
+                    {showItemsList.dining && (
+                      diningInclusions.length > 0 ? (
+                        <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                       {diningInclusions.map((inc, i) => {
                         const parsed = parseInclusion(inc);
                         const isEditing = editingInclusionStr === inc;
@@ -2627,33 +3212,44 @@ export default function PackageModal({
                               key={i}
                               className="flex items-center gap-2 text-sm bg-emerald-50/70 p-2 rounded-lg border border-emerald-200 shadow-2xs"
                             >
-                              <input
-                                type="text"
-                                className="flex-1 min-w-0 border border-emerald-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                              <AutocompleteInput
                                 value={editInclusionData.name}
-                                onChange={(e) =>
-                                  setEditInclusionData({
-                                    ...editInclusionData,
-                                    name: e.target.value,
-                                  })
+                                onChange={(val) =>
+                                  setEditInclusionData((prev) => ({
+                                    ...prev,
+                                    name: val,
+                                  }))
                                 }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSaveEditInclusion(
-                                      "Dining & Service Inventory",
-                                      inc,
-                                    );
-                                  } else if (e.key === "Escape") {
-                                    handleCancelEditInclusion();
-                                  }
-                                }}
-                                autoFocus
+                                candidates={diningInventoryItems}
+                                sourceLabel="Dining & Service Inventory"
+                                onSubmit={() =>
+                                  handleSaveEditInclusion(
+                                    "Dining & Service Inventory",
+                                    inc,
+                                  )
+                                }
+                                className="flex-1 min-w-0 border border-emerald-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <input
-                                type="text"
-                                placeholder="Qty"
-                                className="w-20 shrink-0 border border-emerald-300 rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                                type="number"
+                                min="1"
+                                max={selectedEditInvItem?.quantity != null ? selectedEditInvItem.quantity : undefined}
+                                placeholder={
+                                  selectedEditInvItem?.quantity != null
+                                    ? `Max ${selectedEditInvItem.quantity}`
+                                    : "Qty"
+                                }
+                                title={
+                                  selectedEditInvItem?.quantity != null
+                                    ? `Maximum available in inventory: ${selectedEditInvItem.quantity}`
+                                    : "Quantity"
+                                }
+                                className={`w-24 shrink-0 border rounded-md px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 transition-colors ${
+                                  selectedEditInvItem?.quantity != null &&
+                                  Number(editInclusionData.qty) > selectedEditInvItem.quantity
+                                    ? "border-red-400 focus:ring-red-500 bg-red-50/40 text-red-700"
+                                    : "border-emerald-300 focus:ring-primary"
+                                }`}
                                 value={editInclusionData.qty}
                                 onChange={(e) =>
                                   setEditInclusionData({
@@ -2736,11 +3332,13 @@ export default function PackageModal({
                         );
                       })}
                     </ul>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                      No dining & service inventory items added yet
-                    </p>
-                  )}
+                      ) : (
+                        <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                          No dining & service inventory items added yet
+                        </p>
+                      )
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -2760,20 +3358,15 @@ export default function PackageModal({
 
                     {/* Add Add-on Form */}
                     <div className="flex gap-2 mb-3 items-center w-full">
-                      <input
-                        type="text"
-                        placeholder="Item name (e.g. Videoke, Host, Clown)"
-                        className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-primary"
+                      <AutocompleteInput
+                        placeholder="Search addon (e.g. Dessert station, Fruit platter)"
                         value={addOnInput.name}
-                        onChange={(e) =>
-                          setAddOnInput({ ...addOnInput, name: e.target.value })
+                        onChange={(val) =>
+                          setAddOnInput((prev) => ({ ...prev, name: val }))
                         }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddAddOn();
-                          }
-                        }}
+                        candidates={addonNames}
+                        sourceLabel="Addons"
+                        onSubmit={() => handleAddAddOn()}
                       />
 
                       <input
@@ -2805,37 +3398,86 @@ export default function PackageModal({
 
                     {/* Quick Presets Chips */}
                     <div className="mb-1">
-                      <p className="text-[11px] text-gray-400 font-medium mb-1.5">
-                        Quick Add Presets from Catalog:
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {ADDON_PRESETS.map((preset, idx) => {
-                          const isAdded = (formData.add_ons || []).some(
-                            (addon) => cleanTextValue(addon.name).toLowerCase() === preset.toLowerCase()
-                          );
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handleAddAddOn(preset)}
-                              className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
-                                isAdded
-                                  ? "bg-purple-50 border-purple-200 text-purple-700 font-medium"
-                                  : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
-                              }`}
-                            >
-                              {isAdded ? <Check size={10} className="text-purple-600" /> : <Plus size={10} />}
-                              {preset}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => togglePresets("addons")}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-800 transition-colors mb-2 select-none group"
+                      >
+                        <span>Quick Add Presets from Addons</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 font-normal group-hover:bg-gray-200">
+                          {addonNames.length}
+                        </span>
+                        {showPresets.addons ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {showPresets.addons && (
+                        addonNames.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic py-1">
+                            No addons found in database.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {addonNames.map((preset, idx) => {
+                              const isAdded = (formData.add_ons || []).some(
+                                (addon) => cleanTextValue(addon.name).toLowerCase() === preset.toLowerCase()
+                              );
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleAddAddOn(preset)}
+                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all shadow-2xs flex items-center gap-1 ${
+                                    isAdded
+                                      ? "bg-purple-50 border-purple-200 text-purple-700 font-medium"
+                                      : "bg-white border-gray-200 text-gray-600 hover:text-primary hover:border-primary hover:bg-primary/5"
+                                  }`}
+                                >
+                                  {isAdded ? <Check size={10} className="text-purple-600" /> : <Plus size={10} />}
+                                  {preset}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )
+                      )}
                     </div>
                   </div>
 
                   {/* Active List */}
-                  {(formData.add_ons || []).length > 0 ? (
-                    <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                  <div className="pt-2 border-t border-gray-200/80">
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleItemsList("addons")}
+                        className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors select-none group"
+                      >
+                        <span>Added Items</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold">
+                          {(formData.add_ons || []).length}
+                        </span>
+                        {showItemsList.addons ? (
+                          <ChevronUp size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        ) : (
+                          <ChevronDown size={13} className="text-gray-400 group-hover:text-gray-600" />
+                        )}
+                      </button>
+                      {(formData.add_ons || []).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleItemsList("addons")}
+                          className="text-[11px] text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                        >
+                          {showItemsList.addons ? "Minimize" : "Maximize"}
+                        </button>
+                      )}
+                    </div>
+
+                    {showItemsList.addons && (
+                      (formData.add_ons || []).length > 0 ? (
+                        <ul className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                       {formData.add_ons.map((add, i) => {
                         const isEditing = editingAddOnIdx === i;
 
@@ -2845,25 +3487,18 @@ export default function PackageModal({
                               key={i}
                               className="flex items-center gap-2 text-sm bg-purple-50/70 p-2 rounded-lg border border-purple-200 shadow-2xs"
                             >
-                              <input
-                                type="text"
-                                className="flex-1 min-w-0 border border-purple-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                              <AutocompleteInput
                                 value={editAddOnData.name}
-                                onChange={(e) =>
-                                  setEditAddOnData({
-                                    ...editAddOnData,
-                                    name: e.target.value,
-                                  })
+                                onChange={(val) =>
+                                  setEditAddOnData((prev) => ({
+                                    ...prev,
+                                    name: val,
+                                  }))
                                 }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleSaveEditAddOn(i);
-                                  } else if (e.key === "Escape") {
-                                    handleCancelEditAddOn();
-                                  }
-                                }}
-                                autoFocus
+                                candidates={addonNames}
+                                sourceLabel="Addons"
+                                onSubmit={() => handleSaveEditAddOn(i)}
+                                className="flex-1 min-w-0 border border-purple-300 rounded-md px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                               />
                               <input
                                 type="text"
@@ -2943,11 +3578,13 @@ export default function PackageModal({
                         );
                       })}
                     </ul>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
-                      No add-ons configured yet
-                    </p>
-                  )}
+                      ) : (
+                        <p className="text-sm text-gray-400 italic text-center py-4 bg-white/50 rounded-lg border border-dashed border-gray-200">
+                          No add-ons configured yet
+                        </p>
+                      )
+                    )}
+                  </div>
                 </div>
               )}
             </div>

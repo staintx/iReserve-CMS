@@ -3,7 +3,15 @@ const Booking = require("../models/Booking");
 const InventoryLog = require("../models/InventoryLog");
 const writeInventoryLog = require("../utils/writeInventoryLog");
 
+const ALLOWED_CATEGORIES = ["Event Setup & Furniture", "Dining & Service Inventory"];
+
 exports.create = async (req, res) => {
+  if (req.body.category && !ALLOWED_CATEGORIES.includes(req.body.category)) {
+    return res.status(400).json({
+      message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
+    });
+  }
+
   const item = await Inventory.create(req.body);
   writeInventoryLog({
     inventory_id: item._id,
@@ -20,6 +28,11 @@ exports.getById = async (req, res) => res.json(await Inventory.findById(req.para
 
 exports.update = async (req, res) => {
   const { reason, ...updates } = req.body;
+  if (updates.category && !ALLOWED_CATEGORIES.includes(updates.category)) {
+    return res.status(400).json({
+      message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
+    });
+  }
   const before = await Inventory.findById(req.params.id);
   const item = await Inventory.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
 
@@ -74,15 +87,21 @@ exports.getAvailability = async (req, res) => {
     const { date, excludeBookingId } = req.query;
     const allInventory = await Inventory.find().sort({ category: 1, item_name: 1 });
 
-    const targetDate = date ? new Date(date) : new Date();
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ message: "Invalid date format" });
+    let startOfDay, endOfDay;
+    if (date && typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [y, m, d] = date.split("-").map(Number);
+      startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+      endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+    } else {
+      const targetDate = date ? new Date(date) : new Date();
+      if (isNaN(targetDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+      startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
     }
-
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
 
     const bookingQuery = {
       status: {

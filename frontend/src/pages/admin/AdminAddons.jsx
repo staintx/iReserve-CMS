@@ -105,10 +105,16 @@ export default function AdminAddons() {
                         {addon.description || "—"}
                       </td>
                       <td className="px-6 py-4">
-                        {addon.available ? (
-                          <Badge variant="success" icon={<Check size={12} />}>Available</Badge>
+                        {addon.available !== false && addon.status !== "unavailable" && addon.status !== "inactive" ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span>Available</span>
+                          </span>
                         ) : (
-                          <Badge variant="error" icon={<XCircle size={12} />}>Unavailable</Badge>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                            <span>Unavailable</span>
+                          </span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">

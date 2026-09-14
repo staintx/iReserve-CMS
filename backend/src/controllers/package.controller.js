@@ -1,4 +1,6 @@
 const Package = require("../models/Package");
+const Inventory = require("../models/Inventory");
+const Addon = require("../models/Addon");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const uploadToCloudinary = require("../utils/cloudinaryUpload");
 const logAction = require("../utils/logAction");
@@ -8,6 +10,153 @@ const {
   normalizeOfferFoodItems,
   normalizeOfferInclusions,
 } = require("../utils/specialOffers");
+
+const isSetupCategory = (cat) => {
+  const c = String(cat || "").toLowerCase();
+  return (
+    c.includes("setup") ||
+    c.includes("furniture") ||
+    c.includes("equipment") ||
+    c.includes("decoration")
+  );
+};
+
+const isDiningCategory = (cat) => {
+  const c = String(cat || "").toLowerCase();
+  return c.includes("dining") || c.includes("service") || c.includes("tableware");
+};
+
+const parseInclusionCategoryAndName = (incStr) => {
+  if (!incStr || typeof incStr !== "string") return { category: "", name: "" };
+  const match = incStr.match(/^\s*\[([^\]]+)\]\s*(.*)$/);
+  if (match) {
+    const category = match[1].trim();
+    let name = match[2].trim();
+    name = name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    return { category, name };
+  }
+  let name = incStr.trim().replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return { category: "", name };
+};
+
+async function validatePackageItems({
+  isOffer,
+  inclusions = [],
+  add_ons = [],
+  setup_equipment = [],
+  existingInclusions = [],
+  existingAddOns = [],
+}) {
+  const inventoryItems = await Inventory.find({}, "item_name category quantity");
+  const addonItems = await Addon.find({}, "name");
+
+  const existingInclusionsSet = new Set(
+    existingInclusions.map((i) => String(i).toLowerCase().trim())
+  );
+  const existingAddOnsSet = new Set(
+    existingAddOns.map((a) => String(a?.name || a).toLowerCase().trim())
+  );
+
+  if (isOffer) {
+    // For Special Offers, combo inclusions must exist in Addons
+    const validAddonNames = addonItems.map((a) => a.name.toLowerCase().trim());
+    for (const inc of inclusions) {
+      const clean = String(inc || "").trim().toLowerCase();
+      if (!clean) continue;
+      if (existingInclusionsSet.has(clean)) continue; // grandfather existing
+      if (!validAddonNames.includes(clean)) {
+        return `Combo Inclusion "${inc}" does not exist in Addons. Only existing Addons can be added.`;
+      }
+    }
+  } else {
+    // For Regular Packages:
+    // 1. Inclusions must exist in Inventory under the appropriate category and not exceed Total Quantity
+    const setupInventoryNames = inventoryItems
+      .filter((i) => isSetupCategory(i.category))
+      .map((i) => i.item_name.toLowerCase().trim());
+
+    const diningInventoryNames = inventoryItems
+      .filter((i) => isDiningCategory(i.category))
+      .map((i) => i.item_name.toLowerCase().trim());
+
+    const allInventoryNames = inventoryItems.map((i) =>
+      i.item_name.toLowerCase().trim()
+    );
+
+    for (const inc of inclusions) {
+      const cleanInc = String(inc || "").trim().toLowerCase();
+      if (!cleanInc) continue;
+
+      const { category, name } = parseInclusionCategoryAndName(inc);
+      const nameLower = name.toLowerCase().trim();
+
+      let matchedInvItem = null;
+      if (isSetupCategory(category)) {
+        matchedInvItem = inventoryItems.find(
+          (i) => isSetupCategory(i.category) && i.item_name.toLowerCase().trim() === nameLower
+        );
+        if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
+          return `Inclusion "${name}" does not exist in Event Setup & Furniture inventory.`;
+        }
+      } else if (isDiningCategory(category)) {
+        matchedInvItem = inventoryItems.find(
+          (i) => isDiningCategory(i.category) && i.item_name.toLowerCase().trim() === nameLower
+        );
+        if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
+          return `Inclusion "${name}" does not exist in Dining & Service inventory.`;
+        }
+      } else {
+        matchedInvItem = inventoryItems.find(
+          (i) => i.item_name.toLowerCase().trim() === nameLower
+        );
+        if (!matchedInvItem && !existingInclusionsSet.has(cleanInc)) {
+          return `Inclusion "${name}" does not exist in Inventory.`;
+        }
+      }
+
+      // Quantity validation against Inventory Total Quantity
+      if (matchedInvItem && matchedInvItem.quantity != null) {
+        const qtyMatch = String(inc).match(/\(([^)]+)\)/);
+        if (qtyMatch) {
+          const digits = qtyMatch[1].match(/\d+/g);
+          if (digits && digits.length > 0) {
+            const enteredQty = Math.max(...digits.map((n) => parseInt(n, 10)));
+            if (enteredQty > matchedInvItem.quantity) {
+              return `Quantity for "${matchedInvItem.item_name}" (${enteredQty}) exceeds total inventory. Maximum available quantity is ${matchedInvItem.quantity}.`;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Addons must exist in Addons
+    const validAddonNames = addonItems.map((a) => a.name.toLowerCase().trim());
+    for (const addon of add_ons) {
+      const addonName = typeof addon === "string" ? addon : addon?.name;
+      const cleanName = String(addonName || "").trim().toLowerCase();
+      if (!cleanName) continue;
+      if (existingAddOnsSet.has(cleanName)) continue; // grandfather existing
+      if (!validAddonNames.includes(cleanName)) {
+        return `Add-on "${addonName}" does not exist in Addons.`;
+      }
+    }
+
+    // 3. Setup equipment quantity validation (if sent via API)
+    if (Array.isArray(setup_equipment)) {
+      for (const eq of setup_equipment) {
+        if (!eq || !eq.inventory_id) continue;
+        const invItem = inventoryItems.find(
+          (i) => String(i._id) === String(eq.inventory_id)
+        );
+        if (invItem && invItem.quantity != null && Number(eq.quantity) > invItem.quantity) {
+          return `Quantity for "${invItem.item_name}" (${eq.quantity}) exceeds total inventory. Maximum available quantity is ${invItem.quantity}.`;
+        }
+      }
+    }
+  }
+
+  return null; // Valid
+}
 
 /**
  * Special Offers and regular packages share this collection, so a body that
@@ -308,6 +457,16 @@ exports.create = async (req, res) => {
   // an offer however it was sent.
   const payload = isOffer ? comboPayload(basePayload) : basePayload;
 
+  const validationError = await validatePackageItems({
+    isOffer,
+    inclusions: payload.inclusions || [],
+    add_ons: payload.add_ons || [],
+    setup_equipment: payload.setup_equipment || [],
+  });
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
+  }
+
   if (!isOffer && payload.package_type !== "Food Only") {
     // Normalize empty default scaffold option id
     if (
@@ -484,6 +643,25 @@ exports.update = async (req, res) => {
     data.setup_equipment = [];
     data.add_ons = [];
     data.default_scaffold_option_id = null;
+  }
+
+  const validationError = await validatePackageItems({
+    isOffer,
+    inclusions:
+      data.inclusions !== undefined
+        ? data.inclusions
+        : current.inclusions || [],
+    add_ons:
+      data.add_ons !== undefined ? data.add_ons : current.add_ons || [],
+    setup_equipment:
+      data.setup_equipment !== undefined
+        ? data.setup_equipment
+        : current.setup_equipment || [],
+    existingInclusions: current.inclusions || [],
+    existingAddOns: current.add_ons || [],
+  });
+  if (validationError) {
+    return res.status(400).json({ message: validationError });
   }
 
   if (req.files) {
@@ -827,6 +1005,16 @@ exports.createBulk = async (req, res) => {
       if (!isOffer && payload.scaffold_size_options?.length > 0) {
         payload.default_scaffold_option_id =
           payload.scaffold_size_options[0]._id || payload.scaffold_size_options[0].id || "0";
+      }
+
+      const validationError = await validatePackageItems({
+        isOffer,
+        inclusions: payload.inclusions || [],
+        add_ons: payload.add_ons || [],
+        setup_equipment: payload.setup_equipment || [],
+      });
+      if (validationError) {
+        return res.status(400).json({ error: validationError });
       }
 
       const created = await Package.create(payload);

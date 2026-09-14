@@ -4,12 +4,27 @@ import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
+const ALLOWED_CATEGORIES = [
+  "Event Setup & Furniture",
+  "Dining & Service Inventory"
+];
+
+// Helper to normalize legacy category names when editing an existing item
+const normalizeCategory = (cat) => {
+  if (ALLOWED_CATEGORIES.includes(cat)) return cat;
+  const lower = String(cat || "").toLowerCase();
+  if (lower === "tableware" || lower.includes("dining") || lower.includes("service")) {
+    return "Dining & Service Inventory";
+  }
+  return "Event Setup & Furniture";
+};
+
 export default function InventoryModal({ item, onClose, onSave }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     item_name: "",
-    category: "Equipment",
+    category: "Event Setup & Furniture",
     quantity: "",
     available: true,
     reason: ""
@@ -19,7 +34,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
     if (item) {
       setFormData({
         item_name: item.item_name || "",
-        category: item.category || "Equipment",
+        category: normalizeCategory(item.category),
         quantity: item.quantity !== undefined ? item.quantity : "",
         available: item.available !== false,
         reason: ""
@@ -27,7 +42,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
     } else {
       setFormData({
         item_name: "",
-        category: "Equipment",
+        category: "Event Setup & Furniture",
         quantity: "",
         available: true,
         reason: ""
@@ -39,6 +54,10 @@ export default function InventoryModal({ item, onClose, onSave }) {
     e.preventDefault();
     if (!formData.item_name.trim()) {
       notify("Item name is required", "error");
+      return;
+    }
+    if (!formData.category || !ALLOWED_CATEGORIES.includes(formData.category)) {
+      notify("Please select a valid Category (Event Setup & Furniture or Dining & Service Inventory)", "error");
       return;
     }
     if (formData.quantity === "" || isNaN(Number(formData.quantity)) || Number(formData.quantity) < 0) {
@@ -111,12 +130,15 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <select 
                 className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all bg-white text-foreground" 
                 value={formData.category} 
-                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (ALLOWED_CATEGORIES.includes(val)) {
+                    setFormData({ ...formData, category: val });
+                  }
+                }}
               >
-                <option value="Equipment">Equipment</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Tableware">Tableware</option>
-                <option value="Decorations">Decorations</option>
+                <option value="Event Setup & Furniture">Event Setup & Furniture</option>
+                <option value="Dining & Service Inventory">Dining & Service Inventory</option>
               </select>
             </div>
 

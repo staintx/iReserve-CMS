@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Eye, Plus, Edit3, Trash2, Calendar, RotateCcw } from "lucide-react";
+import { Eye, Plus, Edit3, Trash2, Calendar, RotateCcw, Search, X, ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
 import Btn from "../../components/admin/ui/Btn";
@@ -8,15 +8,27 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import InventoryModal from "../../components/admin/ui/InventoryModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
-import DataTable from "../../components/admin/table/DataTable";
-import TableToolbar from "../../components/admin/table/TableToolbar";
 import FilterPopover from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
 import DrawerField from "../../components/admin/table/DrawerField";
-import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "../../components/ui/dropdown-menu";
+
+// Returns today's local date in YYYY-MM-DD format (as required by HTML5 date inputs)
+const getTodayDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 export default function AdminInventory() {
   const { notify } = useToast();
@@ -37,7 +49,60 @@ export default function AdminInventory() {
 
   const [logState, setLogState] = useState({ itemId: null, entries: [] });
 
-  const categories = ["all", "Equipment", "Furniture", "Tableware", "Decorations"];
+  const CATEGORY_MAP = {
+    "Event Setup & Furniture": [
+      "equipment",
+      "furniture",
+      "decorations",
+      "decoration",
+      "event setup & furniture",
+      "event setup",
+    ],
+    "Dining & Service Inventory": [
+      "tableware",
+      "dining & service inventory",
+      "dining & service",
+      "dinnerware",
+      "cutlery",
+      "food warmer",
+      "service",
+    ],
+  };
+
+  const matchesCategory = (itemCategory, selectedFilter) => {
+    if (!selectedFilter || selectedFilter === "all") return true;
+    const raw = String(itemCategory || "").trim().toLowerCase();
+
+    if (selectedFilter === "Event Setup & Furniture") {
+      return (
+        raw === "equipment" ||
+        raw === "furniture" ||
+        raw === "decorations" ||
+        raw === "decoration" ||
+        raw === "event setup & furniture" ||
+        raw.includes("setup") ||
+        raw.includes("furniture") ||
+        raw.includes("equipment") ||
+        raw.includes("decoration")
+      );
+    }
+
+    if (selectedFilter === "Dining & Service Inventory") {
+      return (
+        raw === "tableware" ||
+        raw === "dining & service inventory" ||
+        raw === "dining & service" ||
+        raw === "dinnerware" ||
+        raw.includes("tableware") ||
+        raw.includes("dining") ||
+        raw.includes("service") ||
+        raw.includes("cutlery") ||
+        raw.includes("warmer")
+      );
+    }
+
+    return raw === selectedFilter.toLowerCase();
+  };
 
   const eventLabel = {
     created: "Created",
@@ -128,128 +193,12 @@ export default function AdminInventory() {
 
   const filtered = inventory.filter((i) => {
     const matchSearch = !search || (i.item_name && i.item_name.toLowerCase().includes(search.toLowerCase()));
-    const matchCategory = filter === "all" || i.category === filter;
+    const matchCategory = matchesCategory(i.category, filter);
     const matchAvailability = availabilityFilter === "all" || (availabilityFilter === "available" ? i.available : !i.available);
     return matchSearch && matchCategory && matchAvailability;
   });
 
   const { pageRows, page, setPage, totalPages, total, pageSize } = usePagination(filtered, 10);
-
-  // Exact 5 required columns: Item Name, Category, Total Quantity, Stock on Hand, Status (+ Actions menu)
-  const columns = [
-    {
-      key: "item_name",
-      header: "Item Name",
-      render: (i) => (
-        <div>
-          <span className="text-sm font-bold text-foreground block">{i.item_name}</span>
-          {i.reserved_quantity > 0 && (
-            <span className="text-[11px] text-amber-700 font-medium">
-              {i.reserved_quantity} unit{i.reserved_quantity > 1 ? "s" : ""} in use today
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: "category",
-      header: "Category",
-      render: (i) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-          {i.category || "General"}
-        </span>
-      ),
-    },
-    {
-      key: "quantity",
-      header: "Total Quantity",
-      className: "text-center",
-      render: (i) => <span className="text-sm font-semibold text-foreground">{i.quantity || 0}</span>,
-    },
-    {
-      key: "stock_on_hand",
-      header: "Stock on Hand",
-      className: "text-center",
-      render: (i) => {
-        const stockOnHand = i.available_quantity ?? Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
-        const isAvailable = i.available !== false;
-        
-        if (!isAvailable) {
-          return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200" title="Item is marked Unavailable">
-              0 <span className="text-[9px] font-normal text-slate-400">(Unavailable)</span>
-            </span>
-          );
-        }
-
-        if (stockOnHand <= 0) {
-          return (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200" title="Fully reserved/in use">
-              0 <span className="text-[9px] font-normal text-rose-500 ml-1">(Out of stock)</span>
-            </span>
-          );
-        }
-
-        return (
-          <span 
-            className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-            title={`${i.quantity || 0} Total - ${i.reserved_quantity || 0} In Use = ${stockOnHand} Stock on Hand`}
-          >
-            {stockOnHand}
-          </span>
-        );
-      },
-    },
-    {
-      key: "status",
-      header: "Status",
-      stopRowClick: true,
-      render: (i) => {
-        const isAvailable = i.available !== false;
-        return (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isAvailable}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleStatus(i);
-              }}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 ${
-                isAvailable ? "bg-emerald-600" : "bg-slate-300"
-              }`}
-              title={`Click to mark ${isAvailable ? "Unavailable" : "Available"}`}
-            >
-              <span
-                aria-hidden="true"
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                  isAvailable ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </button>
-            <span className={`text-xs font-semibold ${isAvailable ? "text-emerald-700" : "text-slate-500"}`}>
-              {isAvailable ? "Available" : "Unavailable"}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      stopRowClick: true,
-      render: (item) => (
-        <RowActionsMenu
-          actions={[
-            { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(item) },
-            { key: "edit", label: "Edit item", icon: Edit3, onSelect: () => handleOpenModal(item) },
-            { key: "delete", label: "Delete item", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(item) },
-          ]}
-        />
-      ),
-    },
-  ];
 
   return (
     <AdminLayout>
@@ -262,84 +211,366 @@ export default function AdminInventory() {
           <Btn variant="primary" size="sm" onClick={() => handleOpenModal()} className="self-start sm:self-auto"><Plus size={13} /> Add Item</Btn>
         </div>
 
-        <AdminCard className="!p-3.5 sm:!p-4">
-
-          <TableToolbar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search inventory by name..."
-            quickFilters={categories.map((c) => ({ value: c, label: c }))}
-            activeQuickFilter={filter}
-            onQuickFilterChange={setFilter}
-            right={
-              <div className="flex items-center gap-2">
-                {/* Optional Date Selector for checking stock for a specific date */}
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-xs shadow-2xs">
-                  <Calendar size={13} className="text-slate-400 shrink-0" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Date:</span>
+        {/* ============ INVENTORY TOOLBAR ============ */}
+        <AdminCard className="!p-3 sm:!p-3.5 border border-gray-200/80 shadow-xs">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3">
+            {/* Left: Wider Search input using the additional space */}
+            <div className="flex-1 min-w-0">
+              <div className="relative w-full">
+                <div className="flex items-center gap-2 bg-gray-50/70 border border-gray-200 rounded-lg px-3 h-9 text-sm focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10 focus-within:bg-white transition-all shadow-2xs">
+                  <Search size={14} className="text-gray-400 shrink-0" />
                   <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="bg-transparent text-xs text-foreground focus:outline-none cursor-pointer"
-                    title="Select a date to check Stock on Hand for that day (defaults to Today)"
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search inventory by name..."
+                    className="w-full bg-transparent text-xs sm:text-sm text-foreground focus:outline-none placeholder:text-gray-400"
                   />
-                  {selectedDate && (
+                  {search && (
                     <button
-                      onClick={() => setSelectedDate("")}
-                      className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold ml-1 cursor-pointer"
-                      title="Reset to Today"
+                      type="button"
+                      onClick={() => setSearch("")}
+                      aria-label="Clear search"
+                      className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full cursor-pointer"
                     >
-                      Today
+                      <X size={12} />
                     </button>
                   )}
                 </div>
-
-                <FilterPopover
-                  label="Availability"
-                  activeCount={availabilityFilter !== "all" ? 1 : 0}
-                  onApply={() => setAvailabilityFilter(draftAvailabilityFilter)}
-                  onClear={() => {
-                    setDraftAvailabilityFilter("all");
-                    setAvailabilityFilter("all");
-                  }}
-                >
-                  <div className="space-y-1.5">
-                    {["all", "available", "unavailable"].map((v) => (
-                      <label key={v} className="flex items-center gap-2 text-sm text-foreground capitalize cursor-pointer">
-                        <input
-                          type="radio"
-                          name="inventory-availability"
-                          checked={draftAvailabilityFilter === v}
-                          onChange={() => setDraftAvailabilityFilter(v)}
-                        />
-                        {v === "all" ? "All items" : v}
-                      </label>
-                    ))}
-                  </div>
-                </FilterPopover>
               </div>
-            }
-          />
-          {availabilityFilter !== "all" && (
-            <div className="flex items-center gap-2 mt-3">
-              <FilterChip label={`Status: ${availabilityFilter}`} onRemove={() => { setAvailabilityFilter("all"); setDraftAvailabilityFilter("all"); }} />
+            </div>
+
+            {/* Right: Categories Filter → Date Filter → Availability */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+              {/* 1. Categories Filter Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={`px-3 py-1.5 h-9 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 border ${
+                      filter !== "all"
+                        ? "bg-primary text-white border-primary shadow-xs font-bold"
+                        : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200"
+                    }`}
+                  >
+                    <span>{filter !== "all" ? filter : "Categories"}</span>
+                    <ChevronDown
+                      size={13}
+                      className={filter !== "all" ? "text-white" : "text-gray-400"}
+                    />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-60 p-1.5 rounded-xl shadow-lg border border-gray-200/80 bg-white"
+                >
+                  <DropdownMenuItem
+                    onClick={() => setFilter("all")}
+                    className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
+                      filter === "all"
+                        ? "bg-blue-50 text-primary font-bold"
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>All Categories</span>
+                    {filter === "all" && (
+                      <Check size={14} className="text-primary shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setFilter("Event Setup & Furniture")}
+                    className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
+                      filter === "Event Setup & Furniture"
+                        ? "bg-blue-50 text-primary font-bold"
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Event Setup & Furniture</span>
+                    {filter === "Event Setup & Furniture" && (
+                      <Check size={14} className="text-primary shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setFilter("Dining & Service Inventory")}
+                    className={`flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-colors ${
+                      filter === "Dining & Service Inventory"
+                        ? "bg-blue-50 text-primary font-bold"
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <span>Dining & Service Inventory</span>
+                    {filter === "Dining & Service Inventory" && (
+                      <Check size={14} className="text-primary shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* 2. Date Filter */}
+              <div className="flex items-center gap-1.5 px-2.5 h-9 bg-white border border-gray-200 rounded-lg text-xs shadow-2xs hover:border-gray-300 transition-colors">
+                <Calendar size={13} className="text-gray-400 shrink-0" />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-mono">Date:</span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent text-xs text-gray-700 focus:outline-none cursor-pointer"
+                  title="Select a date to check Stock on Hand for that day"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(getTodayDateString())}
+                  className={`text-[11px] font-semibold ml-1 cursor-pointer transition-colors whitespace-nowrap ${
+                    selectedDate === getTodayDateString()
+                      ? "text-primary/60 font-medium"
+                      : "text-primary hover:text-primary-hover font-bold"
+                  }`}
+                  title="Set date to Today"
+                >
+                  Today
+                </button>
+              </div>
+
+              {/* 3. Availability Popover */}
+              <FilterPopover
+                label="Availability"
+                activeCount={availabilityFilter !== "all" ? 1 : 0}
+                onApply={() => setAvailabilityFilter(draftAvailabilityFilter)}
+                onClear={() => {
+                  setDraftAvailabilityFilter("all");
+                  setAvailabilityFilter("all");
+                }}
+              >
+                <div className="space-y-1.5">
+                  {["all", "available", "unavailable"].map((v) => (
+                    <label key={v} className="flex items-center gap-2 text-sm text-foreground capitalize cursor-pointer">
+                      <input
+                        type="radio"
+                        name="inventory-availability"
+                        checked={draftAvailabilityFilter === v}
+                        onChange={() => setDraftAvailabilityFilter(v)}
+                      />
+                      {v === "all" ? "All items" : v}
+                    </label>
+                  ))}
+                </div>
+              </FilterPopover>
+            </div>
+          </div>
+
+          {(availabilityFilter !== "all" || filter !== "all") && (
+            <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-gray-100 flex-wrap">
+              {filter !== "all" && (
+                <FilterChip
+                  label={`Category: ${filter}`}
+                  onRemove={() => setFilter("all")}
+                />
+              )}
+              {availabilityFilter !== "all" && (
+                <FilterChip
+                  label={`Status: ${availabilityFilter}`}
+                  onRemove={() => {
+                    setAvailabilityFilter("all");
+                    setDraftAvailabilityFilter("all");
+                  }}
+                />
+              )}
             </div>
           )}
         </AdminCard>
 
-        <AdminCard className="!p-0 overflow-hidden">
-          <DataTable
-            columns={columns}
-            rows={pageRows}
-            getRowId={(i) => i._id}
-            loading={loading}
-            emptyTitle="No inventory found."
-            emptyHint={search || filter !== "all" || availabilityFilter !== "all" ? "Try adjusting your search or filters." : undefined}
-            onRowClick={(i) => setDrawerRow(i)}
-            minWidth="680px"
-          />
-          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
+        {/* ============ INVENTORY TABLE ============ */}
+        <AdminCard className="!p-0 overflow-hidden border border-gray-200/80 shadow-xs">
+          {loading ? (
+            <div className="p-12 text-center text-sm text-gray-400">Loading inventory items...</div>
+          ) : pageRows.length === 0 ? (
+            <div className="p-12 text-center space-y-1">
+              <p className="text-sm font-semibold text-gray-700">No inventory found.</p>
+              {(search || filter !== "all" || availabilityFilter !== "all") && (
+                <p className="text-xs text-gray-400">Try adjusting your search or filters.</p>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-[#F8FAFC] border-b border-gray-200/80">
+                  <tr>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Item Name
+                    </th>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Category
+                    </th>
+                    <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Total Quantity
+                    </th>
+                    <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Stock on Hand
+                    </th>
+                    <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Status
+                    </th>
+                    <th className="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {pageRows.map((i) => {
+                    const stockOnHand =
+                      i.available_quantity ??
+                      Math.max(0, (i.quantity || 0) - (i.reserved_quantity || 0));
+                    const isAvailable = i.available !== false;
+
+                    // Data-driven Stock on Hand styling:
+                    // Green: healthy stock
+                    // Amber: low stock (<= 5 or <= 20% of total)
+                    // Red: 0 / out of stock / unavailable
+                    let stockBadgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+                    if (!isAvailable || stockOnHand <= 0) {
+                      stockBadgeStyle = "bg-rose-50 text-rose-700 border-rose-200/80";
+                    } else if (
+                      stockOnHand <= 5 ||
+                      (i.quantity && stockOnHand / i.quantity <= 0.2)
+                    ) {
+                      stockBadgeStyle = "bg-amber-50 text-amber-800 border-amber-200/80";
+                    }
+
+                    return (
+                      <tr
+                        key={i._id}
+                        onClick={() => setDrawerRow(i)}
+                        className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="font-semibold text-gray-900 group-hover:text-primary transition-colors text-sm">
+                            {i.item_name}
+                          </div>
+                          {i.reserved_quantity > 0 && (
+                            <span className="text-[11px] text-amber-700 font-medium block mt-0.5">
+                              {i.reserved_quantity} unit{i.reserved_quantity > 1 ? "s" : ""} in use today
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100/90 text-slate-700 border border-slate-200/60 shadow-2xs">
+                            {i.category || "General"}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-center">
+                          <span className="text-sm font-semibold text-gray-800 tabular-nums">
+                            {i.quantity || 0}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-center">
+                          <span
+                            className={`inline-flex items-center justify-center min-w-[2.25rem] px-2.5 py-0.5 rounded-full text-xs font-semibold tabular-nums border shadow-2xs ${stockBadgeStyle}`}
+                            title={`${i.quantity || 0} Total − ${i.reserved_quantity || 0} In Use = ${stockOnHand} Stock on Hand`}
+                          >
+                            {stockOnHand}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(i)}
+                            title={`Click to mark ${isAvailable ? "Unavailable" : "Available"}`}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border shadow-2xs transition-all cursor-pointer hover:opacity-85 ${
+                              isAvailable
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200/80"
+                                : "bg-rose-50 text-rose-700 border-rose-200/80"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                isAvailable ? "bg-emerald-500" : "bg-rose-500"
+                              }`}
+                            />
+                            <span>{isAvailable ? "Available" : "Unavailable"}</span>
+                          </button>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end">
+                            <RowActionsMenu
+                              actions={[
+                                {
+                                  key: "view",
+                                  label: "View details",
+                                  icon: Eye,
+                                  onSelect: () => setDrawerRow(i),
+                                },
+                                {
+                                  key: "edit",
+                                  label: "Edit item",
+                                  icon: Edit3,
+                                  onSelect: () => handleOpenModal(i),
+                                },
+                                {
+                                  key: "delete",
+                                  label: "Delete item",
+                                  icon: Trash2,
+                                  destructive: true,
+                                  onSelect: () => setCancelTarget(i),
+                                },
+                              ]}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ============ TABLE FOOTER ============ */}
+          <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3 border-t border-gray-100 bg-white gap-2">
+            <span className="text-xs text-gray-500 font-medium">
+              Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    className={`min-w-[26px] h-[26px] px-1.5 rounded-md text-xs font-semibold tabular-nums transition-colors cursor-pointer ${
+                      n === page
+                        ? "bg-primary text-white shadow-2xs"
+                        : "text-gray-500 hover:bg-gray-100"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </AdminCard>
       </div>
 

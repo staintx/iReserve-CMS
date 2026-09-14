@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { X, AlertCircle } from "lucide-react";
 import Btn from "./Btn";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
@@ -19,9 +19,22 @@ const normalizeCategory = (cat) => {
   return "Event Setup & Furniture";
 };
 
-export default function InventoryModal({ item, onClose, onSave }) {
+// Canonical identifier normalizer for duplicate checks
+const normalizeIdentifier = (name) => {
+  if (!name || typeof name !== "string") return "";
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
+
+export default function InventoryModal({ item, onClose, onSave, existingItems = [] }) {
   const { notify } = useToast();
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const [itemsCatalog, setItemsCatalog] = useState(existingItems || []);
+
   const [formData, setFormData] = useState({
     item_name: "",
     category: "Event Setup & Furniture",
@@ -29,6 +42,16 @@ export default function InventoryModal({ item, onClose, onSave }) {
     available: true,
     reason: ""
   });
+
+  useEffect(() => {
+    if (existingItems && existingItems.length > 0) {
+      setItemsCatalog(existingItems);
+    } else {
+      AdminAPI.getInventory()
+        .then((res) => setItemsCatalog(res.data || []))
+        .catch(() => {});
+    }
+  }, [existingItems]);
 
   useEffect(() => {
     if (item) {
@@ -50,21 +73,59 @@ export default function InventoryModal({ item, onClose, onSave }) {
     }
   }, [item]);
 
+  // Check if the currently entered item already exists in the inventory
+  const duplicateMatch = useMemo(() => {
+    const trimmedInput = (formData.item_name || "").trim();
+    if (!trimmedInput) return null;
+    const inputIdent = normalizeIdentifier(trimmedInput);
+    const inputLower = trimmedInput.toLowerCase();
+    const currentId = item?._id ? String(item._id) : null;
+
+    return itemsCatalog.find((inv) => {
+      const invId = inv._id ? String(inv._id) : null;
+      // If editing, exclude the current item itself
+      if (currentId && invId && currentId === invId) {
+        return false;
+      }
+
+      const invIdent = inv.identifier || normalizeIdentifier(inv.item_name);
+      const invLower = (inv.item_name || "").trim().toLowerCase();
+
+      // Check canonical unique identifier match OR case-insensitive item name match
+      if (inputIdent && invIdent && inputIdent === invIdent) return true;
+      if (invLower && invLower === inputLower) return true;
+      return false;
+    });
+  }, [formData.item_name, item, itemsCatalog]);
+
+  const isDuplicate = Boolean(duplicateMatch);
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    // Guard against rapid duplicate clicks
+    if (isSubmittingRef.current || loading) return;
+
     if (!formData.item_name.trim()) {
       notify("Item name is required", "error");
       return;
     }
+
+    if (isDuplicate) {
+      notify("This item is already included in the inventory.", "error");
+      return;
+    }
+
     if (!formData.category || !ALLOWED_CATEGORIES.includes(formData.category)) {
       notify("Please select a valid Category (Event Setup & Furniture or Dining & Service Inventory)", "error");
       return;
     }
+
     if (formData.quantity === "" || isNaN(Number(formData.quantity)) || Number(formData.quantity) < 0) {
       notify("Please enter a valid Total Quantity (0 or greater)", "error");
       return;
     }
 
+    isSubmittingRef.current = true;
     setLoading(true);
     try {
       const payload = {
@@ -87,6 +148,7 @@ export default function InventoryModal({ item, onClose, onSave }) {
       notify(error.response?.data?.message || "Failed to save inventory item", "error");
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -115,11 +177,30 @@ export default function InventoryModal({ item, onClose, onSave }) {
               <input 
                 type="text" 
                 required
-                className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-foreground" 
+                className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none transition-all text-foreground ${
+                  isDuplicate 
+                    ? "border-amber-400 bg-amber-50/20 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500" 
+                    : "border-gray-200 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                }`}
                 placeholder="e.g. Round Table" 
                 value={formData.item_name} 
                 onChange={e => setFormData({ ...formData, item_name: e.target.value })} 
               />
+
+              {/* Clear duplicate alert banner */}
+              {isDuplicate && (
+                <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs animate-in fade-in duration-150">
+                  <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-amber-800">
+                      This item is already included in the inventory.
+                    </p>
+                    <p className="text-[11px] text-amber-700/90 mt-0.5">
+                      "{duplicateMatch.item_name}" ({duplicateMatch.category || "Inventory"}) already exists. Duplicate items cannot be added.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Category */}
@@ -214,7 +295,18 @@ export default function InventoryModal({ item, onClose, onSave }) {
 
           <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white">
             <Btn variant="secondary" type="button" onClick={onClose} disabled={loading}>Cancel</Btn>
-            <Btn variant="primary" type="submit" disabled={loading}>{loading ? "Saving..." : "Save Item"}</Btn>
+            <Btn 
+              variant={isDuplicate ? "secondary" : "primary"} 
+              type="submit" 
+              disabled={loading || isDuplicate}
+              className={isDuplicate ? "opacity-60 cursor-not-allowed" : ""}
+            >
+              {loading 
+                ? (item ? "Saving..." : "Adding...") 
+                : isDuplicate 
+                  ? "Already Added" 
+                  : (item ? "Save Item" : "Add Item")}
+            </Btn>
           </div>
         </form>
       </div>

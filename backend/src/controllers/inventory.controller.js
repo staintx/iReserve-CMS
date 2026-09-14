@@ -5,58 +5,158 @@ const writeInventoryLog = require("../utils/writeInventoryLog");
 
 const ALLOWED_CATEGORIES = ["Event Setup & Furniture", "Dining & Service Inventory"];
 
-exports.create = async (req, res) => {
-  if (req.body.category && !ALLOWED_CATEGORIES.includes(req.body.category)) {
-    return res.status(400).json({
-      message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
-    });
-  }
-
-  const item = await Inventory.create(req.body);
-  writeInventoryLog({
-    inventory_id: item._id,
-    event_type: "created",
-    delta: item.quantity || 0,
-    actor_id: req.user?._id,
-    reason: "Item added to inventory",
-  });
-  res.status(201).json(item);
+const normalizeIdentifier = (name) => {
+  if (!name || typeof name !== "string") return "";
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 };
-exports.getAll = async (req, res) => res.json(await Inventory.find());
+
+const escapeRegex = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+exports.create = async (req, res) => {
+  try {
+    const rawName = req.body.item_name;
+    if (!rawName || typeof rawName !== "string" || !rawName.trim()) {
+      return res.status(400).json({ message: "Item name is required" });
+    }
+
+    if (req.body.category && !ALLOWED_CATEGORIES.includes(req.body.category)) {
+      return res.status(400).json({
+        message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
+      });
+    }
+
+    const trimmedName = rawName.trim();
+    const identifier = normalizeIdentifier(trimmedName);
+    const escaped = escapeRegex(trimmedName);
+
+    // Duplicate check: unique identifier or case-insensitive item name
+    const existing = await Inventory.findOne({
+      $or: [
+        ...(identifier ? [{ identifier }] : []),
+        { item_name: { $regex: new RegExp(`^${escaped}$`, "i") } }
+      ]
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        message: "This item is already included in the inventory."
+      });
+    }
+
+    const payload = {
+      ...req.body,
+      item_name: trimmedName,
+      identifier: identifier
+    };
+
+    const item = await Inventory.create(payload);
+    writeInventoryLog({
+      inventory_id: item._id,
+      event_type: "created",
+      delta: item.quantity || 0,
+      actor_id: req.user?._id,
+      reason: "Item added to inventory",
+    });
+    return res.status(201).json(item);
+  } catch (error) {
+    if (error.message === "This item is already included in the inventory." || error.code === 11000) {
+      return res.status(400).json({ message: "This item is already included in the inventory." });
+    }
+    return res.status(500).json({ message: error.message || "Failed to create inventory item" });
+  }
+};
+
+exports.getAll = async (req, res) => {
+  const items = await Inventory.find();
+  const formatted = items.map(item => {
+    const obj = item.toObject ? item.toObject() : { ...item };
+    if (!obj.identifier && obj.item_name) {
+      obj.identifier = normalizeIdentifier(obj.item_name);
+    }
+    return obj;
+  });
+  return res.json(formatted);
+};
+
 exports.getPublic = async (req, res) => res.json(await Inventory.find({ available: true }));
 exports.getById = async (req, res) => res.json(await Inventory.findById(req.params.id));
 
 exports.update = async (req, res) => {
-  const { reason, ...updates } = req.body;
-  if (updates.category && !ALLOWED_CATEGORIES.includes(updates.category)) {
-    return res.status(400).json({
-      message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
-    });
-  }
-  const before = await Inventory.findById(req.params.id);
-  const item = await Inventory.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
+  try {
+    const { reason, ...updates } = req.body;
+    if (updates.category && !ALLOWED_CATEGORIES.includes(updates.category)) {
+      return res.status(400).json({
+        message: `Invalid category. Allowed categories are: ${ALLOWED_CATEGORIES.join(", ")}`
+      });
+    }
 
-  if (before && item && typeof updates.quantity === "number" && updates.quantity !== before.quantity) {
-    writeInventoryLog({
-      inventory_id: item._id,
-      event_type: "manual_adjustment",
-      delta: updates.quantity - before.quantity,
-      actor_id: req.user?._id,
-      reason: reason || "Manual stock adjustment",
-    });
-  }
+    if (updates.item_name !== undefined) {
+      if (typeof updates.item_name !== "string" || !updates.item_name.trim()) {
+        return res.status(400).json({ message: "Item name cannot be empty" });
+      }
+      const trimmedName = updates.item_name.trim();
+      const identifier = normalizeIdentifier(trimmedName);
+      const escaped = escapeRegex(trimmedName);
 
-  if (before && item && typeof updates.available === "boolean" && updates.available !== before.available) {
-    writeInventoryLog({
-      inventory_id: item._id,
-      event_type: "manual_adjustment",
-      delta: 0,
-      actor_id: req.user?._id,
-      reason: reason || (updates.available ? "Item marked as Available" : "Item marked as Unavailable"),
-    });
-  }
+      const conflict = await Inventory.findOne({
+        _id: { $ne: req.params.id },
+        $or: [
+          ...(identifier ? [{ identifier }] : []),
+          { item_name: { $regex: new RegExp(`^${escaped}$`, "i") } }
+        ]
+      });
 
-  res.json(item);
+      if (conflict) {
+        return res.status(400).json({
+          message: "This item is already included in the inventory."
+        });
+      }
+
+      updates.item_name = trimmedName;
+      updates.identifier = identifier;
+    }
+
+    const before = await Inventory.findById(req.params.id);
+    if (!before) {
+      return res.status(404).json({ message: "Inventory item not found" });
+    }
+
+    const item = await Inventory.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' });
+
+    if (before && item && typeof updates.quantity === "number" && updates.quantity !== before.quantity) {
+      writeInventoryLog({
+        inventory_id: item._id,
+        event_type: "manual_adjustment",
+        delta: updates.quantity - before.quantity,
+        actor_id: req.user?._id,
+        reason: reason || "Manual stock adjustment",
+      });
+    }
+
+    if (before && item && typeof updates.available === "boolean" && updates.available !== before.available) {
+      writeInventoryLog({
+        inventory_id: item._id,
+        event_type: "manual_adjustment",
+        delta: 0,
+        actor_id: req.user?._id,
+        reason: reason || (updates.available ? "Item marked as Available" : "Item marked as Unavailable"),
+      });
+    }
+
+    return res.json(item);
+  } catch (error) {
+    if (error.message === "This item is already included in the inventory." || error.code === 11000) {
+      return res.status(400).json({ message: "This item is already included in the inventory." });
+    }
+    return res.status(500).json({ message: error.message || "Failed to update inventory item" });
+  }
 };
 
 exports.remove = async (req, res) => {
@@ -134,8 +234,12 @@ exports.getAvailability = async (req, res) => {
       const total = item.quantity || 0;
       const isAvailable = item.available !== false;
       const stockOnHand = isAvailable ? Math.max(0, total - reserved) : 0;
+      const itemObj = item.toObject ? item.toObject() : { ...item };
+      if (!itemObj.identifier && itemObj.item_name) {
+        itemObj.identifier = normalizeIdentifier(itemObj.item_name);
+      }
       return {
-        ...item.toObject(),
+        ...itemObj,
         reserved_quantity: reserved,
         available_quantity: stockOnHand,
         stock_on_hand: stockOnHand

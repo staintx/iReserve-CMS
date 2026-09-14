@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { CustomerAPI } from "../../../api/customer";
 import useAuth from "../../../hooks/useAuth";
@@ -50,8 +50,12 @@ export default function AccountInfoTicker() {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
+  const isFetchingRef = useRef(false);
+
   const fetchCustomerAccountData = useCallback(async () => {
+    if (isFetchingRef.current) return;
     try {
+      isFetchingRef.current = true;
       const [inqRes, bookRes, payRes, convoRes] = await Promise.all([
         CustomerAPI.getInquiries().catch(() => ({ data: [] })),
         CustomerAPI.getBookings().catch(() => ({ data: [] })),
@@ -74,6 +78,7 @@ export default function AccountInfoTicker() {
     } catch {
       // silent fallback
     } finally {
+      isFetchingRef.current = false;
       setLoaded(true);
     }
   }, [user]);
@@ -298,10 +303,20 @@ export default function AccountInfoTicker() {
     return items;
   }, [inquiries, bookings, payments, unreadMessages]);
 
+  // Ensure enough items to smoothly fill wide viewports without awkward empty gaps
+  const displayItems = useMemo(() => {
+    if (tickerItems.length === 0) return [];
+    let items = [...tickerItems];
+    while (items.length < 4) {
+      items = [...items, ...tickerItems];
+    }
+    return items;
+  }, [tickerItems]);
+
   // Slower, relaxed animation duration so text is very easy and comfortable to read
   const duration = useMemo(() => {
-    return Math.max(55, tickerItems.length * 24);
-  }, [tickerItems.length]);
+    return Math.max(42, displayItems.length * 14);
+  }, [displayItems.length]);
 
   if (!loaded && tickerItems.length === 0) {
     return (
@@ -351,38 +366,38 @@ export default function AccountInfoTicker() {
 
   return (
     <div
-      className="relative flex-1 min-w-0 h-10 overflow-hidden flex items-center select-none"
+      className="relative w-full flex-1 min-w-0 h-10 overflow-hidden flex items-center select-none group/ticker"
       style={{
         maskImage:
-          "linear-gradient(to right, transparent 0%, black 40px, black calc(100% - 40px), transparent 100%)",
+          "linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)",
         WebkitMaskImage:
-          "linear-gradient(to right, transparent 0%, black 40px, black calc(100% - 40px), transparent 100%)",
+          "linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)",
       }}
       title="Hover to pause ticker · Click an update to view details"
     >
-      {/* Left Edge Fade Overlay (ensures smooth fade-out on all browsers) */}
-      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 sm:w-12 bg-gradient-to-r from-white via-white/80 to-transparent z-10" />
+      {/* Left Edge Subtle Fade */}
+      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-white via-white/80 to-transparent z-10" />
 
       {/* Continuous Right-to-Left Moving Belt */}
       <div
-        className="animate-account-ticker pl-[100%] flex items-center shrink-0 cursor-pointer"
+        className="animate-account-ticker pl-[100%] flex items-center shrink-0 cursor-pointer group-hover/ticker:[animation-play-state:paused]"
         style={{ animationDuration: `${duration}s` }}
       >
         {/* First track set */}
         <div className="flex items-center gap-3 sm:gap-4 pr-3 sm:pr-4 shrink-0">
-          {tickerItems.map((item, idx) => renderTickerItem(item, idx, "track-a"))}
+          {displayItems.map((item, idx) => renderTickerItem(item, idx, "track-a"))}
         </div>
         {/* Second track set for continuous seamless loop */}
         <div
           className="flex items-center gap-3 sm:gap-4 pr-3 sm:pr-4 shrink-0"
           aria-hidden="true"
         >
-          {tickerItems.map((item, idx) => renderTickerItem(item, idx, "track-b"))}
+          {displayItems.map((item, idx) => renderTickerItem(item, idx, "track-b"))}
         </div>
       </div>
 
-      {/* Right Edge Fade Overlay (ensures smooth fade-in from the right) */}
-      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 sm:w-12 bg-gradient-to-l from-white via-white/80 to-transparent z-10" />
+      {/* Right Edge Subtle Fade */}
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-5 bg-gradient-to-l from-white via-white/80 to-transparent z-10" />
     </div>
   );
 }

@@ -56,7 +56,7 @@ import {
   User,
   Info,
   AlertCircle,
-  Sparkles,
+  PackagePlus,
   Palette,
   Tag,
   Store,
@@ -503,7 +503,7 @@ export default function CustomerInquiryDetails() {
 
   const titleStr = recordTitle(inquiry);
   const thumbnail = getEventThumbnail(inquiry) || resolvedPackage?.image_url;
-  const refCode = inquiry.reference || `INQ-${inquiry._id.substring(0, 6).toUpperCase()}`;
+  const refCode = inquiry?.reference || (typeof inquiry?._id === "string" ? `INQ-${inquiry._id.substring(0, 6).toUpperCase()}` : "INQ");
   const isQuotationSent = inquiry.status === "Quotation Sent";
   const isConverted = inquiry.status === "Converted to Booking" || Boolean(inquiry.converted_booking_id);
   const isDepositPaid =
@@ -571,6 +571,154 @@ export default function CustomerInquiryDetails() {
     (Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0)
   );
 
+  // Comprehensive Next Step & Action Guide Data
+  const getGuideMeta = () => {
+    const rawStatus = inquiry.status;
+    const isConverted = rawStatus === "Converted to Booking" || Boolean(inquiry.converted_booking_id);
+    const isDepositPaid =
+      inquiry.payment_status === "deposit_paid" ||
+      inquiry.payment_status === "fully_paid" ||
+      inquiry.is_deposit_paid === true;
+
+    if (rawStatus === "Quotation Sent") {
+      return {
+        tone: "amber",
+        badge: "Action Required",
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 animate-pulse",
+        title: "Your Official Quotation is Ready for Review!",
+        description: inquiry.total_price > 0
+          ? `Caezelle's catering team has finalized your proposal totaling ${formatCurrency(inquiry.total_price)}. Please review your itemized menus, event setup, and service inclusions. You can accept the quote to reserve your date or request adjustments.`
+          : "Caezelle's catering team has finalized your proposal. Please review your itemized menus and setup inclusions to accept or request revisions.",
+        assignedParty: "Awaiting Your Decision",
+        timeline: inquiry.quotation_expiration_date
+          ? `Quote valid until ${formatShortDate(inquiry.quotation_expiration_date)}`
+          : "Please review at your earliest convenience",
+        action: (
+          <Button
+            onClick={openQuotationView}
+            disabled={isLoadingQuotation}
+            className="bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
+          >
+            <FileCheck2 className="w-4 h-4" />
+            <span>Review &amp; Accept Quotation</span>
+          </Button>
+        ),
+      };
+    }
+
+    if (["Quote Accepted", "Awaiting Final Confirmation"].includes(rawStatus) && !isDepositPaid) {
+      const depositVal = Number(inquiry.deposit_amount) > 0 ? Number(inquiry.deposit_amount) : Number(inquiry.total_price || 0);
+      return {
+        tone: "emerald",
+        badge: "Action Required: Deposit",
+        badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300 animate-pulse",
+        title: "Quote Accepted! Pay Deposit to Lock Your Event Date",
+        description: `Your quotation has been accepted. Complete the required reservation deposit of ${depositVal > 0 ? formatCurrency(depositVal) : "the agreed amount"} to officially secure our catering team, kitchen, and equipment on our calendar.`,
+        assignedParty: "Customer Payment Checkout",
+        timeline: "Immediate confirmation upon payment",
+        action: (
+          <Button
+            onClick={startInquiryCheckout}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Pay Deposit Now</span>
+          </Button>
+        ),
+      };
+    }
+
+    if (isConverted || isDepositPaid) {
+      return {
+        tone: "success",
+        badge: "Event Confirmed",
+        badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+        title: "Event Officially Booked & Reserved!",
+        description: "Your deposit payment has been confirmed and your event date is locked on our catering calendar. You can track site visits, food tasting sessions, and final balances in your Bookings portal.",
+        assignedParty: "Caezelle's Production & Culinary Team",
+        timeline: `Reserved for ${formatShortDate(inquiry.event_date)}`,
+        action: inquiry.converted_booking_id ? (
+          <Button
+            onClick={() => navigate(`/customer/bookings/${inquiry.converted_booking_id}`)}
+            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs gap-1.5 cursor-pointer transition-all"
+          >
+            <span>Go to My Bookings</span>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        ) : null,
+      };
+    }
+
+    if (rawStatus === "Revision Requested") {
+      return {
+        tone: "blue",
+        badge: "Under Revision",
+        badgeClass: "bg-blue-100 text-[#1E3563] border-blue-200",
+        title: "Revision in Progress: Updating Your Quotation",
+        description: "Our catering coordinator is updating your quotation with your requested changes. We will send you an updated proposal as soon as the adjustments are finalized.",
+        assignedParty: "Caezelle's Catering Coordinator",
+        timeline: "Updated quote usually delivered within 24 hours",
+        action: (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenChat}
+            className="bg-white hover:bg-slate-50 text-[#2C4B8A] font-bold text-xs h-9 px-4 rounded-xl border-slate-300 shadow-2xs gap-1.5 cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Message Coordinator</span>
+          </Button>
+        ),
+      };
+    }
+
+    if (["Cancelled", "Quote Rejected", "Expired"].includes(rawStatus)) {
+      return {
+        tone: "neutral",
+        badge: "Closed",
+        badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+        title: "This Inquiry is Closed",
+        description: "This inquiry is no longer active. If you would like to explore a new date or catering package, feel free to submit a new inquiry or message our catering team.",
+        assignedParty: "None",
+        timeline: "Closed",
+        action: (
+          <Button
+            onClick={() => navigate("/packages")}
+            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-9 px-4 rounded-xl shadow-xs cursor-pointer"
+          >
+            <span>Browse Packages</span>
+          </Button>
+        ),
+      };
+    }
+
+    // Default: Pending Review / Under Review
+    return {
+      tone: "blue",
+      badge: "Caezelle's Team Action",
+      badgeClass: "bg-blue-100 text-[#1E3563] border-blue-200",
+      title: "In Review: Preparing Your Custom Proposal",
+      description: `Our catering coordinators are reviewing your event specifications (${inquiry.event_type || 'Event'} for ${inquiry.guest_count ? `${inquiry.guest_count} guests` : 'your guests'} on ${formatShortDate(inquiry.event_date)}). We are verifying schedule availability, chef staffing, and equipment logistics.`,
+      assignedParty: "Caezelle's Coordination Team",
+      timeline: "Usually delivered within 24 to 48 hours",
+      action: (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenChat}
+            className="bg-white hover:bg-slate-50 text-[#2C4B8A] font-bold text-xs h-9 px-4 rounded-xl border-slate-300 shadow-2xs gap-1.5 cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Message Coordinator</span>
+          </Button>
+        </div>
+      ),
+    };
+  };
+
+  const guideMeta = getGuideMeta();
+
   return (
     <CustomerDashboardLayout>
       <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 font-sans antialiased">
@@ -609,7 +757,7 @@ export default function CustomerInquiryDetails() {
         </div>
 
         {/* SECTION A: INQUIRY HEADER HERO */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-4">
               {thumbnail ? (
@@ -647,8 +795,8 @@ export default function CustomerInquiryDetails() {
                 </div>
 
                 {/* Subtitle with event core details & submission date */}
-                <div className="text-xs text-slate-600 font-medium mt-1.5 flex items-center gap-2 flex-wrap">
-                  <span className="flex items-center gap-1 text-slate-700 font-semibold">
+                <div className="text-xs text-slate-700 font-medium mt-1.5 flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1 text-slate-900 font-bold">
                     <Calendar className="w-3.5 h-3.5 text-[#2C4B8A]" />
                     {formatEventDateWithDay(inquiry.event_date)}
                   </span>
@@ -656,22 +804,22 @@ export default function CustomerInquiryDetails() {
                     <span>• {formatTime(inquiry.start_time)}</span>
                   )}
                   <span>•</span>
-                  <span className="flex items-center gap-1 text-slate-700 font-semibold">
+                  <span className="flex items-center gap-1 text-slate-900 font-bold">
                     <Users className="w-3.5 h-3.5 text-[#2C4B8A]" />
                     {inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"}
                   </span>
                   {inquiry.service_type && (
                     <>
                       <span>•</span>
-                      <span className="text-slate-500">{inquiry.service_type}</span>
+                      <span className="text-slate-600 font-semibold">{inquiry.service_type}</span>
                     </>
                   )}
                 </div>
 
-                <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-3">
-                  <span className="font-mono font-medium">Ref. #{refCode}</span>
+                <div className="text-xs text-slate-600 font-medium mt-1.5 flex items-center gap-3">
+                  <span className="font-mono font-bold text-slate-700">Ref. #{refCode}</span>
                   {inquiry.createdAt && (
-                    <span>Submitted on {formatShortDate(inquiry.createdAt)}</span>
+                    <span>• Submitted on {formatShortDate(inquiry.createdAt)}</span>
                   )}
                 </div>
               </div>
@@ -683,7 +831,7 @@ export default function CustomerInquiryDetails() {
                 <Button
                   onClick={openQuotationView}
                   disabled={isLoadingQuotation}
-                  className="bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer gap-1.5 shadow-2xs transition-all active:scale-[0.98]"
+                  className="bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer gap-1.5 shadow-xs transition-all active:scale-[0.98]"
                 >
                   <FileCheck2 className="w-4 h-4" />
                   <span>Review Official Quote</span>
@@ -693,7 +841,7 @@ export default function CustomerInquiryDetails() {
               {inquiry.total_price > 0 && !isConverted && !isDepositPaid && inquiry.status !== "Cancelled" && (
                 <Button
                   onClick={startInquiryCheckout}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs transition-all active:scale-[0.98]"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer shadow-xs transition-all active:scale-[0.98]"
                 >
                   <CreditCard className="w-4 h-4 mr-1.5" /> Pay Deposit
                 </Button>
@@ -702,7 +850,7 @@ export default function CustomerInquiryDetails() {
               {isConverted && inquiry.converted_booking_id && (
                 <Button
                   onClick={() => navigate(`/customer/bookings/${inquiry.converted_booking_id}`)}
-                  className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs transition-all"
+                  className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer shadow-xs transition-all"
                 >
                   Go to Confirmed Booking <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
@@ -710,27 +858,66 @@ export default function CustomerInquiryDetails() {
             </div>
           </div>
 
-          {/* Action Required / Status Notice Banner */}
-          {meta.notice && (
-            <div
-              className={cn(
-                "p-3.5 rounded-xl border flex items-start gap-3 text-xs leading-relaxed",
-                meta.notice.tone === "info"
-                  ? "bg-blue-50/80 border-blue-200 text-blue-900"
-                  : meta.notice.tone === "warning"
-                  ? "bg-amber-50/80 border-amber-200 text-amber-900"
-                  : meta.notice.tone === "success"
-                  ? "bg-emerald-50/80 border-emerald-200 text-emerald-900"
-                  : "bg-slate-50 border-slate-200 text-slate-700"
-              )}
-            >
-              <Info className="w-4 h-4 shrink-0 mt-0.5 text-current opacity-80" />
-              <div>
-                <div className="font-bold font-sans">{meta.notice.title}</div>
-                <div className="mt-0.5 text-[11px] opacity-90 leading-normal">{meta.notice.text}</div>
+          {/* ACTION REQUIRED & NEXT STEP HERO GUIDE (Replaces the redundant yellow alert banner) */}
+          <div className={cn(
+            "p-4 sm:p-5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-2xs",
+            guideMeta.tone === "amber"
+              ? "bg-gradient-to-r from-amber-50/90 via-orange-50/40 to-white border-amber-300"
+              : guideMeta.tone === "emerald"
+              ? "bg-gradient-to-r from-emerald-50/90 via-teal-50/40 to-white border-emerald-300"
+              : guideMeta.tone === "success"
+              ? "bg-gradient-to-r from-emerald-50/80 via-white to-white border-emerald-200"
+              : "bg-gradient-to-r from-blue-50/80 via-slate-50/50 to-white border-blue-200"
+          )}>
+            <div className="flex items-start gap-3.5 min-w-0">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs",
+                guideMeta.tone === "amber"
+                  ? "bg-amber-500 text-white"
+                  : guideMeta.tone === "emerald" || guideMeta.tone === "success"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-[#2C4B8A] text-white"
+              )}>
+                {guideMeta.tone === "amber" ? (
+                  <FileCheck2 className="w-5 h-5" />
+                ) : guideMeta.tone === "emerald" ? (
+                  <CreditCard className="w-5 h-5" />
+                ) : guideMeta.tone === "success" ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : (
+                  <Clock className="w-5 h-5" />
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 font-sans">
+                    Current Stage &amp; Next Action
+                  </span>
+                  <span className={cn("px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide border", guideMeta.badgeClass)}>
+                    {guideMeta.badge}
+                  </span>
+                </div>
+                <h3 className="font-bold text-sm sm:text-base text-slate-900 font-sans">
+                  {guideMeta.title}
+                </h3>
+                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                  {guideMeta.description}
+                </p>
+                <div className="pt-1 flex items-center gap-3 text-[11px] text-slate-600 flex-wrap">
+                  <span><strong>Owner:</strong> {guideMeta.assignedParty}</span>
+                  <span>•</span>
+                  <span><strong>Timeline:</strong> {guideMeta.timeline}</span>
+                </div>
               </div>
             </div>
-          )}
+
+            {guideMeta.action && (
+              <div className="shrink-0 self-start sm:self-center pl-13 sm:pl-0">
+                {guideMeta.action}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* SECTION B: INQUIRY PROGRESS TIMELINE */}
@@ -739,7 +926,7 @@ export default function CustomerInquiryDetails() {
             <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
               <Clock className="w-4 h-4 text-[#2C4B8A]" /> Inquiry Progress Timeline
             </h2>
-            <span className="text-[11px] font-mono text-slate-400">Ref: #{refCode}</span>
+            <span className="text-xs font-mono text-slate-600 font-semibold">Ref: #{refCode}</span>
           </div>
 
           <div className="relative pt-3 pb-2 px-2 sm:px-6">
@@ -761,7 +948,7 @@ export default function CustomerInquiryDetails() {
                           ? "bg-emerald-600 text-white"
                           : isCurrent
                           ? "bg-[#2C4B8A] text-white ring-4 ring-[#2C4B8A]/15 scale-105"
-                          : "bg-white text-slate-400 border-2 border-slate-200"
+                          : "bg-white text-slate-600 border-2 border-slate-300"
                       )}
                     >
                       {isDone ? <Check className="w-4 h-4 stroke-[2.5]" /> : idx + 1}
@@ -775,7 +962,7 @@ export default function CustomerInquiryDetails() {
                             ? "font-extrabold text-[#1E3563]"
                             : isDone
                             ? "font-bold text-slate-900"
-                            : "font-medium text-slate-400"
+                            : "font-semibold text-slate-600"
                         )}
                       >
                         {step.title}
@@ -783,7 +970,7 @@ export default function CustomerInquiryDetails() {
                       <p
                         className={cn(
                           "text-[11px] leading-snug hidden sm:block",
-                          isCurrent ? "text-slate-600 font-medium" : "text-slate-400"
+                          isCurrent ? "text-slate-700 font-medium" : isDone ? "text-slate-600 font-medium" : "text-slate-500"
                         )}
                       >
                         {step.desc}
@@ -814,14 +1001,14 @@ export default function CustomerInquiryDetails() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-xs">
                 {/* Event Type & Celebration */}
                 <div className="space-y-1">
-                  <span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">
+                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
                     Event Type
                   </span>
                   <div className="font-bold text-slate-900 text-sm">
                     {inquiry.event_type || "Event Celebration"}
                   </div>
                   {inquiry.celebrant_name && (
-                    <div className="text-[11px] text-blue-700 font-medium flex items-center gap-1 pt-0.5">
+                    <div className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 pt-0.5">
                       <PartyPopper className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       <span>Celebrant / Honoree: <strong>{inquiry.celebrant_name}</strong></span>
                     </div>
@@ -830,7 +1017,7 @@ export default function CustomerInquiryDetails() {
 
                 {/* Guest Count */}
                 <div className="space-y-1">
-                  <span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">
+                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
                     Guest Count
                   </span>
                   <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
@@ -841,7 +1028,7 @@ export default function CustomerInquiryDetails() {
 
                 {/* Event Date & Time */}
                 <div className="space-y-1">
-                  <span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">
+                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
                     Event Date
                   </span>
                   <div className="font-bold text-slate-900 text-sm">
@@ -850,14 +1037,14 @@ export default function CustomerInquiryDetails() {
                 </div>
 
                 <div className="space-y-1">
-                  <span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">
+                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
                     Schedule &amp; Duration
                   </span>
                   <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
                     <Clock className="w-3.5 h-3.5 text-[#2C4B8A]" />
                     <span>{inquiry.start_time ? formatTime(inquiry.start_time) : "Time TBD"}</span>
                     {inquiry.duration_hours && (
-                      <span className="text-xs text-slate-500 font-normal">
+                      <span className="text-xs text-slate-600 font-medium">
                         ({inquiry.duration_hours} {inquiry.duration_hours === 1 ? "hour" : "hours"})
                       </span>
                     )}
@@ -867,7 +1054,7 @@ export default function CustomerInquiryDetails() {
                 {/* Event Theme & Palette */}
                 {(inquiry.event_theme || (Array.isArray(inquiry.event_palette) && inquiry.event_palette.length > 0)) && (
                   <div className="space-y-1.5 sm:col-span-2 pt-1 border-t border-slate-100">
-                    <span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">
+                    <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider">
                       Theme &amp; Styling Motif
                     </span>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -898,28 +1085,28 @@ export default function CustomerInquiryDetails() {
 
                 {/* Complete Venue & Location Breakdown */}
                 <div className="space-y-1.5 sm:col-span-2 pt-2 border-t border-slate-100">
-                  <span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-slate-600 font-bold block text-xs uppercase tracking-wider flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-[#2C4B8A]" /> Venue Location &amp; Address
                   </span>
 
                   <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-1.5 text-xs">
                     {inquiry.venue_type && (
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400 font-medium text-[11px]">Venue Type:</span>
+                        <span className="text-slate-600 font-semibold text-xs">Venue Type:</span>
                         <span className="font-bold text-slate-800">{inquiry.venue_type}</span>
                       </div>
                     )}
 
                     {inquiry.landmark && (
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400 font-medium text-[11px]">Landmark:</span>
+                        <span className="text-slate-600 font-semibold text-xs">Landmark:</span>
                         <span className="font-semibold text-slate-800">{inquiry.landmark}</span>
                       </div>
                     )}
 
                     <div>
-                      <span className="text-slate-400 font-medium text-[11px]">Full Address: </span>
-                      <span className="font-semibold text-slate-900">
+                      <span className="text-slate-600 font-semibold text-xs">Full Address: </span>
+                      <span className="font-bold text-slate-900">
                         {[
                           inquiry.street,
                           inquiry.barangay,
@@ -936,14 +1123,14 @@ export default function CustomerInquiryDetails() {
 
                     {/* Delivery / Setup Logistics */}
                     {inquiry.delivery_method && (
-                      <div className="pt-1.5 border-t border-slate-200/60 flex items-start gap-2 text-[11px] text-slate-600">
+                      <div className="pt-1.5 border-t border-slate-200/60 flex items-start gap-2 text-xs text-slate-700">
                         <Truck className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
                         <div>
-                          <span className="font-semibold text-slate-800 capitalize">
+                          <span className="font-bold text-slate-900 capitalize">
                             Method: {inquiry.delivery_method === "setup" ? "On-site Setup & Catering" : inquiry.delivery_method}
                           </span>
                           {inquiry.delivery_instructions && (
-                            <div className="text-slate-500 mt-0.5">
+                            <div className="text-slate-600 mt-0.5 font-medium">
                               Instructions: {inquiry.delivery_instructions}
                             </div>
                           )}
@@ -1095,7 +1282,7 @@ export default function CustomerInquiryDetails() {
                             <div className="space-y-3.5">
                               {categorizedSpecialOffer.map(({ category, dishes }) => (
                                 <div key={category} className="space-y-1.5">
-                                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
                                     {category}
                                   </span>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1127,7 +1314,7 @@ export default function CustomerInquiryDetails() {
                             <div className="space-y-3.5">
                               {categorizedMenu.map(({ category, dishes }) => (
                                 <div key={category} className="space-y-1.5">
-                                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
                                     {category} ({dishes.length})
                                   </span>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1178,7 +1365,7 @@ export default function CustomerInquiryDetails() {
                           <div className="space-y-3.5">
                             {packageInclusionGroups.map(({ category, items }) => (
                               <div key={category} className="space-y-1.5">
-                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
                                   {category}
                                 </span>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1227,74 +1414,43 @@ export default function CustomerInquiryDetails() {
                   )}
                 </div>
 
-                {/* 4 ORGANIZED INFORMATIONAL GUIDANCE NOTICES */}
-                <div className="pt-2 border-t border-slate-100 space-y-3">
-                  <div className="flex items-center gap-1.5 text-slate-500">
-                    <Info className="w-3.5 h-3.5 text-[#2C4B8A]" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      Package &amp; Quotation Guidance
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Notice 1: Removing default package inclusions */}
-                    <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100/90 text-xs space-y-1.5 shadow-2xs hover:bg-blue-50/70 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-blue-100/80 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                          <Package className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-slate-900 text-xs font-sans">
-                          Removing Package Inclusions
-                        </span>
+                {/* CONSOLIDATED CATERING & QUOTATION NOTES */}
+                <div className="pt-3 border-t border-slate-100">
+                  <div className="rounded-xl bg-slate-50/80 border border-slate-200/80 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-6 h-6 rounded-md bg-blue-100/80 text-[#2C4B8A] flex items-center justify-center shrink-0">
+                        <Info className="w-3.5 h-3.5" />
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed pl-8">
-                        Want to remove an item included in the default package? This can be discussed during the quotation process. Depending on the adjustment, the package&apos;s base price may also be reduced.
-                      </p>
+                      <span className="text-xs font-bold text-slate-900 font-sans">
+                        Catering &amp; Quotation Notes
+                      </span>
                     </div>
 
-                    {/* Notice 2: Additional food, items, and add-ons */}
-                    <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100/90 text-xs space-y-1.5 shadow-2xs hover:bg-blue-50/70 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-blue-100/80 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                          <Sparkles className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-slate-900 text-xs font-sans">
-                          Additional Items &amp; Add-ons
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-xs text-slate-600">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#2C4B8A] font-bold">•</span>
+                        <span>
+                          <strong className="text-slate-900 font-semibold">Package Inclusions:</strong> Items can be adjusted during quotation, which may reduce base pricing.
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed pl-8">
-                        Additional items, food selections, and add-ons are subject to quotation. Their final pricing will be discussed and confirmed in your quotation.
-                      </p>
-                    </div>
-
-                    {/* Notice 3: Event setup & size adjustments */}
-                    <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100/90 text-xs space-y-1.5 shadow-2xs hover:bg-blue-50/70 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-blue-100/80 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                          <Store className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-slate-900 text-xs font-sans">
-                          Event Setup &amp; Size Adjustments
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#2C4B8A] font-bold">•</span>
+                        <span>
+                          <strong className="text-slate-900 font-semibold">Add-ons &amp; Extras:</strong> Additional food and equipment are itemized and priced in your official quotation.
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed pl-8">
-                        Need a different event setup or size? Setup adjustments may be possible to provide a more comfortable experience for your guests. Any changes can be discussed and finalized during the quotation process.
-                      </p>
-                    </div>
-
-                    {/* Notice 4: Coordinator consultation */}
-                    <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100/90 text-xs space-y-1.5 shadow-2xs hover:bg-blue-50/70 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-blue-100/80 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                          <MessageSquare className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold text-slate-900 text-xs font-sans">
-                          Quotation Consultation
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#2C4B8A] font-bold">•</span>
+                        <span>
+                          <strong className="text-slate-900 font-semibold">Setup &amp; Layout:</strong> Venue configurations can be tailored to ensure guest comfort.
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed pl-8">
-                        Our team will contact you to confirm the details of your event and discuss any requested adjustments so we can prepare a more accurate quotation for you.
-                      </p>
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#2C4B8A] font-bold">•</span>
+                        <span>
+                          <strong className="text-slate-900 font-semibold">Coordinator Review:</strong> Our team will review notes and reach out if any clarifications are needed.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1378,12 +1534,12 @@ export default function CustomerInquiryDetails() {
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-7 h-7 rounded-lg bg-[#2C4B8A]/10 text-[#2C4B8A] flex items-center justify-center shrink-0">
-                            <Sparkles className="w-3.5 h-3.5" />
+                            <PackagePlus className="w-3.5 h-3.5" />
                           </div>
                           <div>
                             <div className="font-bold text-slate-900 truncate">{item.name}</div>
                             {item.quantity && (
-                              <div className="text-[11px] text-slate-400">Qty: {item.quantity}</div>
+                              <div className="text-[11px] text-slate-500 font-medium">Qty: {item.quantity}</div>
                             )}
                           </div>
                         </div>
@@ -1412,9 +1568,9 @@ export default function CustomerInquiryDetails() {
                     ))}
                 </div>
 
-                <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-slate-600 flex items-start gap-2.5">
+                <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 text-xs text-blue-900 flex items-start gap-2.5">
                   <Info className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0 mt-0.5" />
-                  <p className="text-[11px] leading-relaxed">
+                  <p className="text-[11px] leading-relaxed font-medium">
                     Additional items and add-ons are subject to quotation. Final pricing and itemization will be discussed and confirmed in your official quotation.
                   </p>
                 </div>
@@ -1423,7 +1579,7 @@ export default function CustomerInquiryDetails() {
 
             {/* 5. SPECIAL REQUESTS & DIETARY PREFERENCES (Only if provided) */}
             {hasSpecialRequests && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-[#2C4B8A]" />
@@ -1436,10 +1592,10 @@ export default function CustomerInquiryDetails() {
                 <div className="space-y-3.5 text-xs">
                   {inquiry.special_requests && (
                     <div className="space-y-1.5">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
                         Special Event Requests
                       </span>
-                      <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-100 text-slate-800 leading-relaxed whitespace-pre-wrap font-medium">
+                      <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 text-slate-900 leading-relaxed whitespace-pre-wrap font-medium">
                         {inquiry.special_requests}
                       </div>
                     </div>
@@ -1459,7 +1615,7 @@ export default function CustomerInquiryDetails() {
 
                   {(inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
                         Dietary Preferences &amp; Restrictions
                       </span>
                       <p className="text-slate-700 font-medium">
@@ -1476,7 +1632,7 @@ export default function CustomerInquiryDetails() {
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#2C4B8A]" />
+                    <Palette className="w-4 h-4 text-[#2C4B8A]" />
                     <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-sans">
                       Custom Event Styling &amp; Inspiration
                     </h2>
@@ -1491,7 +1647,7 @@ export default function CustomerInquiryDetails() {
                 <div className="space-y-4 text-xs">
                   {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
                         Styling Scope Elements
                       </span>
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -1509,7 +1665,7 @@ export default function CustomerInquiryDetails() {
 
                   {inquiry.custom_setup_notes && (
                     <div className="space-y-1">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
                         Styling Notes
                       </span>
                       <p className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 leading-relaxed font-medium">
@@ -1520,7 +1676,7 @@ export default function CustomerInquiryDetails() {
 
                   {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">
                         Customer Uploaded Inspiration Photos ({inquiry.inspiration_images.length})
                       </span>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -1664,7 +1820,7 @@ export default function CustomerInquiryDetails() {
                     <User className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Customer Name</span>
+                    <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Customer Name</span>
                     <span className="font-bold text-slate-900 text-xs truncate block">
                       {inquiry.contact_first_name} {inquiry.contact_last_name}
                     </span>
@@ -1676,7 +1832,7 @@ export default function CustomerInquiryDetails() {
                     <Mail className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Email Address</span>
+                    <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Email Address</span>
                     <span className="font-semibold text-slate-800 text-xs truncate block">
                       {inquiry.contact_email || "No email provided"}
                     </span>
@@ -1688,7 +1844,7 @@ export default function CustomerInquiryDetails() {
                     <Phone className="w-3.5 h-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Phone Number</span>
+                    <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Phone Number</span>
                     <span className="font-bold text-[#2C4B8A] text-xs block">
                       {inquiry.contact_phone || "No phone provided"}
                     </span>
@@ -1701,7 +1857,7 @@ export default function CustomerInquiryDetails() {
                       <Phone className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Alt Phone</span>
+                      <span className="text-slate-600 font-bold text-xs uppercase tracking-wider block">Alt Phone</span>
                       <span className="font-medium text-slate-700 text-xs block">
                         {inquiry.contact_alt_phone}
                       </span>
@@ -1710,8 +1866,8 @@ export default function CustomerInquiryDetails() {
                 )}
 
                 {inquiry.contact_method && (
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 font-medium">Preferred Contact:</span>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-600 font-semibold">Preferred Contact:</span>
                     <span className="font-semibold text-slate-800 capitalize">{inquiry.contact_method}</span>
                   </div>
                 )}
@@ -1743,16 +1899,17 @@ export default function CustomerInquiryDetails() {
               </Button>
             </div>
 
-            {/* 4. CANCEL INQUIRY ACTION (If active) */}
+            {/* 4. CANCEL INQUIRY ACTION (Discreet link) */}
             {inquiry.status !== "Converted to Booking" && inquiry.status !== "Cancelled" && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
-                <Button
-                  variant="outline"
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
                   onClick={() => setIsCancelDialogOpen(true)}
-                  className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-semibold h-9 rounded-xl cursor-pointer shadow-2xs transition-all gap-1.5"
+                  className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline font-semibold cursor-pointer transition-colors p-1.5"
                 >
-                  <XCircle className="w-3.5 h-3.5" /> Cancel Inquiry Request
-                </Button>
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Cancel this inquiry</span>
+                </button>
               </div>
             )}
           </div>

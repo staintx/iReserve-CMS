@@ -6,6 +6,7 @@ import CustomerReceiptModal from "../../components/customer/portal/CustomerRecei
 import useToast from "../../hooks/useToast";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import StatTile from "../../components/customer/portal/StatTile";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -371,297 +372,190 @@ export default function CustomerPayments() {
         </div>
       )}
 
-      {/* ── Executive Metric Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-        {/* Total Settled */}
-        <Card className="border-border shadow-2xs hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 sm:p-5 flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Total Settled
-              </p>
-              <h3 className="text-2xl font-bold text-foreground tracking-tight tabular-nums">
-                {formatCurrency(totalSettled)}
-              </h3>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>{approvedCount} successful payments</span>
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-800/60">
-              <Wallet className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Balance Due */}
-        <Card
-          className={cn(
-            "border shadow-2xs hover:shadow-xs transition-shadow",
+      {/* ── High-Density Metric Cards (Exact Screenshot Card Style) ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 mb-5">
+        <StatTile
+          icon={Wallet}
+          label="Total Settled"
+          value={formatCurrency(totalSettled)}
+          hint={`${approvedCount} successful payments`}
+        />
+        <StatTile
+          icon={CreditCard}
+          label="Balance Due"
+          value={formatCurrency(totalBalanceDue)}
+          hint={
             totalBalanceDue > 0
-              ? "border-amber-300/80 bg-amber-50/20 dark:border-amber-800/80 dark:bg-amber-950/20"
-              : "border-border"
-          )}
-        >
-          <CardContent className="p-4 sm:p-5 flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Balance Due
-              </p>
-              <h3
-                className={cn(
-                  "text-2xl font-bold tracking-tight tabular-nums",
-                  totalBalanceDue > 0
-                    ? "text-amber-700 dark:text-amber-400"
-                    : "text-foreground"
-                )}
-              >
-                {formatCurrency(totalBalanceDue)}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {totalBalanceDue > 0 ? (
-                  <span className="text-amber-700 dark:text-amber-400 font-medium inline-flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {actionableBalanceBookings.length} booking
-                    {actionableBalanceBookings.length > 1 ? "s" : ""} pending balance
-                  </span>
-                ) : (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    All accounts settled
-                  </span>
-                )}
-              </p>
-            </div>
-            <div
-              className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-                totalBalanceDue > 0
-                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300 border-amber-200 dark:border-amber-800"
-                  : "bg-muted text-muted-foreground border-border"
-              )}
-            >
-              <CreditCard className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Contract Value */}
-        <Card className="border-border shadow-2xs hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 sm:p-5 flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Contract Value
-              </p>
-              <h3 className="text-2xl font-bold text-foreground tracking-tight tabular-nums">
-                {formatCurrency(totalContractValue)}
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Across {bookings.length} catering event{bookings.length !== 1 ? "s" : ""}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-800/60">
-              <FileText className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Completion Progress */}
-        <Card className="border-border shadow-2xs hover:shadow-xs transition-shadow">
-          <CardContent className="p-4 sm:p-5 flex items-start justify-between">
-            <div className="space-y-1.5 w-full mr-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Payment Progress
-              </p>
-              <div className="flex items-baseline gap-1.5">
-                <h3 className="text-2xl font-bold text-foreground tracking-tight tabular-nums">
-                  {settlementPercentage}%
-                </h3>
-                <span className="text-xs text-muted-foreground font-medium">Settled</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-primary h-full rounded-full transition-all duration-500"
-                  style={{ width: `${settlementPercentage}%` }}
-                />
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-100 dark:border-purple-800/60">
-              <Sparkles className="w-5 h-5" />
-            </div>
-          </CardContent>
-        </Card>
+              ? `${actionableBalanceBookings.length} booking${actionableBalanceBookings.length > 1 ? "s" : ""} pending`
+              : "All accounts settled"
+          }
+          className={totalBalanceDue > 0 ? "border-amber-200" : undefined}
+        />
+        <StatTile
+          icon={FileText}
+          label="Contract Value"
+          value={formatCurrency(totalContractValue)}
+          hint={`Across ${bookings.length} catering event${bookings.length !== 1 ? "s" : ""}`}
+        />
+        <StatTile
+          icon={Sparkles}
+          label="Payment Progress"
+          value={`${settlementPercentage}%`}
+          hint={`${formatCurrency(totalSettled)} of ${formatCurrency(totalContractValue)}`}
+        />
       </div>
 
-      <div className="space-y-7">
-        {/* ── Upcoming Payments & Balance Due Section ── */}
-        <Card className="border-border shadow-2xs">
-          <CardHeader className="py-4 px-5 border-b border-border/70 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base sm:text-lg font-serif text-foreground flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-primary" />
-                Upcoming Payments & Balance Due
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Outstanding balances and deposits required for confirmed catering events
-              </p>
-            </div>
-            {totalBalanceDue > 0 && (
-              <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800 text-xs font-semibold">
+      <div className="space-y-5">
+        {/* ── Upcoming Payments & Balance Due Section (Rendered when balances are actionable) ── */}
+        {actionableBalanceBookings.length > 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#2C4B8A] stroke-[1.75]" />
+                <h2 className="text-sm sm:text-base font-bold text-slate-800 font-sans">
+                  Upcoming Payments & Balance Due
+                </h2>
+              </div>
+              <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200 text-xs font-semibold">
                 {actionableBalanceBookings.length} Due
               </Badge>
-            )}
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5">
-            {actionableBalanceBookings.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3.5">
-                {actionableBalanceBookings.map((b) => (
-                  <div
-                    key={b._id}
-                    className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card hover:bg-muted/15 transition-colors"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-bold text-sm sm:text-base text-foreground">
-                          {b.event_type || "Catering Booking"}
-                        </h4>
-                        <span className="font-mono text-xs font-semibold px-2 py-0.5 bg-muted rounded text-muted-foreground">
-                          {b.reference || `BK-${b._id.slice(-6).toUpperCase()}`}
-                        </span>
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "text-[11px] capitalize",
-                            b.isDepositStage
-                              ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300"
-                              : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300"
-                          )}
-                        >
-                          {b.isDepositStage ? "Deposit Required" : "Remaining Balance"}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                        {b.event_date && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0" />
-                            <span>
-                              Event:{" "}
-                              {new Date(b.event_date).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
-                            </span>
-                          </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {actionableBalanceBookings.map((b) => (
+                <div
+                  key={b._id}
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                >
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-sm text-slate-900 truncate font-sans">
+                        {b.event_type || "Catering Booking"}
+                      </h4>
+                      <span className="font-mono text-[11px] font-semibold px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600">
+                        {b.reference || `BK-${b._id.slice(-6).toUpperCase()}`}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "text-[10px] font-bold uppercase tracking-wider",
+                          b.isDepositStage
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
                         )}
-                        {b.package_name_snapshot && (
-                          <div>
-                            Package: <span className="font-medium text-foreground">{b.package_name_snapshot}</span>
-                          </div>
-                        )}
-                        {b.celebrant_name && (
-                          <div>
-                            For: <span className="font-medium text-foreground">{b.celebrant_name}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Payment Breakdown */}
-                      <div className="flex items-center gap-3 text-xs pt-0.5">
-                        <span className="text-muted-foreground">
-                          Contract: <strong className="text-foreground">{formatCurrency(b.total_price)}</strong>
-                        </span>
-                        <span className="text-muted-foreground">•</span>
-                        <span className="text-muted-foreground">
-                          Paid: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(b.paidAmount)}</strong>
-                        </span>
-                      </div>
+                      >
+                        {b.isDepositStage ? "Deposit Required" : "Remaining Balance"}
+                      </Badge>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-3.5 pt-2 md:pt-0 border-t md:border-t-0 border-border/60">
-                      <div className="text-left md:text-right">
-                        <div className="text-[11px] uppercase font-bold text-muted-foreground tracking-wider">
-                          Amount Due
+                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                      {b.event_date && (
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>
+                            Event:{" "}
+                            {new Date(b.event_date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
                         </div>
-                        <div className="text-xl font-bold text-amber-700 dark:text-amber-400 tabular-nums">
-                          {formatCurrency(b.remainingBalance)}
+                      )}
+                      {b.package_name_snapshot && (
+                        <div>
+                          Package: <span className="font-semibold text-slate-700">{b.package_name_snapshot}</span>
                         </div>
-                      </div>
+                      )}
+                      {b.celebrant_name && (
+                        <div>
+                          For: <span className="font-semibold text-slate-700">{b.celebrant_name}</span>
+                        </div>
+                      )}
+                    </div>
 
-                      <div className="flex items-center gap-2">
-                        <Link to={`/customer/bookings/${b._id}`}>
-                          <Button variant="outline" size="sm" className="h-9 text-xs">
-                            View Event
-                          </Button>
-                        </Link>
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            startPaymentForBooking(
-                              b,
-                              b.remainingBalance,
-                              b.isDepositStage ? "deposit" : "balance"
-                            )
-                          }
-                          disabled={payingTargetId === b._id}
-                          className="h-9 text-xs font-semibold gap-1.5 shadow-2xs"
-                        >
-                          <CreditCard className="w-3.5 h-3.5" />
-                          <span>{payingTargetId === b._id ? "Opening..." : "Pay Now"}</span>
-                        </Button>
-                      </div>
+                    {/* Payment Breakdown */}
+                    <div className="flex items-center gap-3 text-xs pt-0.5">
+                      <span className="text-slate-500">
+                        Contract: <strong className="text-slate-900">{formatCurrency(b.total_price)}</strong>
+                      </span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-slate-500">
+                        Paid: <strong className="text-emerald-700">{formatCurrency(b.paidAmount)}</strong>
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-7 px-4 bg-muted/15 rounded-xl border border-dashed border-border/80">
-                <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2">
-                  <CheckCircle2 className="w-5 h-5" />
+
+                  <div className="flex items-center justify-between md:justify-end gap-3.5 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/80 shrink-0">
+                    <div className="text-left md:text-right">
+                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        Amount Due
+                      </div>
+                      <div className="text-lg font-bold text-amber-700 tabular-nums">
+                        {formatCurrency(b.remainingBalance)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Link to={`/customer/bookings/${b._id}`}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs rounded-md border-slate-200">
+                          View Event
+                        </Button>
+                      </Link>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          startPaymentForBooking(
+                            b,
+                            b.remainingBalance,
+                            b.isDepositStage ? "deposit" : "balance"
+                          )
+                        }
+                        disabled={payingTargetId === b._id}
+                        className="h-8 text-xs font-semibold gap-1.5 shadow-2xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-[0.98]"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>{payingTargetId === b._id ? "Opening..." : "Pay Now"}</span>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <h4 className="text-sm font-semibold text-foreground">All Payments Up to Date</h4>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-0.5">
-                  You have no pending balance or deposit payments due at this time across all your confirmed events.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Refunds & Cancellations Section (if applicable) ── */}
         {refunds.length > 0 && (
-          <Card className="border-border shadow-2xs border-dashed">
-            <CardHeader className="py-3 px-5 bg-muted/20 border-b border-border/70">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                <RefreshCcw className="w-4 h-4 text-primary" />
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden">
+            <div className="py-3.5 px-5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2 font-sans">
+                <RefreshCcw className="w-3.5 h-3.5 text-[#2C4B8A]" />
                 Refunds & Cancellations
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border">
+              </h3>
+            </div>
+            <div>
+              <div className="divide-y divide-slate-100">
                 {refunds.map((r) => (
                   <div
                     key={r.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card"
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white"
                   >
                     <div>
-                      <h4 className="font-bold text-sm text-foreground">{r.type}</h4>
-                      <div className="text-xs text-muted-foreground mt-0.5">Ref: {r.id}</div>
-                      <div className="text-xs text-muted-foreground">Reason: {r.reason}</div>
+                      <h4 className="font-bold text-sm text-slate-900">{r.type}</h4>
+                      <div className="text-xs text-slate-400 mt-0.5">Ref: {r.id}</div>
+                      <div className="text-xs text-slate-500">Reason: {r.reason}</div>
                     </div>
                     <div className="flex items-center gap-5">
                       <div className="text-right">
-                        <div className="text-[11px] text-muted-foreground">
+                        <div className="text-[11px] text-slate-400">
                           Paid: {formatCurrency(r.deposit)}
                         </div>
                         {r.status === "refunded" ? (
-                          <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                          <div className="text-base font-bold text-emerald-700">
                             Refunded: {formatCurrency(r.amount)}
                           </div>
                         ) : (
-                          <div className="text-base font-bold text-amber-600 dark:text-amber-400">
+                          <div className="text-base font-bold text-amber-700">
                             Refund Pending
                           </div>
                         )}
@@ -673,33 +567,33 @@ export default function CustomerPayments() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* ── All Payment Transactions ── */}
-        <Card className="border-border shadow-2xs">
-          <CardHeader className="py-4 px-5 border-b border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden">
+          <div className="py-3.5 px-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base sm:text-lg font-serif text-foreground flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-primary" />
+              <h2 className="text-base font-bold font-sans text-slate-900 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-[#2C4B8A] stroke-[1.75]" />
                 Payment Transaction History
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Itemized transaction records for your events, inquiries, and official receipts
               </p>
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg border border-border/60 shrink-0 self-start sm:self-auto">
+            <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-lg border border-slate-200/80 shrink-0 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
                 className={cn(
-                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5",
+                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 cursor-pointer",
                   viewMode === "table"
-                    ? "bg-card text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                    : "text-slate-500 hover:text-slate-900"
                 )}
               >
                 <TableIcon className="w-3.5 h-3.5" />
@@ -709,19 +603,19 @@ export default function CustomerPayments() {
                 type="button"
                 onClick={() => setViewMode("cards")}
                 className={cn(
-                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5",
+                  "px-2.5 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 cursor-pointer",
                   viewMode === "cards"
-                    ? "bg-card text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold"
+                    : "text-slate-500 hover:text-slate-900"
                 )}
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>By Booking</span>
               </button>
             </div>
-          </CardHeader>
+          </div>
 
-          <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="p-4 sm:p-5 space-y-4">
             {/* Toolbar: Search, Booking filter, Status filter */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               {/* Search */}
@@ -796,7 +690,7 @@ export default function CustomerPayments() {
                     return (
                       <div
                         key={bId || bookingRef}
-                        className="rounded-xl border border-border bg-card overflow-hidden shadow-2xs"
+                        className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs"
                       >
                         {/* Event Header Banner */}
                         <div className="p-4 bg-muted/20 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -955,8 +849,8 @@ export default function CustomerPayments() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* ── Official Printable Receipt Modal ── */}

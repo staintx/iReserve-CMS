@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
@@ -90,9 +90,13 @@ export default function CustomerInquiries() {
     }
   };
 
-  const fetchInquiries = async () => {
+  const isFetchingRef = useRef(false);
+
+  const fetchInquiries = useCallback(async (isBackground = false) => {
+    if (isFetchingRef.current) return;
     try {
-      setLoading(true);
+      isFetchingRef.current = true;
+      if (!isBackground) setLoading(true);
       const [inqRes, pkgRes] = await Promise.all([
         CustomerAPI.getInquiries(),
         CustomerAPI.getPackages().catch(() => ({ data: [] })),
@@ -100,16 +104,18 @@ export default function CustomerInquiries() {
       setInquiries(inqRes.data || []);
       setPackages(pkgRes.data || []);
     } catch (err) {
-      notify("Failed to load inquiries.", "error");
-      setInquiries([]);
+      if (err?.response?.status !== 429 && !isBackground) {
+        notify("Failed to load inquiries.", "error", { id: "customer-inquiries-load-error" });
+      }
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
-  };
+  }, [notify]);
 
   useEffect(() => {
     fetchInquiries();
-  }, []);
+  }, [fetchInquiries]);
 
   // Handle URL parameters for edit route
   useEffect(() => {
@@ -158,7 +164,7 @@ export default function CustomerInquiries() {
     }
   }, [location.search]);
 
-  useRealTimeRefresh(fetchInquiries);
+  useRealTimeRefresh(() => fetchInquiries(true));
 
   // Sort helper function
   const sortInquiriesList = (list, isCancelledSection = false) => {
@@ -380,6 +386,17 @@ export default function CustomerInquiries() {
     );
   };
 
+  // Quick status triage counts
+  const triageCounts = useMemo(() => {
+    const total = inquiries.filter((i) => inquiryStatusGroup(i) !== "converted").length;
+    const actionNeeded = inquiries.filter((i) => inquiryStatusGroup(i) === "quote_ready").length;
+    const pendingReview = inquiries.filter((i) => inquiryStatusGroup(i) === "pending_review").length;
+    const accepted = inquiries.filter((i) => inquiryStatusGroup(i) === "accepted").length;
+    const cancelled = inquiries.filter((i) => inquiryStatusGroup(i) === "cancelled").length;
+
+    return { total, actionNeeded, pendingReview, accepted, cancelled };
+  }, [inquiries]);
+
   // Audited Dynamic Action Button Renderer - Error prevention: only render valid customer actions
   const renderCardActionButton = (inq) => {
     const isQuotationSent = inq.status === "Quotation Sent";
@@ -392,40 +409,36 @@ export default function CustomerInquiries() {
     // Review Quotation appears strictly when quotation is published & available to review
     if (isQuotationSent) {
       return (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              openQuotationView(inq);
-            }}
-            disabled={isLoadingQuotation}
-            className="bg-[#1E3563] hover:bg-[#152547] text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1.5 active:scale-[0.98]"
-          >
-            <FileCheck2 className="w-3.5 h-3.5" />
-            <span>Review quotation</span>
-          </Button>
-          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
-        </div>
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            openQuotationView(inq);
+          }}
+          disabled={isLoadingQuotation}
+          className="bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-9 px-4 rounded-xl shrink-0 cursor-pointer shadow-xs gap-1.5 active:scale-[0.98] transition-all"
+        >
+          <FileCheck2 className="w-3.5 h-3.5" />
+          <span>Review Quote</span>
+          <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+        </Button>
       );
     }
 
     if (inq.total_price > 0 && !isConverted && !isDepositPaid && !["Cancelled", "Quote Rejected"].includes(inq.status)) {
       return (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              startInquiryCheckout(inq);
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1.5 active:scale-[0.98]"
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Pay Deposit</span>
-          </Button>
-          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
-        </div>
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            startInquiryCheckout(inq);
+          }}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-xl shrink-0 cursor-pointer shadow-xs gap-1.5 active:scale-[0.98] transition-all"
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Pay Deposit</span>
+          <ChevronRight className="w-3.5 h-3.5 opacity-70" />
+        </Button>
       );
     }
 
@@ -438,10 +451,10 @@ export default function CustomerInquiries() {
           e.stopPropagation();
           handleViewInquiry(inq);
         }}
-        className="border-slate-200 text-[#2C4B8A] group-hover:border-[#2C4B8A] group-hover:bg-[#2C4B8A] group-hover:text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
+        className="border-slate-200 bg-white hover:bg-slate-50 text-slate-800 hover:text-[#2C4B8A] font-bold text-xs h-9 px-3.5 rounded-xl shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
       >
-        <span>View</span>
-        <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+        <span>View Details</span>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#2C4B8A] transition-transform group-hover:translate-x-0.5" />
       </Button>
     );
   };
@@ -453,14 +466,37 @@ export default function CustomerInquiries() {
     const titleStr = recordTitle(inq);
     const meta = inquiryStatusMeta(inq);
     const locationStr = [inq.municipality, inq.province].filter(Boolean).join(", ") || inq.venue_address || "Location TBD";
+    const group = inquiryStatusGroup(inq);
+    const isActionRequired = group === "quote_ready";
+
+    // Dynamic next-step sentence for crystal-clear user guidance
+    let nextStepMessage = meta.notice?.text || "Our team is reviewing your event request details.";
+    if (inq.status === "Quotation Sent") {
+      nextStepMessage = "⚡ Official quotation ready. Review itemized proposal to lock your pricing.";
+    } else if (["Quote Accepted", "Awaiting Final Confirmation"].includes(inq.status) && !inq.is_deposit_paid) {
+      nextStepMessage = "💳 Quote accepted. Pay required deposit to secure your event date on our calendar.";
+    } else if (["Pending Review", "Under Review"].includes(inq.status)) {
+      nextStepMessage = "⏳ Caezelle's catering team is reviewing your event specifications (usually within 24–48h).";
+    } else if (inq.status === "Revision Requested") {
+      nextStepMessage = "✏️ Revision noted. Caezelle's coordinators are updating your proposal specifications.";
+    } else if (group === "accepted") {
+      nextStepMessage = "✅ Deposit confirmed! Booking confirmation is being finalized.";
+    } else if (group === "cancelled") {
+      nextStepMessage = "This inquiry has been closed.";
+    }
 
     return (
       <div
         key={inq._id}
         onClick={() => handleViewInquiry(inq)}
-        className="group p-4 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer relative shadow-2xs"
+        className={cn(
+          "group p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative shadow-2xs",
+          isActionRequired
+            ? "border-amber-300/90 bg-gradient-to-r from-amber-50/40 via-white to-white hover:border-amber-400 hover:shadow-xs"
+            : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs"
+        )}
       >
-        {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
+        {/* 12-COLUMN RESPONSIVE GRID ROW */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
           {/* Cols 1-5: Thumbnail Image & Core Event Specs */}
           <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
@@ -468,10 +504,10 @@ export default function CustomerInquiries() {
               <img
                 src={thumbnail}
                 alt={titleStr}
-                className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
               />
             ) : (
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
                 <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
               </div>
             )}
@@ -481,40 +517,50 @@ export default function CustomerInquiries() {
                 {titleStr}
               </h3>
 
-              <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  {resolveServiceType(inq)}
+              <div className="text-xs text-slate-700 font-medium flex items-center gap-1.5 flex-wrap">
+                <span className="flex items-center gap-1 font-semibold text-slate-800">
+                  <Calendar className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                  {formatShortDate(inq.event_date)}
                 </span>
-                <span>•</span>
-                <span>{formatShortDate(inq.event_date)}</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-slate-400">•</span>
+                <span className="text-slate-600 font-medium">{resolveServiceType(inq)}</span>
+                <span className="text-slate-400">•</span>
+                <span className="flex items-center gap-1 text-slate-700 font-medium">
+                  <Users className="w-3.5 h-3.5 text-slate-500" />
                   {inq.guest_count ? `${inq.guest_count} guests` : "Guests TBD"}
                 </span>
               </div>
 
-              <div className="text-xs text-slate-500 flex items-center gap-1 truncate">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <div className="text-xs text-slate-600 font-medium flex items-center gap-1 truncate">
+                <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <span className="truncate">{locationStr}</span>
               </div>
 
-              <div className="text-[11px] font-mono text-slate-400 pt-0.5">
-                Ref: {refCode}
+              <div className="text-[11px] font-mono text-slate-500 font-semibold pt-0.5">
+                Ref: #{refCode}
               </div>
             </div>
           </div>
 
-          {/* Cols 6-9: Modern Status Badge & Notice Sentence */}
+          {/* Cols 6-9: Modern Status Badge & Actionable Next Step Guidance */}
           <div className="md:col-span-4 space-y-1.5 min-w-0">
-            {renderStatusBadge(inq)}
-            <p className="text-xs text-slate-500 leading-snug line-clamp-2">
-              {meta.notice?.text || "Our team is reviewing your event request details."}
+            <div className="flex items-center gap-2 flex-wrap">
+              {renderStatusBadge(inq)}
+              {isActionRequired && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 uppercase tracking-wide">
+                  Action Required
+                </span>
+              )}
+            </div>
+            <p className={cn(
+              "text-xs leading-snug line-clamp-2",
+              isActionRequired ? "text-amber-950 font-semibold" : "text-slate-700 font-medium"
+            )}>
+              {nextStepMessage}
             </p>
           </div>
 
-          {/* Cols 10-12: Action Area (Right-Aligned, Valid CTAs Only) */}
+          {/* Cols 10-12: Action Area (Right-Aligned, High Visibility CTAs) */}
           <div className="md:col-span-3 flex items-center justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
             {renderCardActionButton(inq)}
           </div>
@@ -532,14 +578,14 @@ export default function CustomerInquiries() {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">
               My Inquiries
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              View and manage your event inquiries, track request status, and review official quotations.
+            <p className="text-xs text-slate-600 mt-0.5 font-medium">
+              View and manage your event inquiries, track review progress, and approve official quotations.
             </p>
           </div>
 
           <Button
             onClick={() => navigate("/packages")}
-            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-md font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-xl font-bold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             <span>New Request</span>
@@ -548,6 +594,46 @@ export default function CustomerInquiries() {
 
         {/* WORKSPACE AREA: FULL CONTENT WIDTH */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-4 sm:p-6 space-y-4 w-full">
+          {/* QUICK STATUS TRIAGE PILL TABS */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] shrink-0">
+            {[
+              { id: "all", label: "All Inquiries", count: triageCounts.total },
+              { id: "quote_ready", label: "Action Needed", count: triageCounts.actionNeeded, isAction: triageCounts.actionNeeded > 0 },
+              { id: "pending_review", label: "Under Review", count: triageCounts.pendingReview },
+              { id: "accepted", label: "Accepted", count: triageCounts.accepted },
+              { id: "cancelled", label: "Cancelled", count: triageCounts.cancelled },
+            ].map((tab) => {
+              const active = statusFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 border shadow-2xs",
+                    active
+                      ? "bg-[#2C4B8A] text-white border-[#2C4B8A] shadow-xs"
+                      : "bg-white text-slate-700 hover:text-slate-900 border-slate-200/90 hover:border-slate-300"
+                  )}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={cn(
+                      "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                      active
+                        ? "bg-white/20 text-white"
+                        : tab.isAction
+                        ? "bg-amber-100 text-amber-900 font-extrabold ring-1 ring-amber-300"
+                        : "bg-slate-100 text-slate-700"
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
             {/* Search Bar */}

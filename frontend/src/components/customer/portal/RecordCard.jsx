@@ -57,7 +57,7 @@ export default function RecordCard({
   return (
     <article
       className={cn(
-        "overflow-hidden rounded-lg border transition-all shadow-2xs",
+        "overflow-hidden rounded-2xl border transition-all shadow-2xs",
         quiet ? "border-slate-200 bg-slate-50/60 opacity-80" : "border-slate-200 bg-white hover:border-slate-300",
         className
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
@@ -92,9 +92,13 @@ export default function CustomerBookings() {
     }
   };
 
-  const loadData = async () => {
+  const isFetchingRef = useRef(false);
+
+  const loadData = useCallback(async (isBackground = false) => {
+    if (isFetchingRef.current) return;
     try {
-      setLoading(true);
+      isFetchingRef.current = true;
+      if (!isBackground) setLoading(true);
       const [bRes, pRes, pkgRes, menuRes] = await Promise.all([
         CustomerAPI.getBookings(),
         CustomerAPI.getPayments(),
@@ -105,16 +109,19 @@ export default function CustomerBookings() {
       setPayments(pRes.data || []);
       setPackages(pkgRes.data || []);
       setMenuCatalog(menuRes.data || []);
-    } catch {
-      notify("Failed to load booking details.", "error");
+    } catch (err) {
+      if (err?.response?.status !== 429 && !isBackground) {
+        notify("Failed to load booking details.", "error", { id: "customer-bookings-load-error" });
+      }
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
-  };
+  }, [notify]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Outstanding balance per booking
   const balanceOf = useMemo(() => {
@@ -643,10 +650,10 @@ export default function CustomerBookings() {
                       key={bkg._id}
                       onClick={() => handleSelectBooking(bkg._id)}
                       className={cn(
-                        "group p-4 rounded-xl border transition-all cursor-pointer relative shadow-2xs",
+                        "group p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative shadow-2xs",
                         isSelected
-                          ? "bg-blue-50/40 border-l-4 border-l-blue-600 border-y border-r border-blue-200/90 shadow-sm"
-                          : "bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-xs"
+                          ? "bg-white ring-2 ring-[#2C4B8A] border-transparent shadow-xs"
+                          : "bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-2xs"
                       )}
                     >
                       {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
@@ -767,7 +774,7 @@ export default function CustomerBookings() {
           {/* RIGHT ACTION & FINANCIAL TRACKER SIDE PANEL WITH PINNED FOOTER LAYOUT */}
           <div
             className={cn(
-              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/90 rounded-xl shadow-2xs flex flex-col h-full max-h-full min-h-0 overflow-hidden",
+              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/80 rounded-2xl shadow-2xs flex flex-col h-full max-h-full min-h-0 overflow-hidden",
               mobileView === "list" ? "hidden md:flex" : "flex"
             )}
           >

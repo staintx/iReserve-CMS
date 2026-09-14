@@ -163,7 +163,7 @@ export default function CustomerNotifications() {
         </div>
 
         {/* Notifications Card Container */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground text-sm">
               Loading notifications...

@@ -577,6 +577,7 @@ export default function AdminInventory() {
       {showModal && (
         <InventoryModal
           item={activeItem}
+          existingItems={inventory}
           onClose={handleCloseModal}
           onSave={() => {
             handleCloseModal();

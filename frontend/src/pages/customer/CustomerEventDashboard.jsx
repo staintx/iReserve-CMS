@@ -784,6 +784,14 @@ export default function CustomerEventDashboard() {
   const serviceType = booking.service_type || "Food and Event Setup";
   const isFoodOnlyService = isFoodOnly(serviceType);
   const isSetupOnlyService = isSetupOnly(serviceType);
+  const rawStatus = (booking.status || "").toLowerCase();
+
+  const eventDateObj = booking.event_date ? new Date(booking.event_date) : null;
+  const isEventFuture = eventDateObj ? (eventDateObj.getTime() - Date.now() > 24 * 60 * 60 * 1000) : false;
+
+  const ocularActionMeta = getBookingOcularActionMeta(booking);
+  const needsOcular = Boolean(ocularActionMeta && ocularActionMeta.state === "action_required");
+  const pendingOcular = Boolean(ocularActionMeta && ocularActionMeta.state === "requested");
 
   const steps = isFoodOnlyService ? [
     { 
@@ -799,15 +807,17 @@ export default function CustomerEventDashboard() {
       desc: "Order confirmed and locked with kitchen"
     },
     {
-      label: "Food Preparation",
-      completed: ["preparing", "ongoing", "ready for event", "out for delivery", "completed"].includes(String(booking.status).toLowerCase()),
-      date: ["preparing", "ongoing", "ready for event", "out for delivery", "completed"].includes(String(booking.status).toLowerCase()) ? "In Progress" : "Scheduled",
-      desc: "Kitchen staff preparing your dishes"
+      label: isEventFuture ? "Preparation Scheduled" : "Food Preparation",
+      completed: ["preparing", "ongoing", "ready for event", "out for delivery", "completed"].includes(rawStatus),
+      date: ["preparing", "ongoing", "ready for event", "out for delivery", "completed"].includes(rawStatus)
+        ? (rawStatus === "preparing" || rawStatus === "ongoing" ? "In Progress" : "Completed")
+        : (isEventFuture ? "Scheduled for Event Date" : "Scheduled"),
+      desc: isEventFuture ? "Kitchen staff scheduled for event date" : "Kitchen staff preparing your dishes"
     },
     { 
       label: "Out for Delivery & Drop-off", 
-      completed: ["out for delivery", "completed"].includes(String(booking.status).toLowerCase()),
-      date: ["out for delivery", "completed"].includes(String(booking.status).toLowerCase()) ? "Completed" : "Event Day",
+      completed: ["out for delivery", "completed"].includes(rawStatus),
+      date: ["out for delivery", "completed"].includes(rawStatus) ? "Completed" : "Event Day",
       desc: "Dispatched to destination address"
     },
     { 
@@ -824,10 +834,10 @@ export default function CustomerEventDashboard() {
       desc: "Order has been registered in system"
     },
     {
-      label: "Preparing Order",
+      label: isEventFuture ? "Preparation Scheduled" : "Preparing Order",
       completed: ["preparing", "ongoing", "completed"].includes(booking.status),
-      date: ["preparing", "ongoing", "completed"].includes(booking.status) ? "In Progress" : "Pending",
-      desc: "Kitchen staff preparing your menu"
+      date: ["preparing", "ongoing", "completed"].includes(booking.status) ? "In Progress" : (isEventFuture ? "Scheduled for Event Date" : "Pending"),
+      desc: isEventFuture ? "Kitchen staff scheduled for event date" : "Kitchen staff preparing your menu"
     },
     { 
       label: "Out for Delivery & COD", 
@@ -870,12 +880,240 @@ export default function CustomerEventDashboard() {
 
   const assignedStaff = booking.staff_assignments || [];
   const eventManager = booking.event_manager_id;
-  const ocularActionMeta = getBookingOcularActionMeta(booking);
-  const needsOcular = Boolean(ocularActionMeta && ocularActionMeta.state === "action_required");
-  const pendingOcular = Boolean(ocularActionMeta && ocularActionMeta.state === "requested");
+
+  // Comprehensive Next Action & Guidance Evaluator
+  const getActionGuideMeta = () => {
+    // 1. Revision proposal awaiting customer approval
+    if (booking.pending_revision && booking.pending_revision.status === "pending_customer_approval") {
+      return {
+        tone: "amber",
+        badge: "Action Required",
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
+        title: "Revised Booking Proposal Awaiting Your Confirmation",
+        description: booking.pending_revision.message || "Please review the updated booking terms, inclusions, and pricing adjustments.",
+        assignedParty: "Awaiting Your Decision",
+        timeline: "Review before event preparation",
+        action: (
+          <Button
+            onClick={() => setShowProposalModal(true)}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Review Proposal →</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 2. Deposit needed
+    if (["deposit pending", "pending deposit"].includes(rawStatus) || (booking.payment_status === "pending" && !isFullyPaid)) {
+      return {
+        tone: "amber",
+        badge: "Action Required: Deposit",
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
+        title: "Pay Reservation Deposit to Secure Your Event Date",
+        description: `Your reservation request is registered. Complete the required deposit to lock in our kitchen staff and calendar on ${booking.event_date ? formatShortDate(booking.event_date) : "your event date"}.`,
+        assignedParty: "Customer Payment Checkout",
+        timeline: "Immediate lock upon payment",
+        action: (
+          <Button
+            onClick={handlePayRemainingBalance}
+            disabled={payingPaymentId !== null}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Pay Deposit Now</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 3. Ocular Inspection needed
+    if (needsOcular) {
+      return {
+        tone: "amber",
+        badge: "Action Required: Ocular Visit",
+        badgeClass: "bg-orange-100 text-orange-900 border-orange-300 font-bold",
+        title: "Schedule Your Venue Ocular Inspection",
+        description: "Choose a convenient date and time for our catering and styling coordinator to inspect your venue layout, electrical access, and table arrangements.",
+        assignedParty: "Customer Scheduling",
+        timeline: "Best completed 2-3 weeks before event",
+        action: (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setRequestingOcular(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+            >
+              <CalendarRange className="w-4 h-4" />
+              <span>Schedule Ocular</span>
+            </Button>
+            {!booking.ocular_visit?.is_required && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
+                    CustomerAPI.skipOcular(booking._id)
+                      .then(() => {
+                        notify("Ocular visit skipped successfully.", "success");
+                        fetchBooking();
+                      })
+                      .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
+                  }
+                }}
+                className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs h-9 px-3 rounded-lg cursor-pointer"
+              >
+                Skip
+              </Button>
+            )}
+          </div>
+        ),
+      };
+    }
+
+    // 4. Ocular requested / pending admin confirmation
+    if (pendingOcular) {
+      return {
+        tone: "blue",
+        badge: "Ocular Requested",
+        badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
+        title: "Ocular Visit Requested — Awaiting Admin Confirmation",
+        description: `You requested a venue visit on ${booking.ocular_visit?.scheduled_date ? formatShortDate(booking.ocular_visit.scheduled_date) : "the selected date"}. Our coordinator is confirming logistics with our field team.`,
+        assignedParty: "Caezelle Catering Coordinator",
+        timeline: "Confirmation usually within 24 hours",
+        action: (
+          <Button
+            variant="outline"
+            onClick={() => setRequestingOcular(true)}
+            className="border-blue-300 bg-white hover:bg-blue-50 text-[#1E3563] font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+          >
+            <CalendarRange className="w-4 h-4 text-[#1E3563]" />
+            <span>Reschedule Request</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 5. Ocular scheduled
+    if (ocularActionMeta?.state === "scheduled") {
+      return {
+        tone: "blue",
+        badge: "Ocular Confirmed",
+        badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
+        title: `Site Ocular Visit Confirmed for ${booking.ocular_visit?.scheduled_date ? formatShortDate(booking.ocular_visit.scheduled_date) : "agreed date"}`,
+        description: `Our venue team will meet you at the site${booking.ocular_visit?.scheduled_time ? ` at ${booking.ocular_visit.scheduled_time}` : ""}. We will verify table layout, kitchen staging, and power access.`,
+        assignedParty: eventManager?.full_name ? `${eventManager.full_name} (Event Lead)` : "Assigned Venue Lead",
+        timeline: `Scheduled: ${booking.ocular_visit?.scheduled_date ? formatShortDate(booking.ocular_visit.scheduled_date) : "Upcoming"}`,
+        action: (
+          <Button
+            variant="outline"
+            onClick={handleOpenChat}
+            disabled={isOpeningChat}
+            className="border-blue-300 bg-white hover:bg-blue-50 text-[#1E3563] font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+          >
+            <MessageSquare className="w-4 h-4 text-[#1E3563]" />
+            <span>Message Venue Team</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 6. Proposed changes under admin review
+    if (booking.change_request && booking.change_request.status === "pending") {
+      const changeMsg = (booking.change_request.message || "").trim();
+      const cleanMsg = changeMsg && changeMsg !== "..." ? changeMsg : "Schedule, guest count, or venue adjustment requested";
+      return {
+        tone: "indigo",
+        badge: "Change Under Review",
+        badgeClass: "bg-indigo-100 text-indigo-900 border-indigo-200 font-semibold",
+        title: "Your Proposed Booking Changes are Under Admin Review",
+        description: `We received your revision request: "${cleanMsg}". Our catering coordinator is checking calendar availability and pricing adjustments.`,
+        assignedParty: "Caezelle Catering Admin",
+        timeline: booking.change_request.requested_at ? `Submitted on ${formatShortDate(booking.change_request.requested_at)}` : "Submitted recently",
+        action: (
+          <Button
+            variant="outline"
+            onClick={handleOpenChat}
+            disabled={isOpeningChat}
+            className="border-indigo-300 bg-white hover:bg-indigo-50 text-indigo-950 font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+          >
+            <MessageSquare className="w-4 h-4 text-indigo-700" />
+            <span>Message Admin</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 7. Confirmed with balance due
+    if (outstandingAmount > 0 && !["cancelled"].includes(rawStatus)) {
+      return {
+        tone: "amber",
+        badge: "Balance Due",
+        badgeClass: "bg-amber-50 text-amber-900 border-amber-300 font-semibold",
+        title: `Booking Confirmed! Remaining Balance: ${formatCurrency(outstandingAmount)}`,
+        description: isFoodOnlyService
+          ? `Your event date is securely reserved. Settle the final balance prior to food delivery and dispatch on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`
+          : `Your event date is securely reserved. Settle the final balance before event execution and staging on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`,
+        assignedParty: "Customer Payment Checkout",
+        timeline: "Due before event date",
+        action: (
+          <Button
+            onClick={handlePayRemainingBalance}
+            disabled={payingPaymentId !== null}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>{payingPaymentId ? "Opening Checkout…" : `Pay Balance (${formatCurrency(outstandingAmount)})`}</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 8. Fully paid & confirmed
+    if (isFullyPaid && ["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus)) {
+      return {
+        tone: "emerald",
+        badge: "Confirmed & Reserved",
+        badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold",
+        title: "You're All Set! Everything is Paid & Confirmed",
+        description: isFoodOnlyService
+          ? `Your order is fully paid and locked with our kitchen. Dishes are scheduled for cooking and dispatch to your address on ${booking.event_date ? formatShortDate(booking.event_date) : "the event date"}.`
+          : `Your event is fully settled and locked on our schedule. Our culinary and staging teams are preparing equipment and menu ingredients for ${booking.event_date ? formatShortDate(booking.event_date) : "your event"}.`,
+        assignedParty: eventManager?.full_name ? `${eventManager.full_name} (${isFoodOnlyService ? "Dispatch Lead" : "Event Manager"})` : "Caezelle Catering Team",
+        timeline: `Target Event Date: ${booking.event_date ? formatShortDate(booking.event_date) : "Confirmed"}`,
+        action: (
+          <Button
+            variant="outline"
+            onClick={handleOpenChat}
+            disabled={isOpeningChat}
+            className="border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-900 font-semibold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+          >
+            <MessageSquare className="w-4 h-4 text-emerald-700" />
+            <span>Message Team Lead</span>
+          </Button>
+        ),
+      };
+    }
+
+    // 9. Completed
+    if (["completed", "event completed"].includes(rawStatus)) {
+      return {
+        tone: "neutral",
+        badge: "Event Completed",
+        badgeClass: "bg-slate-100 text-slate-800 border-slate-300 font-semibold",
+        title: "Event Successfully Concluded",
+        description: "Thank you for celebrating your special occasion with Caezelle's Catering! Please take a moment to rate and review your experience below.",
+        assignedParty: "Caezelle's Catering Team",
+        timeline: "Completed",
+        action: null,
+      };
+    }
+
+    return null;
+  };
+
+  const guideMeta = getActionGuideMeta();
 
   // Status badge config
-  const rawStatus = (booking.status || "").toLowerCase();
   let statusBadge = {
     label: booking.status,
     variant: "secondary"
@@ -1016,9 +1254,9 @@ export default function CustomerEventDashboard() {
                 size="sm"
                 onClick={handleOpenChat}
                 disabled={isOpeningChat}
-                className="gap-1.5 rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold h-8 px-3 cursor-pointer shadow-2xs"
+                className="gap-1.5 rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold h-8 px-3 cursor-pointer shadow-2xs"
               >
-                <MessageSquare className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                <MessageSquare className="w-3.5 h-3.5 text-[#1E3563]" />
                 {isOpeningChat ? "Opening chat…" : "Message Staff"}
               </Button>
 
@@ -1026,45 +1264,105 @@ export default function CustomerEventDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowInvoiceModal(true)}
-                className="gap-1.5 rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold h-8 px-3 cursor-pointer shadow-2xs"
+                className="gap-1.5 rounded-lg border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold h-8 px-3 cursor-pointer shadow-2xs"
               >
-                <FileText className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                <FileText className="w-3.5 h-3.5 text-[#1E3563]" />
                 View Official Invoice
               </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {booking.status === "quote_sent" && (
+                <Button 
+                  onClick={acceptQuote} 
+                  disabled={isAcceptingQuote}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 h-8 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {isAcceptingQuote ? "Processing..." : "Accept Quote & Pay Deposit"}
+                </Button>
+              )}
 
               {!['inquiry', 'quote_sent', 'customer_accepted', 'completed', 'cancelled', 'refunded'].includes(booking.status) && (
                 <Button 
-                  variant="outline" 
+                  variant="ghost" 
                   size="sm" 
                   onClick={() => setRequestingCancellation(true)}
-                  className="text-xs rounded-lg border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-800 font-semibold gap-1.5 h-8 px-3 cursor-pointer"
+                  className="text-[11px] text-slate-500 hover:text-rose-700 hover:bg-rose-50 font-medium gap-1.5 h-8 px-2 cursor-pointer"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-slate-400" />
                   Request Cancellation
                 </Button>
               )}
             </div>
-
-            {booking.status === "quote_sent" && (
-              <Button 
-                onClick={acceptQuote} 
-                disabled={isAcceptingQuote}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-1.5 h-8 rounded-lg shadow-xs gap-1.5 cursor-pointer"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {isAcceptingQuote ? "Processing..." : "Accept Quote & Pay Deposit"}
-              </Button>
-            )}
           </div>
         </div>
+
+        {/* PROMINENT WHAT'S NEXT & ACTION GUIDE HERO BANNER */}
+        {guideMeta && (
+          <div
+            className={cn(
+              "rounded-xl border p-4 sm:p-5 shadow-2xs space-y-3 transition-all",
+              guideMeta.tone === "amber"
+                ? "bg-gradient-to-r from-amber-50 to-orange-50/60 border-amber-300"
+                : guideMeta.tone === "blue"
+                  ? "bg-gradient-to-r from-blue-50 to-indigo-50/50 border-blue-200"
+                  : guideMeta.tone === "indigo"
+                    ? "bg-gradient-to-r from-indigo-50 to-purple-50/50 border-indigo-200"
+                    : guideMeta.tone === "emerald"
+                      ? "bg-gradient-to-r from-emerald-50 to-teal-50/50 border-emerald-300"
+                      : "bg-slate-50 border-slate-200"
+            )}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1.5 min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={cn(
+                      "text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full border",
+                      guideMeta.badgeClass
+                    )}
+                  >
+                    {guideMeta.badge}
+                  </span>
+                  {guideMeta.timeline && (
+                    <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      {guideMeta.timeline}
+                    </span>
+                  )}
+                  {guideMeta.assignedParty && (
+                    <span className="text-xs text-slate-600 font-medium">
+                      • {guideMeta.assignedParty}
+                    </span>
+                  )}
+                </div>
+
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+                  {guideMeta.title}
+                </h2>
+
+                <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium max-w-3xl">
+                  {guideMeta.description}
+                </p>
+              </div>
+
+              {guideMeta.action && (
+                <div className="shrink-0 pt-1 sm:pt-0">
+                  {guideMeta.action}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* CLEAN HORIZONTAL LIFECYCLE TIMELINE (DESIGN REFERENCE MATCH) */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-2xs space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider font-sans flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#2C4B8A]" /> Booking Progress Timeline
+              <Clock className="w-4 h-4 text-[#1E3563]" /> Booking Progress Timeline
             </h2>
-            <span className="text-xs font-mono text-slate-400">Ref: #{refCode}</span>
+            <span className="text-xs font-mono text-slate-500 font-medium">Ref: #{refCode}</span>
           </div>
 
           <div className="relative pt-3 pb-2 px-2 sm:px-6">
@@ -1091,7 +1389,7 @@ export default function CustomerEventDashboard() {
                         isDone
                           ? "bg-emerald-600 text-white"
                           : isCurrent
-                          ? "bg-[#2C4B8A] text-white ring-4 ring-[#2C4B8A]/15 scale-105"
+                          ? "bg-[#1E3563] text-white ring-4 ring-[#1E3563]/15 scale-105"
                           : "bg-white text-slate-400 border-2 border-slate-200"
                       )}
                     >
@@ -1106,7 +1404,7 @@ export default function CustomerEventDashboard() {
                             ? "font-extrabold text-[#1E3563]"
                             : isDone
                             ? "font-bold text-slate-900"
-                            : "font-medium text-slate-400"
+                            : "font-medium text-slate-500"
                         )}
                       >
                         {step.label}
@@ -1114,7 +1412,7 @@ export default function CustomerEventDashboard() {
                       <p
                         className={cn(
                           "text-[11px] leading-snug hidden sm:block",
-                          isCurrent ? "text-slate-600 font-medium" : "text-slate-400"
+                          isCurrent ? "text-slate-700 font-medium" : "text-slate-500"
                         )}
                       >
                         {step.desc}
@@ -1126,198 +1424,6 @@ export default function CustomerEventDashboard() {
             </div>
           </div>
         </div>
-
-        {/* DEDICATED SEPARATE VENUE & SITE OCULAR INSPECTION CARD */}
-        {ocularActionMeta && (
-          <Card
-            className={cn(
-              "rounded-xl p-4 sm:p-5 shadow-2xs space-y-3 transition-all",
-              ocularActionMeta.state === "action_required"
-                ? "border-amber-200/90 bg-gradient-to-r from-amber-50/80 to-orange-50/50"
-                : ocularActionMeta.state === "scheduled"
-                ? "border-blue-200/90 bg-gradient-to-r from-blue-50/70 to-indigo-50/40"
-                : ocularActionMeta.state === "requested"
-                ? "border-amber-200/80 bg-gradient-to-r from-amber-50/60 to-orange-50/30"
-                : "border-emerald-200/80 bg-gradient-to-r from-emerald-50/50 to-teal-50/30"
-            )}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3.5">
-                <div
-                  className={cn(
-                    "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 shadow-2xs",
-                    ocularActionMeta.state === "action_required"
-                      ? "bg-amber-100 border-amber-200 text-amber-700"
-                      : ocularActionMeta.state === "scheduled"
-                      ? "bg-blue-100 border-blue-200 text-blue-700"
-                      : ocularActionMeta.state === "requested"
-                      ? "bg-amber-100 border-amber-200 text-amber-700"
-                      : "bg-emerald-100 border-emerald-200 text-emerald-700"
-                  )}
-                >
-                  {ocularActionMeta.state === "completed" ? (
-                    <CheckCircle2 className="w-5 h-5" />
-                  ) : ocularActionMeta.state === "scheduled" ? (
-                    <CalendarCheck className="w-5 h-5" />
-                  ) : (
-                    <CalendarRange className="w-5 h-5" />
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={cn(
-                        "w-2 h-2 rounded-full shrink-0",
-                        ocularActionMeta.state === "action_required"
-                          ? "bg-orange-500 animate-pulse"
-                          : ocularActionMeta.state === "scheduled"
-                          ? "bg-blue-600"
-                          : ocularActionMeta.state === "requested"
-                          ? "bg-amber-500"
-                          : "bg-emerald-600"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider",
-                        ocularActionMeta.state === "action_required"
-                          ? "text-amber-900"
-                          : ocularActionMeta.state === "scheduled"
-                          ? "text-blue-900"
-                          : ocularActionMeta.state === "requested"
-                          ? "text-amber-900"
-                          : "text-emerald-900"
-                      )}
-                    >
-                      {ocularActionMeta.headline} • {ocularActionMeta.subheadline}
-                    </span>
-                  </div>
-                  <h4
-                    className={cn(
-                      "font-bold text-sm sm:text-base font-sans",
-                      ocularActionMeta.state === "action_required"
-                        ? "text-amber-950"
-                        : ocularActionMeta.state === "scheduled"
-                        ? "text-blue-950"
-                        : ocularActionMeta.state === "requested"
-                        ? "text-amber-950"
-                        : "text-emerald-950"
-                    )}
-                  >
-                    {ocularActionMeta.state === "action_required"
-                      ? "Ocular Visit Required"
-                      : ocularActionMeta.state === "scheduled"
-                      ? "Ocular Visit Scheduled"
-                      : ocularActionMeta.state === "requested"
-                      ? "Ocular Visit Requested"
-                      : "Ocular Visit Completed"}
-                  </h4>
-                  <p
-                    className={cn(
-                      "text-xs mt-0.5 leading-relaxed font-medium",
-                      ocularActionMeta.state === "action_required"
-                        ? "text-amber-800"
-                        : ocularActionMeta.state === "scheduled"
-                        ? "text-blue-800"
-                        : ocularActionMeta.state === "requested"
-                        ? "text-amber-800"
-                        : "text-emerald-800"
-                    )}
-                  >
-                    {ocularActionMeta.description}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {ocularActionMeta.state === "action_required" && (
-                  <>
-                    <Button
-                      onClick={() => setRequestingOcular(true)}
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 px-4 rounded-lg cursor-pointer shadow-xs gap-1.5 active:scale-[0.98]"
-                    >
-                      <CalendarRange className="w-3.5 h-3.5" />
-                      <span>Schedule Ocular Visit</span>
-                    </Button>
-                    {!booking.ocular_visit?.is_required && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          if (window.confirm("Are you sure you want to proceed without an ocular visit?")) {
-                            CustomerAPI.skipOcular(booking._id)
-                              .then(() => {
-                                notify("Ocular visit skipped successfully.", "success");
-                                fetchBooking();
-                              })
-                              .catch((err) => notify(err.response?.data?.message || "Failed to skip ocular visit.", "error"));
-                          }
-                        }}
-                        className="border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs h-8.5 px-3 rounded-lg cursor-pointer"
-                      >
-                        Skip Ocular
-                      </Button>
-                    )}
-                  </>
-                )}
-
-                {(ocularActionMeta.state === "requested" || ocularActionMeta.state === "scheduled") && (
-                  <Button
-                    variant={ocularActionMeta.state === "scheduled" ? "outline" : "default"}
-                    onClick={() => setRequestingOcular(true)}
-                    className={cn(
-                      "text-xs font-bold h-8.5 px-4 rounded-lg cursor-pointer shadow-xs gap-1.5 active:scale-[0.98]",
-                      ocularActionMeta.state === "scheduled"
-                        ? "border-blue-300 bg-white hover:bg-blue-50 text-blue-900"
-                        : "bg-amber-600 hover:bg-amber-700 text-white"
-                    )}
-                  >
-                    <CalendarRange className="w-3.5 h-3.5" />
-                    <span>Reschedule Ocular</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Pending Revision Proposal Banner */}
-        {booking.pending_revision && ["pending_customer_approval", "pending_admin_approval"].includes(booking.pending_revision.status) && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-start gap-2.5">
-              <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-bold text-amber-950 text-sm">
-                  {booking.pending_revision.status === "pending_customer_approval" ? "Revised Booking Proposal Awaiting Your Confirmation!" : "Your Proposed Revision is Pending Admin Review"}
-                </h4>
-                <p className="text-amber-800 text-xs mt-0.5 leading-relaxed font-medium">
-                  {booking.pending_revision.message || "Please review the updated booking terms and pricing adjustment."}
-                </p>
-              </div>
-            </div>
-            {booking.pending_revision.status === "pending_customer_approval" && (
-              <Button 
-                onClick={() => setShowProposalModal(true)}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-1.5 h-8 rounded-md shrink-0 shadow-2xs cursor-pointer"
-              >
-                Review &amp; Respond to Proposal →
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Change Request Alert Notification Banner */}
-        {booking.change_request && booking.change_request.status === 'pending' && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3.5 flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-semibold text-indigo-950 text-xs">Change Request Under Admin Review</h4>
-              <p className="text-indigo-800 text-xs mt-0.5">"{booking.change_request.message}"</p>
-              <p className="text-indigo-700 text-[11px] mt-0.5 font-mono">
-                Submitted on {booking.change_request.requested_at ? new Date(booking.change_request.requested_at).toLocaleDateString() : "Recently"}
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Rating & Review Section for Completed Events */}
         {["completed", "Completed", "event completed"].includes(rawStatus) && (
@@ -1424,45 +1530,48 @@ export default function CustomerEventDashboard() {
               
               {/* Event & Venue Details Card (2 cols) */}
               <div className="lg:col-span-2 space-y-4">
-                <Card className="border-border shadow-2xs rounded-lg">
+                <Card className="border-border shadow-2xs rounded-xl bg-white">
                   <CardHeader className="border-b border-border py-3 px-4 sm:px-5">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <CalendarRange className="w-4 h-4 text-primary" />
-                      Event & Location Details
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <CalendarRange className="w-4 h-4 text-[#1E3563]" />
+                      Event &amp; Location Details
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 sm:p-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3.5 gap-x-6 text-xs sm:text-sm">
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Package Name</p>
-                        <p className="font-semibold text-foreground">{booking.package_id?.name || "Custom Catering Build"}</p>
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">Package Name</p>
+                        <p className="font-bold text-slate-900">{booking.package_id?.name || "Custom Catering Build"}</p>
                         {booking.package_id?.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{booking.package_id.description}</p>
+                          <p className="text-xs text-slate-600 mt-0.5 line-clamp-2 leading-relaxed">{booking.package_id.description}</p>
                         )}
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Event Type / Theme</p>
-                        <p className="font-semibold text-foreground">
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">Event Type / Theme</p>
+                        <p className="font-bold text-slate-900">
                           {booking.event_type} {booking.event_theme ? `(${booking.event_theme})` : ""}
                         </p>
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Date & Time</p>
-                        <p className="font-semibold text-foreground">
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">Date &amp; Schedule</p>
+                        <p className="font-bold text-slate-900">
                           {booking.event_date ? new Date(booking.event_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : "TBD"}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Start Time: {booking.start_time || "Not specified"}</p>
+                        <p className="text-xs font-medium text-slate-600 mt-0.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          <span>Start Time: {booking.start_time || "Not specified"}</span>
+                        </p>
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Expected Guests</p>
-                        <p className="font-semibold text-foreground">{booking.guest_count || 0} pax</p>
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">Expected Guests</p>
+                        <p className="font-bold text-slate-900">{booking.guest_count || 0} pax</p>
                         {canModifyBooking && (
                           <button 
                             onClick={() => setAddingGuests(true)}
-                            className="text-xs text-primary hover:underline font-medium inline-block mt-0.5"
+                            className="text-xs text-[#1E3563] hover:underline font-bold inline-block mt-0.5 cursor-pointer"
                           >
                             + Add more guests
                           </button>
@@ -1470,21 +1579,21 @@ export default function CustomerEventDashboard() {
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Venue / Setup Type</p>
-                        <p className="font-semibold text-foreground">{booking.venue_type || "Standard Venue"}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 capitalize">Service: {booking.service_type || "Food & Setup"}</p>
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">Venue &amp; Setup Type</p>
+                        <p className="font-bold text-slate-900">{booking.venue_type || "Standard Venue"}</p>
+                        <p className="text-xs font-medium text-slate-600 mt-0.5 capitalize">Service: {booking.service_type || "Food & Setup"}</p>
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Location Address</p>
+                        <p className="text-xs font-semibold text-slate-600 mb-0.5">Destination &amp; Venue Address</p>
                         {booking.delivery_method === "pickup" ? (
-                          <p className="font-semibold text-foreground">Customer Pickup: {booking.pickup_location || "Store Premises"}</p>
+                          <p className="font-bold text-slate-900">Customer Store Pickup: {booking.pickup_location || "Store Premises"}</p>
                         ) : (
                           <div>
-                            <p className="font-semibold text-foreground">{booking.barangay}, {booking.municipality}</p>
-                            <p className="text-xs text-muted-foreground">{booking.street ? `${booking.street}, ` : ""}{booking.province} {booking.zip_code ? `(ZIP: ${booking.zip_code})` : ""}</p>
+                            <p className="font-bold text-slate-900">{booking.barangay ? `${booking.barangay}, ` : ""}{booking.municipality}</p>
+                            <p className="text-xs text-slate-600 font-medium">{booking.street ? `${booking.street}, ` : ""}{booking.province} {booking.zip_code ? `(ZIP: ${booking.zip_code})` : ""}</p>
                             {booking.landmark && (
-                              <p className="text-xs text-muted-foreground font-mono mt-0.5">Landmark: {booking.landmark}</p>
+                              <p className="text-xs text-slate-600 mt-0.5">Landmark: <span className="font-semibold text-slate-800">{booking.landmark}</span></p>
                             )}
                           </div>
                         )}
@@ -1744,54 +1853,70 @@ export default function CustomerEventDashboard() {
 
                     {/* Selected Dishes — 2 column dense grid */}
                     {booking.menu_items && booking.menu_items.length > 0 ? (
-                      <div>
-                        <div className="flex items-center justify-between mb-2.5">
-                          <h4 className="font-sans text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-700">
                             Selected Dishes ({booking.menu_items.length})
                           </h4>
+                          <span className="text-[11px] text-slate-500 font-medium">Included in catering service</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           {booking.menu_items.map((item, idx) => {
                             const lineTotal = getItemLineTotal(item, guestCount);
                             const byQuantity = item?.pricing_type === MENU_PRICING.QUANTITY || (item?.quantity > 1 && item?.unit);
                             const qty = Number(item?.quantity) || 1;
                             const unitLabel = item?.unit || "unit";
                             const amountLabel = menuAmountLabel(item) || (byQuantity ? `${qty} ${unitLabel}` : "");
+                            const categoryLower = (item.category || "").toLowerCase();
+
+                            let categoryBadgeClass = "bg-slate-100 text-slate-800 border-slate-200";
+                            if (categoryLower.includes("appetizer") || categoryLower.includes("starter")) {
+                              categoryBadgeClass = "bg-amber-50 text-amber-900 border-amber-200";
+                            } else if (categoryLower.includes("main") || categoryLower.includes("pork") || categoryLower.includes("beef") || categoryLower.includes("chicken")) {
+                              categoryBadgeClass = "bg-blue-50 text-blue-900 border-blue-200";
+                            } else if (categoryLower.includes("soup") || categoryLower.includes("salad")) {
+                              categoryBadgeClass = "bg-emerald-50 text-emerald-900 border-emerald-200";
+                            } else if (categoryLower.includes("dessert") || categoryLower.includes("pasta") || categoryLower.includes("noodle")) {
+                              categoryBadgeClass = "bg-purple-50 text-purple-900 border-purple-200";
+                            }
 
                             return (
-                              <div key={idx} className="flex items-start justify-between gap-2 p-2.5 rounded-md border border-border bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-semibold text-foreground leading-snug">
-                                    {item.name}
+                              <div key={idx} className="flex items-start justify-between gap-2 p-3 rounded-xl border border-slate-200/90 bg-white hover:border-slate-300 shadow-2xs transition-all">
+                                <div className="min-w-0 flex-1 space-y-0.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-bold text-slate-900 leading-snug">
+                                      {item.name}
+                                    </p>
                                     {amountLabel && (
-                                      <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                                        {amountLabel}
+                                      <span className="text-[11px] font-semibold text-slate-500">
+                                        ({amountLabel})
                                       </span>
                                     )}
-                                  </p>
+                                  </div>
                                   {item.category && (
-                                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide block mt-0.5">
+                                    <span className={cn("text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border inline-block", categoryBadgeClass)}>
                                       {item.category}
                                     </span>
                                   )}
-                                  {item.note && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{item.note}</p>}
+                                  {item.note && <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">{item.note}</p>}
                                 </div>
-                                <div className="shrink-0 text-right">
-                                  <span className="font-sans text-xs tabular-nums font-semibold">
+
+                                <div className="shrink-0 text-right space-y-0.5">
+                                  <span className="font-sans text-xs tabular-nums font-bold">
                                     {lineTotal > 0 ? (
-                                      <span className="text-foreground font-bold">+{formatCurrency(lineTotal)}</span>
+                                      <span className="text-slate-900 font-bold">+{formatCurrency(lineTotal)}</span>
                                     ) : (
-                                      <span className="text-muted-foreground font-normal text-[11px]">Included</span>
+                                      <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-[10px]">Included</span>
                                     )}
                                   </span>
                                   {lineTotal > 0 && byQuantity && qty > 1 && item.price > 0 && (
-                                    <span className="block text-[10px] text-muted-foreground font-normal tabular-nums leading-tight mt-0.5">
+                                    <span className="block text-[10px] text-slate-500 font-medium tabular-nums leading-tight">
                                       ({formatCurrency(item.price)}/{unitLabel})
                                     </span>
                                   )}
                                   {lineTotal > 0 && item.pricing_type === MENU_PRICING.PER_GUEST && guestCount > 1 && item.price > 0 && (
-                                    <span className="block text-[10px] text-muted-foreground font-normal tabular-nums leading-tight mt-0.5">
-                                      ({formatCurrency(item.price)}/guest)
+                                    <span className="block text-[10px] text-slate-500 font-medium tabular-nums leading-tight">
+                                      ({formatCurrency(item.price)}/pax)
                                     </span>
                                   )}
                                 </div>
@@ -1801,26 +1926,26 @@ export default function CustomerEventDashboard() {
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-muted/30 p-3 rounded-md text-xs text-muted-foreground flex items-center gap-2">
-                        <Info className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        <span>Package includes standard buffet menu set based on selected tier.</span>
+                      <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl text-xs text-slate-700 flex items-center gap-2">
+                        <Info className="w-4 h-4 text-[#1E3563] shrink-0" />
+                        <span>Package includes the curated standard buffet menu set based on your selected tier.</span>
                       </div>
                     )}
 
                     {/* Additional Service Items */}
                     {booking.service_items && booking.service_items.length > 0 && (
-                      <div className="pt-2 border-t border-border">
-                        <h4 className="font-sans text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
-                          Add-on Services & Rental Items ({booking.service_items.length})
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="font-sans text-xs font-bold uppercase tracking-wider text-slate-700 mb-2.5">
+                          Add-on Services &amp; Rental Items ({booking.service_items.length})
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {booking.service_items.map((item, idx) => (
-                            <div key={idx} className="p-2.5 flex items-center justify-between text-xs rounded-md border border-border bg-card">
+                            <div key={idx} className="p-2.5 flex items-center justify-between text-xs rounded-lg border border-slate-200 bg-white shadow-2xs">
                               <div className="min-w-0">
-                                <span className="font-medium text-foreground">{item.name}</span>
-                                {item.quantity > 1 && <span className="text-[11px] text-muted-foreground ml-1.5">x{item.quantity}</span>}
+                                <span className="font-semibold text-slate-900">{item.name}</span>
+                                {item.quantity > 1 && <span className="text-[11px] text-slate-500 ml-1.5 font-medium">x{item.quantity}</span>}
                               </div>
-                              <span className="font-semibold text-foreground tabular-nums">{formatCurrency(item.price * (item.quantity || 1))}</span>
+                              <span className="font-bold text-slate-900 tabular-nums">{formatCurrency(item.price * (item.quantity || 1))}</span>
                             </div>
                           ))}
                         </div>
@@ -1829,18 +1954,18 @@ export default function CustomerEventDashboard() {
 
                     {/* Special Requests / Dietary Restrictions */}
                     {(booking.special_requests || booking.dietary_restrictions || booking.allergies) && (
-                      <div className="bg-amber-50/70 border border-amber-200 rounded-md p-3 space-y-1 text-xs">
-                        <h4 className="font-semibold text-amber-900 flex items-center gap-1.5">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Special Instructions & Dietary Notes
+                      <div className="bg-amber-50/80 border border-amber-300 rounded-xl p-3.5 space-y-1.5 text-xs shadow-2xs">
+                        <h4 className="font-bold text-amber-950 flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600" /> Special Instructions &amp; Dietary Notes
                         </h4>
                         {booking.dietary_restrictions && (
-                          <p className="text-amber-900"><strong>Dietary Restrictions:</strong> {booking.dietary_restrictions}</p>
+                          <p className="text-amber-950"><strong>Dietary Restrictions:</strong> {booking.dietary_restrictions}</p>
                         )}
                         {booking.allergies && (
-                          <p className="text-amber-900"><strong>Allergies:</strong> {booking.allergies}</p>
+                          <p className="text-amber-950"><strong>Allergies:</strong> {booking.allergies}</p>
                         )}
                         {booking.special_requests && (
-                          <p className="text-amber-900"><strong>Requests:</strong> {booking.special_requests}</p>
+                          <p className="text-amber-950"><strong>Requests:</strong> {booking.special_requests}</p>
                         )}
                       </div>
                     )}
@@ -1848,88 +1973,59 @@ export default function CustomerEventDashboard() {
                 </Card>
               </div>
 
-              {/* Sidebar Info (1 col) */}
+              {/* Sidebar Info (1 col) - Prioritize Assigned Operations Team */}
               <div className="space-y-4">
                 
-                {/* Contact Person Card */}
-                <Card className="border-border shadow-2xs rounded-lg">
-                  <CardHeader className="border-b border-border py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-primary" />
-                      Contact Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 space-y-3 text-xs sm:text-sm">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Contact Name</p>
-                      <p className="font-medium text-foreground">{booking.contact_first_name} {booking.contact_last_name}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Email Address</p>
-                      <p className="font-medium text-foreground flex items-center gap-1.5 mt-0.5 text-xs">
-                        <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        {booking.contact_email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">Mobile Phone</p>
-                      <p className="font-medium text-foreground flex items-center gap-1.5 mt-0.5 text-xs">
-                        <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                        {booking.contact_phone}
-                      </p>
-                      {booking.contact_alt_phone && (
-                        <p className="text-xs text-muted-foreground mt-0.5">Alt: {booking.contact_alt_phone}</p>
-                      )}
-                    </div>
-                    {booking.contact_method && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Preferred Contact Method</p>
-                        <p className="font-medium text-foreground capitalize mt-0.5">{booking.contact_method}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Assigned Catering Staff Card */}
-                <Card className="border-border shadow-2xs rounded-lg">
-                  <CardHeader className="border-b border-border py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-primary" />
+                {/* 1. Assigned Catering Staff / Kitchen & Dispatch Team Card */}
+                <Card className="border-border shadow-2xs rounded-xl bg-white">
+                  <CardHeader className="border-b border-border py-3 px-4 flex flex-row items-center justify-between">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-[#1E3563]" />
                       {isFoodOnlyService ? "Kitchen & Dispatch Team" : "Assigned Catering Team"}
                     </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleOpenChat}
+                      disabled={isOpeningChat}
+                      className="h-7 px-2 text-xs font-semibold rounded-md border-slate-200 text-slate-700 hover:text-[#1E3563] hover:border-[#1E3563] gap-1 cursor-pointer"
+                    >
+                      <MessageSquare className="w-3 h-3 text-[#1E3563]" />
+                      <span>Chat</span>
+                    </Button>
                   </CardHeader>
                   <CardContent className="p-4 space-y-3">
                     {eventManager || assignedStaff.length > 0 ? (
                       <div className="space-y-2.5">
                         {eventManager && (
-                          <div className="flex items-center gap-2.5 bg-muted/40 p-2.5 rounded-md border border-border">
-                            <div className="w-8 h-8 bg-primary/15 text-primary rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="flex items-center gap-2.5 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                            <div className="w-8 h-8 bg-[#1E3563] text-white rounded-full flex items-center justify-center font-bold text-xs shrink-0">
                               {eventManager.full_name?.charAt(0) || "M"}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-foreground text-xs truncate">{eventManager.full_name || "Manager"}</p>
-                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/20">
+                              <p className="font-bold text-slate-900 text-xs truncate">{eventManager.full_name || "Operations Lead"}</p>
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-100/70 text-[#1E3563] border-blue-200 font-semibold">
                                 {isFoodOnlyService ? "Dispatch Lead" : "Event Manager"}
                               </Badge>
                               {eventManager.phone && (
-                                <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                                  <Phone className="w-3 h-3" /> {eventManager.phone}
+                                <p className="text-[11px] text-slate-600 font-medium flex items-center gap-1 mt-0.5">
+                                  <Phone className="w-3 h-3 text-slate-500" /> {eventManager.phone}
                                 </p>
                               )}
                             </div>
                           </div>
                         )}
                         {assignedStaff.map((staff, idx) => (
-                          <div key={idx} className="flex items-center gap-2.5 bg-card p-2.5 rounded-md border border-border">
-                            <div className="w-8 h-8 bg-muted text-muted-foreground rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                          <div key={idx} className="flex items-center gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                            <div className="w-8 h-8 bg-white border border-slate-300 text-slate-700 rounded-full flex items-center justify-center font-bold text-xs shrink-0">
                               {staff.name?.charAt(0) || staff.full_name?.charAt(0) || "S"}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-foreground text-xs truncate">{staff.name || staff.full_name || "Staff"}</p>
-                              <p className="text-[11px] text-muted-foreground">{staff.role || "Staff Member"}</p>
+                              <p className="font-semibold text-slate-900 text-xs truncate">{staff.name || staff.full_name || "Staff"}</p>
+                              <p className="text-[11px] text-slate-600">{staff.role || "Staff Member"}</p>
                               {staff.phone && (
-                                <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                                  <Phone className="w-3 h-3" /> {staff.phone}
+                                <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
+                                  <Phone className="w-3 h-3 text-slate-500" /> {staff.phone}
                                 </p>
                               )}
                             </div>
@@ -1937,13 +2033,52 @@ export default function CustomerEventDashboard() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-5 px-3 bg-muted/20 rounded-md border border-dashed border-border">
-                        <Users className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1.5" />
-                        <p className="text-xs text-muted-foreground">
+                      <div className="text-center py-5 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                        <Users className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
+                        <p className="text-xs text-slate-600 font-medium">
                           {isFoodOnlyService
-                            ? "Kitchen and delivery team will prepare and dispatch your food on the event day."
+                            ? "Kitchen and dispatch team will prepare and deliver your food on the event day."
                             : "Staff and Event Manager will be assigned closer to your event date."}
                         </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* 2. Customer Contact Person Card */}
+                <Card className="border-border shadow-2xs rounded-xl bg-white">
+                  <CardHeader className="border-b border-border py-3 px-4">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-[#1E3563]" />
+                      Your Contact Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-2.5 text-xs sm:text-sm">
+                    <div>
+                      <p className="text-[11px] font-semibold text-slate-500">Contact Name</p>
+                      <p className="font-bold text-slate-900">{booking.contact_first_name} {booking.contact_last_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-slate-500">Email Address</p>
+                      <p className="font-medium text-slate-800 flex items-center gap-1.5 mt-0.5 text-xs">
+                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        {booking.contact_email}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-slate-500">Mobile Phone</p>
+                      <p className="font-medium text-slate-800 flex items-center gap-1.5 mt-0.5 text-xs">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        {booking.contact_phone}
+                      </p>
+                      {booking.contact_alt_phone && (
+                        <p className="text-xs text-slate-500 mt-0.5">Alt: {booking.contact_alt_phone}</p>
+                      )}
+                    </div>
+                    {booking.contact_method && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-slate-500">Preferred Contact Method</p>
+                        <p className="font-bold text-slate-900 capitalize mt-0.5">{booking.contact_method}</p>
                       </div>
                     )}
                   </CardContent>

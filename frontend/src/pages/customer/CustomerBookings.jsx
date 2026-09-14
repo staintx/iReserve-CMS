@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
+import InvoiceModal from "../../components/common/invoice/InvoiceModal";
+import useBusinessInfo from "../../hooks/useBusinessInfo";
+import { createConversation } from "../../api/messages";
 import { isOcularEligibleBooking } from "../../utils/ocularEligibility";
 import { getBookingOcularActionMeta } from "../../utils/ocularStatusHelper";
 import { CustomerAPI } from "../../api/customer";
@@ -21,6 +24,7 @@ import {
   bookingStatusMeta,
   recordTitle,
   resolveServiceType,
+  isFoodOnly,
 } from "../../components/customer/portal/statusMeta";
 import { isSpecialOffer } from "../../lib/specialOffers";
 import { formatCurrency, formatEventDateWithDay, formatShortDate } from "../../utils/format";
@@ -41,16 +45,20 @@ import {
   SlidersHorizontal,
   Check,
   Package,
-  ArrowRight,
   CalendarClock,
   Eye,
+  MessageSquare,
+  Sparkles,
+  ShieldCheck,
+  Clock,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
-
-const SERVICE_TYPES = ["Food Only", "Event Setup Only", "Food and Event Setup"];
 
 export default function CustomerBookings() {
   const navigate = useNavigate();
   const { notify } = useToast();
+  const { businessInfo } = useBusinessInfo();
 
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -73,6 +81,10 @@ export default function CustomerBookings() {
   // Ocular Modal State
   const [requestingOcularBooking, setRequestingOcularBooking] = useState(null);
   const [isSubmittingOcular, setIsSubmittingOcular] = useState(false);
+
+  // Invoice Modal State
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [isOpeningChat, setIsOpeningChat] = useState(false);
 
   const submitOcularRequest = async (selectedDate, selectedTime) => {
     if (!requestingOcularBooking?._id) return;
@@ -178,6 +190,7 @@ export default function CustomerBookings() {
         return timeB - timeA;
       });
   }, [bookings, statusFilter, serviceTypeFilter, searchQuery, sortBy]);
+
   const isFiltered = Boolean(searchQuery.trim()) || statusFilter !== "all" || serviceTypeFilter !== "all";
 
   // Dynamically derive configured Combo Pack names from packages and existing bookings
@@ -249,170 +262,285 @@ export default function CustomerBookings() {
     }
   };
 
-  // Modern Compact Dotless Status Badge - Distinct from Buttons
+  const handleOpenChat = async (booking) => {
+    if (!booking?._id) return;
+    try {
+      setIsOpeningChat(true);
+      const res = await createConversation({ booking_id: booking._id });
+      if (res.data?._id) {
+        navigate(`/customer/messages?conversation=${res.data._id}`);
+      } else {
+        navigate("/customer/messages");
+      }
+    } catch {
+      navigate("/customer/messages");
+    } finally {
+      setIsOpeningChat(false);
+    }
+  };
+
+  // Helper: Event Countdown string
+  const getEventCountdown = (dateString) => {
+    if (!dateString) return null;
+    const target = new Date(dateString);
+    const now = new Date();
+    target.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { label: "Past Event", tone: "neutral", days: diffDays };
+    if (diffDays === 0) return { label: "Happening Today!", tone: "urgent", days: 0 };
+    if (diffDays === 1) return { label: "Tomorrow!", tone: "warning", days: 1 };
+    if (diffDays <= 7) return { label: `In ${diffDays} days`, tone: "warning", days: diffDays };
+    if (diffDays <= 30) return { label: `In ${diffDays} days`, tone: "info", days: diffDays };
+    return { label: `In ${diffDays} days`, tone: "neutral", days: diffDays };
+  };
+
+  // High-Clarity Next Action Resolver for Bookings
+  const getNextActionInfo = (bkg) => {
+    if (!bkg) return null;
+    const bal = balanceOf(bkg);
+    const rawStatus = (bkg.status || "").toLowerCase();
+    const ocularMeta = getBookingOcularActionMeta(bkg);
+    const isDepositNeeded = rawStatus.includes("deposit") || (bkg.payment_status === "deposit_pending" && bal > 0);
+    const isPendingRevision = bkg.pending_revision && ["pending_customer_approval"].includes(bkg.pending_revision.status);
+    const isUnderReview = bkg.change_request && bkg.change_request.status === "pending";
+
+    // 1. Revision proposal awaiting customer approval
+    if (isPendingRevision) {
+      return {
+        state: "action_required",
+        badge: "Action Required",
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
+        title: "Revised Booking Proposal Awaiting Your Confirmation",
+        description: "An updated proposal with revised pricing or setup details is ready for your review.",
+        actionType: "proposal",
+        actionLabel: "Review Proposal",
+      };
+    }
+
+    // 2. Deposit needed
+    if (isDepositNeeded) {
+      return {
+        state: "action_required",
+        badge: "Action Required: Deposit",
+        badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-bold",
+        title: "Pay Reservation Deposit to Secure Your Event Date",
+        description: "Your booking request is approved. Complete your deposit to lock in our kitchen and setup team.",
+        actionType: "deposit",
+        actionLabel: "Pay Deposit Now",
+      };
+    }
+
+    // 3. Ocular Inspection needed
+    if (ocularMeta && ocularMeta.state === "action_required") {
+      return {
+        state: "action_required",
+        badge: "Action Required: Ocular",
+        badgeClass: "bg-orange-100 text-orange-900 border-orange-300 font-bold",
+        title: "Schedule Your Venue Ocular Visit",
+        description: "Choose a preferred date for our team to inspect venue logistics and layout.",
+        actionType: "ocular",
+        actionLabel: "Schedule Ocular",
+      };
+    }
+
+    // 4. Ocular requested / awaiting admin confirmation
+    if (ocularMeta && ocularMeta.state === "requested") {
+      return {
+        state: "in_progress",
+        badge: "Site Visit Requested",
+        badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
+        title: "Site Visit Requested — Pending Admin Confirmation",
+        description: `Requested schedule: ${ocularMeta.scheduled_date ? formatShortDate(ocularMeta.scheduled_date) : "Pending confirmation"}. Our team will confirm shortly.`,
+        actionType: "view",
+        actionLabel: "View Details",
+      };
+    }
+
+    // 5. Ocular scheduled
+    if (ocularMeta && ocularMeta.state === "scheduled") {
+      return {
+        state: "in_progress",
+        badge: "Site Visit Scheduled",
+        badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
+        title: `Site Ocular Visit Confirmed for ${ocularMeta.scheduled_date ? formatShortDate(ocularMeta.scheduled_date) : "agreed date"}`,
+        description: "Our catering and staging team will meet you at the venue on the scheduled date.",
+        actionType: "view",
+        actionLabel: "View Details",
+      };
+    }
+
+    // 6. Change request under admin review
+    if (isUnderReview) {
+      return {
+        state: "in_progress",
+        badge: "Change Under Review",
+        badgeClass: "bg-blue-50 text-blue-800 border-blue-200/80 font-semibold",
+        title: "Proposed Changes Under Review by Catering Admin",
+        description: "Our team is reviewing your requested date, guest, or venue updates.",
+        actionType: "view",
+        actionLabel: "View Details",
+      };
+    }
+
+    // 7. Balance owed before event
+    if (bal > 0 && ["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus)) {
+      return {
+        state: "balance_due",
+        badge: "Balance Due",
+        badgeClass: "bg-amber-50 text-amber-900 border-amber-200 font-semibold",
+        title: `Remaining Balance: ${formatCurrency(bal)}`,
+        description: "Your date is fully locked. The remaining balance is due prior to event dispatch and setup.",
+        actionType: "balance",
+        actionLabel: `Pay Balance (${formatCurrency(bal)})`,
+      };
+    }
+
+    // 8. Confirmed & fully paid
+    if (["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus) && bal <= 0) {
+      const isFood = isFoodOnly(resolveServiceType(bkg));
+      return {
+        state: "all_set",
+        badge: "Confirmed & Reserved",
+        badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold",
+        title: "All Set! Everything is Paid & Ready",
+        description: isFood
+          ? "Your order is confirmed. Dishes are scheduled for kitchen preparation and dispatch on your event date."
+          : "Your event reservation is fully secured. Our styling and culinary teams are preparing all requirements.",
+        actionType: "view",
+        actionLabel: "View Full Details",
+      };
+    }
+
+    // 9. Completed
+    if (["completed", "event completed"].includes(rawStatus)) {
+      return {
+        state: "completed",
+        badge: "Event Completed",
+        badgeClass: "bg-slate-100 text-slate-700 border-slate-300 font-medium",
+        title: "Event Successfully Concluded",
+        description: "Thank you for choosing Caezelle's Catering! View your event invoice or rate your experience.",
+        actionType: "view",
+        actionLabel: "View Details",
+      };
+    }
+
+    // 10. Cancelled
+    if (rawStatus === "cancelled") {
+      return {
+        state: "cancelled",
+        badge: "Cancelled",
+        badgeClass: "bg-rose-100 text-rose-800 border-rose-200 font-semibold",
+        title: "Reservation Cancelled",
+        description: "This booking was cancelled. Message our support team if you would like to rebook.",
+        actionType: "view",
+        actionLabel: "View Details",
+      };
+    }
+
+    // Default fallback
+    return {
+      state: "neutral",
+      badge: "Reserved",
+      badgeClass: "bg-slate-100 text-slate-700 border-slate-200 font-medium",
+      title: "Booking Active",
+      description: "Your reservation is registered in our catering portal.",
+      actionType: "view",
+      actionLabel: "View Details",
+    };
+  };
+
+  // Modern High-Contrast Status Badge
   const renderStatusBadge = (bkg) => {
     const bal = balanceOf(bkg);
     const meta = bookingStatusMeta(bkg, { balance: bal });
-    let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+    let badgeClass = "bg-emerald-50 text-emerald-800 border-emerald-300";
 
     if (meta.tone === "warning") {
-      badgeClass = "bg-amber-50 text-amber-800 border-amber-200/80";
+      badgeClass = "bg-amber-50 text-amber-900 border-amber-300";
     } else if (meta.tone === "info") {
-      badgeClass = "bg-blue-50 text-blue-700 border-blue-200/80";
-    } else if (meta.tone === "danger" || meta.tone === "neutral") {
-      badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
+      badgeClass = "bg-blue-50 text-blue-800 border-blue-300";
+    } else if (meta.tone === "danger") {
+      badgeClass = "bg-rose-50 text-rose-800 border-rose-300";
+    } else if (meta.tone === "neutral") {
+      badgeClass = "bg-slate-100 text-slate-800 border-slate-300";
     }
 
     return (
-      <span className={cn("px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 shrink-0 select-none", badgeClass)}>
+      <span
+        className={cn(
+          "px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border inline-flex items-center gap-1.5 shrink-0 select-none",
+          badgeClass
+        )}
+      >
         <span className="w-1.5 h-1.5 rounded-full bg-current" />
         <span>{meta.label}</span>
       </span>
     );
   };
 
-  // Dynamic Card Action Button renderer with explicit icons - Error prevention: only valid actions
-  const renderCardActionButton = (bkg) => {
-    const bal = balanceOf(bkg);
-    const statusLower = (bkg.status || "").toLowerCase();
-    const isDepositNeeded = statusLower.includes("deposit") || (bkg.payment_status === "deposit_pending" && bal > 0);
-    const isBalanceOwed = bal > 0 && ["confirmed", "converted to booking", "preparing", "ocular scheduled", "ready for event"].includes(statusLower);
-    const isOcularEligible = isOcularEligibleBooking(bkg) && (!bkg.ocular_visit || bkg.ocular_visit.status === "none");
-
-    if (isDepositNeeded) {
-      return (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              startCheckout(bkg);
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1.5 active:scale-[0.98]"
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Pay Deposit</span>
-          </Button>
-          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
-        </div>
-      );
-    }
-
-    if (isBalanceOwed) {
-      return (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              startCheckout(bkg);
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1.5 active:scale-[0.98]"
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Pay Balance</span>
-          </Button>
-          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
-        </div>
-      );
-    }
-
-    if (isOcularEligible) {
-      return (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRequestingOcularBooking(bkg);
-            }}
-            className="border-slate-200 text-[#2C4B8A] hover:bg-blue-50 font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer gap-1.5"
-          >
-            <CalendarClock className="w-3.5 h-3.5" />
-            <span>Schedule Ocular</span>
-          </Button>
-          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#2C4B8A] group-hover:translate-x-0.5 transition-all hidden md:block" />
-        </div>
-      );
-    }
-
-    // Explicit View Button when no secondary action is required
-    return (
-      <Button
-        size="sm"
-        variant="outline"
-        className="border-slate-200 text-[#2C4B8A] group-hover:border-[#2C4B8A] group-hover:bg-[#2C4B8A] group-hover:text-white font-semibold text-xs h-8 px-3 rounded-md shrink-0 cursor-pointer shadow-2xs gap-1 transition-all"
-      >
-        <span>View</span>
-        <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-      </Button>
-    );
-  };
-
-  const selectedMeta = useMemo(
-    () => bookingStatusMeta(selectedBooking, { balance: balanceOf(selectedBooking) }),
-    [selectedBooking, balanceOf]
-  );
-
-  // Determine active step index (0-3) for 4-Step Catering Journey Timeline
+  // 4-Step Catering Journey active step index (0-3)
   const activeBookingStep = useMemo(() => {
     if (!selectedBooking) return 2;
     const statusLower = (selectedBooking.status || "").toLowerCase();
-    if (["preparing", "ongoing", "ready for event", "completed"].includes(statusLower)) return 3;
+    if (["completed", "event completed"].includes(statusLower)) return 3;
+    if (["preparing", "ongoing", "ready for event"].includes(statusLower)) return 2;
     if (["confirmed", "converted to booking", "ocular scheduled"].includes(statusLower)) return 2;
-    if (statusLower.includes("deposit")) return 2;
+    if (statusLower.includes("deposit")) return 1;
     return 2;
   }, [selectedBooking]);
 
   return (
     <CustomerDashboardLayout fullBleed>
       <div className="h-[calc(100vh-3.5rem)] w-full bg-[#F8FAFC] flex flex-col font-sans antialiased overflow-hidden">
-        {/* CLEAN TOP PAGE HEADER */}
-        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        {/* TOP PAGE HEADER */}
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight font-sans">
               My Bookings
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Track confirmed event reservations, monitor preparation progress, and access event details.
             </p>
           </div>
 
           <Button
             onClick={() => navigate("/packages")}
-            className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white shadow-xs rounded-md font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
+            className="bg-[#1E3563] hover:bg-[#152547] text-white shadow-xs rounded-lg font-semibold text-xs h-9 px-4 shrink-0 cursor-pointer transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             <span>New Request</span>
           </Button>
         </div>
 
-        {/* WORKSPACE AREA: FULL CONTENT WIDTH */}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row p-6 gap-6 w-full">
-          {/* LEFT MAIN SECTION: UNBOXED LIST AREA WITH SEARCH & FILTERS ABOVE */}
+        {/* WORKSPACE AREA: TWO-COLUMN MASTER/DETAIL */}
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col md:flex-row p-4 sm:p-6 gap-5 sm:gap-6 w-full">
+          {/* LEFT LIST SECTION: CARDS & SEARCH/FILTERS */}
           <div
             className={cn(
-              "flex-1 min-w-0 flex flex-col space-y-4 overflow-hidden",
+              "flex-1 min-w-0 flex flex-col space-y-3.5 overflow-hidden",
               mobileView === "detail" ? "hidden md:flex" : "flex"
             )}
           >
-            {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+            {/* SEARCH & FILTERS CONTROLS */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
               {/* Search Bar */}
               <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
-                  placeholder="Search by event name or reference..."
+                  placeholder="Search by event name, reference, venue..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-md border border-slate-200/90 focus:border-[#2C4B8A] focus:ring-2 focus:ring-[#2C4B8A]/10 outline-none transition-all shadow-2xs"
+                  className="w-full pl-9 pr-8 py-2 bg-white text-xs text-slate-900 placeholder:text-slate-500 rounded-lg border border-slate-200 focus:border-[#1E3563] focus:ring-2 focus:ring-[#1E3563]/10 outline-none transition-all shadow-2xs"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    aria-label="Clear search"
                   >
                     <XCircle className="w-3.5 h-3.5" />
                   </button>
@@ -426,11 +554,11 @@ export default function CustomerBookings() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
                     >
                       <span>
                         {statusFilter === "all"
-                          ? "All bookings"
+                          ? "All Bookings"
                           : statusFilter === "confirmed"
                             ? "Confirmed"
                             : statusFilter === "deposit_needed"
@@ -439,16 +567,16 @@ export default function CustomerBookings() {
                                 ? "Completed"
                                 : "Cancelled"}
                       </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 rounded-xl p-1.5 shadow-lg border-slate-200">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1">
                       Filter Status
                     </DropdownMenuLabel>
                     {[
-                      { id: "all", label: "All bookings" },
-                      { id: "confirmed", label: "Confirmed" },
+                      { id: "all", label: "All Bookings" },
+                      { id: "confirmed", label: "Confirmed & Reserved" },
                       { id: "deposit_needed", label: "Deposit Needed" },
                       { id: "completed", label: "Completed" },
                       { id: "cancelled", label: "Cancelled" },
@@ -458,11 +586,11 @@ export default function CustomerBookings() {
                         onClick={() => setStatusFilter(item.id)}
                         className={cn(
                           "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          statusFilter === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          statusFilter === item.id ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
                         )}
                       >
                         <span>{item.label}</span>
-                        {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        {statusFilter === item.id && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -474,13 +602,13 @@ export default function CustomerBookings() {
                     <Button
                       variant="outline"
                       className={cn(
-                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0",
-                        serviceTypeFilter !== "all" && "bg-blue-50 text-[#2C4B8A] border-blue-200"
+                        "h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0",
+                        serviceTypeFilter !== "all" && "bg-blue-50 text-[#1E3563] border-blue-200"
                       )}
                     >
-                      <SlidersHorizontal className="w-3.5 h-3.5 text-[#2C4B8A]" />
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-[#1E3563]" />
                       <span>{serviceTypeFilter === "all" ? "All Services" : serviceTypeFilter}</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-60 rounded-xl p-1.5 shadow-lg border-slate-200 max-h-96 overflow-y-auto [scrollbar-width:thin]">
@@ -488,16 +616,15 @@ export default function CustomerBookings() {
                       onClick={() => setServiceTypeFilter("all")}
                       className={cn(
                         "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        serviceTypeFilter === "all" ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        serviceTypeFilter === "all" ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
                       )}
                     >
                       <span>All Services</span>
-                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      {serviceTypeFilter === "all" && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
-                    {/* Category 1: Regular Package */}
                     <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
                       Regular Package
                     </DropdownMenuLabel>
@@ -507,17 +634,16 @@ export default function CustomerBookings() {
                         onClick={() => setServiceTypeFilter(opt)}
                         className={cn(
                           "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          serviceTypeFilter === opt ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
                         )}
                       >
                         <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
                       </DropdownMenuItem>
                     ))}
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
-                    {/* Category 2: Combo Packs */}
                     <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
                       Combo Packs
                     </DropdownMenuLabel>
@@ -528,20 +654,19 @@ export default function CustomerBookings() {
                           onClick={() => setServiceTypeFilter(name)}
                           className={cn(
                             "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                            serviceTypeFilter === name ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                            serviceTypeFilter === name ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
                           )}
                         >
                           <span className="truncate">{name}</span>
-                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#2C4B8A] shrink-0" />}
+                          {serviceTypeFilter === name && <Check className="w-3.5 h-3.5 text-[#1E3563] shrink-0" />}
                         </DropdownMenuItem>
                       ))
                     ) : (
-                      <div className="px-3 py-1 text-[11px] text-slate-400 italic">No combo packs configured</div>
+                      <div className="px-3 py-1 text-[11px] text-slate-500 italic">No combo packs configured</div>
                     )}
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
-                    {/* Category 3: Request Custom */}
                     <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
                       Request Custom
                     </DropdownMenuLabel>
@@ -551,11 +676,11 @@ export default function CustomerBookings() {
                         onClick={() => setServiceTypeFilter(opt)}
                         className={cn(
                           "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          serviceTypeFilter === opt ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
                         )}
                       >
                         <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -566,7 +691,7 @@ export default function CustomerBookings() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 rounded-md shadow-2xs gap-1.5 cursor-pointer shrink-0"
+                      className="h-9 border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-3 rounded-lg shadow-2xs gap-1.5 cursor-pointer shrink-0"
                     >
                       <span>
                         {sortBy === "newest"
@@ -575,11 +700,11 @@ export default function CustomerBookings() {
                             ? "Oldest first"
                             : "Event date"}
                       </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5 shadow-lg border-slate-200">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    <DropdownMenuLabel className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2 py-1">
                       Sort Order
                     </DropdownMenuLabel>
                     {[
@@ -592,11 +717,11 @@ export default function CustomerBookings() {
                         onClick={() => setSortBy(item.id)}
                         className={cn(
                           "text-xs font-medium px-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          sortBy === item.id ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                          sortBy === item.id ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
                         )}
                       >
                         <span>{item.label}</span>
-                        {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                        {sortBy === item.id && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -605,19 +730,19 @@ export default function CustomerBookings() {
             </div>
 
             {/* UNBOXED BOOKINGS CARDS LIST */}
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:thin]">
+            <div className="flex-1 overflow-y-auto space-y-3 p-1.5 [scrollbar-width:thin]">
               {loading ? (
-                <div className="p-8 text-center text-xs text-slate-400 animate-pulse">
-                  Loading bookings...
+                <div className="p-12 text-center text-xs text-slate-500 animate-pulse bg-white rounded-2xl border border-slate-200 shadow-2xs">
+                  Loading your event bookings...
                 </div>
               ) : filteredBookings.length === 0 ? (
-                <div className="p-8 text-center bg-white rounded-xl border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
-                  <FileText className="w-10 h-10 text-slate-300 mb-2" />
-                  <h3 className="text-sm font-bold text-slate-800 font-sans">No bookings found</h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-xs text-center">
+                <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center my-4 shadow-2xs">
+                  <FileText className="w-10 h-10 text-slate-400 mb-2" />
+                  <h3 className="text-sm font-bold text-slate-900 font-sans">No bookings found</h3>
+                  <p className="text-xs text-slate-600 mt-1 max-w-xs text-center">
                     {isFiltered
                       ? "Try clearing active search or filters to see other bookings."
-                      : "No active bookings yet. Convert an inquiry to book your event."}
+                      : "No active bookings yet. Convert an accepted quotation to book your event."}
                   </p>
                   {isFiltered && (
                     <Button
@@ -628,7 +753,7 @@ export default function CustomerBookings() {
                         setStatusFilter("all");
                         setServiceTypeFilter("all");
                       }}
-                      className="mt-4 text-xs font-semibold rounded-md border-slate-200"
+                      className="mt-4 text-xs font-semibold rounded-lg border-slate-200 text-slate-800"
                     >
                       Clear all filters
                     </Button>
@@ -637,131 +762,236 @@ export default function CustomerBookings() {
               ) : (
                 filteredBookings.map((bkg) => {
                   const isSelected = bkg._id === selectedBookingId;
-                  const refCode = bkg.reference || `BKG-${bkg._id.substring(0, 6).toUpperCase()}`;
+                  const refCode = bkg.reference || `CAZ-${bkg._id.substring(0, 6).toUpperCase()}`;
                   const thumbnail = getEventThumbnail(bkg);
                   const titleStr = recordTitle(bkg);
                   const bal = balanceOf(bkg);
-                  const meta = bookingStatusMeta(bkg, { balance: bal });
+                  const totalCost = Number(bkg.total_price || 0);
                   const locationStr = [bkg.municipality, bkg.province].filter(Boolean).join(", ") || bkg.venue_address || "Location TBD";
-                  const ocularMeta = getBookingOcularActionMeta(bkg);
+                  const nextAction = getNextActionInfo(bkg);
+                  const countdown = getEventCountdown(bkg.event_date);
+
+                  // Date badge parts
+                  const eventDateObj = bkg.event_date ? new Date(bkg.event_date) : null;
+                  const monthStr = eventDateObj ? eventDateObj.toLocaleDateString(undefined, { month: "short" }) : null;
+                  const dayStr = eventDateObj ? eventDateObj.getDate() : null;
 
                   return (
                     <div
                       key={bkg._id}
                       onClick={() => handleSelectBooking(bkg._id)}
                       className={cn(
-                        "group p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative shadow-2xs",
+                        "group p-4 sm:p-5 rounded-2xl border transition-all duration-200 cursor-pointer relative",
                         isSelected
-                          ? "bg-white ring-2 ring-[#2C4B8A] border-transparent shadow-xs"
+                          ? "bg-gradient-to-r from-blue-50/40 via-white to-white border-blue-200/90 shadow-xs"
                           : "bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-2xs"
                       )}
                     >
-                      {/* STRICT 12-COLUMN GRID ROW ALIGNMENT */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 md:gap-4 items-center">
-                        {/* Cols 1-5: Thumbnail Image & Core Specs */}
-                        <div className="md:col-span-5 flex items-start gap-3.5 min-w-0">
+                      {/* CARD MAIN SECTION: BALANCED FLEX CONTAINER */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        {/* LEFT/CENTER BLOCK: THUMBNAIL TILE & EVENT INFO */}
+                        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                          {/* Visual Tile */}
                           {thumbnail ? (
                             <img
                               src={thumbnail}
                               alt={titleStr}
-                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs"
                             />
                           ) : (
-                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-gradient-to-br from-[#2C4B8A]/10 to-blue-100/60 border border-[#2C4B8A]/20 flex items-center justify-center text-[#2C4B8A] shrink-0 shadow-2xs">
-                              <Utensils className="w-6 h-6 sm:w-7 sm:h-7 opacity-80" />
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-blue-50/60 border border-blue-100 flex flex-col items-center justify-center text-center shrink-0 shadow-2xs">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#2C4B8A] leading-none mb-0.5">
+                                {monthStr || "DATE"}
+                              </span>
+                              <span className="text-base sm:text-lg font-extrabold text-slate-800 leading-tight">
+                                {dayStr || "—"}
+                              </span>
                             </div>
                           )}
 
-                          <div className="min-w-0 space-y-1">
-                            <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate font-sans group-hover:text-[#2C4B8A] transition-colors">
-                              {titleStr}
-                            </h3>
+                          {/* Event Specs & Title */}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-base text-slate-900 font-sans group-hover:text-[#1E3563] transition-colors leading-snug">
+                                {titleStr}
+                              </h3>
+                              {renderStatusBadge(bkg)}
+                              <span className="text-[11px] font-mono font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/70">
+                                {refCode}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[10px] font-bold text-[#2C4B8A] bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full inline-flex items-center gap-1 select-none">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#2C4B8A]" />
+                                  <span>Viewing</span>
+                                </span>
+                              )}
+                            </div>
 
-                            <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            {/* Metadata Row */}
+                            <div className="flex items-center gap-2 text-xs text-slate-700 font-medium flex-wrap pt-0.5">
+                              <span className="inline-flex items-center gap-1 bg-blue-50/80 text-[#1E3563] px-2 py-0.5 rounded-md font-semibold text-[11px] border border-blue-100">
+                                <Utensils className="w-3 h-3 text-[#1E3563]" />
                                 {resolveServiceType(bkg)}
                               </span>
-                              <span>•</span>
-                              <span>{formatShortDate(bkg.event_date)}</span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <Users className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="flex items-center gap-1 text-slate-700">
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                {formatShortDate(bkg.event_date)}
+                                {bkg.start_time && ` · ${bkg.start_time}`}
+                              </span>
+                              <span className="flex items-center gap-1 text-slate-700">
+                                <Users className="w-3.5 h-3.5 text-slate-500" />
                                 {bkg.guest_count ? `${bkg.guest_count} guests` : "Guests TBD"}
                               </span>
-                            </div>
-
-                            <div className="text-xs text-slate-500 flex items-center gap-1 truncate">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate">{locationStr}</span>
-                            </div>
-
-                            <div className="text-[11px] font-mono text-slate-400 pt-0.5">
-                              Ref: {refCode}
+                              <span className="flex items-center gap-1 text-slate-700 truncate max-w-[180px]">
+                                <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                <span className="truncate">{locationStr}</span>
+                              </span>
+                              {countdown && countdown.days >= 0 && (
+                                <span
+                                  className={cn(
+                                    "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                                    countdown.tone === "urgent"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                                      : countdown.tone === "warning"
+                                        ? "bg-amber-50 text-amber-800 border-amber-200"
+                                        : "bg-blue-50 text-blue-800 border-blue-200"
+                                  )}
+                                >
+                                  {countdown.label}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
 
-                        {/* Cols 6-9: Modern Dotless Status Badge & Notice Sentence */}
-                        <div className="md:col-span-4 space-y-1.5 min-w-0">
-                          {renderStatusBadge(bkg)}
-                          <p className="text-xs text-slate-500 leading-snug line-clamp-2">
-                            {meta.notice?.text || "Your event booking is confirmed and registered."}
-                          </p>
-                        </div>
+                        {/* RIGHT: FINANCIAL SUMMARY & CONTEXTUAL CTA */}
+                        <div className="flex sm:flex-col items-end justify-between sm:justify-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Total Cost
+                            </span>
+                            <span className="font-sans font-extrabold text-base text-slate-900 block leading-tight">
+                              {formatCurrency(totalCost)}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-block text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-full border",
+                                bal > 0
+                                  ? "text-amber-800 bg-amber-50 border-amber-200/80"
+                                  : "text-emerald-800 bg-emerald-50 border-emerald-200/80"
+                              )}
+                            >
+                              {bal > 0 ? `₱${bal.toLocaleString()} Due` : "Paid in Full"}
+                            </span>
+                          </div>
 
-                        {/* Cols 10-12: Action Area (Right-Aligned, Valid Actions Only) */}
-                        <div className="md:col-span-3 flex items-center justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
-                          <span className="text-xs text-slate-400 font-medium md:hidden flex items-center gap-1">
-                            <span>Tap to view summary</span>
-                          </span>
-                          {renderCardActionButton(bkg)}
+                          <div className="pt-0.5">
+                            {nextAction?.actionType === "deposit" && (
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startCheckout(bkg);
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Pay Deposit</span>
+                              </Button>
+                            )}
+
+                            {nextAction?.actionType === "ocular" && (
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRequestingOcularBooking(bkg);
+                                }}
+                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                              >
+                                <CalendarClock className="w-3.5 h-3.5" />
+                                <span>Schedule Ocular</span>
+                              </Button>
+                            )}
+
+                            {nextAction?.actionType === "balance" && (
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startCheckout(bkg);
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Pay Balance</span>
+                              </Button>
+                            )}
+
+                            {nextAction?.actionType === "proposal" && (
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/customer/bookings/${bkg._id}`);
+                                }}
+                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Review Proposal</span>
+                              </Button>
+                            )}
+
+                            {nextAction?.actionType === "view" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/customer/bookings/${bkg._id}`);
+                                }}
+                                className="border-slate-200 text-[#1E3563] hover:border-[#1E3563] hover:bg-[#1E3563] hover:text-white font-bold text-xs h-8 px-3 rounded-lg shadow-2xs gap-1 cursor-pointer transition-all"
+                              >
+                                <span>View</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Ocular / Next Step Action Reminder Strip */}
-                      {ocularMeta && (
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/customer/bookings/${bkg._id}`);
-                          }}
-                          className={cn(
-                            "mt-3 pt-2.5 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs transition-all cursor-pointer group/strip",
-                            ocularMeta.state === "action_required"
-                              ? "bg-amber-50/80 border-amber-200/80 hover:bg-amber-100/70 text-amber-950"
-                              : ocularMeta.state === "scheduled"
-                                ? "bg-blue-50/70 border-blue-200/80 hover:bg-blue-100/60 text-blue-950"
-                                : ocularMeta.state === "requested"
-                                  ? "bg-amber-50/60 border-amber-200/70 hover:bg-amber-100/50 text-amber-950"
-                                  : "bg-emerald-50/60 border-emerald-200/70 hover:bg-emerald-100/50 text-emerald-950"
-                          )}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
+                      {/* FULL-WIDTH INTEGRATED NEXT STEP FOOTER */}
+                      {nextAction && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
                             <span
                               className={cn(
                                 "w-2 h-2 rounded-full shrink-0",
-                                ocularMeta.state === "action_required"
-                                  ? "bg-orange-500 animate-pulse"
-                                  : ocularMeta.state === "scheduled"
+                                nextAction.state === "action_required"
+                                  ? "bg-amber-500 animate-pulse"
+                                  : nextAction.state === "balance_due"
                                     ? "bg-blue-600"
-                                    : ocularMeta.state === "requested"
-                                      ? "bg-amber-500"
+                                    : nextAction.state === "in_progress"
+                                      ? "bg-indigo-600"
                                       : "bg-emerald-600"
                               )}
                             />
-                            <span className="font-bold uppercase tracking-wider text-[10px] shrink-0 opacity-90">
-                              {ocularMeta.headline}
+                            <span className="font-bold text-[11px] uppercase tracking-wider text-slate-500 shrink-0">
+                              Next Step:
                             </span>
-                            <span className="hidden sm:inline text-slate-300">•</span>
-                            <span className="truncate font-medium text-xs">
-                              {ocularMeta.subheadline}
+                            <span className="font-semibold text-slate-800 truncate">
+                              {nextAction.title}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1 font-semibold text-[11px] shrink-0 sm:ml-auto text-[#2C4B8A] group-hover/strip:underline">
-                            <span>{ocularMeta.state === "action_required" ? "Schedule ocular visit →" : "View details →"}</span>
-                          </div>
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 border select-none",
+                              nextAction.badgeClass
+                            )}
+                          >
+                            {nextAction.badge}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -771,20 +1001,20 @@ export default function CustomerBookings() {
             </div>
           </div>
 
-          {/* RIGHT ACTION & FINANCIAL TRACKER SIDE PANEL WITH PINNED FOOTER LAYOUT */}
+          {/* RIGHT ACTION & EVENT OPERATIONS PANEL */}
           <div
             className={cn(
-              "w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0 bg-white border border-slate-200/80 rounded-2xl shadow-2xs flex flex-col h-full max-h-full min-h-0 overflow-hidden",
+              "w-full md:w-[350px] lg:w-[380px] xl:w-[410px] shrink-0 bg-white border border-slate-200/90 rounded-2xl shadow-2xs flex flex-col h-full max-h-full min-h-0 overflow-hidden",
               mobileView === "list" ? "hidden md:flex" : "flex"
             )}
           >
             {/* Mobile Back Button */}
-            <div className="md:hidden px-3.5 py-2.5 border-b border-slate-100 shrink-0 bg-white">
+            <div className="md:hidden px-4 py-2.5 border-b border-slate-100 shrink-0 bg-white">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setMobileView("list")}
-                className="text-xs font-semibold text-[#2C4B8A] gap-1 p-0 hover:bg-transparent cursor-pointer"
+                className="text-xs font-semibold text-[#1E3563] gap-1 p-0 hover:bg-transparent cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" /> Back to Bookings List
               </Button>
@@ -795,45 +1025,141 @@ export default function CustomerBookings() {
               const bal = balanceOf(selectedBooking);
               const paidAmount = Math.max(0, totalCost - bal);
               const percentPaid = totalCost > 0 ? Math.min(100, Math.round((paidAmount / totalCost) * 100)) : 100;
-              const isDepositNeeded = (selectedBooking.status || "").toLowerCase().includes("deposit") || (selectedBooking.payment_status === "deposit_pending" && bal > 0);
+              const nextAction = getNextActionInfo(selectedBooking);
+              const countdown = getEventCountdown(selectedBooking.event_date);
+              const assignedLead = selectedBooking.event_manager_id || (selectedBooking.staff_assignments && selectedBooking.staff_assignments[0]);
+              const refCode = selectedBooking.reference || `CAZ-${selectedBooking._id.substring(0, 6).toUpperCase()}`;
 
               return (
                 <>
-                  {/* TOP HEADER: SELECTED BOOKING & STATUS BADGE */}
-                  <div className="p-3.5 pb-2.5 border-b border-slate-100 shrink-0 bg-white">
+                  {/* PANEL TOP HEADER: EVENT TITLE, STATUS & COUNTDOWN */}
+                  <div className="p-4 border-b border-slate-100 shrink-0 bg-white space-y-2">
                     <div className="flex items-start justify-between gap-2.5">
                       <div className="min-w-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Booking</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Selected Event
+                        </span>
                         <h3 className="font-bold text-base text-slate-900 font-sans leading-snug truncate">
                           {recordTitle(selectedBooking)}
                         </h3>
-                        <div className="text-[11px] font-mono text-slate-400 mt-0.5">
-                          Ref: {selectedBooking.reference || `BKG-${selectedBooking._id.substring(0, 6).toUpperCase()}`}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] font-mono text-slate-600 font-medium">
+                            Ref: {refCode}
+                          </span>
+                          {countdown && (
+                            <span
+                              className={cn(
+                                "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                                countdown.tone === "urgent"
+                                  ? "bg-rose-50 text-rose-800 border-rose-200"
+                                  : countdown.tone === "warning"
+                                    ? "bg-amber-50 text-amber-900 border-amber-200"
+                                    : "bg-blue-50 text-blue-800 border-blue-200"
+                              )}
+                            >
+                              {countdown.label}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {renderStatusBadge(selectedBooking)}
                     </div>
                   </div>
 
-                  {/* SCROLLABLE CONTENT AREA */}
-                  <div className="flex-1 min-h-0 overflow-y-auto p-3.5 space-y-2.5 [scrollbar-width:thin]">
-                    {/* 4-STEP CATERING JOURNEY PROGRESSION TRACKER - COMPACT */}
-                    <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Catering Journey Progress
+                  {/* SCROLLABLE OPERATIONS CONTENT */}
+                  <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 [scrollbar-width:thin]">
+                    {/* 1. NEXT ACTION / STATUS GUIDANCE HERO CARD */}
+                    {nextAction && (
+                      <div
+                        className={cn(
+                          "rounded-xl border p-3.5 space-y-2.5 shadow-2xs",
+                          nextAction.state === "action_required"
+                            ? "bg-amber-50/80 border-amber-200"
+                            : nextAction.state === "balance_due"
+                              ? "bg-blue-50/70 border-blue-200"
+                              : nextAction.state === "all_set"
+                                ? "bg-emerald-50/60 border-emerald-200"
+                                : "bg-slate-50 border-slate-200"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={cn(
+                              "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
+                              nextAction.badgeClass
+                            )}
+                          >
+                            {nextAction.badge}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-600">
+                            Current Stage
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 font-sans leading-snug">
+                            {nextAction.title}
+                          </h4>
+                          <p className="text-xs text-slate-700 leading-relaxed font-medium mt-1">
+                            {nextAction.description}
+                          </p>
+                        </div>
+
+                        {/* Primary Action Button inside Guidance */}
+                        {nextAction.actionType === "deposit" && (
+                          <Button
+                            onClick={() => startCheckout(selectedBooking)}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            <span>Pay Deposit Now ({formatCurrency(bal)})</span>
+                          </Button>
+                        )}
+
+                        {nextAction.actionType === "ocular" && (
+                          <Button
+                            onClick={() => setRequestingOcularBooking(selectedBooking)}
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                          >
+                            <CalendarClock className="w-4 h-4" />
+                            <span>Select Ocular Visit Date</span>
+                          </Button>
+                        )}
+
+                        {nextAction.actionType === "balance" && (
+                          <Button
+                            onClick={() => startCheckout(selectedBooking)}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            <span>Settle Remaining Balance ({formatCurrency(bal)})</span>
+                          </Button>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between text-xs font-semibold relative pt-0.5 pb-0.5">
+                    )}
+
+                    {/* 2. CATERING JOURNEY TIMELINE STEPPER */}
+                    <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#1E3563]" />
+                          <span>Journey Progress</span>
+                        </span>
+                        <span className="text-slate-500 font-medium">Step {activeBookingStep + 1} of 4</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs font-semibold relative pt-1 pb-1">
                         {/* Connecting Background Line */}
-                        <div className="absolute top-3.5 left-3 right-3 h-0.5 bg-slate-200 -z-0" />
+                        <div className="absolute top-4 left-4 right-4 h-0.5 bg-slate-200 -z-0" />
                         {/* Active Filled Progress Line */}
                         <div
-                          className="absolute top-3.5 left-3 h-0.5 bg-blue-600 transition-all duration-300 -z-0"
+                          className="absolute top-4 left-4 h-0.5 bg-[#1E3563] transition-all duration-300 -z-0"
                           style={{ width: `${(activeBookingStep / 3) * 100}%` }}
                         />
 
                         {[
                           { label: "Inquiry", step: 0 },
-                          { label: "Quotation", step: 1 },
+                          { label: "Quote", step: 1 },
                           { label: "Booking", step: 2 },
                           { label: "Event", step: 3 },
                         ].map((s) => {
@@ -841,23 +1167,23 @@ export default function CustomerBookings() {
                           const isCurrent = activeBookingStep === s.step;
 
                           return (
-                            <div key={s.label} className="flex flex-col items-center gap-0.5 z-10">
+                            <div key={s.label} className="flex flex-col items-center gap-1 z-10">
                               <div
                                 className={cn(
-                                  "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all shadow-2xs",
+                                  "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all shadow-2xs",
                                   isDone
                                     ? "bg-emerald-600 text-white"
                                     : isCurrent
-                                      ? "bg-blue-600 text-white ring-3 ring-blue-600/15 scale-105"
-                                      : "bg-white text-slate-400 border border-slate-300"
+                                      ? "bg-[#1E3563] text-white ring-3 ring-[#1E3563]/15 scale-105"
+                                      : "bg-white text-slate-500 border border-slate-300"
                                 )}
                               >
-                                {isDone ? <Check className="w-3 h-3" /> : s.step + 1}
+                                {isDone ? <Check className="w-3 h-3 stroke-[2.5]" /> : s.step + 1}
                               </div>
                               <span
                                 className={cn(
                                   "text-[10px] font-medium leading-tight",
-                                  isCurrent ? "font-bold text-blue-900" : isDone ? "text-slate-700" : "text-slate-400"
+                                  isCurrent ? "font-bold text-[#1E3563]" : isDone ? "text-slate-800" : "text-slate-500"
                                 )}
                               >
                                 {s.label}
@@ -868,87 +1194,47 @@ export default function CustomerBookings() {
                       </div>
                     </div>
 
-                    {/* ACTION REQUIRED / GUIDANCE BOX - COMPACT */}
-                    <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-2.5 space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px]">
-                          <ArrowRight className="w-3 h-3" />
-                        </span>
-                        <h4 className="font-bold text-[#1E3563] text-[11px] uppercase tracking-wider font-sans">
-                          {isDepositNeeded ? "Payment Required" : "Booking Status"}
-                        </h4>
+                    {/* 3. ASSIGNED CATERING LEAD & DIRECT MESSAGING */}
+                    <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Catering &amp; Dispatch Coordination
                       </div>
 
-                      <p className="text-slate-700 text-xs leading-snug font-medium">
-                        {selectedMeta.notice?.text || "Your event booking is registered and being prepared."}
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-[#1E3563]/10 text-[#1E3563] border border-[#1E3563]/20 flex items-center justify-center text-xs font-bold shrink-0">
+                            {assignedLead?.full_name?.charAt(0) || assignedLead?.name?.charAt(0) || "C"}
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-bold text-xs text-slate-900 truncate">
+                              {assignedLead?.full_name || assignedLead?.name || "Caezelle Catering Team"}
+                            </h5>
+                            <p className="text-[11px] text-slate-600">
+                              {isFoodOnly(resolveServiceType(selectedBooking)) ? "Dispatch & Kitchen Lead" : "Event Coordinator"}
+                            </p>
+                          </div>
+                        </div>
 
-                      {/* Direct Action Button */}
-                      {isDepositNeeded && bal > 0 && (
                         <Button
-                          onClick={() => startCheckout(selectedBooking)}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-7.5 rounded-md cursor-pointer shadow-xs gap-1.5 mt-0.5 active:scale-[0.98]"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenChat(selectedBooking)}
+                          disabled={isOpeningChat}
+                          className="h-7.5 px-2.5 text-xs font-semibold rounded-lg border-slate-200 text-slate-700 hover:text-[#1E3563] hover:border-[#1E3563] gap-1 shrink-0 cursor-pointer shadow-2xs"
                         >
-                          <CreditCard className="w-3.5 h-3.5" />
-                          <span>Pay Deposit Now ({formatCurrency(bal)})</span>
+                          <MessageSquare className="w-3.5 h-3.5 text-[#1E3563]" />
+                          <span>Chat</span>
                         </Button>
-                      )}
+                      </div>
                     </div>
 
-                    {/* OCULAR / NEXT ACTION REMINDER BOX */}
-                    {(() => {
-                      const selectedOcular = getBookingOcularActionMeta(selectedBooking);
-                      if (!selectedOcular) return null;
-
-                      return (
-                        <div
-                          onClick={() => navigate(`/customer/bookings/${selectedBooking._id}`)}
-                          className={cn(
-                            "border rounded-lg p-2.5 space-y-1.5 cursor-pointer transition-all shadow-2xs group/oc",
-                            selectedOcular.state === "action_required"
-                              ? "bg-gradient-to-r from-amber-50 to-orange-50/50 border-amber-200/90 hover:border-amber-300"
-                              : selectedOcular.state === "scheduled"
-                                ? "bg-blue-50/70 border-blue-200/80 hover:border-blue-300"
-                                : selectedOcular.state === "requested"
-                                  ? "bg-amber-50/60 border-amber-200/70 hover:border-amber-300"
-                                  : "bg-emerald-50/60 border-emerald-200/70"
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span
-                                className={cn(
-                                  "w-2 h-2 rounded-full shrink-0",
-                                  selectedOcular.state === "action_required"
-                                    ? "bg-orange-500 animate-pulse"
-                                    : selectedOcular.state === "scheduled"
-                                      ? "bg-blue-600"
-                                      : selectedOcular.state === "requested"
-                                        ? "bg-amber-500"
-                                        : "bg-emerald-600"
-                                )}
-                              />
-                              <h4 className="font-bold text-[#1E3563] text-[11px] uppercase tracking-wider font-sans truncate">
-                                {selectedOcular.headline}: {selectedOcular.subheadline}
-                              </h4>
-                            </div>
-                            <span className="text-[10px] font-semibold text-[#2C4B8A] flex items-center gap-0.5 shrink-0 group-hover/oc:underline">
-                              <span>{selectedOcular.state === "action_required" ? "Schedule" : "Details"}</span>
-                              <ChevronRight className="w-3 h-3" />
-                            </span>
-                          </div>
-                          <p className="text-slate-700 text-xs leading-snug font-medium">
-                            {selectedOcular.description}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
-                    {/* FINANCIAL & PAYMENT TRACKER CARD - COMPACT */}
-                    <div className="bg-slate-50/80 border border-slate-200/80 rounded-lg p-2.5 space-y-2 text-xs">
+                    {/* 4. FINANCIAL SUMMARY & INVOICE SHORTCUT */}
+                    <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Status</span>
-                        <span className="font-mono text-xs font-bold text-slate-700">{percentPaid}% Paid</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Payment Status
+                        </span>
+                        <span className="font-bold text-xs text-slate-800">{percentPaid}% Settled</span>
                       </div>
 
                       {/* Visual Progress Bar */}
@@ -956,7 +1242,7 @@ export default function CustomerBookings() {
                         <div
                           className={cn(
                             "h-full rounded-full transition-all duration-500",
-                            percentPaid === 100 ? "bg-emerald-600" : percentPaid > 0 ? "bg-blue-600" : "bg-amber-500"
+                            percentPaid === 100 ? "bg-emerald-600" : percentPaid > 0 ? "bg-[#1E3563]" : "bg-amber-500"
                           )}
                           style={{ width: `${percentPaid}%` }}
                         />
@@ -964,61 +1250,80 @@ export default function CustomerBookings() {
 
                       <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
                         <div>
-                          <div className="text-[10px] text-slate-400 font-medium">Total Cost</div>
-                          <div className="font-bold text-slate-900 font-mono text-xs">{formatCurrency(totalCost)}</div>
+                          <div className="text-[10px] text-slate-500 font-medium">Total Cost</div>
+                          <div className="font-bold text-slate-900 text-xs font-sans">{formatCurrency(totalCost)}</div>
                         </div>
                         <div>
-                          <div className="text-[10px] text-slate-400 font-medium">Balance Due</div>
-                          <div className={cn("font-bold font-mono text-xs", bal > 0 ? "text-amber-700" : "text-emerald-700")}>
+                          <div className="text-[10px] text-slate-500 font-medium">Balance Due</div>
+                          <div className={cn("font-bold text-xs font-sans", bal > 0 ? "text-amber-800" : "text-emerald-800")}>
                             {bal > 0 ? formatCurrency(bal) : "Fully Settled"}
                           </div>
                         </div>
                       </div>
+
+                      <div className="pt-1 flex items-center justify-between border-t border-slate-200/60">
+                        <button
+                          type="button"
+                          onClick={() => setIsInvoiceOpen(true)}
+                          className="text-[11px] font-semibold text-[#1E3563] hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>View Official Invoice</span>
+                        </button>
+                        {bal > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => startCheckout(selectedBooking)}
+                            className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+                          >
+                            Pay Balance →
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    {/* COMPACT KEY EVENT SPECS */}
-                    <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-2.5 space-y-1 text-xs">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
-                        Event Summary
+                    {/* 5. EVENT LOGISTICS SUMMARY */}
+                    <div className="bg-slate-50/70 border border-slate-200/90 rounded-xl p-3 space-y-1.5 text-xs">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                        Logistics Summary
                       </div>
-                      <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
-                        <span className="text-slate-500 font-medium">Event Date</span>
+                      <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60">
+                        <span className="text-slate-600 font-medium">Event Date</span>
                         <span className="font-semibold text-slate-900">{formatEventDateWithDay(selectedBooking.event_date)}</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
-                        <span className="text-slate-500 font-medium">Guest Count</span>
-                        <span className="font-semibold text-slate-900">{selectedBooking.guest_count ? `${selectedBooking.guest_count} guests` : "TBD"}</span>
+                      <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60">
+                        <span className="text-slate-600 font-medium">Guest Count</span>
+                        <span className="font-semibold text-slate-900">{selectedBooking.guest_count ? `${selectedBooking.guest_count} pax` : "TBD"}</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60 text-xs">
-                        <span className="text-slate-500 font-medium">Service Type</span>
+                      <div className="flex items-center justify-between text-slate-700 py-0.5 border-b border-slate-200/60">
+                        <span className="text-slate-600 font-medium">Service Type</span>
                         <span className="font-semibold text-slate-900">{resolveServiceType(selectedBooking)}</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-700 py-0.5 text-xs">
-                        <span className="text-slate-500 font-medium">Venue</span>
-                        <span className="font-semibold text-slate-900 truncate max-w-[160px]">
+                      <div className="flex items-center justify-between text-slate-700 py-0.5">
+                        <span className="text-slate-600 font-medium">Location</span>
+                        <span className="font-semibold text-slate-900 truncate max-w-[180px]">
                           {[selectedBooking.municipality, selectedBooking.province].filter(Boolean).join(", ") || selectedBooking.venue_address || "Location TBD"}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* FIXED FOOTER: VIEW FULL DETAILS ACTION */}
+                  {/* FIXED FOOTER: VIEW FULL DETAILS CTA */}
                   <div className="p-3.5 bg-white border-t border-slate-100 shrink-0">
                     <Button
-                      variant="outline"
                       onClick={() => navigate(`/customer/bookings/${selectedBooking._id}`)}
-                      className="w-full border-blue-200 bg-blue-50/40 hover:bg-blue-100/60 text-[#1E3563] font-bold text-xs h-8.5 rounded-md cursor-pointer shadow-2xs gap-1.5 shrink-0 transition-all flex items-center justify-center"
+                      className="w-full bg-[#1E3563] hover:bg-[#152547] text-white font-bold text-xs h-9 rounded-lg cursor-pointer shadow-xs gap-1.5 shrink-0 transition-all flex items-center justify-center active:scale-[0.98]"
                     >
-                      <Eye className="w-4 h-4 text-[#1E3563]" />
-                      <span>View Full Details</span>
-                      <ChevronRight className="w-4 h-4 text-[#1E3563]" />
+                      <Eye className="w-4 h-4" />
+                      <span>View Full Booking Details</span>
+                      <ChevronRight className="w-4 h-4 ml-auto" />
                     </Button>
                   </div>
                 </>
               );
             })() : (
-              <div className="p-8 text-center text-slate-400 text-xs my-auto">
-                Select a booking to view summary.
+              <div className="p-8 text-center text-slate-500 text-xs my-auto">
+                Select a booking to view its operational summary.
               </div>
             )}
           </div>
@@ -1034,6 +1339,18 @@ export default function CustomerBookings() {
           isSubmitting={isSubmittingOcular}
           eventDate={requestingOcularBooking?.event_date}
           eventTitle={requestingOcularBooking?.event_type}
+        />
+      )}
+
+      {selectedBooking && isInvoiceOpen && (
+        <InvoiceModal
+          open={isInvoiceOpen}
+          onClose={() => setIsInvoiceOpen(false)}
+          booking={selectedBooking}
+          payments={payments.filter(
+            (p) => String(p.booking_id?._id || p.booking_id) === String(selectedBooking._id)
+          )}
+          businessInfo={businessInfo}
         />
       )}
     </CustomerDashboardLayout>

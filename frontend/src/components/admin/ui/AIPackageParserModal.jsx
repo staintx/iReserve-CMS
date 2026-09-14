@@ -312,8 +312,25 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
 
     setIsBulkImporting(true);
     try {
-      await AdminAPI.createBulkPackages(selected);
-      notify(`Successfully imported ${selected.length} packages into your catalog!`, "success");
+      const res = await AdminAPI.createBulkPackages(selected);
+      const totalSkipped =
+        res.data?.totalSkippedCount ||
+        (res.data?.skippedItems || []).reduce(
+          (acc, s) => acc + (s.inclusions?.length || 0) + (s.add_ons?.length || 0),
+          0
+        );
+
+      if (totalSkipped > 0 || res.data?.warning) {
+        notify(
+          `Successfully imported ${selected.length} package${selected.length > 1 ? "s" : ""}! Note: Some items were skipped because they are not currently available in Inventory/Addons.`,
+          "info"
+        );
+      } else {
+        notify(
+          `Successfully imported ${selected.length} package${selected.length > 1 ? "s" : ""} into your catalog!`,
+          "success"
+        );
+      }
       if (onBulkSuccess) {
         onBulkSuccess();
       }
@@ -797,6 +814,39 @@ ADDS ON: Basic Lights & Sounds, Pica-Pica Station, Host, Cake & Wine, Videoke`;
                                 </span>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {/* Skipped Items (not found in Inventory or Addons) */}
+                        {(pkg.skipped_inclusions?.length > 0 || pkg.skipped_add_ons?.length > 0) && (
+                          <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-900 space-y-1">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-800 text-[11px]">
+                              <Info size={13} className="text-amber-600 shrink-0" />
+                              <span>Skipped Items (not currently in Inventory or Addons):</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {pkg.skipped_inclusions?.map((item, i) => (
+                                <span
+                                  key={`skipped-inc-${i}`}
+                                  className="text-[10px] px-2 py-0.5 rounded bg-white/90 border border-amber-200 text-amber-800 line-through"
+                                  title="Not in Inventory; omitted from package"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                              {pkg.skipped_add_ons?.map((item, i) => (
+                                <span
+                                  key={`skipped-add-${i}`}
+                                  className="text-[10px] px-2 py-0.5 rounded bg-white/90 border border-amber-200 text-amber-800 line-through"
+                                  title="Not in Addons; omitted from package"
+                                >
+                                  +{item}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-amber-700 mt-0.5">
+                              These items will be skipped during import. You can add them to Inventory/Addons later and edit the package.
+                            </p>
                           </div>
                         )}
                       </div>

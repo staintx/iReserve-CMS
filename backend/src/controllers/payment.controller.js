@@ -304,7 +304,15 @@ exports.getMine = asyncHandler(async (req, res) => {
 	res.json(
 		await Payment.find({ customer_id: req.user._id })
 			.sort({ createdAt: -1 })
-			.populate("booking_id customer_id inquiry_id")
+			.populate({
+				path: "booking_id",
+				populate: { path: "package_id", select: "name title price" }
+			})
+			.populate({
+				path: "inquiry_id",
+				populate: { path: "package_id", select: "name title" }
+			})
+			.populate("customer_id")
 			.lean(),
 	);
 });

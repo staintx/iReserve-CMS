@@ -144,7 +144,7 @@ export default function CustomerProfile() {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex items-start justify-center [scrollbar-width:thin]">
           <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* Left Column: Personal Info (7 cols on lg) */}
-            <div className="lg:col-span-7 bg-white border border-slate-200 rounded-md shadow-2xs overflow-hidden">
+            <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
               <div className="p-3.5 px-4 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded bg-[#2C4B8A]/10 flex items-center justify-center text-[#2C4B8A] shrink-0">
                   <User className="w-3.5 h-3.5" />
@@ -259,7 +259,7 @@ export default function CustomerProfile() {
             {/* Right Column: Security & Credentials (5 cols on lg) */}
             <div className="lg:col-span-5 space-y-4">
               {/* Security Card */}
-              <div className="bg-white border border-slate-200 rounded-md shadow-2xs overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
                 <div className="p-3.5 px-4 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded bg-[#2C4B8A]/10 flex items-center justify-center text-[#2C4B8A] shrink-0">
                     <Lock className="w-3.5 h-3.5" />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import { CustomerAPI } from "../../api/customer";
@@ -61,14 +61,21 @@ export default function CustomerDashboard() {
   const [selectedDateEvents, setSelectedDateEvents] = useState([]);
   const [isEventsModalOpen, setIsEventsModalOpen] = useState(false);
 
-  const loadData = () => {
-    setLoading(true);
-    Promise.all([
-      CustomerAPI.getInquiries().catch(() => ({ data: [] })),
-      CustomerAPI.getBookings().catch(() => ({ data: [] })),
-      CustomerAPI.getPayments().catch(() => ({ data: [] })),
-      CustomerAPI.getConversations().catch(() => ({ data: [] }))
-    ]).then(([inqRes, bookRes, payRes, convoRes]) => {
+  const isFetchingRef = useRef(false);
+
+  const loadData = useCallback(async (isBackground = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    if (!isBackground) setLoading(true);
+
+    try {
+      const [inqRes, bookRes, payRes, convoRes] = await Promise.all([
+        CustomerAPI.getInquiries().catch(() => ({ data: [] })),
+        CustomerAPI.getBookings().catch(() => ({ data: [] })),
+        CustomerAPI.getPayments().catch(() => ({ data: [] })),
+        CustomerAPI.getConversations().catch(() => ({ data: [] }))
+      ]);
+
       setInquiries(inqRes.data || []);
       setBookings(bookRes.data || []);
       setPayments(payRes.data || []);
@@ -76,14 +83,19 @@ export default function CustomerDashboard() {
       const convos = convoRes.data || [];
       const unread = convos.reduce((acc, c) => acc + (Number(c.unread_customer_count) || 0), 0);
       setUnreadCount(unread);
-    }).finally(() => setLoading(false));
-  };
+    } catch {
+      // silent fallback
+    } finally {
+      isFetchingRef.current = false;
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [loadData, user]);
 
-  useRealTimeRefresh(loadData);
+  useRealTimeRefresh(() => loadData(true));
 
   const now = useMemo(() => new Date(), []);
 
@@ -301,21 +313,19 @@ export default function CustomerDashboard() {
 
   return (
     <CustomerDashboardLayout>
-      <div className="space-y-6">
-        {/* ── Operational Greeting Header ─────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">
-              Welcome back, {firstName}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Overview of your catering bookings, quote requests, and payments.
-            </p>
-          </div>
+      <div className="space-y-5">
+        {/* ── High-Density Header ───────────────────────────────────────── */}
+        <div className="pb-1 border-b border-slate-200/60">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">
+            Welcome back, {firstName}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Overview of your catering bookings, quote requests, and event schedule.
+          </p>
         </div>
 
-        {/* ── High-Density Telemetry Metrics Grid ────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* ── High-Density Telemetry Metrics Grid (Exact Screenshot Card Style) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
           <StatTile
             icon={Calendar}
             label="Active Bookings"
@@ -346,105 +356,34 @@ export default function CustomerDashboard() {
           />
         </div>
 
-        {/* ── Main Operational Grid ─────────────────────────────────── */}
-        <div className="max-w-5xl mx-auto space-y-6">
-          {/* ── Calendar & Two Stacked Cards Section ──────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-            {/* Left Side: Square Calendar Card */}
-            <div className="lg:col-span-7 flex flex-col">
-              <CustomerCalendarCard
-                eventsMap={calendarEventsMap}
-                selectedDate={selectedCalendarDate}
-                onSelectDate={(date, events) => {
-                  setSelectedCalendarDate(date);
-                  setSelectedDateEvents(events);
-                  setIsEventsModalOpen(true);
-                }}
-              />
+        {/* ── Attention Queue (Only if action required, compact high-density) ── */}
+        {!loading && actionRequiredItems.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                Action Required ({actionRequiredItems.length})
+              </span>
             </div>
-
-            {/* Right Side: Two Stacked Action Cards */}
-            <div className="lg:col-span-5 flex flex-col gap-4 sm:gap-5 justify-between">
-              {/* Card 1: Custom Event Quote */}
-              <div
-                onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
-                className="group flex-1 flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
-              >
-                <div className="space-y-3.5">
-                  <div className="w-11 h-11 rounded-full bg-amber-50/90 border border-amber-200/80 text-amber-600 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
-                      Custom Event Quote
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
-                      Customize your catering menu, guest count, and event setup details for a tailored quotation.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-4 sm:pt-5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-900 group-hover:text-[#2C4B8A] transition-colors">
-                  <span>Request a Quote</span>
-                  <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-[#2C4B8A] group-hover:translate-x-1 transition-all" />
-                </div>
-              </div>
-
-              {/* Card 2: Browse Menu Package */}
-              <div
-                onClick={() => navigate("/packages")}
-                className="group flex-1 flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
-              >
-                <div className="space-y-3.5">
-                  <div className="w-11 h-11 rounded-full bg-blue-50/90 border border-blue-200/80 text-[#2C4B8A] flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-                    <Utensils className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
-                      Browse Menu Package
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
-                      Explore curated all-inclusive packages, special offers, and chef-crafted dishes.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-4 sm:pt-5 flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-900 group-hover:text-[#2C4B8A] transition-colors">
-                  <span>Explore Packages</span>
-                  <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-[#2C4B8A] group-hover:translate-x-1 transition-all" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Needs Attention items (if any action required) */}
-          {!loading && actionRequiredItems.length > 0 && (
-            <PortalSection
-              title={`Needs your attention (${actionRequiredItems.length})`}
-              description="Action required to advance your reservation."
-              bodyClassName="space-y-3"
-            >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {actionRequiredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex flex-col gap-3.5 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-5 hover:border-slate-300 shadow-2xs transition-all"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex items-center justify-between gap-3 hover:border-slate-300 transition-all"
                 >
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900">{item.title}</h3>
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{item.title}</h3>
                       <StatusPill tone={item.status.tone} label={item.status.label} icon={item.status.icon} />
                     </div>
-                    <p className="text-xs text-slate-600 font-medium">{formatEventDateTime(item.date, item.startTime)}</p>
-                    {item.description && <p className="text-xs text-slate-500">{item.description}</p>}
+                    <p className="text-[11px] text-slate-500 font-medium">{formatEventDateTime(item.date, item.startTime)}</p>
                   </div>
-
-                  <Button 
-                    onClick={item.onAction} 
+                  <Button
+                    onClick={item.onAction}
                     size="sm"
                     className={cn(
-                      "shrink-0 font-semibold text-xs px-3.5 py-1.5 rounded-md transition-colors cursor-pointer shadow-2xs",
-                      item.isPayment 
-                        ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                      "shrink-0 font-semibold text-xs px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-2xs",
+                      item.isPayment
+                        ? "bg-amber-600 hover:bg-amber-700 text-white"
                         : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
                     )}
                   >
@@ -452,78 +391,152 @@ export default function CustomerDashboard() {
                   </Button>
                 </div>
               ))}
-            </PortalSection>
-          )}
+            </div>
+          </div>
+        )}
 
-          {/* ── Below: Your Next Event Section ──────────────────────── */}
-          <PortalSection
-            title="Your Next Event"
-            className="bg-slate-50 border-0 shadow-sm ring-1 ring-slate-900/5"
-            action={
-              <Button variant="ghost" size="sm" onClick={() => navigate("/customer/bookings")} className="text-xs font-bold text-[#2C4B8A] hover:bg-slate-100 cursor-pointer">
-                All bookings <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            }
-          >
-            {loading ? (
-              <LoadingState rows={1} label="Loading event details..." />
-            ) : nextEvent ? (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-bold text-slate-900">{recordTitle(nextEvent)}</h3>
-                  {nextEventStatus && (
-                    <StatusPill tone={nextEventStatus.tone} label={nextEventStatus.label} icon={nextEventStatus.icon} />
-                  )}
+        {/* ── Main Operational 2-Column Grid (High Density) ───────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column (7 cols): Next Event Card + Quick Service Shortcuts */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Your Next Event Card - Matching the exact StatTile style */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="w-4 h-4 text-slate-400 stroke-[1.75]" />
+                  <span className="text-sm sm:text-base font-bold text-slate-800 font-sans">Your Next Event</span>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/customer/bookings")}
+                  className="text-xs font-semibold text-[#2C4B8A] hover:bg-slate-50 cursor-pointer h-7 px-2 rounded-lg"
+                >
+                  All bookings <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </div>
 
-                <DetailGrid
-                  items={[
-                    { label: "Date & Time", value: formatEventDateTime(nextEvent.event_date, nextEvent.start_time) },
-                    { label: "Location", value: nextEvent.municipality || nextEvent.venue_type || "To be confirmed" },
-                    { label: "Service", value: nextEvent.package_name || resolveServiceType(nextEvent) },
-                    { label: "Guests", value: nextEvent.guest_count ? `${nextEvent.guest_count} guests` : "—" },
-                    { label: "Reference", value: nextEvent.reference || "—", mono: true },
-                    { label: "Total Cost", value: formatCurrency(nextEvent.total_price) },
-                  ]}
+              {loading ? (
+                <LoadingState rows={1} label="Loading event details..." />
+              ) : nextEvent ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-base font-bold text-slate-900 font-sans">{recordTitle(nextEvent)}</h3>
+                    {nextEventStatus && (
+                      <StatusPill tone={nextEventStatus.tone} label={nextEventStatus.label} icon={nextEventStatus.icon} />
+                    )}
+                  </div>
+
+                  <DetailGrid
+                    items={[
+                      { label: "Date & Time", value: formatEventDateTime(nextEvent.event_date, nextEvent.start_time) },
+                      { label: "Location", value: nextEvent.municipality || nextEvent.venue_type || "To be confirmed" },
+                      { label: "Service", value: nextEvent.package_name || resolveServiceType(nextEvent) },
+                      { label: "Guests", value: nextEvent.guest_count ? `${nextEvent.guest_count} guests` : "—" },
+                      { label: "Reference", value: nextEvent.reference || "—", mono: true },
+                      { label: "Total Cost", value: formatCurrency(nextEvent.total_price) },
+                    ]}
+                  />
+
+                  <div className="flex justify-end pt-2 border-t border-slate-100">
+                    <Button
+                      size="sm"
+                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-full px-4 py-1.5 shadow-2xs cursor-pointer gap-1"
+                      onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
+                    >
+                      <span>View event workspace</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  className="border-0 py-4"
+                  icon={CalendarClock}
+                  title="No upcoming events scheduled"
+                  description="Your confirmed event preparations and details will appear here."
+                  action={
+                    <Button
+                      size="sm"
+                      className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-full px-4 py-1.5 shadow-2xs cursor-pointer gap-1"
+                      onClick={() => navigate("/packages")}
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Inquire now
+                    </Button>
+                  }
                 />
+              )}
+            </div>
 
-                <div className="flex justify-end border-t border-slate-100 pt-3">
-                  <Button 
-                    size="sm"
-                    className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
-                    onClick={() => navigate(`/customer/bookings/${nextEvent._id}`)}
-                  >
-                    View event workspace <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                  </Button>
+            {/* Quick Action Cards - Transformed into the EXACT StatTile Style */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Card 1: Custom Quote */}
+              <div
+                onClick={() => navigate("/customer/book", { state: { resetWizard: true } })}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm sm:text-base font-bold text-slate-800 font-sans">
+                      Custom Event Quote
+                    </span>
+                    <Sparkles className="h-4 w-4 text-amber-500 stroke-[1.75]" />
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-400 font-medium line-clamp-2 leading-relaxed">
+                    Customize your catering menu, guest count, and setup details.
+                  </p>
+                </div>
+                <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#2C4B8A] group-hover:underline">
+                  <span>Build quotation</span>
+                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                 </div>
               </div>
-            ) : (
-              <EmptyState
-                className="border-0 py-6"
-                icon={CalendarClock}
-                title="No upcoming events scheduled"
-                description="Your confirmed event preparations and details will appear here."
-                action={
-                  <Button 
-                    size="sm"
-                    className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
-                    onClick={() => navigate("/packages")}
-                  >
-                    <PlusCircle className="h-3.5 w-3.5 mr-1.5" /> Inquire now
-                  </Button>
-                }
-              />
-            )}
-          </PortalSection>
 
-          {/* Date Events Dialog Modal */}
-          <CustomerDateEventsModal
-            isOpen={isEventsModalOpen}
-            onClose={() => setIsEventsModalOpen(false)}
-            selectedDate={selectedCalendarDate}
-            events={selectedDateEvents}
-          />
+              {/* Card 2: Browse Packages */}
+              <div
+                onClick={() => navigate("/packages")}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm sm:text-base font-bold text-slate-800 font-sans">
+                      Browse Packages
+                    </span>
+                    <Utensils className="h-4 w-4 text-[#2C4B8A] stroke-[1.75]" />
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-400 font-medium line-clamp-2 leading-relaxed">
+                    Explore curated all-inclusive packages, menus, and inclusions.
+                  </p>
+                </div>
+                <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-[#2C4B8A] group-hover:underline">
+                  <span>Explore packages</span>
+                  <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column (5 cols): Compact Interactive Calendar */}
+          <div className="lg:col-span-5 flex flex-col">
+            <CustomerCalendarCard
+              eventsMap={calendarEventsMap}
+              selectedDate={selectedCalendarDate}
+              onSelectDate={(date, events) => {
+                setSelectedCalendarDate(date);
+                setSelectedDateEvents(events);
+                setIsEventsModalOpen(true);
+              }}
+            />
+          </div>
         </div>
+
+        {/* Date Events Dialog Modal */}
+        <CustomerDateEventsModal
+          isOpen={isEventsModalOpen}
+          onClose={() => setIsEventsModalOpen(false)}
+          selectedDate={selectedCalendarDate}
+          events={selectedDateEvents}
+        />
       </div>
     </CustomerDashboardLayout>
   );

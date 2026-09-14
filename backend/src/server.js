@@ -80,22 +80,24 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Global API rate limiter: 500 requests per 15 minutes
+// Global API rate limiter: generous limits, skipped in development to prevent 429 lockout
 const apiLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
-	max: 500,
+	max: process.env.NODE_ENV === "production" ? 2500 : 50000,
 	standardHeaders: true,
 	legacyHeaders: false,
+	skip: () => process.env.NODE_ENV !== "production",
 	message: { message: "Too many requests from this IP, please try again after 15 minutes" }
 });
 app.use("/api", apiLimiter);
 
-// Stricter auth rate limiter: 30 requests per 15 minutes on login/register/otp
+// Stricter auth rate limiter: login/register/otp protection
 const authLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
-	max: 30,
+	max: process.env.NODE_ENV === "production" ? 50 : 2000,
 	standardHeaders: true,
 	legacyHeaders: false,
+	skip: () => process.env.NODE_ENV !== "production",
 	message: { message: "Too many authentication attempts, please try again later" }
 });
 app.use("/api/auth", authLimiter);

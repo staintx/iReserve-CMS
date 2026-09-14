@@ -1,5 +1,5 @@
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useAuth from "../../hooks/useAuth";
 import logo from "../../assets/images/logo.jpg";
 import ConfirmDialog from "../common/ConfirmDialog";
@@ -14,7 +14,6 @@ import {
   Menu, 
   X, 
   UserRound, 
-  Plus,
   Sparkles,
   Bot,
   CreditCard
@@ -59,20 +58,26 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
 
-  const fetchUnreadCounts = async () => {
+  const isFetchingUnreadRef = useRef(false);
+
+  const fetchUnreadCounts = useCallback(async () => {
+    if (isFetchingUnreadRef.current) return;
     try {
+      isFetchingUnreadRef.current = true;
       const convoRes = await CustomerAPI.getConversations().catch(() => ({ data: [] }));
       const convos = convoRes.data || [];
       const unread = convos.reduce((acc, c) => acc + (Number(c.unread_customer_count) || 0), 0);
       setUnreadMessages(unread);
     } catch {
       // ignore
+    } finally {
+      isFetchingUnreadRef.current = false;
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUnreadCounts();
-  }, [user]);
+  }, [fetchUnreadCounts, user]);
 
   useRealTimeRefresh(fetchUnreadCounts);
 
@@ -144,7 +149,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
         <button
           type="button"
           onClick={() => setShowLogoutConfirm(true)}
-          className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer group"
+          className="p-1.5 rounded-md text-slate-500 hover:text-rose-600 hover:bg-slate-100 transition-colors cursor-pointer group"
           title="Sign out"
         >
           <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
@@ -170,7 +175,7 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
   );
 
   return (
-    <div className="customer-shell fixed inset-0 overflow-hidden bg-white flex text-slate-900 font-sans">
+    <div className="customer-shell fixed inset-0 overflow-hidden bg-[#F8FAFC] flex text-slate-900 font-sans">
       {/* Mobile backdrop */}
       {mobileOpen && (
         <div
@@ -197,36 +202,37 @@ export default function CustomerDashboardLayout({ title, subtitle, actions, full
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white">
-        {/* Stripe-style Modern Header */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 sticky top-0 z-20 gap-2 sm:gap-4">
-          <div className="flex items-center shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="text-slate-600 md:hidden -ml-1">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC]">
+        {/* Modern Mobbin Header */}
+        <header className="h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20 gap-3">
+          <div className="flex items-center gap-2 shrink-0 md:hidden">
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} className="text-slate-600 -ml-2">
               <Menu className="w-5 h-5" />
             </Button>
           </div>
 
-          {/* Horizontally Moving Account Information Ticker */}
-          <AccountInfoTicker />
+          {/* Horizontally Moving Account Information Ticker — Maximized Across Navbar Space */}
+          <div className="flex-1 min-w-0 mx-2 sm:mx-4">
+            <AccountInfoTicker />
+          </div>
 
-          {/* Right Header Utilities */}
-          <div className="flex items-center gap-2 shrink-0 z-20">
-            {/* Notification Bell */}
+          {/* Right Header Utilities: Bell */}
+          <div className="flex items-center gap-2 shrink-0">
             <NotificationBell />
           </div>
         </header>
 
         {/* Scrollable Page Body */}
         {fullBleed ? (
-          <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
+          <main className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#F8FAFC]">
             {children}
           </main>
         ) : (
-          <main className="flex-1 overflow-y-auto bg-white p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto bg-[#F8FAFC] p-4 sm:p-6 lg:p-8">
             <div className="mx-auto max-w-6xl">
               {/* Page Header (if title/actions passed) */}
               {(title || subtitle || actions) && (
-                <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between border-b border-slate-100 pb-5">
+                <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between border-b border-slate-200/60 pb-5">
                   <div className="min-w-0">
                     {title && (
                       <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl font-sans">{title}</h1>

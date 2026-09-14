@@ -95,28 +95,26 @@ export default function CustomerCalendarCard({
   const selectedKey = selectedDate ? formatDateToYYYYMMDD(selectedDate) : null;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-4 sm:p-5 flex flex-col justify-between h-full min-h-[440px]">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5 flex flex-col justify-between">
       {/* ── Header: Month & Year + Controls ─────────────────────── */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100 gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 text-[#2C4B8A] flex items-center justify-center shrink-0">
-            <CalendarIcon className="w-4 h-4" />
-          </div>
+        <div className="flex items-center gap-2.5">
+          <CalendarIcon className="w-4 h-4 text-slate-400 shrink-0 stroke-[1.75]" />
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+            <h2 className="text-base font-bold text-slate-800 font-sans tracking-tight">
               {MONTH_NAMES[currentMonth]} {currentYear}
             </h2>
             <p className="text-[11px] text-slate-400 font-medium">Event & Payment Schedule</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {!isCurrentViewingMonthToday && (
             <Button
               variant="outline"
               size="xs"
               onClick={handleGoToToday}
-              className="text-[11px] h-7 px-2.5 font-semibold text-slate-600 hover:text-slate-900 border-slate-200 cursor-pointer"
+              className="text-[11px] h-7 px-2 font-medium text-slate-600 hover:text-slate-900 border-slate-200 rounded-lg cursor-pointer"
             >
               Today
             </Button>
@@ -129,7 +127,7 @@ export default function CustomerCalendarCard({
               aria-label="Previous month"
               className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-white transition-all cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
@@ -137,19 +135,19 @@ export default function CustomerCalendarCard({
               aria-label="Next month"
               className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-white transition-all cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </div>
 
       {/* ── Days of Week Row ────────────────────────────────────── */}
-      <div className="grid grid-cols-7 gap-1 pt-2.5 pb-1 text-center">
+      <div className="grid grid-cols-7 gap-1 pt-2 pb-1 text-center">
         {DAY_LABELS.map((day, idx) => (
           <div
             key={day}
             className={cn(
-              "text-[11px] font-bold uppercase tracking-wider py-1",
+              "text-[10px] font-bold uppercase tracking-wider py-0.5",
               idx === 0 || idx === 6 ? "text-slate-400" : "text-slate-500"
             )}
           >
@@ -159,7 +157,7 @@ export default function CustomerCalendarCard({
       </div>
 
       {/* ── Calendar Dates Grid ─────────────────────────────────── */}
-      <div className="grid grid-cols-7 gap-1 sm:gap-1.5 flex-1">
+      <div className="grid grid-cols-7 gap-1 flex-1 py-1">
         {calendarDays.map(({ date, dayNum, isCurrentMonth, dateKey }) => {
           const events = eventsMap[dateKey] || [];
           const hasEvents = events.length > 0;
@@ -172,13 +170,13 @@ export default function CustomerCalendarCard({
               type="button"
               onClick={() => onSelectDate && onSelectDate(date, events)}
               className={cn(
-                "relative min-h-[46px] sm:min-h-[50px] p-1 rounded-lg flex flex-col items-center justify-between transition-all border text-center cursor-pointer select-none group",
+                "relative min-h-[38px] sm:min-h-[40px] p-1 rounded-lg flex flex-col items-center justify-between transition-all border text-center cursor-pointer select-none group",
                 isCurrentMonth
                   ? "text-slate-800 hover:bg-slate-50 hover:border-slate-300"
                   : "text-slate-300 bg-slate-50/30 border-transparent hover:bg-slate-50 hover:text-slate-500",
                 isToday && !isSelected && "ring-1.5 ring-[#2C4B8A] bg-blue-50/40 text-[#2C4B8A] font-bold",
                 isSelected && "bg-[#2C4B8A]/10 border-[#2C4B8A] ring-1 ring-[#2C4B8A] font-bold text-[#2C4B8A]",
-                hasEvents && !isSelected && "border-slate-200/90 shadow-2xs font-semibold"
+                hasEvents && !isSelected && "border-slate-200 shadow-2xs font-semibold"
               )}
             >
               {/* Day Number */}

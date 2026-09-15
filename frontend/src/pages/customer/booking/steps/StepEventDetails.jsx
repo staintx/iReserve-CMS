@@ -195,6 +195,7 @@ export default function StepEventDetails({
                 value={currentCount}
                 onChange={handleGuestChange}
                 min={guestMin || 1}
+                max={guestMax}
               />
             </Field>
           </Card>
@@ -276,6 +277,7 @@ export default function StepEventDetails({
                   value={currentCount}
                   onChange={handleGuestChange}
                   min={guestMin || 1}
+                  max={guestMax}
                 />
               </Field>
             </div>
@@ -434,7 +436,10 @@ export default function StepEventDetails({
                 label={guestCountLabel(offer)}
                 required
                 hint={
-                  setupCapacity?.message || `Minimum ${guestMin || 1} guest${(guestMin || 1) === 1 ? "" : "s"} supported.`
+                  setupCapacity?.message ||
+                  (guestMax
+                    ? `Guests between ${guestMin || 1} and ${guestMax} supported.`
+                    : `Minimum ${guestMin || 1} guest${(guestMin || 1) === 1 ? "" : "s"} supported.`)
                 }
                 error={errors.guest_count}
               >
@@ -442,6 +447,7 @@ export default function StepEventDetails({
                   value={currentCount}
                   onChange={handleGuestChange}
                   min={guestMin || 1}
+                  max={guestMax}
                 />
               </Field>
             </div>

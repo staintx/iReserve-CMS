@@ -494,6 +494,33 @@ exports.create = asyncHandler(async (req, res) => {
         req.body.guest_count = Math.max(1, Number(req.body.guest_count) || offerGuestCount(bookedPackage) || 1);
         req.body.include_food = true;
         applyComboRequestBoundary(req.body);
+      } else {
+        const requestedGuests = Number(req.body.guest_count) || 0;
+        let maxLimit = bookedPackage.guest_max ? Number(bookedPackage.guest_max) : null;
+        let minLimit = bookedPackage.guest_min ? Number(bookedPackage.guest_min) : null;
+
+        if (req.body.selected_scaffold_option_id && Array.isArray(bookedPackage.scaffold_size_options)) {
+          const matched = bookedPackage.scaffold_size_options.find(
+            (opt) => String(opt._id) === String(req.body.selected_scaffold_option_id)
+          );
+          if (matched?.guest_max) {
+            maxLimit = maxLimit ? Math.min(maxLimit, matched.guest_max) : matched.guest_max;
+          }
+          if (matched?.guest_min) {
+            minLimit = minLimit ? Math.max(minLimit, matched.guest_min) : matched.guest_min;
+          }
+        }
+
+        if (maxLimit && requestedGuests > maxLimit) {
+          return res.status(400).json({
+            message: `${bookedPackage.name} accommodates a maximum of ${maxLimit} guests for this setup.`
+          });
+        }
+        if (minLimit && requestedGuests < minLimit) {
+          return res.status(400).json({
+            message: `${bookedPackage.name} requires a minimum of ${minLimit} guests for this setup.`
+          });
+        }
       }
     }
   }

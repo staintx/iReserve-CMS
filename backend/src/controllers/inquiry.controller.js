@@ -117,6 +117,35 @@ exports.createInquiry = asyncHandler(async (req, res) => {
     delete payload.offer_base_price;
     delete payload.offer_setup_price;
     delete payload.offer_food_snapshot;
+
+    if (pkg) {
+      const requestedGuests = Number(payload.guest_count) || 0;
+      let maxLimit = pkg.guest_max ? Number(pkg.guest_max) : null;
+      let minLimit = pkg.guest_min ? Number(pkg.guest_min) : null;
+
+      if (payload.selected_scaffold_option_id && Array.isArray(pkg.scaffold_size_options)) {
+        const matched = pkg.scaffold_size_options.find(
+          (opt) => String(opt._id) === String(payload.selected_scaffold_option_id)
+        );
+        if (matched?.guest_max) {
+          maxLimit = maxLimit ? Math.min(maxLimit, matched.guest_max) : matched.guest_max;
+        }
+        if (matched?.guest_min) {
+          minLimit = minLimit ? Math.max(minLimit, matched.guest_min) : matched.guest_min;
+        }
+      }
+
+      if (maxLimit && requestedGuests > maxLimit) {
+        return res.status(400).json({
+          message: `${pkg.name} accommodates a maximum of ${maxLimit} guests for this setup.`
+        });
+      }
+      if (minLimit && requestedGuests < minLimit) {
+        return res.status(400).json({
+          message: `${pkg.name} requires a minimum of ${minLimit} guests for this setup.`
+        });
+      }
+    }
   }
 
   if (Array.isArray(payload.additional_services) && (!payload.service_items || payload.service_items.length === 0)) {

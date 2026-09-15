@@ -258,8 +258,6 @@ const PACKAGE_ONLY_FIELDS = [
   "setup_price",
   "add_ons",
   "menu_items",
-  "guest_min",
-  "guest_max",
 ];
 
 /**
@@ -353,6 +351,10 @@ function offerBookingProblem(pkg, guestCount) {
 
   if (pkg.guest_min && requested < pkg.guest_min) {
     return `${pkg.name} requires a minimum of ${pkg.guest_min} guests.`;
+  }
+
+  if (pkg.guest_max && requested > pkg.guest_max) {
+    return `${pkg.name} accommodates a maximum of ${pkg.guest_max} guests.`;
   }
 
   return "";

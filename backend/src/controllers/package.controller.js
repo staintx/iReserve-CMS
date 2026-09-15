@@ -568,6 +568,12 @@ exports.create = async (req, res) => {
     ...req.body,
     package_type: req.body.package_type || "Event Setup Only",
     offer_type,
+    guest_min: req.body.guest_min !== undefined && req.body.guest_min !== "" && req.body.guest_min !== null
+      ? Number(req.body.guest_min)
+      : undefined,
+    guest_max: req.body.guest_max !== undefined && req.body.guest_max !== "" && req.body.guest_max !== null
+      ? Number(req.body.guest_max)
+      : undefined,
     guest_count: isOffer && req.body.guest_count ? Math.floor(Number(req.body.guest_count)) : undefined,
     offer_food_items: isOffer
       ? normalizeOfferFoodItems(req.body.offer_food_items)
@@ -735,6 +741,17 @@ exports.update = async (req, res) => {
   // against the stored package when the body does not restate it, so a partial
   // update can never silently demote a Special Offer to a regular package.
   data.offer_type = offerType;
+
+  if (req.body.guest_min !== undefined) {
+    data.guest_min = req.body.guest_min !== "" && req.body.guest_min !== null
+      ? Number(req.body.guest_min)
+      : null;
+  }
+  if (req.body.guest_max !== undefined) {
+    data.guest_max = req.body.guest_max !== "" && req.body.guest_max !== null
+      ? Number(req.body.guest_max)
+      : null;
+  }
 
   if (isOffer) {
     if (req.body.guest_count !== undefined && req.body.guest_count !== null && req.body.guest_count !== "") {

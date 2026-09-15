@@ -280,14 +280,9 @@ export default function BookingWizard() {
     const pkgExplicitMax = positive(packageDetails?.guest_max);
 
     if (scaffoldMin || scaffoldMax) {
-      const resolvedMin = scaffoldMin || pkgExplicitMin || 1;
-      let resolvedMax = scaffoldMax || pkgExplicitMax || null;
-      if (scaffoldMax && pkgExplicitMax) {
-        resolvedMax = Math.min(scaffoldMax, pkgExplicitMax);
-      }
       return {
-        guestMin: resolvedMin,
-        guestMax: resolvedMax,
+        guestMin: scaffoldMin || pkgExplicitMin || 1,
+        guestMax: scaffoldMax || pkgExplicitMax || null,
       };
     }
 

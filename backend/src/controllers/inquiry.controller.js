@@ -120,19 +120,54 @@ exports.createInquiry = asyncHandler(async (req, res) => {
 
     if (pkg) {
       const requestedGuests = Number(payload.guest_count) || 0;
-      let maxLimit = pkg.guest_max ? Number(pkg.guest_max) : null;
-      let minLimit = pkg.guest_min ? Number(pkg.guest_min) : null;
+      let matched = null;
+      if (Array.isArray(pkg.scaffold_size_options) && pkg.scaffold_size_options.length > 0) {
+        if (payload.selected_scaffold_option_id) {
+          matched = pkg.scaffold_size_options.find(
+            (opt, idx) =>
+              String(opt._id) === String(payload.selected_scaffold_option_id) ||
+              String(idx) === String(payload.selected_scaffold_option_id)
+          );
+        }
+        if (!matched && payload.scaffold_width && payload.scaffold_length) {
+          matched = pkg.scaffold_size_options.find(
+            (opt) =>
+              Number(opt.width_ft) === Number(payload.scaffold_width) &&
+              Number(opt.length_ft) === Number(payload.scaffold_length)
+          );
+        }
+        if (!matched) {
+          if (pkg.default_scaffold_option_id != null) {
+            matched = pkg.scaffold_size_options.find(
+              (opt, idx) =>
+                String(opt._id) === String(pkg.default_scaffold_option_id) ||
+                String(idx) === String(pkg.default_scaffold_option_id)
+            );
+          }
+          if (!matched && pkg.scaffold_size_options.length === 1) {
+            matched = pkg.scaffold_size_options[0];
+          }
+        }
+      }
 
-      if (payload.selected_scaffold_option_id && Array.isArray(pkg.scaffold_size_options)) {
-        const matched = pkg.scaffold_size_options.find(
-          (opt) => String(opt._id) === String(payload.selected_scaffold_option_id)
-        );
-        if (matched?.guest_max) {
-          maxLimit = maxLimit ? Math.min(maxLimit, matched.guest_max) : matched.guest_max;
+      // If a setup/scaffold option is selected, its configured capacity is authoritative for this setup
+      let maxLimit = null;
+      let minLimit = null;
+
+      if (matched) {
+        if (matched.guest_max != null && Number(matched.guest_max) > 0) {
+          maxLimit = Number(matched.guest_max);
         }
-        if (matched?.guest_min) {
-          minLimit = minLimit ? Math.max(minLimit, matched.guest_min) : matched.guest_min;
+        if (matched.guest_min != null && Number(matched.guest_min) > 0) {
+          minLimit = Number(matched.guest_min);
         }
+      }
+
+      if (maxLimit == null && pkg.guest_max != null && Number(pkg.guest_max) > 0) {
+        maxLimit = Number(pkg.guest_max);
+      }
+      if (minLimit == null && pkg.guest_min != null && Number(pkg.guest_min) > 0) {
+        minLimit = Number(pkg.guest_min);
       }
 
       if (maxLimit && requestedGuests > maxLimit) {

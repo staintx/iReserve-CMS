@@ -496,19 +496,54 @@ exports.create = asyncHandler(async (req, res) => {
         applyComboRequestBoundary(req.body);
       } else {
         const requestedGuests = Number(req.body.guest_count) || 0;
-        let maxLimit = bookedPackage.guest_max ? Number(bookedPackage.guest_max) : null;
-        let minLimit = bookedPackage.guest_min ? Number(bookedPackage.guest_min) : null;
+        let matched = null;
+        if (Array.isArray(bookedPackage.scaffold_size_options) && bookedPackage.scaffold_size_options.length > 0) {
+          if (req.body.selected_scaffold_option_id) {
+            matched = bookedPackage.scaffold_size_options.find(
+              (opt, idx) =>
+                String(opt._id) === String(req.body.selected_scaffold_option_id) ||
+                String(idx) === String(req.body.selected_scaffold_option_id)
+            );
+          }
+          if (!matched && req.body.scaffold_width && req.body.scaffold_length) {
+            matched = bookedPackage.scaffold_size_options.find(
+              (opt) =>
+                Number(opt.width_ft) === Number(req.body.scaffold_width) &&
+                Number(opt.length_ft) === Number(req.body.scaffold_length)
+            );
+          }
+          if (!matched) {
+            if (bookedPackage.default_scaffold_option_id != null) {
+              matched = bookedPackage.scaffold_size_options.find(
+                (opt, idx) =>
+                  String(opt._id) === String(bookedPackage.default_scaffold_option_id) ||
+                  String(idx) === String(bookedPackage.default_scaffold_option_id)
+              );
+            }
+            if (!matched && bookedPackage.scaffold_size_options.length === 1) {
+              matched = bookedPackage.scaffold_size_options[0];
+            }
+          }
+        }
 
-        if (req.body.selected_scaffold_option_id && Array.isArray(bookedPackage.scaffold_size_options)) {
-          const matched = bookedPackage.scaffold_size_options.find(
-            (opt) => String(opt._id) === String(req.body.selected_scaffold_option_id)
-          );
-          if (matched?.guest_max) {
-            maxLimit = maxLimit ? Math.min(maxLimit, matched.guest_max) : matched.guest_max;
+        // If a setup/scaffold option is selected, its configured capacity is authoritative for this setup
+        let maxLimit = null;
+        let minLimit = null;
+
+        if (matched) {
+          if (matched.guest_max != null && Number(matched.guest_max) > 0) {
+            maxLimit = Number(matched.guest_max);
           }
-          if (matched?.guest_min) {
-            minLimit = minLimit ? Math.max(minLimit, matched.guest_min) : matched.guest_min;
+          if (matched.guest_min != null && Number(matched.guest_min) > 0) {
+            minLimit = Number(matched.guest_min);
           }
+        }
+
+        if (maxLimit == null && bookedPackage.guest_max != null && Number(bookedPackage.guest_max) > 0) {
+          maxLimit = Number(bookedPackage.guest_max);
+        }
+        if (minLimit == null && bookedPackage.guest_min != null && Number(bookedPackage.guest_min) > 0) {
+          minLimit = Number(bookedPackage.guest_min);
         }
 
         if (maxLimit && requestedGuests > maxLimit) {

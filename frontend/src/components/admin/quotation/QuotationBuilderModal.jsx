@@ -28,6 +28,14 @@ import {
   MapPin,
   CalendarDays,
   FileText,
+  Clock,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Sliders,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { diffQuotationVersions } from "../../../utils/quotationDiff";
 import {
@@ -481,6 +489,70 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const [taxes, setTaxes] = useState("");
   const [discounts, setDiscounts] = useState("");
 
+  // Section 1 view toggle
+  const [showFullCustomerForm, setShowFullCustomerForm] = useState(false);
+
+  // Section 6: Crew & Event Overtime Pricing
+  const [includeOvertime, setIncludeOvertime] = useState(false);
+  const [overtimeMode, setOvertimeMode] = useState("per_crew"); // "per_crew" | "flat"
+  const [overtimeHours, setOvertimeHours] = useState(2);
+  const [crewCount, setCrewCount] = useState(() => {
+    const pax = Number(inquiry?.guest_count) || 50;
+    if (pax <= 40) return 2;
+    if (pax <= 75) return 3;
+    if (pax <= 120) return 4;
+    if (pax <= 180) return 6;
+    return 8;
+  });
+  const [hourlyRatePerCrew, setHourlyRatePerCrew] = useState(200);
+  const [flatOvertimeFee, setFlatOvertimeFee] = useState(1500);
+  const [overtimeCustomTitle, setOvertimeCustomTitle] = useState("");
+  const [overtimeCustomAmount, setOvertimeCustomAmount] = useState("");
+
+  const computedOvertimeAmount = useMemo(() => {
+    if (!includeOvertime) return 0;
+    if (overtimeMode === "flat") {
+      return Math.max(0, Number(flatOvertimeFee) || 0);
+    }
+    const hrs = Math.max(0, Number(overtimeHours) || 0);
+    const crew = Math.max(1, Number(crewCount) || 1);
+    const rate = Math.max(0, Number(hourlyRatePerCrew) || 0);
+    return Math.round(hrs * crew * rate);
+  }, [includeOvertime, overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew, flatOvertimeFee]);
+
+  const finalOvertimeAmount = useMemo(() => {
+    if (!includeOvertime) return 0;
+    if (overtimeCustomAmount !== "" && !isNaN(Number(overtimeCustomAmount))) {
+      return Math.max(0, Number(overtimeCustomAmount));
+    }
+    return computedOvertimeAmount;
+  }, [includeOvertime, overtimeCustomAmount, computedOvertimeAmount]);
+
+  const defaultOvertimeTitle = useMemo(() => {
+    const hrs = Number(overtimeHours) || 0;
+    const hrsLabel = `${hrs} hr${hrs === 1 ? "" : "s"}`;
+    if (overtimeMode === "flat") {
+      return `Event Overtime Fee (${hrsLabel} flat extension)`;
+    }
+    const crew = Number(crewCount) || 1;
+    const rate = Number(hourlyRatePerCrew) || 0;
+    return `Crew Overtime (${hrsLabel} × ${crew} crew @ ₱${rate}/hr)`;
+  }, [overtimeMode, overtimeHours, crewCount, hourlyRatePerCrew]);
+
+  // Synchronize Crew Overtime item with additionalFees
+  useEffect(() => {
+    const title = overtimeCustomTitle.trim() || defaultOvertimeTitle;
+    const amountStr = String(finalOvertimeAmount);
+
+    setAdditionalFees((prev) => {
+      const filtered = prev.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || ""));
+      if (!includeOvertime || finalOvertimeAmount <= 0) {
+        return filtered;
+      }
+      return [...filtered, { name: title, amount: amountStr, isOvertime: true }];
+    });
+  }, [includeOvertime, finalOvertimeAmount, overtimeCustomTitle, defaultOvertimeTitle]);
+
   // Section 7: payment terms
   const [depositAmount, setDepositAmount] = useState("");
   const [expirationDate, setExpirationDate] = useState(addDays(7));
@@ -815,10 +887,29 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             pricing_type: "quantity",
           })) : []);
           setTransportationFee(latest.transportation_fee ? String(latest.transportation_fee) : "");
+          const rawFees = Array.isArray(latest.additional_fees) ? latest.additional_fees : [];
+          const otFee = rawFees.find((f) => /overtime/i.test(f?.name || ""));
+          if (otFee) {
+            setIncludeOvertime(true);
+            setOvertimeCustomTitle(otFee.name || "");
+            if (/flat/i.test(otFee.name || "")) {
+              setOvertimeMode("flat");
+              setFlatOvertimeFee(Number(otFee.amount) || 1500);
+            } else {
+              setOvertimeMode("per_crew");
+              const m = (otFee.name || "").match(/(\d+(?:\.\d+)?)\s*hrs?.*?(\d+)\s*crew.*?(\d+)/i);
+              if (m) {
+                setOvertimeHours(Number(m[1]) || 2);
+                setCrewCount(Number(m[2]) || 3);
+                setHourlyRatePerCrew(Number(m[3]) || 200);
+              }
+            }
+          }
           setAdditionalFees(
-            (Array.isArray(latest.additional_fees) ? latest.additional_fees : []).map((fee) => ({
+            rawFees.map((fee) => ({
               name: fee?.name || "",
               amount: fee?.amount ? String(fee.amount) : "",
+              isOvertime: /overtime/i.test(fee?.name || ""),
             }))
           );
           setTaxes(latest.taxes ? String(latest.taxes) : "");
@@ -1958,11 +2049,51 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   if (!inquiry) return null;
 
-  const modalTitle = inquiry?.status === "Revision Requested"
+  const refCode = inquiry?.reference || (inquiry?._id ? inquiry._id.substring(inquiry._id.length - 8).toUpperCase() : "");
+  const baseTitle = inquiry?.status === "Revision Requested"
     ? "Revise Quotation"
     : quotation
     ? "Quotation Editor"
     : "Prepare Quotation";
+
+  const modalTitle = (
+    <div className="flex flex-wrap items-center gap-2 font-sans !font-sans">
+      <span className="font-bold text-slate-900 tracking-tight">{baseTitle}</span>
+      {refCode && (
+        <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+          #{refCode}
+        </span>
+      )}
+      {(details.contact_first_name || details.contact_last_name) && (
+        <span className="text-xs text-slate-500 font-normal truncate max-w-[240px]">
+          • {details.contact_first_name} {details.contact_last_name}
+        </span>
+      )}
+    </div>
+  );
+
+  const scrollToSection = (sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (el && formRef.current) {
+      const containerRect = formRef.current.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const scrollTop = formRef.current.scrollTop + (elRect.top - containerRect.top) - 10;
+      formRef.current.scrollTo({ top: Math.max(0, scrollTop), behavior: "smooth" });
+    } else if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const hasCustomerErrors = Boolean(
+    errors.contact_first_name ||
+    errors.contact_last_name ||
+    errors.contact_email ||
+    errors.contact_phone ||
+    errors.celebrant_name ||
+    errors.municipality ||
+    errors.barangay
+  );
+  const isCustomerFormOpen = showFullCustomerForm || hasCustomerErrors;
 
   if (loading) {
     return (
@@ -2015,7 +2146,77 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         {/* ------------------------------------------------------------------
             Left column: the quotation, in the order it is built
         ------------------------------------------------------------------ */}
-        <div ref={formRef} className="flex-1 space-y-4 overflow-y-auto pb-10 pr-1 lg:pr-3">
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          {/* Fixed Jump Navigation Toolbar (Never overlaps scrolling content) */}
+          <div className="shrink-0 mb-3 bg-slate-100/80 border border-slate-200/90 rounded-xl p-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-2xs">
+            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider shrink-0 ml-1.5 mr-0.5 hidden sm:inline">Jump to:</span>
+            <button
+              type="button"
+              onClick={() => scrollToSection("qb-section-details")}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <User size={12} className="text-slate-500" />
+              <span>1. Specs</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection("qb-section-package")}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Package size={12} className="text-slate-500" />
+              <span>2. Package</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection("qb-section-inclusions")}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Check size={12} className="text-slate-500" />
+              <span>3. Inclusions</span>
+            </button>
+            {cateringIncluded && (
+              <button
+                type="button"
+                onClick={() => scrollToSection("qb-section-menu")}
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Utensils size={12} className="text-slate-500" />
+                <span>4. Menu {chargeableMenuItems.length > 0 && `(${chargeableMenuItems.length})`}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => scrollToSection("qb-section-addons")}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <Sparkles size={12} className="text-slate-500" />
+              <span>5. Add-ons {chargeableAddOns.length > 0 && `(${chargeableAddOns.length})`}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection("qb-section-adjustments")}
+              className={`px-2.5 py-1 rounded-lg font-semibold text-[11.5px] shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                includeOvertime
+                  ? "bg-sky-100 text-sky-900 border border-sky-300 font-bold"
+                  : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80"
+              }`}
+            >
+              <Clock size={12} className={includeOvertime ? "text-sky-600" : "text-slate-500"} />
+              <span>6. Overtime &amp; Fees {includeOvertime && `(Active)`}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection("qb-section-payment")}
+              className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-[11.5px] shrink-0 border border-slate-200/80 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <CreditCard size={12} className="text-slate-500" />
+              <span>7. Terms &amp; Deposit</span>
+            </button>
+          </div>
+
+          {/* Scrollable Form Content */}
+          <div ref={formRef} className="flex-1 space-y-4 overflow-y-auto pb-10 pr-1 lg:pr-3">
+
           {/* AI Quotation Recommendation Header */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border border-amber-500/30 shadow-2xs">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -2154,406 +2355,477 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             icon={User}
             title={
               isFoodOnly
-                ? "Customer & Order Details"
+                ? "Event Specifications & Order Details"
                 : isSetupOnly
-                ? "Customer & Event Setup Information"
-                : "Customer & Event Information"
+                ? "Event Specifications & Setup Location"
+                : "Event Specifications & Customer Details"
             }
             description={
-              isFoodOnly
-                ? "Delivery or pickup instructions and customer contact details. Correct anything that is wrong before quoting."
-                : isSetupOnly
-                ? "Event setup specifications and venue location for our setup crew."
-                : "What the customer submitted when they booked. Correct anything that is wrong before quoting."
+              "Key parameters driving package pricing, headcount, and event scheduling."
             }
             aside={
-              inquiry.reference ? (
-                <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
-                  {inquiry.reference}
-                </span>
-              ) : null
+              <div className="flex items-center gap-2">
+                {inquiry.reference && (
+                  <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
+                    {inquiry.reference}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFullCustomerForm(!showFullCustomerForm)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Pencil size={11} className="text-slate-500" />
+                  <span>{isCustomerFormOpen ? "Collapse Full Form" : "Edit Contact & Address"}</span>
+                  {isCustomerFormOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+              </div>
             }
           >
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="First name" required error={errors.contact_first_name} htmlFor="qb-contact_first_name">
-                  <input
-                    id="qb-contact_first_name"
-                    type="text"
-                    value={details.contact_first_name}
-                    onChange={(e) => setDetail("contact_first_name", e.target.value)}
-                    className={inputClass(errors.contact_first_name)}
-                  />
-                </Field>
-                <Field label="Last name" required error={errors.contact_last_name} htmlFor="qb-contact_last_name">
-                  <input
-                    id="qb-contact_last_name"
-                    type="text"
-                    value={details.contact_last_name}
-                    onChange={(e) => setDetail("contact_last_name", e.target.value)}
-                    className={inputClass(errors.contact_last_name)}
-                  />
-                </Field>
-                <Field label="Email" required error={errors.contact_email} htmlFor="qb-contact_email">
-                  <input
-                    id="qb-contact_email"
-                    type="email"
-                    value={details.contact_email}
-                    onChange={(e) => setDetail("contact_email", e.target.value)}
-                    className={inputClass(errors.contact_email)}
-                  />
-                </Field>
-                <Field label="Phone" required error={errors.contact_phone} htmlFor="qb-contact_phone">
-                  <input
-                    id="qb-contact_phone"
-                    type="tel"
-                    value={details.contact_phone}
-                    onChange={(e) => setDetail("contact_phone", e.target.value)}
-                    className={inputClass(errors.contact_phone)}
-                  />
-                </Field>
-              </div>
-
-              {/* Celebrant / Honoree toggle and input */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  <User size={12} /> Event Honoree / Celebrant
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Who is this event for?" htmlFor="qb-booking_for">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDetail("booking_for", "myself");
-                          setDetail("celebrant_name", "");
-                        }}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-                          details.booking_for !== "someone_else"
-                            ? "bg-primary text-white border-primary shadow-2xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        <User size={13} /> For myself
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDetail("booking_for", "someone_else")}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-                          details.booking_for === "someone_else"
-                            ? "bg-primary text-white border-primary shadow-2xs"
-                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        <Heart size={13} /> Someone else
-                      </button>
+              {/* PRIMARY EVENT DRIVERS GRID (Always Visible & Directly Accessible) */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
+                {/* 1. Headcount / Pax (Prominent driver) */}
+                <div className="lg:col-span-1">
+                  <Field
+                    label={isFoodOnly ? "Headcount / Pax" : "Guest count (Pax)"}
+                    required
+                    error={errors.guest_count}
+                    htmlFor="qb-guest_count"
+                  >
+                    <div className="relative">
+                      <input
+                        id="qb-guest_count"
+                        type="number"
+                        min="1"
+                        value={details.guest_count}
+                        onWheel={(e) => e.target.blur()}
+                        onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
+                        className={`${inputClass(errors.guest_count)} font-bold text-base tabular-nums py-1.5`}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 mt-1.5">
+                      {[50, 100, 150].map((pax) => (
+                        <button
+                          key={pax}
+                          type="button"
+                          onClick={() => setDetail("guest_count", pax)}
+                          className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
+                            Number(details.guest_count) === pax
+                              ? "bg-primary text-white border-primary"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {pax}
+                        </button>
+                      ))}
                     </div>
                   </Field>
-                  {details.booking_for === "someone_else" ? (
-                    <Field
-                      label="Celebrant / Honoree Name"
-                      required
-                      error={errors.celebrant_name}
-                      hint="Name of the person or couple celebrating (e.g. Sarah Jane, Baby Liam, John & Maria)."
-                      htmlFor="qb-celebrant_name"
+                </div>
+
+                {/* 2. Service Type */}
+                <div className="lg:col-span-1">
+                  <Field
+                    label="Service type"
+                    htmlFor="qb-service_type"
+                  >
+                    <select
+                      id="qb-service_type"
+                      value={details.service_type}
+                      onChange={(e) => handleServiceTypeChange(e.target.value)}
+                      className={`${inputClass(false)} py-2 text-xs font-semibold`}
                     >
+                      {Object.values(SERVICE_TYPES).map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-slate-400 mt-1 block">Determines package options</span>
+                  </Field>
+                </div>
+
+                {/* 3. Event Date */}
+                <div className="lg:col-span-1">
+                  <Field
+                    label="Event date"
+                    required
+                    error={errors.event_date}
+                    htmlFor="qb-event_date"
+                  >
+                    <input
+                      id="qb-event_date"
+                      type="date"
+                      min={today}
+                      value={details.event_date}
+                      onChange={(e) => setDetail("event_date", e.target.value)}
+                      className={`${inputClass(errors.event_date)} py-1.5 text-xs`}
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">Scheduled date</span>
+                  </Field>
+                </div>
+
+                {/* 4. Start Time */}
+                <div className="lg:col-span-1">
+                  <Field label="Start time" required error={errors.start_time} htmlFor="qb-start_time">
+                    <input
+                      id="qb-start_time"
+                      type="time"
+                      value={details.start_time}
+                      onChange={(e) => setDetail("start_time", e.target.value)}
+                      className={`${inputClass(errors.start_time)} py-1.5 text-xs`}
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">Standard 4h window</span>
+                  </Field>
+                </div>
+
+                {/* 5. Event Type */}
+                <div className="lg:col-span-1">
+                  <Field label="Event type" required error={errors.event_type} htmlFor="qb-event_type">
+                    <select
+                      id="qb-event_type"
+                      value={details.event_type}
+                      onChange={(e) => setDetail("event_type", e.target.value)}
+                      className={`${inputClass(errors.event_type)} py-2 text-xs`}
+                    >
+                      <option value="">Select event type</option>
+                      {EVENT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                    {details.event_type === OTHER_EVENT_TYPE && (
                       <input
-                        id="qb-celebrant_name"
+                        id="qb-event_type_other"
                         type="text"
-                        placeholder="e.g. Sarah Jane"
-                        value={details.celebrant_name}
-                        onChange={(e) => setDetail("celebrant_name", e.target.value)}
-                        className={inputClass(errors.celebrant_name)}
+                        placeholder="e.g. Reunion"
+                        value={details.event_type_other}
+                        onChange={(e) => setDetail("event_type_other", e.target.value)}
+                        className={`${inputClass(errors.event_type_other)} py-1 text-xs mt-1`}
+                      />
+                    )}
+                  </Field>
+                </div>
+              </div>
+
+              {/* HIGH DENSITY CUSTOMER & VENUE SUMMARY BANNER */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <User size={13} className="text-slate-400 shrink-0" />
+                    <span className="font-bold text-slate-900 truncate">
+                      {details.contact_first_name} {details.contact_last_name}
+                    </span>
+                    {details.celebrant_name && (
+                      <span className="rounded bg-rose-50 border border-rose-200/80 px-1.5 py-0.2 text-[10px] text-rose-700 font-medium">
+                        for {details.celebrant_name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <Phone size={12} className="text-slate-400 shrink-0" />
+                    <span className="font-mono">{details.contact_phone || "No phone"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-500 truncate max-w-[200px]">
+                    <Mail size={12} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{details.contact_email || "No email"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-500 truncate max-w-[240px]">
+                    <MapPin size={12} className="text-slate-400 shrink-0" />
+                    <span className="truncate">
+                      {[details.street, details.barangay, details.municipality].filter(Boolean).join(", ") || details.venue_type || "Venue address pending"}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFullCustomerForm(!showFullCustomerForm)}
+                  className="text-xs font-semibold text-primary hover:text-primary-hover transition-colors flex items-center gap-1 shrink-0 self-start sm:self-auto cursor-pointer"
+                >
+                  <span>{isCustomerFormOpen ? "Hide Form" : "Edit All Fields"}</span>
+                  {isCustomerFormOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                </button>
+              </div>
+
+              {/* COLLAPSIBLE FULL CONTACT, HONOREE & VENUE LOCATION EDITOR */}
+              {isCustomerFormOpen && (
+                <div className="space-y-3.5 pt-2 animate-in fade-in-50 duration-150">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field label="First name" required error={errors.contact_first_name} htmlFor="qb-contact_first_name">
+                      <input
+                        id="qb-contact_first_name"
+                        type="text"
+                        value={details.contact_first_name}
+                        onChange={(e) => setDetail("contact_first_name", e.target.value)}
+                        className={inputClass(errors.contact_first_name)}
                       />
                     </Field>
-                  ) : (
-                    <div className="flex items-center text-xs text-slate-500 pt-5">
-                      <span>Booking under the customer's own name ({details.contact_first_name || "Customer"}).</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    <Field label="Last name" required error={errors.contact_last_name} htmlFor="qb-contact_last_name">
+                      <input
+                        id="qb-contact_last_name"
+                        type="text"
+                        value={details.contact_last_name}
+                        onChange={(e) => setDetail("contact_last_name", e.target.value)}
+                        className={inputClass(errors.contact_last_name)}
+                      />
+                    </Field>
+                    <Field label="Email" required error={errors.contact_email} htmlFor="qb-contact_email">
+                      <input
+                        id="qb-contact_email"
+                        type="email"
+                        value={details.contact_email}
+                        onChange={(e) => setDetail("contact_email", e.target.value)}
+                        className={inputClass(errors.contact_email)}
+                      />
+                    </Field>
+                    <Field label="Phone" required error={errors.contact_phone} htmlFor="qb-contact_phone">
+                      <input
+                        id="qb-contact_phone"
+                        type="tel"
+                        value={details.contact_phone}
+                        onChange={(e) => setDetail("contact_phone", e.target.value)}
+                        className={inputClass(errors.contact_phone)}
+                      />
+                    </Field>
+                  </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="Event type" required error={errors.event_type} htmlFor="qb-event_type">
-                  <select
-                    id="qb-event_type"
-                    value={details.event_type}
-                    onChange={(e) => setDetail("event_type", e.target.value)}
-                    className={inputClass(errors.event_type)}
-                  >
-                    <option value="">Select event type</option>
-                    {EVENT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field
-                  label="Service type"
-                  hint="Decides which sections this quotation needs."
-                  htmlFor="qb-service_type"
-                >
-                  <select
-                    id="qb-service_type"
-                    value={details.service_type}
-                    onChange={(e) => handleServiceTypeChange(e.target.value)}
-                    className={inputClass(false)}
-                  >
-                    {Object.values(SERVICE_TYPES).map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field
-                  label="Event date"
-                  required
-                  error={errors.event_date}
-                  hint="An event cannot be quoted for a date that has already passed."
-                  htmlFor="qb-event_date"
-                >
-                  <input
-                    id="qb-event_date"
-                    type="date"
-                    min={today}
-                    value={details.event_date}
-                    onChange={(e) => setDetail("event_date", e.target.value)}
-                    className={inputClass(errors.event_date)}
-                  />
-                </Field>
-
-                <Field label="Start time" required error={errors.start_time} htmlFor="qb-start_time">
-                  <input
-                    id="qb-start_time"
-                    type="time"
-                    value={details.start_time}
-                    onChange={(e) => setDetail("start_time", e.target.value)}
-                    className={inputClass(errors.start_time)}
-                  />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Appears in place rather than swapping with another field, so
-                    choosing "Other" never rearranges the row above it. */}
-                {details.event_type === OTHER_EVENT_TYPE && (
-                  <Field
-                    label="Which kind of event"
-                    required
-                    error={errors.event_type_other}
-                    htmlFor="qb-event_type_other"
-                  >
-                    <input
-                      id="qb-event_type_other"
-                      type="text"
-                      placeholder="e.g. Reunion"
-                      value={details.event_type_other}
-                      onChange={(e) => setDetail("event_type_other", e.target.value)}
-                      className={inputClass(errors.event_type_other)}
-                    />
-                  </Field>
-                )}
-
-                <Field
-                  label={isFoodOnly ? "Headcount / Pax" : "Guest count"}
-                  required
-                  error={errors.guest_count}
-                  hint={isFoodOnly ? "Number of people the food is catered/packaged for." : "How many people the event is catered and set up for."}
-                  htmlFor="qb-guest_count"
-                >
-                  <input
-                    id="qb-guest_count"
-                    type="number"
-                    min="1"
-                    value={details.guest_count}
-                    onWheel={(e) => e.target.blur()}
-                    onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
-                    className={`${inputClass(errors.guest_count)} font-semibold tabular-nums`}
-                  />
-                </Field>
-
-                <Field label={isFoodOnly ? "Venue / Destination Type" : "Venue type"} htmlFor="qb-venue_type">
-                  <input
-                    id="qb-venue_type"
-                    type="text"
-                    placeholder={isFoodOnly ? "e.g. Residential, Office" : "e.g. Function Hall"}
-                    value={details.venue_type}
-                    onChange={(e) => setDetail("venue_type", e.target.value)}
-                    className={inputClass(false)}
-                  />
-                </Field>
-
-                {/* The footprint the customer picked, stated once. "Event
-                    space" and "scaffold size" are the same measurement, so
-                    there is deliberately one field rather than two that could
-                    drift apart. Locked for the same reason the package is: the
-                    starting price was derived from this size. */}
-                {eventSpace && !isFoodOnly && (
-                  <Field
-                    label="Event space / scaffold size"
-                    hint="Set when the customer booked. Rebooking is what changes it."
-                  >
-                    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <Lock size={13} className="shrink-0 text-slate-500" />
-                      <span
-                        className="truncate text-sm font-semibold tabular-nums text-slate-800"
-                        title={eventSpace}
-                      >
-                        {eventSpace}
-                      </span>
-                    </div>
-                  </Field>
-                )}
-              </div>
-
-              {/* Theme & Palette - styled cleanly for all types */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field
-                  label={isFoodOnly ? "Order Motif / Theme (Optional)" : "Theme"}
-                  hint="What the customer chose, or what you have since agreed with them."
-                  htmlFor="qb-event_theme"
-                >
-                  <input
-                    id="qb-event_theme"
-                    type="text"
-                    placeholder={isFoodOnly ? "e.g. Minimalist Gold" : "e.g. Rustic Garden"}
-                    value={details.event_theme}
-                    onChange={(e) => setDetail("event_theme", e.target.value)}
-                    className={inputClass(false)}
-                  />
-                </Field>
-
-                <Field
-                  label={isFoodOnly ? "Color Motif (Optional)" : "Colour palette"}
-                  hint="Colour names separated by commas."
-                  htmlFor="qb-event_palette"
-                >
-                  <input
-                    id="qb-event_palette"
-                    type="text"
-                    placeholder="e.g. Navy, Ivory, Gold"
-                    value={details.event_palette}
-                    onChange={(e) => setDetail("event_palette", e.target.value)}
-                    className={inputClass(false)}
-                  />
-                  {resolvedPalette.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {resolvedPalette.map((colour, index) => (
-                        <span
-                          key={`${colour}-${index}`}
-                          className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                  {/* Celebrant / Honoree toggle and input */}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                    <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      <User size={12} /> Event Honoree / Celebrant
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="Who is this event for?" htmlFor="qb-booking_for">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDetail("booking_for", "myself");
+                              setDetail("celebrant_name", "");
+                            }}
+                            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                              details.booking_for !== "someone_else"
+                                ? "bg-primary text-white border-primary shadow-2xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            <User size={13} /> For myself
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDetail("booking_for", "someone_else")}
+                            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                              details.booking_for === "someone_else"
+                                ? "bg-primary text-white border-primary shadow-2xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                            }`}
+                          >
+                            <Heart size={13} /> Someone else
+                          </button>
+                        </div>
+                      </Field>
+                      {details.booking_for === "someone_else" ? (
+                        <Field
+                          label="Celebrant / Honoree Name"
+                          required
+                          error={errors.celebrant_name}
+                          hint="Name of the person or couple celebrating (e.g. Sarah Jane, Baby Liam, John & Maria)."
+                          htmlFor="qb-celebrant_name"
                         >
-                          {colour}
-                        </span>
-                      ))}
+                          <input
+                            id="qb-celebrant_name"
+                            type="text"
+                            placeholder="e.g. Sarah Jane"
+                            value={details.celebrant_name}
+                            onChange={(e) => setDetail("celebrant_name", e.target.value)}
+                            className={inputClass(errors.celebrant_name)}
+                          />
+                        </Field>
+                      ) : (
+                        <div className="flex items-center text-xs text-slate-500 pt-5">
+                          <span>Booking under the customer's own name ({details.contact_first_name || "Customer"}).</span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </Field>
-              </div>
+                  </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                <div className="mb-2.5 flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    <MapPin size={12} /> {isFoodOnly ? "Delivery / Venue Location" : "Venue Location"}
-                  </p>
-                  {isFoodOnly && inquiry.delivery_method && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-primary">
-                      <Truck size={11} /> {inquiry.delivery_method === "pickup" ? "Store Pickup" : "Delivery"}
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Municipality" required error={errors.municipality} htmlFor="qb-municipality">
-                    <select
-                      id="qb-municipality"
-                      value={details.municipality}
-                      onChange={(e) => {
-                        setDetail("municipality", e.target.value);
-                        setDetail("barangay", "");
-                      }}
-                      className={inputClass(errors.municipality)}
-                    >
-                      <option value="">Select municipality</option>
-                      {municipalities.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field
-                    label="Barangay"
-                    required
-                    error={errors.barangay}
-                    hint={!details.municipality ? "Choose a municipality first." : undefined}
-                    htmlFor="qb-barangay"
-                  >
-                    <select
-                      id="qb-barangay"
-                      value={details.barangay}
-                      disabled={!details.municipality}
-                      onChange={(e) => setDetail("barangay", e.target.value)}
-                      className={inputClass(errors.barangay)}
-                    >
-                      <option value="">Select barangay</option>
-                      {barangays.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Street and building" htmlFor="qb-street">
-                    <input
-                      id="qb-street"
-                      type="text"
-                      value={details.street}
-                      onChange={(e) => setDetail("street", e.target.value)}
-                      className={inputClass(false)}
-                    />
-                  </Field>
-                  <Field label="Landmark" htmlFor="qb-landmark">
-                    <input
-                      id="qb-landmark"
-                      type="text"
-                      value={details.landmark}
-                      onChange={(e) => setDetail("landmark", e.target.value)}
-                      className={inputClass(false)}
-                    />
-                  </Field>
-                </div>
-              </div>
+                  {/* Venue / Destination Type & Scaffold */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label={isFoodOnly ? "Venue / Destination Type" : "Venue type"} htmlFor="qb-venue_type">
+                      <input
+                        id="qb-venue_type"
+                        type="text"
+                        placeholder={isFoodOnly ? "e.g. Residential, Office" : "e.g. Function Hall"}
+                        value={details.venue_type}
+                        onChange={(e) => setDetail("venue_type", e.target.value)}
+                        className={inputClass(false)}
+                      />
+                    </Field>
 
-              {/* Read-only context the admin should see but never edit here. */}
+                    {eventSpace && !isFoodOnly && (
+                      <Field
+                        label="Event space / scaffold size"
+                        hint="Set when the customer booked."
+                      >
+                        <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                          <Lock size={13} className="shrink-0 text-slate-500" />
+                          <span
+                            className="truncate text-sm font-semibold tabular-nums text-slate-800"
+                            title={eventSpace}
+                          >
+                            {eventSpace}
+                          </span>
+                        </div>
+                      </Field>
+                    )}
+                  </div>
+
+                  {/* Theme & Palette */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field
+                      label={isFoodOnly ? "Order Motif / Theme (Optional)" : "Theme"}
+                      htmlFor="qb-event_theme"
+                    >
+                      <input
+                        id="qb-event_theme"
+                        type="text"
+                        placeholder={isFoodOnly ? "e.g. Minimalist Gold" : "e.g. Rustic Garden"}
+                        value={details.event_theme}
+                        onChange={(e) => setDetail("event_theme", e.target.value)}
+                        className={inputClass(false)}
+                      />
+                    </Field>
+
+                    <Field
+                      label={isFoodOnly ? "Color Motif (Optional)" : "Colour palette"}
+                      htmlFor="qb-event_palette"
+                    >
+                      <input
+                        id="qb-event_palette"
+                        type="text"
+                        placeholder="e.g. Navy, Ivory, Gold"
+                        value={details.event_palette}
+                        onChange={(e) => setDetail("event_palette", e.target.value)}
+                        className={inputClass(false)}
+                      />
+                      {resolvedPalette.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {resolvedPalette.map((colour, index) => (
+                            <span
+                              key={`${colour}-${index}`}
+                              className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                            >
+                              {colour}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </Field>
+                  </div>
+
+                  {/* Venue Location Details */}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                    <div className="mb-2.5 flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        <MapPin size={12} /> {isFoodOnly ? "Delivery / Venue Location" : "Venue Location"}
+                      </p>
+                      {isFoodOnly && inquiry.delivery_method && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-primary">
+                          <Truck size={11} /> {inquiry.delivery_method === "pickup" ? "Store Pickup" : "Delivery"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <Field label="Municipality" required error={errors.municipality} htmlFor="qb-municipality">
+                        <select
+                          id="qb-municipality"
+                          value={details.municipality}
+                          onChange={(e) => {
+                            setDetail("municipality", e.target.value);
+                            setDetail("barangay", "");
+                          }}
+                          className={inputClass(errors.municipality)}
+                        >
+                          <option value="">Select municipality</option>
+                          {municipalities.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field
+                        label="Barangay"
+                        required
+                        error={errors.barangay}
+                        hint={!details.municipality ? "Choose a municipality first." : undefined}
+                        htmlFor="qb-barangay"
+                      >
+                        <select
+                          id="qb-barangay"
+                          value={details.barangay}
+                          disabled={!details.municipality}
+                          onChange={(e) => setDetail("barangay", e.target.value)}
+                          className={inputClass(errors.barangay)}
+                        >
+                          <option value="">Select barangay</option>
+                          {barangays.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Street and building" htmlFor="qb-street">
+                        <input
+                          id="qb-street"
+                          type="text"
+                          value={details.street}
+                          onChange={(e) => setDetail("street", e.target.value)}
+                          className={inputClass(false)}
+                        />
+                      </Field>
+                      <Field label="Landmark" htmlFor="qb-landmark">
+                        <input
+                          id="qb-landmark"
+                          type="text"
+                          value={details.landmark}
+                          onChange={(e) => setDetail("landmark", e.target.value)}
+                          className={inputClass(false)}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Read-only context from customer */}
               {(inquiry.allergies ||
                 inquiry.dietary_restrictions ||
                 inquiry.dietary_requirements ||
                 inquiry.special_requests) && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
-                      From the customer
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                    From the customer
+                  </p>
+                  {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
+                    <p>
+                      <span className="font-semibold text-amber-950">Dietary and allergies: </span>
+                      {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
+                        .filter(Boolean)
+                        .join(". ")}
                     </p>
-                    {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
-                      <p>
-                        <span className="font-semibold text-amber-950">Dietary and allergies: </span>
-                        {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
-                          .filter(Boolean)
-                          .join(". ")}
-                      </p>
-                    )}
-                    {inquiry.special_requests && (
-                      <p className="mt-1 whitespace-pre-line">
-                        <span className="font-semibold text-amber-950">Special requests: </span>
-                        {inquiry.special_requests}
-                      </p>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {inquiry.special_requests && (
+                    <p className="mt-1 whitespace-pre-line">
+                      <span className="font-semibold text-amber-950">Special requests: </span>
+                      {inquiry.special_requests}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </SectionCard>
 
@@ -2704,6 +2976,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
           <SectionCard
             step={stepNumbers.pkg}
+            id="qb-section-package"
             accent="primary"
             icon={Package}
             title={
@@ -2814,6 +3087,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 {/* --- 3. Package inclusions --------------------------------------- */}
           <SectionCard
             step={stepNumbers.inclusions}
+            id="qb-section-inclusions"
             accent="emerald"
             icon={Check}
             title={
@@ -3099,6 +3373,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {!isSetupOnly && (
             <SectionCard
               step={stepNumbers.menu}
+              id="qb-section-menu"
               accent="amber"
               icon={cateringIncluded ? Utensils : UtensilsCrossed}
               title="Menu"
@@ -3363,7 +3638,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                   item.removed ? "text-slate-400 line-through" : "text-slate-800"
                                 }`}
                               >
-                                {formatCurrency(menuLineTotal(item, totals.guestCount))}
+                                {!item.removed && numberOf(item.price) === 0 ? (
+                                  <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+                                    Included in pkg
+                                  </span>
+                                ) : (
+                                  formatCurrency(menuLineTotal(item, totals.guestCount))
+                                )}
                               </span>
                             </div>
 
@@ -3438,6 +3719,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 5. Add-ons and services ------------------------------------- */}
           <SectionCard
             step={stepNumbers.addOns}
+            id="qb-section-addons"
             accent="violet"
             icon={Sparkles}
             title={
@@ -3569,7 +3851,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 item.removed ? "text-slate-400 line-through" : "text-slate-800"
                               }`}
                             >
-                              {formatCurrency(addOnLineTotal(item))}
+                              {!item.removed && numberOf(item.price) === 0 ? (
+                                <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+                                  Included in pkg
+                                </span>
+                              ) : (
+                                formatCurrency(addOnLineTotal(item))
+                              )}
                             </span>
                           </div>
 
@@ -3631,10 +3919,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 6. Adjustments ---------------------------------------------- */}
           <SectionCard
             step={stepNumbers.adjustments}
+            id="qb-section-adjustments"
             accent="sky"
             icon={Percent}
-            title="Adjustments & Logistics"
-            description="Transportation, delivery, custom fees, then tax and discount applied to the subtotal."
+            title="Adjustments, Overtime & Logistics"
+            description="Transportation, delivery, crew overtime calculator, custom fees, taxes, and discounts."
           >
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -3667,28 +3956,403 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 </Field>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Additional fees
-                  </span>
+              {/* DEDICATED CREW & EVENT OVERTIME PRICING MODULE */}
+              <div className={`rounded-xl border transition-all ${
+                includeOvertime
+                  ? "border-sky-300 bg-gradient-to-b from-sky-50/80 via-white to-sky-50/40 p-4 shadow-2xs"
+                  : "border-slate-200 bg-slate-50/60 p-3.5"
+              }`}>
+                {/* Header with Switch */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/80">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      includeOvertime ? "bg-sky-600 text-white shadow-2xs" : "bg-slate-200 text-slate-500"
+                    }`}>
+                      <Clock size={16} />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900">Crew &amp; Event Overtime Pricing</h4>
+                        {includeOvertime ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 px-2 py-0.5 text-[10.5px] font-bold text-sky-800">
+                            Active &middot; {formatCurrency(finalOvertimeAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-medium text-slate-400">Optional</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {includeOvertime
+                          ? "Auto-synced directly into quotation fees as a structured, backward-compatible line item."
+                          : "Calculate overtime extension per crew hour or flat event surcharge."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Button */}
                   <button
                     type="button"
-                    onClick={() => setAdditionalFees((prev) => [...prev, { name: "", amount: "" }])}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-white/60"
+                    onClick={() => setIncludeOvertime(!includeOvertime)}
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs self-start sm:self-auto ${
+                      includeOvertime
+                        ? "bg-sky-600 text-white hover:bg-sky-700 ring-2 ring-sky-300/60"
+                        : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                    }`}
                   >
-                    <Plus size={12} /> Add fee
+                    <Sliders size={13} />
+                    <span>{includeOvertime ? "Overtime Included" : "+ Include Overtime"}</span>
                   </button>
                 </div>
 
-                {additionalFees.length === 0 ? (
-                  <p className="text-[11.5px] leading-snug text-slate-500">
-                    Add named one-off charges such as an overtime service or special equipment. Each one
-                    appears on the customer's quotation and is added to the total.
+                {includeOvertime && (
+                  <div className="mt-3.5 space-y-4">
+                    {/* Mode Selector Tabs */}
+                    <div>
+                      <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                        Overtime Billing Model
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOvertimeMode("per_crew");
+                            setOvertimeCustomAmount("");
+                          }}
+                          className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                            overtimeMode === "per_crew"
+                              ? "border-sky-500 bg-sky-50/90 ring-1 ring-sky-400/50"
+                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                          }`}
+                        >
+                          <div className={`mt-0.5 rounded-full p-1 ${overtimeMode === "per_crew" ? "bg-sky-600 text-white" : "bg-slate-200 text-slate-400"}`}>
+                            <Users size={12} />
+                          </div>
+                          <div>
+                            <span className="block text-xs font-bold text-slate-900">Hourly per Crew Member</span>
+                            <span className="block text-[11px] text-slate-500 mt-0.5">
+                              Hours &times; Crew Headcount &times; Hourly Rate
+                            </span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOvertimeMode("flat");
+                            setOvertimeCustomAmount("");
+                          }}
+                          className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                            overtimeMode === "flat"
+                              ? "border-sky-500 bg-sky-50/90 ring-1 ring-sky-400/50"
+                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                          }`}
+                        >
+                          <div className={`mt-0.5 rounded-full p-1 ${overtimeMode === "flat" ? "bg-sky-600 text-white" : "bg-slate-200 text-slate-400"}`}>
+                            <Clock size={12} />
+                          </div>
+                          <div>
+                            <span className="block text-xs font-bold text-slate-900">One-Time Flat Charge</span>
+                            <span className="block text-[11px] text-slate-500 mt-0.5">
+                              Fixed event extension fee regardless of headcount
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Calculator Inputs */}
+                    {overtimeMode === "per_crew" ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                        {/* 1. Hours */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Overtime Duration
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0.5"
+                              step="0.5"
+                              value={overtimeHours}
+                              onChange={(e) => {
+                                setOvertimeHours(Math.max(0.5, Number(e.target.value) || 0.5));
+                                setOvertimeCustomAmount("");
+                              }}
+                              className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                              hrs
+                            </span>
+                          </div>
+                          {/* Quick hour presets */}
+                          <div className="flex items-center gap-1 mt-1.5">
+                            {[1, 2, 3, 4].map((h) => (
+                              <button
+                                key={h}
+                                type="button"
+                                onClick={() => {
+                                  setOvertimeHours(h);
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`px-2 py-0.5 text-[10.5px] font-semibold rounded border transition-colors cursor-pointer ${
+                                  Number(overtimeHours) === h
+                                    ? "bg-sky-600 text-white border-sky-600"
+                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {h}h
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 2. Crew Headcount */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Crew Headcount
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={crewCount}
+                              onChange={(e) => {
+                                setCrewCount(Math.max(1, Number(e.target.value) || 1));
+                                setOvertimeCustomAmount("");
+                              }}
+                              className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                              crew
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 mt-1 block">
+                            Estimated for {details.guest_count || 1} pax
+                          </span>
+                        </div>
+
+                        {/* 3. Hourly Rate */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Rate / Crew / Hour
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                              ₱
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="10"
+                              value={hourlyRatePerCrew}
+                              onChange={(e) => {
+                                setHourlyRatePerCrew(Math.max(0, Number(e.target.value) || 0));
+                                setOvertimeCustomAmount("");
+                              }}
+                              className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                            />
+                          </div>
+                          {/* Quick rate presets */}
+                          <div className="flex items-center gap-1 mt-1.5">
+                            {[150, 200, 250, 300].map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                onClick={() => {
+                                  setHourlyRatePerCrew(r);
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
+                                  Number(hourlyRatePerCrew) === r
+                                    ? "bg-sky-600 text-white border-sky-600"
+                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                ₱{r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Flat Charge Inputs */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Estimated Duration
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={overtimeHours}
+                              onChange={(e) => setOvertimeHours(Math.max(1, Number(e.target.value) || 1))}
+                              className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                              hrs
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Flat Overtime Fee (₱)
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                              ₱
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="100"
+                              value={flatOvertimeFee}
+                              onChange={(e) => {
+                                setFlatOvertimeFee(Math.max(0, Number(e.target.value) || 0));
+                                setOvertimeCustomAmount("");
+                              }}
+                              className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 mt-1.5">
+                            {[1000, 1500, 2000, 3000].map((fee) => (
+                              <button
+                                key={fee}
+                                type="button"
+                                onClick={() => {
+                                  setFlatOvertimeFee(fee);
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
+                                  Number(flatOvertimeFee) === fee
+                                    ? "bg-sky-600 text-white border-sky-600"
+                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                ₱{fee.toLocaleString()}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live Calculation Banner */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-sky-100/70 border border-sky-200">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block">
+                          Formula Calculation
+                        </span>
+                        <p className="text-xs font-semibold text-sky-950 mt-0.5">
+                          {overtimeMode === "per_crew" ? (
+                            <>
+                              {overtimeHours} {overtimeHours === 1 ? "hour" : "hours"} &times; {crewCount} crew members &times; {formatCurrency(hourlyRatePerCrew)}/hr
+                            </>
+                          ) : (
+                            <>
+                              {overtimeHours} {overtimeHours === 1 ? "hour" : "hours"} flat event extension
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block sm:inline mr-2">
+                          Total Fee:
+                        </span>
+                        <span className="text-base font-extrabold text-sky-950 tabular-nums">
+                          {formatCurrency(finalOvertimeAmount)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Admin Editable Quotation Line Item (Description & Amount override) */}
+                    <div className="bg-white/80 p-3 rounded-lg border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                          Quotation Line Item Details (Customer-facing)
+                        </label>
+                        {(overtimeCustomTitle || overtimeCustomAmount !== "") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOvertimeCustomTitle("");
+                              setOvertimeCustomAmount("");
+                            }}
+                            className="text-[11px] font-semibold text-sky-600 hover:text-sky-800 cursor-pointer underline"
+                          >
+                            Reset to auto-calculated
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="sm:col-span-2">
+                          <input
+                            type="text"
+                            value={overtimeCustomTitle || defaultOvertimeTitle}
+                            onChange={(e) => setOvertimeCustomTitle(e.target.value)}
+                            placeholder={defaultOvertimeTitle}
+                            className={`${inputClass(false)} py-1.5 text-xs`}
+                          />
+                          <span className="text-[10px] text-slate-400 mt-1 block">
+                            Renders on customer quote modals, PDFs, and invoices.
+                          </span>
+                        </div>
+                        <div>
+                          <div className="relative">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                              ₱
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder={String(computedOvertimeAmount)}
+                              value={overtimeCustomAmount}
+                              onChange={(e) => setOvertimeCustomAmount(nonNegative(e.target.value))}
+                              className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-1 block">
+                            Direct fee override (optional)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* OTHER ADDITIONAL FEES */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-600 block">
+                      Other Custom Additional Fees
+                    </span>
+                    <span className="text-[10.5px] text-slate-400">
+                      One-off charges such as venue permits, generator rentals, or corkage.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }])}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer shadow-2xs shrink-0"
+                  >
+                    <Plus size={12} /> Add custom fee
+                  </button>
+                </div>
+
+                {additionalFees.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || "")).length === 0 ? (
+                  <p className="text-[11.5px] leading-snug text-slate-400 italic py-1">
+                    No custom additional fees added yet. Click &ldquo;+ Add custom fee&rdquo; if needed.
                   </p>
                 ) : (
                   <ul className="space-y-2">
                     {additionalFees.map((fee, index) => {
+                      if (fee.isOvertime || /overtime/i.test(fee.name || "")) return null;
                       const rowError =
                         errors[`additional_fees.${index}.name`] ||
                         errors[`additional_fees.${index}.amount`];
@@ -3700,7 +4364,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                               type="text"
                               value={fee.name}
                               onChange={(e) => handleFeeChange(index, "name", e.target.value)}
-                              placeholder="Fee name, e.g. Overtime Service"
+                              placeholder="Fee name, e.g. Generator Fuel, Venue Corkage"
                               className={`${inputClass(errors[`additional_fees.${index}.name`])} py-1.5 text-xs`}
                             />
                             <div className="w-full sm:w-40 sm:shrink-0">
@@ -3737,6 +4401,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* --- 7. Payment terms -------------------------------------------- */}
           <SectionCard
             step={stepNumbers.payment}
+            id="qb-section-payment"
             accent="indigo"
             icon={CreditCard}
             title="Payment terms"
@@ -3881,6 +4546,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             </div>
           )}
         </div>
+      </div>
 
         {/* ------------------------------------------------------------------
             Right column: the running total, always visible
@@ -3966,14 +4632,24 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                 label={isFoodOnly ? "Delivery / Logistics" : "Transportation"}
                 value={formatCurrency(money(transportationFee))}
               />
-              {additionalFees.map((fee, index) => (
-                <SummaryRow
-                  key={index}
-                  indent
-                  label={String(fee.name || "").trim() || "Unnamed fee"}
-                  value={formatCurrency(money(fee.amount))}
-                />
-              ))}
+              {additionalFees.map((fee, index) => {
+                const isOt = fee.isOvertime || /overtime/i.test(fee.name || "");
+                return (
+                  <SummaryRow
+                    key={index}
+                    indent
+                    label={
+                      <span className="inline-flex items-center gap-1.5">
+                        {isOt && <Clock size={11} className="text-sky-400 shrink-0" />}
+                        <span className={isOt ? "text-sky-200 font-medium" : ""}>
+                          {String(fee.name || "").trim() || "Unnamed fee"}
+                        </span>
+                      </span>
+                    }
+                    value={formatCurrency(money(fee.amount))}
+                  />
+                );
+              })}
             </div>
 
             <div className="space-y-2 border-t border-white/10 pt-3">

@@ -344,20 +344,29 @@ export default function AdminQuotesList() {
     return Array.from(types);
   }, [groupedQuotations]);
 
-  // Metrics KPI calculations (STRICTLY 4 CARDS)
+  // Metrics KPI calculations (STRICTLY 4 CARDS & MUTUALLY EXCLUSIVE TABS)
   const metrics = useMemo(() => {
     const totalQuotations = groupedQuotations.length;
-    const sentCount = groupedQuotations.filter(q => q.status === "Sent" || q.status === "Quotation Sent").length;
+    const sentCount = groupedQuotations.filter(q => (q.status === "Sent" || q.status === "Quotation Sent") && !q.expInfo?.isExpired).length;
     const revisionCount = groupedQuotations.filter(q => q.status === "Revision Requested").length;
     const acceptedCount = groupedQuotations.filter(q =>
-      q.status === "Accepted" || q.status === "Quote Accepted" || q.status === "Converted to Booking" || Boolean(q.convertedBookingId)
+      (q.status === "Accepted" || q.status === "Quote Accepted" || q.status === "Awaiting Final Confirmation") &&
+      q.status !== "Converted to Booking" && !q.convertedBookingId
+    ).length;
+    const convertedCount = groupedQuotations.filter(q =>
+      q.status === "Converted to Booking" || Boolean(q.convertedBookingId)
     ).length;
     const draftCount = groupedQuotations.filter(q => q.status === "Draft").length;
-    const expiredCount = groupedQuotations.filter(q => q.status === "Expired" || q.expInfo?.isExpired).length;
+    const expiredCount = groupedQuotations.filter(q =>
+      (q.status === "Expired" || q.expInfo?.isExpired) &&
+      q.status !== "Converted to Booking" && !q.convertedBookingId &&
+      q.status !== "Accepted" && q.status !== "Quote Accepted"
+    ).length;
 
     const sentPct = totalQuotations > 0 ? Math.round((sentCount / totalQuotations) * 100) : 0;
     const revisionPct = totalQuotations > 0 ? Math.round((revisionCount / totalQuotations) * 100) : 0;
     const acceptedPct = totalQuotations > 0 ? Math.round((acceptedCount / totalQuotations) * 100) : 0;
+    const convertedPct = totalQuotations > 0 ? Math.round((convertedCount / totalQuotations) * 100) : 0;
 
     return {
       totalQuotations,
@@ -367,6 +376,8 @@ export default function AdminQuotesList() {
       revisionPct,
       acceptedCount,
       acceptedPct,
+      convertedCount,
+      convertedPct,
       draftCount,
       expiredCount,
     };
@@ -377,11 +388,18 @@ export default function AdminQuotesList() {
     let items = groupedQuotations.filter(q => {
       // Status Tab filter
       if (activeTab === "draft" && q.status !== "Draft") return false;
-      if (activeTab === "sent" && (q.status !== "Sent" && q.status !== "Quotation Sent")) return false;
+      if (activeTab === "sent" && ((q.status !== "Sent" && q.status !== "Quotation Sent") || q.expInfo?.isExpired)) return false;
       if (activeTab === "revision" && q.status !== "Revision Requested") return false;
-      if (activeTab === "accepted" && (q.status !== "Accepted" && q.status !== "Quote Accepted" && q.status !== "Awaiting Final Confirmation")) return false;
+      if (activeTab === "accepted" && (
+        (q.status !== "Accepted" && q.status !== "Quote Accepted" && q.status !== "Awaiting Final Confirmation") ||
+        q.status === "Converted to Booking" || Boolean(q.convertedBookingId)
+      )) return false;
       if (activeTab === "converted" && (q.status !== "Converted to Booking" && !q.convertedBookingId)) return false;
-      if (activeTab === "expired" && (q.status !== "Expired" && !q.expInfo?.isExpired)) return false;
+      if (activeTab === "expired" && (
+        (!q.expInfo?.isExpired && q.status !== "Expired") ||
+        q.status === "Converted to Booking" || Boolean(q.convertedBookingId) ||
+        q.status === "Accepted" || q.status === "Quote Accepted"
+      )) return false;
 
       // Event Type filter
       if (eventTypeFilter !== "all" && q.eventType !== eventTypeFilter) return false;
@@ -567,8 +585,8 @@ export default function AdminQuotesList() {
               />
               <KPICard
                 title="Accepted & Booked"
-                value={metrics.acceptedCount}
-                sub={`${metrics.acceptedPct}% of total`}
+                value={metrics.convertedCount + metrics.acceptedCount}
+                sub={`${metrics.convertedCount} booked · ${metrics.acceptedCount} ready`}
                 icon={CheckCircle2}
               />
             </div>
@@ -674,7 +692,7 @@ export default function AdminQuotesList() {
                 { id: "sent", label: `Sent (${metrics.sentCount})` },
                 { id: "revision", label: `Revision Requested (${metrics.revisionCount})` },
                 { id: "accepted", label: `Accepted (${metrics.acceptedCount})` },
-                { id: "converted", label: `Converted (${metrics.acceptedCount})` },
+                { id: "converted", label: `Converted (${metrics.convertedCount})` },
                 { id: "expired", label: `Expired (${metrics.expiredCount})` },
               ].map((tab) => (
                 <button
@@ -822,22 +840,38 @@ export default function AdminQuotesList() {
                               {/* 7. Actions (Standard View Button & Quick Convert) */}
                               <td className="py-2.5 px-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center justify-end gap-1.5">
-                                  {(item.status === "Accepted" || item.status === "Quote Accepted") && (
+                                  {item.status === "Converted to Booking" || Boolean(item.convertedBookingId) ? (
+                                    <button
+                                      onClick={() => navigate('/admin/bookings/reservations')}
+                                      className="px-2 py-1 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                                      title="View Confirmed Reservation"
+                                    >
+                                      <CheckCircle2 size={12} /> Booking
+                                    </button>
+                                  ) : (item.status === "Accepted" || item.status === "Quote Accepted" || item.status === "Awaiting Final Confirmation") ? (
                                     <button
                                       onClick={() => setConvertTarget(item)}
-                                      className="px-2 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                                      className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
                                       title="Convert to Booking"
                                     >
-                                      <CheckCircle size={11} /> Convert
+                                      <CheckCircle size={12} /> Convert
                                     </button>
-                                  )}
+                                  ) : item.status === "Draft" ? (
+                                    <button
+                                      onClick={() => navigate(`/admin/quotes/${item.inquiryId}/details`)}
+                                      className="px-2 py-1 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                                      title="Edit and Send Quote"
+                                    >
+                                      <Send size={11} /> Send
+                                    </button>
+                                  ) : null}
                                   <button
                                     onClick={() => setSelectedQuotation(item)}
                                     className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5 shrink-0"
                                     title="View Quotation Summary"
                                     aria-label="View Quotation Summary"
                                   >
-                                    <Eye size={13} className="text-muted-foreground" />
+                                    <Eye size={12} className="text-muted-foreground" />
                                     <span>View</span>
                                   </button>
                                 </div>

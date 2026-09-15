@@ -12,7 +12,7 @@ import {
   FileText, Activity, Utensils, Send, RefreshCw, Ruler,
   Package as PackageIcon, Users, AlertTriangle, Layers,
   Truck, Check, ShieldAlert, HeartPulse, ChevronDown,
-  ChevronUp, Sparkles, Printer
+  ChevronUp, Sparkles, Printer, ExternalLink, Image as ImageIcon
 } from "lucide-react";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
@@ -493,6 +493,9 @@ export default function AdminQuoteDetails() {
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Inquiry Details
                 </h1>
+                <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                  #{quote.reference || (quote._id ? quote._id.substring(quote._id.length - 8).toUpperCase() : "INQ")}
+                </span>
                 <Badge status={quote.status} />
                 {isDepositPaid && (
                   <span className="px-2 py-0.5 text-[10.5px] font-mono font-bold rounded bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
@@ -751,14 +754,14 @@ export default function AdminQuoteDetails() {
 
                     <DataField
                       icon={Clock}
-                      label="Time"
-                      value={quote.start_time ? formatTime(quote.start_time) : null}
+                      label="Time & Duration"
+                      value={quote.start_time ? `${formatTime(quote.start_time)}${quote.duration_hours ? ` (${quote.duration_hours} hrs)` : ""}` : null}
                     />
 
                     <DataField 
                       icon={User} 
-                      label="Celebrant" 
-                      value={quote.celebrant_name} 
+                      label="Celebrant / For" 
+                      value={quote.celebrant_name || (quote.booking_for === "someone_else" ? "Someone Else" : "Self")} 
                     />
 
                     <DataField icon={Calendar} label="Theme">
@@ -1167,6 +1170,73 @@ export default function AdminQuoteDetails() {
                 </div>
               </div>
             </SectionContainer>
+
+            {/* 5. Inspiration Pegs & Custom Setup (when present) */}
+            {((Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0) ||
+              (Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0) ||
+              quote.custom_setup_notes) && (
+              <SectionContainer title="Inspiration & Custom Setup" icon={Sparkles}>
+                <div className="space-y-4">
+                  {Array.isArray(quote.inspiration_images) && quote.inspiration_images.length > 0 && (
+                    <div>
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                        Inspiration Pegs ({quote.inspiration_images.length})
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {quote.inspiration_images.map((imgUrl, i) => (
+                          <a
+                            key={i}
+                            href={imgUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-50 block shadow-2xs hover:ring-2 hover:ring-primary transition-all"
+                            title="Open full resolution image"
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`Inspiration ${i + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <span className="absolute bottom-1 right-1 bg-black/65 text-white text-[9.5px] px-1.5 py-0.5 rounded font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                              <ExternalLink size={10} /> View
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Array.isArray(quote.custom_setup_scope) && quote.custom_setup_scope.length > 0 && (
+                    <div className="pt-3 border-t border-slate-100">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                        Requested Setup Scope
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {quote.custom_setup_scope.map((scope, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-xs font-medium"
+                          >
+                            {scope}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {quote.custom_setup_notes && (
+                    <div className="pt-3 border-t border-slate-100">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                        Custom Setup Notes
+                      </span>
+                      <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                        {quote.custom_setup_notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </SectionContainer>
+            )}
 
           </div>
 

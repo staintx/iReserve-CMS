@@ -63,7 +63,7 @@ export default function AdminBookingsHistory() {
       setPayments(pRes.data || []);
     } catch (err) {
       notify("Failed to load event history records.", "error");
-    } fontally: {
+    } finally {
       setLoading(false);
     }
   };

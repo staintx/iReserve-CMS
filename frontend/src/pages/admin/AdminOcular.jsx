@@ -377,7 +377,15 @@ export default function AdminOcular() {
     {
       key: "id",
       header: "Booking ID",
-      render: (o) => <span className="text-xs font-mono font-bold text-primary">{o.id}</span>,
+      render: (o) => (
+        <button
+          onClick={() => navigate(`/admin/bookings/${o._id}/details`)}
+          className="text-xs font-mono font-bold text-primary hover:underline cursor-pointer"
+          title="Open Booking Details"
+        >
+          {o.id}
+        </button>
+      ),
     },
     { 
       key: "customer", 
@@ -385,7 +393,7 @@ export default function AdminOcular() {
       render: (o) => (
         <div>
           <span className="text-xs font-semibold text-foreground block">{o.customer}</span>
-          <span className="text-[11px] text-muted-foreground">{o.phone || o.email}</span>
+          <span className="text-xs text-muted-foreground">{o.phone || o.email}</span>
         </div>
       )
     },
@@ -400,7 +408,7 @@ export default function AdminOcular() {
       render: (o) => (
         <div>
           <span className="text-xs font-semibold text-foreground block tabular-nums">{o.date}</span>
-          <span className="text-[11px] text-muted-foreground tabular-nums">{o.time !== "TBA" ? `@ ${o.time}` : "Time TBA"}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{o.time !== "TBA" ? `@ ${o.time}` : "Time TBA"}</span>
         </div>
       )
     },
@@ -414,7 +422,34 @@ export default function AdminOcular() {
       key: "actions",
       header: "Actions",
       stopRowClick: true,
-      render: (o) => <RowActionsMenu actions={buildRowActions(o)} />,
+      render: (o) => (
+        <div className="flex items-center justify-end gap-1.5">
+          {o.status === "Requested" && (
+            <button
+              onClick={() => {
+                setSelectedBookingId(o._id);
+                setScheduleDate(formatDateToYYYYMMDD(o.rawDate));
+                setScheduleTime(o.time !== "TBA" ? o.time : "");
+                setShowScheduleModal(true);
+              }}
+              className="px-2 py-1 text-xs font-semibold text-white bg-primary hover:bg-primary/90 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+              title="Confirm Date & Schedule"
+            >
+              <Calendar size={11} /> Schedule
+            </button>
+          )}
+          {o.status === "Scheduled" && (
+            <button
+              onClick={() => handleProceed(o._id)}
+              className="px-2 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+              title="Mark Inspection Passed"
+            >
+              <Check size={11} /> Pass
+            </button>
+          )}
+          <RowActionsMenu actions={buildRowActions(o)} />
+        </div>
+      ),
     },
   ];
 

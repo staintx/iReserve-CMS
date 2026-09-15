@@ -22,6 +22,8 @@ export default function StepDeliveryDetails({
   barangays,
   pickupAddress,
   estimate,
+  guestMin = 1,
+  guestMax = null,
   errors = {},
 }) {
   const handleGuestChange = (nextValue) => {
@@ -64,13 +66,18 @@ export default function StepDeliveryDetails({
               <Field
                 label="Estimated guest count"
                 required
-                hint="Dish prices are calculated per guest."
+                hint={
+                  guestMax
+                    ? `Guests between ${guestMin || 1} and ${guestMax} supported.`
+                    : "Dish prices are calculated per guest."
+                }
                 error={errors.guest_count}
               >
                 <GuestCounter
                   value={currentCount}
                   onChange={handleGuestChange}
-                  min={1}
+                  min={guestMin || 1}
+                  max={guestMax}
                 />
               </Field>
             </div>

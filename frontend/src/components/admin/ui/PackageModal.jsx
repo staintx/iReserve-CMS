@@ -1950,6 +1950,55 @@ export default function PackageModal({
                   )}
                 </>
               )}
+
+              {/* Minimum & Maximum Guests */}
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Minimum Guests
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                    isOffer
+                      ? "border-amber-300 bg-amber-50/40 focus:border-amber-500"
+                      : "border-gray-200 focus:border-primary"
+                  }`}
+                  placeholder="e.g. 50"
+                  value={formData.guest_min}
+                  onChange={(e) => {
+                    if (Number(e.target.value) < 0) return;
+                    setFormData({ ...formData, guest_min: e.target.value });
+                  }}
+                />
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Minimum guest count required to book this package.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">
+                  Maximum Guests
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                    isOffer
+                      ? "border-amber-300 bg-amber-50/40 focus:border-amber-500"
+                      : "border-gray-200 focus:border-primary"
+                  }`}
+                  placeholder="e.g. 80"
+                  value={formData.guest_max}
+                  onChange={(e) => {
+                    if (Number(e.target.value) < 0) return;
+                    setFormData({ ...formData, guest_max: e.target.value });
+                  }}
+                />
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Absolute limit: customer cannot select or enter more guests than this.
+                </p>
+              </div>
             </div>
           </section>
 

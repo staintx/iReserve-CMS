@@ -269,17 +269,25 @@ export default function BookingWizard() {
 
     if (isOffer) {
       const pkgMin = positive(packageDetails?.guest_min) || 1;
-      const pkgMax = positive(packageDetails?.guest_max) || 300;
+      const pkgMax = positive(packageDetails?.guest_max) || positive(packageDetails?.guest_count) || null;
       return { guestMin: pkgMin, guestMax: pkgMax };
     }
 
     // 1. Scaffold options (from selected option in form or package scaffold options)
     const scaffoldMin = positive(form.scaffold_guest_min);
     const scaffoldMax = positive(form.scaffold_guest_max);
+    const pkgExplicitMin = positive(packageDetails?.guest_min);
+    const pkgExplicitMax = positive(packageDetails?.guest_max);
+
     if (scaffoldMin || scaffoldMax) {
+      const resolvedMin = scaffoldMin || pkgExplicitMin || 1;
+      let resolvedMax = scaffoldMax || pkgExplicitMax || null;
+      if (scaffoldMax && pkgExplicitMax) {
+        resolvedMax = Math.min(scaffoldMax, pkgExplicitMax);
+      }
       return {
-        guestMin: scaffoldMin || positive(packageDetails?.guest_min) || 1,
-        guestMax: scaffoldMax || positive(packageDetails?.guest_max) || 300,
+        guestMin: resolvedMin,
+        guestMax: resolvedMax,
       };
     }
 
@@ -287,15 +295,21 @@ export default function BookingWizard() {
     if (form.scaffold_width && form.scaffold_length) {
       const w = Number(form.scaffold_width);
       const l = Number(form.scaffold_length);
-      if (w === 20 && l === 20) return { guestMin: 50, guestMax: 80 };
-      if (w === 20 && l === 40) return { guestMin: 100, guestMax: 150 };
-      if (w === 40 && l === 40) return { guestMin: 150, guestMax: 220 };
-      if (w === 20 && l === 60) return { guestMin: 180, guestMax: 250 };
-      if (w === 40 && l === 60) return { guestMin: 250, guestMax: 350 };
-      const area = w * l;
+      let inferredMin = 50;
+      let inferredMax = 80;
+      if (w === 20 && l === 20) { inferredMin = 50; inferredMax = 80; }
+      else if (w === 20 && l === 40) { inferredMin = 100; inferredMax = 150; }
+      else if (w === 40 && l === 40) { inferredMin = 150; inferredMax = 220; }
+      else if (w === 20 && l === 60) { inferredMin = 180; inferredMax = 250; }
+      else if (w === 40 && l === 60) { inferredMin = 250; inferredMax = 350; }
+      else {
+        const area = w * l;
+        inferredMin = Math.max(10, Math.round(area / 10));
+        inferredMax = Math.max(50, Math.round(area / 5));
+      }
       return {
-        guestMin: Math.max(10, Math.round(area / 10)),
-        guestMax: Math.max(50, Math.round(area / 5)),
+        guestMin: pkgExplicitMin || inferredMin,
+        guestMax: pkgExplicitMax ? Math.min(inferredMax, pkgExplicitMax) : inferredMax,
       };
     }
 
@@ -304,19 +318,19 @@ export default function BookingWizard() {
     if (rangeMin || rangeMax) {
       return {
         guestMin: rangeMin || positive(initialGuestMin) || 1,
-        guestMax: rangeMax || positive(initialGuestMax) || 300,
+        guestMax: rangeMax || positive(initialGuestMax) || null,
       };
     }
 
     const packageMin =
-      positive(packageDetails?.guest_min) || positive(initialGuestMin);
+      pkgExplicitMin || positive(initialGuestMin);
     const packageMax =
-      positive(packageDetails?.guest_max) || positive(initialGuestMax);
+      pkgExplicitMax || positive(initialGuestMax);
     if (packageMin || packageMax) {
-      return { guestMin: packageMin || 1, guestMax: packageMax || 300 };
+      return { guestMin: packageMin || 1, guestMax: packageMax || null };
     }
 
-    return { guestMin: 1, guestMax: 300 };
+    return { guestMin: 1, guestMax: null };
   }, [
     isOffer,
     packageDetails,
@@ -970,14 +984,21 @@ export default function BookingWizard() {
             errors.guest_count = "Enter how many guests you're expecting.";
           } else if (guests < (guestMin || 1)) {
             errors.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
+          } else if (guestMax && guests > guestMax) {
+            errors.guest_count = `The maximum guest count for this package setup is ${guestMax}.`;
           }
           break;
         }
 
         case "DeliveryDetails": {
           const guests = parseNumber(form.guest_count) || 0;
-          if (guests <= 0)
+          if (guests <= 0) {
             errors.guest_count = "Enter how many guests you're feeding.";
+          } else if (guests < (guestMin || 1)) {
+            errors.guest_count = `Enter a guest count of at least ${guestMin || 1}.`;
+          } else if (guestMax && guests > guestMax) {
+            errors.guest_count = `The maximum guest count for this package is ${guestMax}.`;
+          }
           if (form.delivery_method !== "pickup") {
             if (!form.municipality)
               errors.municipality = "Select the delivery municipality.";
@@ -1478,6 +1499,8 @@ export default function BookingWizard() {
             barangays={barangays}
             pickupAddress={businessInfo?.pickup_address || businessInfo?.address}
             estimate={estimate}
+            guestMin={guestMin}
+            guestMax={guestMax}
             errors={fieldErrors}
           />
         );

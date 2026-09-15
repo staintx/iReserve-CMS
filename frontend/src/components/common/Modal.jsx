@@ -67,7 +67,7 @@ export default function Modal({ title, description, children, footer, onClose, c
             above them was a stray rule and 40px of nothing. */}
         {title && (
           <DialogHeader className="shrink-0 text-left px-4 sm:px-5 pt-2 sm:pt-5 pb-2.5 pr-11 sm:pr-12 border-b border-border/50">
-            <DialogTitle className="font-sans text-[15px] sm:text-lg font-bold tracking-tight text-foreground leading-snug">
+            <DialogTitle className="font-sans text-[15px] sm:text-lg font-bold tracking-tight text-slate-900 !font-sans !text-slate-900 leading-snug">
               {title}
             </DialogTitle>
             {description && (

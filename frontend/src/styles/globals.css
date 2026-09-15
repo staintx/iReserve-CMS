@@ -113,15 +113,22 @@
     color: var(--color-brown-dark);
   }
 
-  /* Admin dashboard: all headings use Work Sans */
+  /* Admin dashboard & Radix modals: all headings use Work Sans */
   .admin-layout h1,
   .admin-layout h2,
   .admin-layout h3,
   .admin-layout h4,
   .admin-layout h5,
-  .admin-layout h6 {
+  .admin-layout h6,
+  [data-radix-portal] h1,
+  [data-radix-portal] h2,
+  [data-radix-portal] h3,
+  [data-radix-portal] h4,
+  [data-radix-portal] h5,
+  [data-radix-portal] h6 {
     font-family: var(--font-sans);
     letter-spacing: -0.01em;
+    color: inherit;
   }
 
   /* Booking flow: same reasoning as the admin dashboard. It is transactional

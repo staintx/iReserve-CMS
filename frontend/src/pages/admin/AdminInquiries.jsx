@@ -200,6 +200,74 @@ const getOperationalAlerts = (row) => {
   return alerts;
 };
 
+/**
+ * Operational Next Action determination
+ */
+const getNextStepInfo = (row) => {
+  if (!row) return { badge: "Review", actionLabel: "View", actionType: "view", tone: "bg-slate-100 text-slate-700 border-slate-200" };
+  if (row.status === "Converted to Booking" || Boolean(row.convertedBookingId)) {
+    return {
+      badge: "Booking Confirmed",
+      actionLabel: "View Booking",
+      actionType: "view_booking",
+      tone: "bg-teal-50 text-teal-800 border-teal-300 font-semibold",
+      icon: CheckCircle2,
+      isConverted: true,
+    };
+  }
+  if (row.status === "Cancelled") {
+    return {
+      badge: "Inquiry Cancelled",
+      actionLabel: "Inspect",
+      actionType: "inspect",
+      tone: "bg-rose-50 text-rose-800 border-rose-200",
+      icon: X,
+      isCancelled: true,
+    };
+  }
+  if (row.latestQuote || row.status === "Quotation Sent") {
+    return {
+      badge: "Quotation Sent",
+      actionLabel: "View Quote",
+      actionType: "view_quote",
+      tone: "bg-blue-50 text-blue-800 border-blue-200 font-semibold",
+      icon: FileText,
+      isSent: true,
+    };
+  }
+  if (row.rawDate) {
+    const diffDays = Math.ceil((row.rawDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+    if (diffDays >= 0 && diffDays <= 7) {
+      return {
+        badge: `Urgent: Event in ${diffDays}d`,
+        actionLabel: "+ Create Quote",
+        actionType: "create_quote",
+        tone: "bg-rose-50 text-rose-800 border-rose-300 font-bold",
+        icon: AlertTriangle,
+        isUrgent: true,
+      };
+    }
+  }
+  if (["Pending Review", "Under Review"].includes(row.status) && row.hoursSinceCreated >= 48) {
+    return {
+      badge: "Follow-up Overdue",
+      actionLabel: "+ Create Quote",
+      actionType: "create_quote",
+      tone: "bg-amber-50 text-amber-800 border-amber-300 font-semibold",
+      icon: Clock,
+      isOverdue: true,
+    };
+  }
+  return {
+    badge: "Quotation Needed",
+    actionLabel: "+ Create Quote",
+    actionType: "create_quote",
+    tone: "bg-amber-50 text-amber-900 border-amber-300/80 font-semibold",
+    icon: Sparkles,
+    isNeedsQuote: true,
+  };
+};
+
 export default function AdminInquiries() {
   const navigate = useNavigate();
   const { notify } = useToast();
@@ -211,7 +279,7 @@ export default function AdminInquiries() {
   
   // Filters & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [customDateRange, setCustomDateRange] = useState({ from: "", to: "" });
@@ -326,10 +394,19 @@ export default function AdminInquiries() {
       // Status filter
       if (statusFilter === "Archived") {
         if (!r.archived) return false;
+      } else if (statusFilter === "needs_action") {
+        if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
+        if (r.latestQuote && !r.isNew) return false;
+      } else if (statusFilter === "active") {
+        if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
+      } else if (statusFilter === "Quotation Sent") {
+        if (r.archived || (!r.latestQuote && r.status !== "Quotation Sent") || r.status === "Converted to Booking") return false;
+      } else if (statusFilter === "Converted to Booking") {
+        if (r.archived || (r.status !== "Converted to Booking" && !r.convertedBookingId)) return false;
       } else if (statusFilter !== "all") {
         if (r.archived || r.status !== statusFilter) return false;
       } else {
-        // 'all' tab shows active unarchived inquiries
+        // 'all' tab shows all unarchived inquiries
         if (r.archived) return false;
       }
 
@@ -408,14 +485,13 @@ export default function AdminInquiries() {
   }, [search, statusFilter, eventTypeFilter, dateRangeFilter, sortBy]);
 
   // KPI Calculations
-  const totalInquiriesCount = formattedBookings.length;
-  const pendingCount = formattedBookings.filter((r) => !r.archived && r.status === "Pending Review").length;
-  const underReviewCount = formattedBookings.filter((r) => !r.archived && r.status === "Under Review").length;
-  const quotationSentCount = formattedBookings.filter((r) => !r.archived && (r.status === "Quotation Sent" || r.latestQuote)).length;
-
-  const pendingPct = totalInquiriesCount ? Math.round((pendingCount / totalInquiriesCount) * 100) : 0;
-  const underReviewPct = totalInquiriesCount ? Math.round((underReviewCount / totalInquiriesCount) * 100) : 0;
-  const quotationSentPct = totalInquiriesCount ? Math.round((quotationSentCount / totalInquiriesCount) * 100) : 0;
+  const totalInquiriesCount = formattedBookings.filter((r) => !r.archived).length;
+  const activeCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled").length;
+  const quotesNeededCount = formattedBookings.filter((r) => !r.archived && r.status !== "Converted to Booking" && r.status !== "Cancelled" && (!r.latestQuote || r.isNew)).length;
+  const quotationSentCount = formattedBookings.filter((r) => !r.archived && (r.status === "Quotation Sent" || r.latestQuote) && r.status !== "Converted to Booking").length;
+  const convertedCount = formattedBookings.filter((r) => !r.archived && (r.status === "Converted to Booking" || Boolean(r.convertedBookingId))).length;
+  const archivedCount = formattedBookings.filter((r) => r.archived).length;
+  const conversionPct = totalInquiriesCount > 0 ? Math.round((convertedCount / totalInquiriesCount) * 100) : 0;
 
   // Derive decision support operational alerts for the currently selected inquiry
   const selectedAlerts = useMemo(() => {
@@ -511,35 +587,62 @@ export default function AdminInquiries() {
 
         {/* Main Content Area (Uncompressed 100% Full Width) */}
         <div className="space-y-3.5 w-full">
-            {/* KPI Summary Cards Row */}
+            {/* Operational KPI Summary Cards Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <KPICard
-                title="Total Inquiries"
-                value={totalInquiriesCount}
-                sub="All customer requests"
+                title="Active Inquiries"
+                value={activeCount}
+                sub="Open leads in pipeline"
                 icon={Mail}
               />
               <KPICard
-                title="Pending Review"
-                value={pendingCount}
-                sub={`${pendingPct}% of total`}
-                icon={Clock}
-              />
-              <KPICard
-                title="Under Review"
-                value={underReviewCount}
-                sub={`${underReviewPct}% of total`}
-                icon={Eye}
+                title="Quotes Needed"
+                value={quotesNeededCount}
+                sub="Awaiting quote creation"
+                icon={Sparkles}
               />
               <KPICard
                 title="Quotation Sent"
                 value={quotationSentCount}
-                sub={`${quotationSentPct}% of total`}
+                sub="Awaiting client decision"
                 icon={FileText}
+              />
+              <KPICard
+                title="Converted Bookings"
+                value={convertedCount}
+                sub={`${conversionPct}% conversion rate`}
+                icon={CheckCircle2}
               />
             </div>
 
-            {/* Stacked Label Filter Controls Bar (Labels Above Controls, Perfect Alignment) */}
+            {/* Smart Triage Stage Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 border-b border-border/40">
+              {[
+                { id: "active", label: `Active Leads (${activeCount})` },
+                { id: "needs_action", label: `⚡ Needs Action (${quotesNeededCount})` },
+                { id: "Quotation Sent", label: `Quotation Sent (${quotationSentCount})` },
+                { id: "Converted to Booking", label: `Converted (${convertedCount})` },
+                { id: "all", label: `All Inquiries (${totalInquiriesCount})` },
+                { id: "Archived", label: `Archived (${archivedCount})` },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setStatusFilter(tab.id);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
+                    statusFilter === tab.id
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter Controls Bar */}
             <div className="bg-card border border-border/70 rounded-xl p-2.5 sm:p-3 shadow-2xs">
               <div className="flex flex-wrap items-end gap-2.5 text-xs">
                 {/* Search Input Field */}
@@ -565,25 +668,8 @@ export default function AdminInquiries() {
                   </div>
                 </div>
 
-                {/* Status Filter */}
-                <div className="flex flex-col gap-1 min-w-[130px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="Pending Review">Pending Review</option>
-                    <option value="Under Review">Under Review</option>
-                    <option value="Quotation Sent">Quotation Sent</option>
-                    <option value="Converted to Booking">Booking</option>
-                    <option value="Archived">Archived</option>
-                  </select>
-                </div>
-
                 {/* Event Type Filter */}
-                <div className="flex flex-col gap-1 min-w-[130px] shrink-0">
+                <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Event Type</label>
                   <select
                     value={eventTypeFilter}
@@ -648,13 +734,13 @@ export default function AdminInquiries() {
                 </div>
 
                 {/* Clear Filters Action Button */}
-                {(search || statusFilter !== "all" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
+                {(search || statusFilter !== "active" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
                   <div className="flex flex-col gap-1 shrink-0 justify-end">
                     <button
                       onClick={clearFilters}
-                      className="h-8 px-3 rounded-lg border border-input bg-background hover:bg-muted text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1.5"
+                      className="h-8 px-3 rounded-lg border border-input bg-background hover:bg-muted text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
-                      <X size={13} /> Clear Filters
+                      <X size={13} /> Reset Filters
                     </button>
                   </div>
                 )}
@@ -744,15 +830,16 @@ export default function AdminInquiries() {
                         </th>
                         <th className="py-2.5 px-3 font-semibold">Customer</th>
                         <th className="py-2.5 px-3 font-semibold">Event Details</th>
-                        <th className="py-2.5 px-3 font-semibold">Status</th>
+                        <th className="py-2.5 px-3 font-semibold">Status & Next Action</th>
                         <th className="py-2.5 px-3 font-semibold">Package Type</th>
-                        <th className="py-2.5 px-3 font-semibold">Received / Updated</th>
+                        <th className="py-2.5 px-3 font-semibold">Received</th>
                         <th className="py-2.5 pr-3 pl-1 text-right font-semibold">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
                       {paginatedRows.map((r) => {
                         const isSelected = selectedInquiry?._id === r._id;
+                        const nextStep = getNextStepInfo(r);
                         return (
                           <tr
                             key={r._id}
@@ -773,38 +860,62 @@ export default function AdminInquiries() {
                               />
                             </td>
 
-                            {/* Customer */}
-                            <td className="py-2.5 px-3 min-w-[130px]">
+                            {/* Customer & Reference */}
+                            <td className="py-2.5 px-3 min-w-[140px]">
                               <div className="min-w-0 space-y-0.5">
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/admin/bookings/inquiries/${r._id}`);
+                                    }}
+                                    className="font-mono text-[10.5px] font-bold text-primary hover:text-primary-hover hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                                    title="View full details of inquiry"
+                                  >
+                                    <span>#{r.id}</span>
+                                    <ExternalLink size={10} className="opacity-70" />
+                                  </button>
                                   {r.isNew && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" title="Recent activity" />
+                                    <span className="w-2 h-2 rounded-full bg-primary shrink-0" title="Recent activity" />
                                   )}
-                                  <p className="font-semibold text-foreground text-xs truncate max-w-[140px]">{r.customer}</p>
                                 </div>
-                                <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.email || "—"}</p>
+                                <p className="font-semibold text-foreground text-xs truncate max-w-[150px]">{r.customer}</p>
+                                <p className="text-xs text-muted-foreground truncate max-w-[150px]">{r.email || "—"}</p>
+                                {r.phone && r.phone !== "—" && (
+                                  <p className="text-[11px] text-muted-foreground font-mono truncate">{r.phone}</p>
+                                )}
                               </div>
                             </td>
 
                             {/* Event Details */}
                             <td className="py-2.5 px-3">
                               <div className="space-y-0.5">
-                                <div className="font-medium text-foreground text-xs truncate">
+                                <div className="font-semibold text-foreground text-xs truncate">
                                   {r.eventType}
                                 </div>
-                                <div className="text-[11px] text-muted-foreground tabular-nums truncate">
+                                <div className="text-xs text-muted-foreground tabular-nums truncate">
                                   {r.eventDateFormatted} · {r.guests} pax
                                 </div>
-                                <div className="text-[11px] text-muted-foreground/80 truncate max-w-[130px] flex items-center gap-1">
-                                  <MapPin size={10} className="shrink-0 text-muted-foreground/70" />
+                                <div className="text-[11px] text-muted-foreground truncate max-w-[140px] flex items-center gap-1">
+                                  <MapPin size={11} className="shrink-0 text-muted-foreground" />
                                   <span className="truncate">{r.venue}</span>
                                 </div>
                               </div>
                             </td>
 
-                            {/* Status */}
+                            {/* Status & Next Action (High Priority Column) */}
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              <Badge status={r.status} />
+                              <div className="space-y-1">
+                                <div>
+                                  <Badge status={r.status} />
+                                </div>
+                                <div>
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] border shadow-2xs ${nextStep.tone}`}>
+                                    {nextStep.icon && <nextStep.icon size={11} className="shrink-0" />}
+                                    <span>{nextStep.badge}</span>
+                                  </span>
+                                </div>
+                              </div>
                             </td>
 
                             {/* Package Type */}
@@ -826,17 +937,47 @@ export default function AdminInquiries() {
                               </div>
                             </td>
 
-                            {/* Actions (Icon-Only View Details Button with Tooltip) */}
+                            {/* Actions (Direct 1-Click Action Button + Drawer View + More Options) */}
                             <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* Contextual Next Step Action Button */}
+                                {nextStep.actionType === "create_quote" ? (
+                                  <button
+                                    onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                    title="Create quotation for customer"
+                                    className="px-2.5 py-1 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                  >
+                                    <Plus size={12} />
+                                    <span>Create Quote</span>
+                                  </button>
+                                ) : nextStep.actionType === "view_booking" ? (
+                                  <button
+                                    onClick={() => navigate('/admin/bookings/reservations')}
+                                    title="View confirmed reservation"
+                                    className="px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                  >
+                                    <CheckCircle2 size={12} />
+                                    <span>View Booking</span>
+                                  </button>
+                                ) : nextStep.actionType === "view_quote" ? (
+                                  <button
+                                    onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                    title="View issued quotation"
+                                    className="px-2.5 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                  >
+                                    <FileText size={12} />
+                                    <span>View Quote</span>
+                                  </button>
+                                ) : null}
+
                                 <button
                                   onClick={() => setSelectedInquiry(r)}
-                                  title="View Inquiry Summary"
-                                  aria-label="View Inquiry Summary"
-                                  className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                                  title="Quick View Inquiry Summary"
+                                  aria-label="Quick View Inquiry Summary"
+                                  className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
                                 >
-                                  <Eye size={13} className="text-muted-foreground" />
-                                  <span>View</span>
+                                  <Eye size={12} className="text-muted-foreground" />
+                                  <span>Summary</span>
                                 </button>
                                 
                                 <div className="relative group/menu shrink-0">
@@ -847,13 +988,28 @@ export default function AdminInquiries() {
                                   >
                                     <MoreHorizontal size={14} />
                                   </button>
-                                  <div className="absolute right-0 top-full mt-1 hidden group-hover/menu:block z-30 w-40 p-1 bg-popover border border-border rounded-lg shadow-md text-left space-y-0.5 text-xs">
+                                  <div className="absolute right-0 top-full mt-1 hidden group-hover/menu:block z-30 w-44 p-1 bg-popover border border-border rounded-lg shadow-md text-left space-y-0.5 text-xs">
                                     <button
-                                      onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                                      onClick={() => navigate(`/admin/bookings/inquiries/${r._id}`)}
+                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer font-medium text-foreground"
                                     >
-                                      <FileText size={12} /> Send Quotation
+                                      <ExternalLink size={12} className="text-primary" /> View Full Details
                                     </button>
+                                    {r.status === "Converted to Booking" || Boolean(r.convertedBookingId) ? (
+                                      <button
+                                        onClick={() => navigate('/admin/bookings/reservations')}
+                                        className="w-full px-2 py-1 rounded-md hover:bg-teal-50 text-teal-700 text-left flex items-center gap-1.5 transition-colors cursor-pointer font-medium"
+                                      >
+                                        <CheckCircle2 size={12} /> View Reservation
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
+                                        className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                                      >
+                                        <FileText size={12} /> {r.latestQuote ? "Edit Quotation" : "Create Quotation"}
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => setArchiveTarget(r)}
                                       className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -861,13 +1017,17 @@ export default function AdminInquiries() {
                                       {r.archived ? <ArchiveRestore size={12} /> : <Archive size={12} />}
                                       {r.archived ? "Restore Inquiry" : "Archive Inquiry"}
                                     </button>
-                                    <div className="border-t border-border/60 my-0.5" />
-                                    <button
-                                      onClick={() => setCancelTarget(r)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-rose-50 text-rose-600 text-left flex items-center gap-1.5 font-medium transition-colors cursor-pointer"
-                                    >
-                                      <X size={12} /> Reject Inquiry
-                                    </button>
+                                    {r.status !== "Converted to Booking" && !r.convertedBookingId && r.status !== "Cancelled" && (
+                                      <>
+                                        <div className="border-t border-border/60 my-0.5" />
+                                        <button
+                                          onClick={() => setCancelTarget(r)}
+                                          className="w-full px-2 py-1 rounded-md hover:bg-rose-50 text-rose-600 text-left flex items-center gap-1.5 font-medium transition-colors cursor-pointer"
+                                        >
+                                          <X size={12} /> Reject Inquiry
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -956,18 +1116,32 @@ export default function AdminInquiries() {
                         <span className="text-[9.5px] text-muted-foreground">
                           Received {r.createdDateStr}
                         </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedInquiry(r);
-                          }}
-                          title="View Inquiry Summary"
-                          aria-label="View Inquiry Summary"
-                          className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5"
-                        >
-                          <Eye size={12} className="text-muted-foreground" />
-                          <span>View</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/bookings/inquiries/${r._id}`);
+                            }}
+                            title="View Full Details"
+                            aria-label="View Full Details"
+                            className="px-2 py-1 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <ExternalLink size={11} />
+                            <span>Full Details</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedInquiry(r);
+                            }}
+                            title="View Inquiry Summary"
+                            aria-label="View Inquiry Summary"
+                            className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Eye size={12} className="text-muted-foreground" />
+                            <span>Summary</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1004,14 +1178,24 @@ export default function AdminInquiries() {
                     #{selectedInquiry.id}
                   </span>
                 </div>
-                <button
-                  onClick={() => setSelectedInquiry(null)}
-                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                  title="Close panel"
-                  aria-label="Close panel"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => navigate(`/admin/bookings/inquiries/${selectedInquiry._id}`)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                    title="Open Full Inquiry Details"
+                  >
+                    <ExternalLink size={12} />
+                    <span>Full Details</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedInquiry(null)}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    title="Close panel"
+                    aria-label="Close panel"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Scrollable Content Body (Single, unified, high-hierarchy view) */}
@@ -1244,6 +1428,14 @@ export default function AdminInquiries() {
                     <Plus size={14} /> Create Quotation
                   </button>
                 )}
+
+                {/* View Full Inquiry Details Button */}
+                <button
+                  onClick={() => navigate(`/admin/bookings/inquiries/${selectedInquiry._id}`)}
+                  className="w-full py-2 px-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                >
+                  <ExternalLink size={13} /> View Full Inquiry Details
+                </button>
 
                 {/* Secondary Triage Actions */}
                 <div className="flex items-center gap-2">

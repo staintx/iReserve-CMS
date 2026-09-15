@@ -568,21 +568,6 @@ export default function AdminReservations() {
                   </div>
                 </div>
 
-                {/* Quick Reservation Status Filter Dropdown */}
-                <div className="flex flex-col gap-1 min-w-[150px] shrink-0">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Reservation Scope</label>
-                  <select
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
-                  >
-                    <option value="all">All Bookings</option>
-                    <option value="upcoming">Upcoming Events</option>
-                    <option value="this_week">Scheduled This Week</option>
-                    <option value="completed">Completed Events</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
 
                 {/* Clear Filter Button */}
                 {(search || filter !== "all") && (
@@ -756,20 +741,27 @@ export default function AdminReservations() {
                               <div className="flex flex-col items-start gap-0.5">
                                 <Badge status={r.depositStatus} />
                                 {!r.depositPaid && !r.quotationBacked && (
-                                  <span className="text-[9.5px] font-medium text-muted-foreground">Admin created</span>
+                                  <span className="text-[10.5px] font-semibold text-muted-foreground">Admin created</span>
                                 )}
                               </div>
                             </td>
 
-                            {/* Actions Column */}
-                            <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0 min-w-[80px]" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end">
+                            {/* Actions Column (Manage & Details Drawer) */}
+                            <td className="py-2.5 pr-3 pl-1 text-right whitespace-nowrap shrink-0 min-w-[130px]" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => navigate(`/admin/bookings/${r._id}/details`)}
+                                  className="px-2.5 py-1 text-xs font-semibold text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                  title="Manage Booking Details"
+                                >
+                                  <ArrowUpRight size={12} /> Manage
+                                </button>
                                 <button
                                   onClick={() => setSelectedBooking(r)}
-                                  className="px-2.5 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                                  className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
                                   title="View Reservation Summary"
                                 >
-                                  <Eye size={13} className="text-muted-foreground" /> View
+                                  <Eye size={12} className="text-muted-foreground" /> Details
                                 </button>
                               </div>
                             </td>

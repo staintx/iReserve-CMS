@@ -22,6 +22,13 @@ import {
   X,
   Sparkles,
   Percent,
+  Phone,
+  Mail,
+  History,
+  CreditCard,
+  Building2,
+  Wallet,
+  Banknote,
 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -37,8 +44,6 @@ import TableToolbar from "../../components/admin/table/TableToolbar";
 import FilterPopover from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
-import DetailDrawer from "../../components/admin/table/DetailDrawer";
-import DrawerField from "../../components/admin/table/DrawerField";
 import Pagination from "../../components/admin/table/Pagination";
 import usePagination from "../../hooks/usePagination";
 
@@ -140,6 +145,7 @@ export default function AdminRefunds() {
             reason,
             updatedAt: b.updatedAt || b.createdAt,
             refundRecord: refundRecords[0] || null,
+            payments: bPayments,
             bookingObj: b,
           };
         });
@@ -174,6 +180,33 @@ export default function AdminRefunds() {
     if (s === "approved" || s === "refunded") return "Paid";
     if (s === "pending") return "Pending";
     return "off";
+  };
+
+  const getMethodBadge = (method) => {
+    const m = String(method || "").toLowerCase();
+    if (m === "paymongo" || m === "online") {
+      return { label: "Online", icon: CreditCard, cls: "bg-blue-50 text-blue-700 border-blue-200" };
+    }
+    if (m === "bank" || m === "bank_transfer") {
+      return { label: "Bank Transfer", icon: Building2, cls: "bg-purple-50 text-purple-700 border-purple-200" };
+    }
+    if (m === "gcash" || m === "e-wallet") {
+      return { label: "GCash", icon: Wallet, cls: "bg-indigo-50 text-indigo-700 border-indigo-200" };
+    }
+    if (m === "cash") {
+      return { label: "Cash Onsite", icon: Banknote, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    }
+    return { label: method || "Payment", icon: DollarSign, cls: "bg-gray-50 text-gray-700 border-gray-200" };
+  };
+
+  const getMilestoneLabel = (type) => {
+    const t = String(type || "").toLowerCase();
+    if (t === "deposit") return "Deposit";
+    if (t === "balance") return "Final Balance";
+    if (t === "full") return "Full Payment";
+    if (t === "refund") return "Refund Disbursed";
+    if (t === "additional") return "Additional Charge";
+    return type || "Payment";
   };
 
   // KPI Calculations
@@ -291,7 +324,7 @@ export default function AdminRefunds() {
       "Customer Name",
       "Customer Email",
       "Event Type",
-      "Contract Total",
+      "Total Amount",
       "Deposit Paid",
       "Refund Disbursed",
       "Status",
@@ -566,89 +599,348 @@ export default function AdminRefunds() {
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} shownCount={pageRows.length} onPageChange={setPage} />
         </AdminCard>
 
-        {/* Detail Drawer */}
-        <DetailDrawer
-          open={!!drawerRow}
-          onOpenChange={(open) => !open && setDrawerRow(null)}
-          title={drawerRow ? `Refund Case: ${drawerRow.bookingRef}` : ""}
-          description={drawerRow ? drawerRow.customerName : ""}
-          footer={
-            drawerRow && (
-              <div className="flex items-center justify-between w-full gap-2">
-                <Btn variant="secondary" size="sm" onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}>
-                  <ExternalLink size={13} /> Open Booking
-                </Btn>
+        {/* Slide-Over Refund Details Drawer */}
+        {drawerRow && (
+          <div
+            className="fixed inset-0 z-50 flex justify-end"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="refund-drawer-title"
+          >
+            {/* Backdrop Scrim */}
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-[1px] transition-opacity animate-in fade-in-0 duration-200"
+              onClick={() => setDrawerRow(null)}
+              aria-hidden="true"
+            />
+
+            {/* Slide-Over Panel */}
+            <div className="relative w-full max-w-[460px] h-full bg-card border-l border-border/80 shadow-2xl flex flex-col z-10 text-xs animate-in slide-in-from-right duration-200">
+              
+              {/* Pinned Drawer Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-xs shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 id="refund-drawer-title" className="font-bold text-sm text-foreground truncate">
+                    Refund Details
+                  </h3>
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md shrink-0">
+                    {drawerRow.bookingRef}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setDrawerRow(null)}
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Close refund details"
+                  aria-label="Close refund details"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Scrollable Drawer Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                
+                {/* 1. Financial Settlement Hero Card */}
+                <div className="p-3.5 bg-muted/40 rounded-xl border border-border/70 space-y-3 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                        {drawerRow.status === "approved"
+                          ? "Refund Amount Processed"
+                          : drawerRow.status === "pending"
+                          ? "Pending Refund Amount"
+                          : "Refund Amount"}
+                      </span>
+                      <div className={`text-2xl sm:text-3xl font-bold font-mono tracking-tight ${
+                        drawerRow.status === "approved"
+                          ? "text-emerald-600"
+                          : drawerRow.status === "pending"
+                          ? "text-rose-600"
+                          : "text-muted-foreground"
+                      }`}>
+                        {drawerRow.status === "approved"
+                          ? fmt(drawerRow.totalRefunded)
+                          : drawerRow.status === "pending"
+                          ? fmt(drawerRow.totalPaid)
+                          : "₱0"}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <Badge status={getStatusBadgeType(drawerRow.status)}>
+                        {getStatusLabel(drawerRow.status)}
+                      </Badge>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold border bg-card text-foreground border-border/80">
+                        {drawerRow.status === "approved"
+                          ? drawerRow.totalPaid > 0
+                            ? `${Math.round((drawerRow.totalRefunded / drawerRow.totalPaid) * 100)}% Refunded`
+                            : "Refund Disbursed"
+                          : drawerRow.status === "pending"
+                          ? "Awaiting Action"
+                          : "No Deposit Paid"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Financial Metrics Grid */}
+                  <div className="grid grid-cols-2 gap-2.5 pt-2.5 border-t border-border/50 text-xs">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Customer Deposit Paid</span>
+                      <span className="font-mono font-bold text-foreground">{fmt(drawerRow.totalPaid)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Total Amount</span>
+                      <span className="font-semibold text-foreground">{fmt(drawerRow.totalPrice)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Cancellation Fee</span>
+                      <span className="font-semibold text-foreground">
+                        {drawerRow.status === "approved"
+                          ? fmt(Math.max(0, drawerRow.totalPaid - drawerRow.totalRefunded))
+                          : drawerRow.status === "pending"
+                          ? "To be determined"
+                          : "₱0"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Cancellation Date</span>
+                      <span className="font-semibold text-foreground">{formatDate(drawerRow.updatedAt)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Contextual Action / Status Banner */}
                 {drawerRow.status === "pending" && (
-                  <div className="flex items-center gap-2">
-                    <Btn variant="danger" size="sm" onClick={() => handleDenyRefund(drawerRow)} disabled={actionLoading}>
-                      <XCircle size={13} /> Deny Refund (₱0)
-                    </Btn>
-                    <Btn variant="primary" size="sm" onClick={() => handleOpenCalc(drawerRow)}>
-                      <Calculator size={13} /> Calculate & Approve
-                    </Btn>
+                  <div className="p-3 bg-amber-50/90 border border-amber-300/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <Clock size={14} className="text-amber-600 shrink-0" />
+                      <span>Action Required: Review Refund</span>
+                    </div>
+                    <p className="text-amber-800 text-[11px] pl-5 leading-relaxed">
+                      Customer has paid {fmt(drawerRow.totalPaid)} in deposits. Review the cancellation reason, calculate deduction fees, and approve or deny the refund.
+                    </p>
                   </div>
                 )}
                 {drawerRow.status === "approved" && (
-                  <Btn variant="primary" size="sm" onClick={() => setVoucherModalRow(drawerRow)}>
-                    <Printer size={13} /> Print Voucher
-                  </Btn>
+                  <div className="p-3 bg-emerald-50/90 border border-emerald-300/80 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                      <span>Refund Approved &amp; Settled</span>
+                    </div>
+                    <p className="text-emerald-800 text-[11px] pl-5 leading-relaxed">
+                      A disbursement of {fmt(drawerRow.totalRefunded)} has been processed for this cancellation. The official voucher is ready for printing.
+                    </p>
+                  </div>
                 )}
-              </div>
-            )
-          }
-        >
-          {drawerRow && (
-            <div className="space-y-6">
-              {/* Financial Highlight Box */}
-              <div className="bg-accent/10 p-4 rounded-xl border border-accent/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-accent-foreground uppercase tracking-wide">Deposit Received</span>
-                  <Badge status={getStatusBadgeType(drawerRow.status)} />
-                </div>
-                <div style={{ fontFamily: "Playfair Display, serif" }} className="text-3xl font-bold text-foreground">
-                  {fmt(drawerRow.totalPaid)}
-                </div>
-                <div className="text-xs text-gray-600 flex items-center justify-between border-t border-accent/30 pt-2">
-                  <span>Refund Disbursed:</span>
-                  <span className="font-bold text-red-600">{fmt(drawerRow.totalRefunded)}</span>
-                </div>
-              </div>
-
-              {/* Detail Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <DrawerField label="Booking Ref" value={drawerRow.bookingRef} />
-                <DrawerField label="Event Type" value={drawerRow.eventType} />
-                <DrawerField label="Customer Name" value={drawerRow.customerName} />
-                <DrawerField label="Customer Email" value={drawerRow.customerEmail} />
-                <DrawerField label="Contract Price" value={fmt(drawerRow.totalPrice)} />
-                <DrawerField label="Status" value={getStatusLabel(drawerRow.status)} />
-                <DrawerField label="Cancellation Date" value={formatDate(drawerRow.updatedAt)} full />
-                <DrawerField label="Reason" value={drawerRow.reason || "None specified"} full />
-              </div>
-
-              {/* Recorded Payment Transaction if approved */}
-              {drawerRow.refundRecord && (
-                <div className="border-t border-gray-100 pt-4 space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Disbursement Transaction Log</label>
-                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Transaction ID:</span>
-                      <span className="font-mono font-bold text-gray-800">PAY-{drawerRow.refundRecord._id.slice(-6).toUpperCase()}</span>
+                {drawerRow.status === "no_refund_needed" && (
+                  <div className="p-3 bg-muted/40 border border-border/60 rounded-xl text-xs space-y-1 shadow-2xs">
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <AlertTriangle size={14} className="text-muted-foreground shrink-0" />
+                      <span>No Refund Required</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Amount Paid:</span>
-                      <span className="font-bold text-emerald-600">{fmt(Math.abs(drawerRow.refundRecord.amount))}</span>
+                    <p className="text-muted-foreground text-[11px] pl-5 leading-relaxed">
+                      This cancelled booking has no customer payments recorded. No disbursement is required.
+                    </p>
+                  </div>
+                )}
+
+                {/* 3. Cancellation Reason Card */}
+                <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2 shadow-2xs">
+                  <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <FileText size={12} className="text-primary" /> Cancellation Reason
+                  </h5>
+                  <div className="p-2.5 rounded-lg bg-muted/30 border border-border/50 text-xs">
+                    <p className="text-foreground leading-relaxed font-medium">
+                      {drawerRow.reason || "No specific cancellation reason provided."}
+                    </p>
+                    {drawerRow.bookingObj?.ocular_visit?.notes && (
+                      <p className="text-[11px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/40">
+                        <span className="font-semibold">Ocular Visit Notes:</span> {drawerRow.bookingObj.ocular_visit.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Customer & Booking Context Card */}
+                <div className="p-3 bg-muted/30 rounded-xl border border-border/60 space-y-2.5 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-md bg-accent/10 border border-accent/30 text-accent-foreground flex items-center justify-center text-xs font-bold font-mono shrink-0">
+                        {drawerRow.customerName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "CU"}
+                      </div>
+                      <div className="min-w-0 space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Customer Details</span>
+                        <h4 className="font-bold text-foreground text-sm truncate">{drawerRow.customerName}</h4>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Note:</span>
-                      <span className="text-gray-700">{drawerRow.refundRecord.metadata?.reason || "Refund processed"}</span>
+                    {drawerRow.eventType && (
+                      <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                        {drawerRow.eventType}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Contact Info Line */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Phone size={12} className="shrink-0 text-primary" />
+                      {drawerRow.customerPhone && drawerRow.customerPhone !== "N/A" ? (
+                        <a href={`tel:${drawerRow.customerPhone}`} className="truncate hover:text-foreground hover:underline">
+                          {drawerRow.customerPhone}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">No phone</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0 text-muted-foreground">
+                      <Mail size={12} className="shrink-0 text-primary" />
+                      {drawerRow.customerEmail && drawerRow.customerEmail !== "N/A" ? (
+                        <a href={`mailto:${drawerRow.customerEmail}`} className="truncate hover:text-foreground hover:underline">
+                          {drawerRow.customerEmail}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground italic">No email</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Event Specifics Line */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Scheduled Event Date</span>
+                      <span className="font-semibold text-foreground">{formatDate(drawerRow.eventDate)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Guest Count</span>
+                      <span className="font-semibold text-foreground">
+                        {drawerRow.bookingObj?.guest_count ? `${drawerRow.bookingObj.guest_count} guests` : "—"}
+                      </span>
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* 5. Payment & Refund History */}
+                <div className="bg-card border border-border/70 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <History size={12} className="text-primary" /> Payment &amp; Refund History
+                    </h5>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {(drawerRow.payments || []).length} {(drawerRow.payments || []).length === 1 ? "record" : "records"}
+                    </span>
+                  </div>
+
+                  {(drawerRow.payments || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {drawerRow.payments.map((p) => {
+                        const isRefund = p.payment_type === "refund" || Number(p.amount) < 0;
+                        const amt = Math.abs(Number(p.amount));
+                        const method = getMethodBadge(p.method);
+                        const MethodIcon = method.icon;
+                        const isPaidOrApproved = p.status === "approved" || p.status === "paid";
+
+                        return (
+                          <div
+                            key={p._id}
+                            className="p-2.5 rounded-lg border border-border/60 bg-muted/20 flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono font-bold text-xs text-foreground">
+                                  PAY-{p._id.slice(-6).toUpperCase()}
+                                </span>
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-semibold border ${method.cls}`}>
+                                  <MethodIcon size={9} />
+                                  {method.label}
+                                </span>
+                              </div>
+                              <div className="text-[10.5px] text-muted-foreground flex items-center gap-1.5">
+                                <span>{getMilestoneLabel(p.payment_type)}</span>
+                                <span>•</span>
+                                <span>{formatDate(p.paid_at || p.createdAt)}</span>
+                              </div>
+                              {p.metadata?.reason && (
+                                <div className="text-[10px] text-muted-foreground italic truncate max-w-[220px]">
+                                  Note: {p.metadata.reason}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              <div className={`font-mono font-bold text-xs ${
+                                isRefund
+                                  ? "text-rose-600"
+                                  : isPaidOrApproved
+                                  ? "text-emerald-600"
+                                  : "text-muted-foreground"
+                              }`}>
+                                {isRefund ? `-${fmt(amt)}` : fmt(amt)}
+                              </div>
+                              <Badge status={p.status === "approved" || p.status === "paid" ? "Paid" : p.status} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-center text-muted-foreground italic text-xs">
+                      No payment records logged for this booking.
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Pinned Drawer Footer */}
+              <div className="p-3.5 border-t border-border bg-card/95 backdrop-blur-xs space-y-2 shrink-0">
+                {drawerRow.status === "pending" && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDenyRefund(drawerRow)}
+                      disabled={actionLoading}
+                      className="flex-1 py-2 px-3 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs disabled:opacity-50"
+                      title="Deny refund (₱0)"
+                    >
+                      <XCircle size={14} />
+                      <span>Deny Refund (₱0)</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenCalc(drawerRow)}
+                      disabled={actionLoading}
+                      className="flex-1 py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs disabled:opacity-50"
+                      title="Calculate deduction & approve refund"
+                    >
+                      <Calculator size={14} />
+                      <span>Calculate &amp; Approve</span>
+                    </button>
+                  </div>
+                )}
+
+                {drawerRow.status === "approved" && (
+                  <button
+                    onClick={() => setVoucherModalRow(drawerRow)}
+                    className="w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                    title="Print official refund voucher"
+                  >
+                    <Printer size={14} />
+                    <span>Print Refund Voucher</span>
+                  </button>
+                )}
+
+                {/* Secondary Actions Row */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigate(`/admin/bookings/${drawerRow._id}/details`)}
+                    className="w-full py-1.5 px-2.5 rounded-lg border border-border/80 bg-card font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow-2xs"
+                    title="Open full booking details"
+                  >
+                    <ExternalLink size={13} />
+                    <span>Open Booking Details</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
-          )}
-        </DetailDrawer>
+          </div>
+        )}
 
         {/* Interactive Refund Calculator Modal */}
         {showCalcModal && activeRefund && (
@@ -678,7 +970,7 @@ export default function AdminRefunds() {
                 {/* Contract Summary Card */}
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Contract Total Price</span>
+                    <span className="text-gray-500">Total Amount</span>
                     <span className="font-semibold text-gray-800">{fmt(activeRefund.totalPrice)}</span>
                   </div>
                   <div className="flex justify-between text-xs">

@@ -14,6 +14,7 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 import Badge from "../../components/admin/ui/Badge";
+import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { bookingIdentity } from "../../lib/specialOffers";
 import { resolveServiceType } from "../../components/customer/portal/statusMeta";
@@ -559,6 +560,51 @@ export default function AdminInquiries() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedInquiry]);
 
+  const buildInquiryActions = (r) => {
+    const isConverted = r.status === "Converted to Booking" || Boolean(r.convertedBookingId);
+    const canReject = !isConverted && r.status !== "Cancelled";
+
+    return [
+      {
+        key: "details",
+        label: "View Full Details",
+        icon: ExternalLink,
+        onSelect: () => navigate(`/admin/bookings/inquiries/${r._id}`),
+      },
+      isConverted
+        ? {
+            key: "reservation",
+            label: "View Reservation",
+            icon: CheckCircle2,
+            onSelect: () => navigate("/admin/bookings/reservations"),
+          }
+        : {
+            key: "quote",
+            label: r.latestQuote ? "Edit Quotation" : "Create Quotation",
+            icon: FileText,
+            onSelect: () => navigate(`/admin/quotes/${r._id}/details`),
+          },
+      {
+        key: "archive",
+        label: r.archived ? "Restore Inquiry" : "Archive Inquiry",
+        icon: r.archived ? ArchiveRestore : Archive,
+        onSelect: () => setArchiveTarget(r),
+      },
+      ...(canReject
+        ? [
+            { divider: true },
+            {
+              key: "reject",
+              label: "Reject Inquiry",
+              icon: X,
+              destructive: true,
+              onSelect: () => setCancelTarget(r),
+            },
+          ]
+        : []),
+    ];
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-3 bg-background min-h-[calc(100vh-4rem)] p-1.5 sm:p-2.5">
@@ -961,62 +1007,13 @@ export default function AdminInquiries() {
                                   onClick={() => setSelectedInquiry(r)}
                                   title="Quick View Inquiry Summary"
                                   aria-label="Quick View Inquiry Summary"
-                                  className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-muted hover:text-primary rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
+                                  className="px-2 py-1 text-xs font-semibold text-foreground bg-card border border-border/80 hover:bg-blue-50/80 hover:text-[#4C81E0] hover:border-blue-200/80 rounded-md transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1 shrink-0"
                                 >
                                   <Eye size={12} className="text-muted-foreground" />
                                   <span>Summary</span>
                                 </button>
-                                
-                                <div className="relative group/menu shrink-0">
-                                  <button
-                                    title="More options"
-                                    aria-label="More options"
-                                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                                  >
-                                    <MoreHorizontal size={14} />
-                                  </button>
-                                  <div className="absolute right-0 top-full mt-1 hidden group-hover/menu:block z-30 w-44 p-1 bg-popover border border-border rounded-lg shadow-md text-left space-y-0.5 text-xs">
-                                    <button
-                                      onClick={() => navigate(`/admin/bookings/inquiries/${r._id}`)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer font-medium text-foreground"
-                                    >
-                                      <ExternalLink size={12} className="text-primary" /> View Full Details
-                                    </button>
-                                    {r.status === "Converted to Booking" || Boolean(r.convertedBookingId) ? (
-                                      <button
-                                        onClick={() => navigate('/admin/bookings/reservations')}
-                                        className="w-full px-2 py-1 rounded-md hover:bg-teal-50 text-teal-700 text-left flex items-center gap-1.5 transition-colors cursor-pointer font-medium"
-                                      >
-                                        <CheckCircle2 size={12} /> View Reservation
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={() => navigate(`/admin/quotes/${r._id}/details`)}
-                                        className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
-                                      >
-                                        <FileText size={12} /> {r.latestQuote ? "Edit Quotation" : "Create Quotation"}
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => setArchiveTarget(r)}
-                                      className="w-full px-2 py-1 rounded-md hover:bg-primary/10 hover:text-primary text-left flex items-center gap-1.5 transition-colors cursor-pointer"
-                                    >
-                                      {r.archived ? <ArchiveRestore size={12} /> : <Archive size={12} />}
-                                      {r.archived ? "Restore Inquiry" : "Archive Inquiry"}
-                                    </button>
-                                    {r.status !== "Converted to Booking" && !r.convertedBookingId && r.status !== "Cancelled" && (
-                                      <>
-                                        <div className="border-t border-border/60 my-0.5" />
-                                        <button
-                                          onClick={() => setCancelTarget(r)}
-                                          className="w-full px-2 py-1 rounded-md hover:bg-rose-50 text-rose-600 text-left flex items-center gap-1.5 font-medium transition-colors cursor-pointer"
-                                        >
-                                          <X size={12} /> Reject Inquiry
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
+
+                                <RowActionsMenu actions={buildInquiryActions(r)} />
                               </div>
                             </td>
                           </tr>

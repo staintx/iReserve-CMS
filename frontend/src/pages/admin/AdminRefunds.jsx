@@ -432,7 +432,7 @@ export default function AdminRefunds() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => setDrawerRow(r)}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors"
             title="View Refund Details"
           >
             <Eye size={15} />
@@ -441,7 +441,7 @@ export default function AdminRefunds() {
           {r.status === "approved" && (
             <button
               onClick={() => setVoucherModalRow(r)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors"
               title="Print Refund Voucher"
             >
               <Printer size={15} />
@@ -452,7 +452,7 @@ export default function AdminRefunds() {
             <RowActionsMenu
               actions={[
                 { key: "calc", label: "Calculate & Approve Refund", icon: Calculator, onSelect: () => handleOpenCalc(r) },
-                { key: "deny", label: "Deny / Reject Refund (₱0)", icon: XCircle, onSelect: () => handleDenyRefund(r) },
+                { key: "deny", label: "Deny / Reject Refund (₱0)", icon: XCircle, destructive: true, onSelect: () => handleDenyRefund(r) },
                 { key: "view", label: "View Full Details", icon: Eye, onSelect: () => setDrawerRow(r) },
                 { key: "booking", label: "Open Booking Details", icon: FileText, onSelect: () => navigate(`/admin/bookings/${r._id}/details`) },
               ]}

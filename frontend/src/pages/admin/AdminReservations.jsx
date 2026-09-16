@@ -33,13 +33,15 @@ import {
   History,
   MoreHorizontal,
   Archive,
-  Download
+  Download,
+  UserCheck
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminLayout from "../../components/layout/AdminLayout";
 import KPICard from "../../components/admin/ui/KPICard";
 import Badge from "../../components/admin/ui/Badge";
 import ConflictModal from "../../components/admin/ui/ConflictModal";
+import AdminAssignStaffModal from "../../components/admin/ui/AdminAssignStaffModal";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -134,6 +136,7 @@ export default function AdminReservations() {
   const [bulkCancelConfirm, setBulkCancelConfirm] = useState(false);
   const [showConflict, setShowConflict] = useState(false);
   const [approvedId, setApprovedId] = useState(null);
+  const [assignStaffTarget, setAssignStaffTarget] = useState(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -263,6 +266,8 @@ export default function AdminReservations() {
           isRevised: Boolean(b.is_revised),
           revisionCount: b.revision_count || 0,
           coordinator: b.event_manager_id?.full_name || "Unassigned",
+          staffAssignments: Array.isArray(b.staff_assignments) ? b.staff_assignments : [],
+          staffCount: Array.isArray(b.staff_assignments) ? b.staff_assignments.length : 0,
           depositPaid: depositPaidBool,
           isFullyPaid,
           quotationBacked: quotationBackedIds.has(String(b._id)),
@@ -766,7 +771,18 @@ export default function AdminReservations() {
 
                             {/* Status Badge */}
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              <Badge status={r.status} />
+                              <div className="space-y-1">
+                                <Badge status={r.status} />
+                                {r.staffCount > 0 ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    <UserCheck size={10} /> {r.staffCount} Staff
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                    No Team
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Deposit Status Badge */}
@@ -1054,6 +1070,26 @@ export default function AdminReservations() {
                             <span className="text-[10px] text-muted-foreground block font-medium">Coordinator</span>
                             <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
                           </div>
+                          <div className="col-span-2 pt-1.5 border-t border-border/50 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
+                                <Users size={11} className="text-primary" /> Staff Team Dispatched
+                              </span>
+                              <span className="font-medium text-foreground block mt-0.5">
+                                {selectedBooking.staffCount > 0
+                                  ? `${selectedBooking.staffCount} crew member${selectedBooking.staffCount === 1 ? "" : "s"} assigned`
+                                  : "No staff team assigned yet"}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAssignStaffTarget(selectedBooking.rawBooking)}
+                              className="text-xs font-semibold px-2.5 py-1 rounded-md border border-border bg-card hover:bg-muted text-primary cursor-pointer transition-colors shadow-2xs flex items-center gap-1"
+                            >
+                              <UserCheck size={12} />
+                              {selectedBooking.staffCount > 0 ? "Edit Team" : "Assign Team"}
+                            </button>
+                          </div>
                           <div className="col-span-2 pt-1.5 border-t border-border/50">
                             <span className="text-[10px] text-muted-foreground block font-medium flex items-center gap-1">
                               <MapPin size={11} className="text-primary" /> Venue Address
@@ -1138,6 +1174,18 @@ export default function AdminReservations() {
           );
         })()}
       </div>
+
+      {assignStaffTarget && (
+        <AdminAssignStaffModal
+          booking={assignStaffTarget}
+          open={Boolean(assignStaffTarget)}
+          onClose={() => setAssignStaffTarget(null)}
+          onSave={() => {
+            loadData();
+            setAssignStaffTarget(null);
+          }}
+        />
+      )}
     </AdminLayout>
   );
 }

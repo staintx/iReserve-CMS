@@ -668,13 +668,15 @@ exports.create = asyncHandler(async (req, res) => {
 
 exports.getAll = asyncHandler(async (req, res) => {
   res.json(
-    await Booking.find().populate("customer_id package_id event_manager_id inquiry_id quotation_id").lean(),
+    await Booking.find().populate(
+      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id",
+    ).lean(),
   );
 });
 
 exports.getMine = asyncHandler(async (req, res) => {
   const bookings = await Booking.find({ customer_id: req.user._id }).populate(
-    "customer_id package_id event_manager_id inquiry_id quotation_id",
+    "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id",
   ).lean();
   res.json(bookings);
 });
@@ -684,14 +686,16 @@ exports.getById = asyncHandler(async (req, res) => {
     const booking = await Booking.findOne({
       _id: req.params.id,
       customer_id: req.user._id,
-    }).populate("customer_id package_id event_manager_id staff_ids inquiry_id quotation_id").lean();
+    }).populate(
+      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id",
+    ).lean();
     if (!booking) return res.status(404).json({ message: "Booking not found" });
     return res.json(booking);
   }
 
   res.json(
     await Booking.findById(req.params.id).populate(
-      "customer_id package_id event_manager_id staff_ids inquiry_id quotation_id",
+      "customer_id package_id event_manager_id staff_assignments.user_id inquiry_id quotation_id",
     ).lean(),
   );
 });

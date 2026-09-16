@@ -236,6 +236,39 @@ exports.assignStaff = asyncHandler(async (req, res) => {
     .populate("customer_id", "full_name email phone")
     .populate("staff_assignments.user_id", "full_name email phone position");
 
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("system:refresh", { type: "booking", action: "assign_staff", booking_id: booking._id });
+  }
+
+  // Notify each assigned registered staff member
+  try {
+    const { createNotification } = require("../utils/notify");
+    const eventDateFormatted = booking.event_date
+      ? new Date(booking.event_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : "Upcoming Event";
+
+    const notifyPromises = staff_assignments
+      .filter((a) => a.user_id)
+      .map((a) => {
+        const staffUserId = a.user_id?._id || a.user_id;
+        return createNotification(
+          {
+            userId: staffUserId,
+            title: "New Event Crew Assignment",
+            body: `You have been assigned as ${a.role || "Staff"} for ${booking.event_type || "Catering Event"} on ${eventDateFormatted}.`,
+            type: "info",
+            link: `/staff/events/${booking._id}`,
+            meta: { booking_id: booking._id, role: a.role }
+          },
+          io
+        ).catch((err) => console.error("Staff notification error:", err));
+      });
+    await Promise.allSettled(notifyPromises);
+  } catch (notifErr) {
+    console.error("Error creating staff assignment notifications:", notifErr);
+  }
+
   res.json({ message: "Staff assigned successfully", booking: populated });
 });
 

@@ -45,18 +45,30 @@ exports.getAllStaff = asyncHandler(async (req, res) => {
   const staff = await User.find({ role: { $in: ["staff", "manager"] } }).lean();
   const staffIds = staff.map((s) => s._id);
 
-  const eventsByStaff = await Booking.aggregate([
-    { $match: { "staff_assignments.user_id": { $in: staffIds } } },
-    { $unwind: "$staff_assignments" },
-    { $match: { "staff_assignments.user_id": { $in: staffIds } } },
-    { $group: { _id: "$staff_assignments.user_id", count: { $sum: 1 } } }
+  const [eventsByStaff, eventsByManager] = await Promise.all([
+    Booking.aggregate([
+      { $match: { "staff_assignments.user_id": { $in: staffIds } } },
+      { $unwind: "$staff_assignments" },
+      { $match: { "staff_assignments.user_id": { $in: staffIds } } },
+      { $group: { _id: "$staff_assignments.user_id", count: { $sum: 1 } } }
+    ]),
+    Booking.aggregate([
+      { $match: { event_manager_id: { $in: staffIds } } },
+      { $group: { _id: "$event_manager_id", count: { $sum: 1 } } }
+    ])
   ]);
-  const eventsMap = new Map(eventsByStaff.map((e) => [String(e._id), e.count]));
 
-  res.json(staff.map((member) => ({
-    ...member,
-    events_handled: eventsMap.get(String(member._id)) || 0
-  })));
+  const staffEventsMap = new Map(eventsByStaff.map((e) => [String(e._id), e.count]));
+  const managerEventsMap = new Map(eventsByManager.map((e) => [String(e._id), e.count]));
+
+  res.json(staff.map((member) => {
+    const sCount = staffEventsMap.get(String(member._id)) || 0;
+    const mCount = managerEventsMap.get(String(member._id)) || 0;
+    return {
+      ...member,
+      events_handled: sCount + mCount
+    };
+  }));
 });
 
 exports.updateStaff = asyncHandler(async (req, res) => {

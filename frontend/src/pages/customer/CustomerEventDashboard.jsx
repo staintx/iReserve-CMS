@@ -53,7 +53,7 @@ import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
-import { isFoodOnly, isSetupOnly } from "../../components/customer/portal/statusMeta";
+import { isFoodOnly, isSetupOnly, resolveServiceType } from "../../components/customer/portal/statusMeta";
 import BookingHistoryTimeline from "../../components/booking/BookingHistoryTimeline";
 import BookingVersionHistory from "../../components/booking/BookingVersionHistory";
 import AmountSummary from "../../components/customer/portal/AmountSummary";
@@ -1216,7 +1216,7 @@ export default function CustomerEventDashboard() {
 
                 <span className="flex items-center gap-1.5">
                   <Utensils className="w-3.5 h-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                  <span className="font-semibold text-slate-800">{booking.service_type || "Food & Setup"}</span>
+                  <span className="font-semibold text-slate-800">{resolveServiceType(booking)}</span>
                 </span>
 
                 <button
@@ -1600,7 +1600,7 @@ export default function CustomerEventDashboard() {
                       <div>
                         <p className="text-xs font-semibold text-slate-600 mb-0.5">Venue &amp; Setup Type</p>
                         <p className="font-bold text-slate-900">{booking.venue_type || "Standard Venue"}</p>
-                        <p className="text-xs font-medium text-slate-600 mt-0.5 capitalize">Service: {booking.service_type || "Food & Setup"}</p>
+                        <p className="text-xs font-medium text-slate-600 mt-0.5">Service: {resolveServiceType(booking)}</p>
                       </div>
 
                       <div>

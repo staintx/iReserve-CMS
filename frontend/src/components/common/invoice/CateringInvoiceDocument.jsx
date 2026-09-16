@@ -3,6 +3,7 @@ import { formatCurrency, formatEventDateWithDay, formatTime, formatShortDate } f
 import { menuLineTotal, menuAmountLabel } from "../../../utils/quotationPricing";
 import { policyHighlights } from "../../../lib/policy";
 import useAuth from "../../../hooks/useAuth";
+import { resolveServiceType } from "../../customer/portal/statusMeta";
 
 /**
  * Normalizes booking, quotation, or inquiry records into a unified document structure.
@@ -83,7 +84,13 @@ function normalizeDocumentData({ booking, quotation, inquiry, payments = [], bus
 
   // Event Context
   const eventType = snapshot?.event_type || source.event_type || "Catering Event";
-  const serviceType = snapshot?.service_type || source.service_type || "Food and Event Setup";
+  const serviceType = resolveServiceType({
+    ...source,
+    ...(snapshot || {}),
+    package_id: quotation?.package_id || source?.package_id || booking?.package_id,
+    package_name: quotation?.package_name || source?.package_name_snapshot || source?.package_name || booking?.package_name,
+    menu_items: quotation?.menu_items || source?.menu_items || source?.selected_menu,
+  });
   const guestCount = Number(snapshot?.guest_count || source.guest_count) || 1;
   const venueType = snapshot?.venue_type || source.venue_type || "Standard Venue";
   const eventTheme = source.event_theme || "";

@@ -753,7 +753,7 @@ export default function StepMenuSelection({
       <StepShell aside={isFoodIncluded ? <EstimateSummary estimate={estimate} /> : undefined}>
         <SH
           title="Food Catering Menu"
-          sub="Choose any dishes you'd like for your guests. Your per-guest price is confirmed on your official quotation."
+          sub="Choose any dishes you'd like for your guests. Food pricing and details will be discussed and finalized in your official quotation."
         />
 
         {/* Catering Toggle: Include Food vs Setup Only */}

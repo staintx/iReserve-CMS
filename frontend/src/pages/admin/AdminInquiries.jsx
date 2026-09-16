@@ -16,6 +16,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import Badge from "../../components/admin/ui/Badge";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
 import { bookingIdentity } from "../../lib/specialOffers";
+import { resolveServiceType } from "../../components/customer/portal/statusMeta";
 
 /**
  * Avatar Initials component with deterministic background color
@@ -349,6 +350,7 @@ export default function AdminInquiries() {
         email: b.customer_id?.email || b.contact_email || "",
         phone: b.customer_id?.phone || b.contact_phone || "—",
         booking: identity.name,
+        service: resolveServiceType(b),
         bookingType: identity.type, // 'special' | 'regular' | 'custom'
         bookingTypeLabel: identity.label, // 'Special Offer' | 'Regular Package' | 'Custom Request'
         eventType: b.event_type || "Event",
@@ -1282,8 +1284,8 @@ export default function AdminInquiries() {
                       <span className="text-[11px] text-muted-foreground block">{selectedInquiry.guests} guests (pax)</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">Catering Package</span>
-                      <span className="font-semibold text-foreground">{selectedInquiry.booking}</span>
+                      <span className="text-[10px] text-muted-foreground block font-medium">Service</span>
+                      <span className="font-semibold text-foreground">{selectedInquiry.service || selectedInquiry.booking}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-muted-foreground block font-medium">Budget / Est. Total</span>

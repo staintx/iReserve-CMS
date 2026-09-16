@@ -60,6 +60,7 @@ import {
   SERVICE_TYPES,
   cateringRequested,
 } from "../../../pages/customer/booking/lib/bookingRules";
+import { resolveServiceType } from "../../customer/portal/statusMeta";
 import {
   isSpecialOffer,
   offerBaseFoodPrice,
@@ -760,9 +761,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         const latest = pendingDraft || latestIssued;
 
         if (latest) {
+          const snapshot = latest.event_snapshot || {};
+          const rawSnapshotServiceType = snapshot.service_type
+            ? String(snapshot.service_type).replace(/^Custom Quote\s*-\s*/i, "").trim()
+            : undefined;
+
           setDetails((prev) => ({
             ...prev,
             guest_count: Number(latest.guest_count) || prev.guest_count,
+            ...(rawSnapshotServiceType ? { service_type: rawSnapshotServiceType } : {}),
+            ...(typeof snapshot.include_food === "boolean" ? { include_food: snapshot.include_food } : {}),
             // Unapplied edits from a draft, field by field, so a draft saved
             // before a field existed still picks up the inquiry's value for it.
             ...(pendingDraft?.draft_details
@@ -772,6 +780,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     key !== "_id" && value !== undefined && value !== null && value !== ""
                 )
               )
+              : {}),
+            ...(pendingDraft?.draft_details?.service_type
+              ? {
+                  service_type: String(pendingDraft.draft_details.service_type)
+                    .replace(/^Custom Quote\s*-\s*/i, "")
+                    .trim(),
+                }
               : {}),
             ...(pendingDraft?.draft_details?.event_type
               ? {
@@ -860,21 +875,21 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           setMenuItems(
             Array.isArray(latest.menu_items)
               ? latest.menu_items.map((m) => {
-                  const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
-                  const { category, note } = splitLegacyNote(m);
-                  return menuRow({
-                    name: m?.name || "",
-                    category,
-                    note,
-                    quantity: perGuest
-                      ? restoredGuests
-                      : Number(m?.quantity) > 0
-                        ? Number(m.quantity)
-                        : 1,
-                    unit: perGuest ? "pax" : m?.unit || "",
-                    price: m?.price ? String(m.price) : "",
-                  });
-                })
+                const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
+                const { category, note } = splitLegacyNote(m);
+                return menuRow({
+                  name: m?.name || "",
+                  category,
+                  note,
+                  quantity: perGuest
+                    ? restoredGuests
+                    : Number(m?.quantity) > 0
+                      ? Number(m.quantity)
+                      : 1,
+                  unit: perGuest ? "pax" : m?.unit || "",
+                  price: m?.price ? String(m.price) : "",
+                });
+              })
               : []
           );
           // An add-on stored as "fixed" was charged once, which is a quantity
@@ -1009,16 +1024,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             !customerSelection.wantedFood
               ? []
               : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
-                  if (item && typeof item === "object") {
-                    return menuRow({
-                      name: item.name || "",
-                      category: item.category || "",
-                      note: item.note || "",
-                      price: !item.price ? "" : String(item.price),
-                    });
-                  }
-                  return menuRow({ name: String(item || "") });
-                })
+                if (item && typeof item === "object") {
+                  return menuRow({
+                    name: item.name || "",
+                    category: item.category || "",
+                    note: item.note || "",
+                    price: !item.price ? "" : String(item.price),
+                  });
+                }
+                return menuRow({ name: String(item || "") });
+              })
           );
         }
 
@@ -1143,6 +1158,97 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // Add-ons the admin has parked stay on screen but never reach a total or the
   // saved quotation, so restoring one costs nothing and changes nothing.
   const chargeableAddOns = useMemo(() => addOns.filter((item) => !item.removed), [addOns]);
+
+  /**
+   * Identifies whether the current context is for a package-based inquiry
+   * or a custom quote inquiry, matching the centralized resolver logic.
+   */
+  const isPackageInquiry = useMemo(() => {
+    const isExplicitCustom =
+      inquiry?.booking_type === "custom" ||
+      inquiry?.is_custom_setup === true ||
+      quotation?.booking_type === "custom" ||
+      quotation?.event_snapshot?.is_custom_setup === true;
+    if (isExplicitCustom) return false;
+
+    const rawPkgName =
+      packageName ||
+      quotation?.package_name ||
+      inquiry?.package_name_snapshot ||
+      packageRecord?.name ||
+      (typeof inquiry?.package_name === "string" && !/^custom\b/i.test(inquiry.package_name) ? inquiry.package_name : null);
+
+    const hasPackageRef = Boolean(
+      (inquiry?.package_id && inquiry.package_id !== "none") ||
+      (quotation?.package_id && quotation.package_id !== "none") ||
+      inquiry?.had_package_selection ||
+      rawPkgName
+    );
+
+    const bookingType = inquiry?.booking_type || quotation?.booking_type;
+    return (
+      bookingType === "regular" ||
+      bookingType === "special" ||
+      (hasPackageRef && bookingType !== "custom")
+    );
+  }, [inquiry, quotation, packageName, packageRecord]);
+
+  /**
+   * Canonical displayed service type using the shared resolveServiceType helper:
+   * - Package without menu: `<Package Name>`
+   * - Package with menu: `<Package Name> + Menu`
+   * - Custom quote: `Custom Quote - <Service Type>`
+   */
+  const displayedServiceType = useMemo(() => {
+    const effectivePackageName =
+      packageName ||
+      quotation?.package_name ||
+      inquiry?.package_name_snapshot ||
+      packageRecord?.name ||
+      (typeof inquiry?.package_name === "string" && !/^custom\b/i.test(inquiry.package_name) ? inquiry.package_name : null);
+
+    const dishesList =
+      Array.isArray(chargeableMenuItems) && chargeableMenuItems.length > 0
+        ? chargeableMenuItems
+        : Array.isArray(menuItems) && menuItems.length > 0
+          ? menuItems
+          : Array.isArray(inquiry?.selected_menu) && inquiry.selected_menu.length > 0
+            ? inquiry.selected_menu
+            : Array.isArray(quotation?.menu_items) && quotation.menu_items.length > 0
+              ? quotation.menu_items
+              : Array.isArray(customerSelection?.dishes) && customerSelection.dishes.length > 0
+                ? customerSelection.dishes
+                : [];
+
+    const recordToResolve = {
+      ...inquiry,
+      ...(quotation?.event_snapshot || {}),
+      booking_type: inquiry?.booking_type || quotation?.booking_type,
+      is_custom_setup:
+        inquiry?.is_custom_setup ||
+        quotation?.event_snapshot?.is_custom_setup ||
+        quotation?.is_custom_setup,
+      package_id: packageRecord || inquiry?.package_id || quotation?.package_id,
+      package_name_snapshot: effectivePackageName,
+      package_name: effectivePackageName,
+      include_food: cateringIncluded,
+      selected_menu: dishesList,
+      menu_items: dishesList,
+      service_type: details.service_type,
+    };
+
+    return resolveServiceType(recordToResolve);
+  }, [
+    inquiry,
+    quotation,
+    packageRecord,
+    packageName,
+    chargeableMenuItems,
+    menuItems,
+    customerSelection?.dishes,
+    cateringIncluded,
+    details.service_type,
+  ]);
 
   const pricingInput = useMemo(
     () => ({
@@ -1345,9 +1451,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     if (cateringIncluded && chargeableMenuItems.length === 0 && !offerContext) {
       notes.push(
         customerSelection.dishes.length > 0
-          ? `The customer picked ${customerSelection.dishes.length} dish${
-              customerSelection.dishes.length === 1 ? "" : "es"
-            }, but none are on this quotation. Restore them or confirm the catering is being dropped.`
+          ? `The customer picked ${customerSelection.dishes.length} dish${customerSelection.dishes.length === 1 ? "" : "es"
+          }, but none are on this quotation. Restore them or confirm the catering is being dropped.`
           : "This booking includes catering, but no dishes are quoted yet."
       );
     }
@@ -1555,10 +1660,13 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
    * admin was looking at the dishes.
    */
   const handleServiceTypeChange = (value) => {
+    const cleanType = String(value || "")
+      .replace(/^Custom Quote\s*-\s*/i, "")
+      .trim();
     setDetails((prev) => ({
       ...prev,
-      service_type: value,
-      include_food: value !== SERVICE_TYPES.SETUP_ONLY,
+      service_type: cleanType,
+      include_food: cleanType !== SERVICE_TYPES.SETUP_ONLY,
     }));
     clearError("service_type");
   };
@@ -1652,11 +1760,11 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       prev.map((entry, i) =>
         i === index
           ? {
-              ...entry,
-              quantity: entry.baseQuantity,
-              name: withInclusionQuantity(entry.name, entry.baseQuantity),
-              unitPrice: "",
-            }
+            ...entry,
+            quantity: entry.baseQuantity,
+            name: withInclusionQuantity(entry.name, entry.baseQuantity),
+            unitPrice: "",
+          }
           : entry
       )
     );
@@ -2053,8 +2161,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const baseTitle = inquiry?.status === "Revision Requested"
     ? "Revise Quotation"
     : quotation
-    ? "Quotation Editor"
-    : "Prepare Quotation";
+      ? "Quotation Editor"
+      : "Prepare Quotation";
 
   const modalTitle = (
     <div className="flex flex-wrap items-center gap-2 font-sans !font-sans">
@@ -2195,11 +2303,10 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
             <button
               type="button"
               onClick={() => scrollToSection("qb-section-adjustments")}
-              className={`px-2.5 py-1 rounded-lg font-semibold text-[11.5px] shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs ${
-                includeOvertime
+              className={`px-2.5 py-1 rounded-lg font-semibold text-[11.5px] shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs ${includeOvertime
                   ? "bg-sky-100 text-sky-900 border border-sky-300 font-bold"
                   : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80"
-              }`}
+                }`}
             >
               <Clock size={12} className={includeOvertime ? "text-sky-600" : "text-slate-500"} />
               <span>6. Overtime &amp; Fees {includeOvertime && `(Active)`}</span>
@@ -2217,1414 +2324,1640 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* Scrollable Form Content */}
           <div ref={formRef} className="flex-1 space-y-4 overflow-y-auto pb-10 pr-1 lg:pr-3">
 
-          {/* AI Quotation Recommendation Header */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border border-amber-500/30 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
-                <Sparkles size={15} />
-              </div>
-              <div className="min-w-0">
-                <span className="font-bold text-xs text-foreground block truncate">Zelle AI Quotation Assistant</span>
-                <p className="text-[11px] text-muted-foreground truncate">Analyze requirements to generate a complete quotation draft</p>
-              </div>
-            </div>
-            <ZelleQuoteDraft
-              inquiryId={inquiry?._id}
-              currentPackageName={packageName}
-              guestCount={details.guest_count}
-              onApplyRecommendation={(rec) => {
-                if (rec.recommended_package) setPackageName(rec.recommended_package);
-                if (rec.starting_price || rec.estimated_package_cost) {
-                  setStartingPrice(String(rec.starting_price || rec.estimated_package_cost));
-                }
-                if (Array.isArray(rec.inclusions) && rec.inclusions.length > 0) {
-                  setInclusions(rec.inclusions.map((name) => inclusionRow(name)));
-                }
-                if (Array.isArray(rec.recommended_addons) && rec.recommended_addons.length > 0) {
-                  setAddOns(
-                    rec.recommended_addons.map((a) => ({
-                      name: typeof a === "object" ? a.name : a,
-                      price: typeof a === "object" && a.price ? String(a.price) : "2500",
-                      quantity: 1,
-                      note: "",
-                      pricing_type: "quantity",
-                    }))
-                  );
-                }
-                if (rec.deposit_amount) {
-                  setDepositAmount(String(rec.deposit_amount));
-                }
-                if (rec.admin_notes) {
-                  setAdminNotes((prev) => (prev ? prev + "\n" + rec.admin_notes : rec.admin_notes));
-                }
-              }}
-            />
-          </div>
-
-          {savedDraft && (
-            <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-              <span className="flex items-start gap-2.5">
-                <FileText size={15} className="mt-0.5 shrink-0 text-amber-700" />
-                <span>
-                  <strong className="font-semibold text-amber-950">Draft in progress.</strong> The
-                  customer has not seen any of this.
-                  {draftSavedAt && (
-                    <span className="ml-1 tabular-nums text-amber-800">
-                      Last saved {formatSavedAt(draftSavedAt)}.
-                    </span>
-                  )}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={handleDiscardDraft}
-                className={`${ROW_ACTION_BASE} ${ROW_ACTION_TONES.danger} self-start sm:self-auto`}
-              >
-                <Trash2 size={12} /> Discard draft
-              </button>
-            </div>
-          )}
-
-          {quotation?.status === "Revision Requested" && (
-            <div className="flex flex-col gap-2 rounded-lg border border-orange-300 bg-orange-50 p-3 text-xs leading-relaxed text-orange-900">
-              <span className="flex items-start gap-2.5">
-                <RefreshCw size={15} className="mt-0.5 shrink-0 text-orange-600" />
-                <span>
-                  <strong className="font-semibold text-orange-950">Customer Revision Request</strong>
-                  {quotation.revision_requested_at && (
-                    <span className="ml-1 tabular-nums text-orange-700">
-                      &middot; {formatSavedAt(quotation.revision_requested_at)}
-                    </span>
-                  )}
-                </span>
-              </span>
-              {quotation.customer_response ? (
-                <blockquote className="rounded-lg border border-orange-200/80 bg-white/80 px-3 py-2 text-slate-800">
-                  “{quotation.customer_response}”
-                </blockquote>
-              ) : (
-                <p className="italic text-orange-700">
-                  The customer did not include a written message with this request.
-                </p>
-              )}
-            </div>
-          )}
-
-          {quotation && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/5 p-3 text-xs leading-relaxed text-slate-700">
-              <RefreshCw size={15} className="mt-0.5 shrink-0 text-primary" />
-              <span>
-                You are revising an issued quotation. Sending publishes{" "}
-                <strong className="font-semibold text-slate-900">
-                  Version {(Number(quotation.version_number) || 1) + 1}.0
-                </strong>{" "}
-                to the customer and replaces what they are looking at now.
-              </span>
-            </div>
-          )}
-
-          {/* Validation belongs on the page next to the fields it names, not
-              in a dialog and not in a toast that expires while the admin is
-              still reading the list. */}
-          {showErrorSummary && errorCount > 0 && (
-            <InlineMessage
-              tone="error"
-              assertive
-              title={
-                errorCount === 1
-                  ? "One field needs your attention before this can be sent."
-                  : `${errorCount} fields need your attention before this can be sent.`
-              }
-            >
-              <ul>
-                {Object.entries(errors)
-                  .slice(0, 5)
-                  .map(([key, message]) => (
-                    <li key={key}>{message}</li>
-                  ))}
-                {errorCount > 5 && <li>and {errorCount - 5} more below.</li>}
-              </ul>
-            </InlineMessage>
-          )}
-
-          {/* --- 1. Customer and event information --------------------------- */}
-          <SectionCard
-            step={stepNumbers.details}
-            id="qb-section-details"
-            accent="slate"
-            icon={User}
-            title={
-              isFoodOnly
-                ? "Event Specifications & Order Details"
-                : isSetupOnly
-                ? "Event Specifications & Setup Location"
-                : "Event Specifications & Customer Details"
-            }
-            description={
-              "Key parameters driving package pricing, headcount, and event scheduling."
-            }
-            aside={
-              <div className="flex items-center gap-2">
-                {inquiry.reference && (
-                  <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
-                    {inquiry.reference}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowFullCustomerForm(!showFullCustomerForm)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors cursor-pointer"
-                >
-                  <Pencil size={11} className="text-slate-500" />
-                  <span>{isCustomerFormOpen ? "Collapse Full Form" : "Edit Contact & Address"}</span>
-                  {isCustomerFormOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                </button>
-              </div>
-            }
-          >
-            <div className="space-y-4">
-              {/* PRIMARY EVENT DRIVERS GRID (Always Visible & Directly Accessible) */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
-                {/* 1. Headcount / Pax (Prominent driver) */}
-                <div className="lg:col-span-1">
-                  <Field
-                    label={isFoodOnly ? "Headcount / Pax" : "Guest count (Pax)"}
-                    required
-                    error={errors.guest_count}
-                    htmlFor="qb-guest_count"
-                  >
-                    <div className="relative">
-                      <input
-                        id="qb-guest_count"
-                        type="number"
-                        min="1"
-                        value={details.guest_count}
-                        onWheel={(e) => e.target.blur()}
-                        onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
-                        className={`${inputClass(errors.guest_count)} font-bold text-base tabular-nums py-1.5`}
-                      />
-                    </div>
-                    <div className="flex items-center gap-1 mt-1.5">
-                      {[50, 100, 150].map((pax) => (
-                        <button
-                          key={pax}
-                          type="button"
-                          onClick={() => setDetail("guest_count", pax)}
-                          className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
-                            Number(details.guest_count) === pax
-                              ? "bg-primary text-white border-primary"
-                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                          }`}
-                        >
-                          {pax}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
+            {/* AI Quotation Recommendation Header */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border border-amber-500/30 shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                  <Sparkles size={15} />
                 </div>
-
-                {/* 2. Service Type */}
-                <div className="lg:col-span-1">
-                  <Field
-                    label="Service type"
-                    htmlFor="qb-service_type"
-                  >
-                    <select
-                      id="qb-service_type"
-                      value={details.service_type}
-                      onChange={(e) => handleServiceTypeChange(e.target.value)}
-                      className={`${inputClass(false)} py-2 text-xs font-semibold`}
-                    >
-                      {Object.values(SERVICE_TYPES).map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Determines package options</span>
-                  </Field>
-                </div>
-
-                {/* 3. Event Date */}
-                <div className="lg:col-span-1">
-                  <Field
-                    label="Event date"
-                    required
-                    error={errors.event_date}
-                    htmlFor="qb-event_date"
-                  >
-                    <input
-                      id="qb-event_date"
-                      type="date"
-                      min={today}
-                      value={details.event_date}
-                      onChange={(e) => setDetail("event_date", e.target.value)}
-                      className={`${inputClass(errors.event_date)} py-1.5 text-xs`}
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">Scheduled date</span>
-                  </Field>
-                </div>
-
-                {/* 4. Start Time */}
-                <div className="lg:col-span-1">
-                  <Field label="Start time" required error={errors.start_time} htmlFor="qb-start_time">
-                    <input
-                      id="qb-start_time"
-                      type="time"
-                      value={details.start_time}
-                      onChange={(e) => setDetail("start_time", e.target.value)}
-                      className={`${inputClass(errors.start_time)} py-1.5 text-xs`}
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">Standard 4h window</span>
-                  </Field>
-                </div>
-
-                {/* 5. Event Type */}
-                <div className="lg:col-span-1">
-                  <Field label="Event type" required error={errors.event_type} htmlFor="qb-event_type">
-                    <select
-                      id="qb-event_type"
-                      value={details.event_type}
-                      onChange={(e) => setDetail("event_type", e.target.value)}
-                      className={`${inputClass(errors.event_type)} py-2 text-xs`}
-                    >
-                      <option value="">Select event type</option>
-                      {EVENT_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                    {details.event_type === OTHER_EVENT_TYPE && (
-                      <input
-                        id="qb-event_type_other"
-                        type="text"
-                        placeholder="e.g. Reunion"
-                        value={details.event_type_other}
-                        onChange={(e) => setDetail("event_type_other", e.target.value)}
-                        className={`${inputClass(errors.event_type_other)} py-1 text-xs mt-1`}
-                      />
-                    )}
-                  </Field>
+                <div className="min-w-0">
+                  <span className="font-bold text-xs text-foreground block truncate">Zelle AI Quotation Assistant</span>
+                  <p className="text-[11px] text-muted-foreground truncate">Analyze requirements to generate a complete quotation draft</p>
                 </div>
               </div>
+              <ZelleQuoteDraft
+                inquiryId={inquiry?._id}
+                currentPackageName={packageName}
+                guestCount={details.guest_count}
+                onApplyRecommendation={(rec) => {
+                  if (rec.recommended_package) setPackageName(rec.recommended_package);
+                  if (rec.starting_price || rec.estimated_package_cost) {
+                    setStartingPrice(String(rec.starting_price || rec.estimated_package_cost));
+                  }
+                  if (Array.isArray(rec.inclusions) && rec.inclusions.length > 0) {
+                    setInclusions(rec.inclusions.map((name) => inclusionRow(name)));
+                  }
+                  if (Array.isArray(rec.recommended_addons) && rec.recommended_addons.length > 0) {
+                    setAddOns(
+                      rec.recommended_addons.map((a) => ({
+                        name: typeof a === "object" ? a.name : a,
+                        price: typeof a === "object" && a.price ? String(a.price) : "2500",
+                        quantity: 1,
+                        note: "",
+                        pricing_type: "quantity",
+                      }))
+                    );
+                  }
+                  if (rec.deposit_amount) {
+                    setDepositAmount(String(rec.deposit_amount));
+                  }
+                  if (rec.admin_notes) {
+                    setAdminNotes((prev) => (prev ? prev + "\n" + rec.admin_notes : rec.admin_notes));
+                  }
+                }}
+              />
+            </div>
 
-              {/* HIGH DENSITY CUSTOMER & VENUE SUMMARY BANNER */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <User size={13} className="text-slate-400 shrink-0" />
-                    <span className="font-bold text-slate-900 truncate">
-                      {details.contact_first_name} {details.contact_last_name}
-                    </span>
-                    {details.celebrant_name && (
-                      <span className="rounded bg-rose-50 border border-rose-200/80 px-1.5 py-0.2 text-[10px] text-rose-700 font-medium">
-                        for {details.celebrant_name}
+            {savedDraft && (
+              <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                <span className="flex items-start gap-2.5">
+                  <FileText size={15} className="mt-0.5 shrink-0 text-amber-700" />
+                  <span>
+                    <strong className="font-semibold text-amber-950">Draft in progress.</strong> The
+                    customer has not seen any of this.
+                    {draftSavedAt && (
+                      <span className="ml-1 tabular-nums text-amber-800">
+                        Last saved {formatSavedAt(draftSavedAt)}.
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-500">
-                    <Phone size={12} className="text-slate-400 shrink-0" />
-                    <span className="font-mono">{details.contact_phone || "No phone"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-500 truncate max-w-[200px]">
-                    <Mail size={12} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{details.contact_email || "No email"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-500 truncate max-w-[240px]">
-                    <MapPin size={12} className="text-slate-400 shrink-0" />
-                    <span className="truncate">
-                      {[details.street, details.barangay, details.municipality].filter(Boolean).join(", ") || details.venue_type || "Venue address pending"}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDiscardDraft}
+                  className={`${ROW_ACTION_BASE} ${ROW_ACTION_TONES.danger} self-start sm:self-auto`}
+                >
+                  <Trash2 size={12} /> Discard draft
+                </button>
+              </div>
+            )}
+
+            {quotation?.status === "Revision Requested" && (
+              <div className="flex flex-col gap-2 rounded-lg border border-orange-300 bg-orange-50 p-3 text-xs leading-relaxed text-orange-900">
+                <span className="flex items-start gap-2.5">
+                  <RefreshCw size={15} className="mt-0.5 shrink-0 text-orange-600" />
+                  <span>
+                    <strong className="font-semibold text-orange-950">Customer Revision Request</strong>
+                    {quotation.revision_requested_at && (
+                      <span className="ml-1 tabular-nums text-orange-700">
+                        &middot; {formatSavedAt(quotation.revision_requested_at)}
+                      </span>
+                    )}
+                  </span>
+                </span>
+                {quotation.customer_response ? (
+                  <blockquote className="rounded-lg border border-orange-200/80 bg-white/80 px-3 py-2 text-slate-800">
+                    “{quotation.customer_response}”
+                  </blockquote>
+                ) : (
+                  <p className="italic text-orange-700">
+                    The customer did not include a written message with this request.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {quotation && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/5 p-3 text-xs leading-relaxed text-slate-700">
+                <RefreshCw size={15} className="mt-0.5 shrink-0 text-primary" />
+                <span>
+                  You are revising an issued quotation. Sending publishes{" "}
+                  <strong className="font-semibold text-slate-900">
+                    Version {(Number(quotation.version_number) || 1) + 1}.0
+                  </strong>{" "}
+                  to the customer and replaces what they are looking at now.
+                </span>
+              </div>
+            )}
+
+            {/* Validation belongs on the page next to the fields it names, not
+              in a dialog and not in a toast that expires while the admin is
+              still reading the list. */}
+            {showErrorSummary && errorCount > 0 && (
+              <InlineMessage
+                tone="error"
+                assertive
+                title={
+                  errorCount === 1
+                    ? "One field needs your attention before this can be sent."
+                    : `${errorCount} fields need your attention before this can be sent.`
+                }
+              >
+                <ul>
+                  {Object.entries(errors)
+                    .slice(0, 5)
+                    .map(([key, message]) => (
+                      <li key={key}>{message}</li>
+                    ))}
+                  {errorCount > 5 && <li>and {errorCount - 5} more below.</li>}
+                </ul>
+              </InlineMessage>
+            )}
+
+            {/* --- 1. Customer and event information --------------------------- */}
+            <SectionCard
+              step={stepNumbers.details}
+              id="qb-section-details"
+              accent="slate"
+              icon={User}
+              title={
+                isFoodOnly
+                  ? "Event Specifications & Order Details"
+                  : isSetupOnly
+                    ? "Event Specifications & Setup Location"
+                    : "Event Specifications & Customer Details"
+              }
+              description={
+                "Key parameters driving package pricing, headcount, and event scheduling."
+              }
+              aside={
+                <div className="flex items-center gap-2">
+                  {inquiry.reference && (
+                    <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
+                      {inquiry.reference}
                     </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowFullCustomerForm(!showFullCustomerForm)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <Pencil size={11} className="text-slate-500" />
+                    <span>{isCustomerFormOpen ? "Collapse Full Form" : "Edit Contact & Address"}</span>
+                    {isCustomerFormOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                </div>
+              }
+            >
+              <div className="space-y-4">
+                {/* PRIMARY EVENT DRIVERS GRID (Always Visible & Directly Accessible) */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
+                  {/* 1. Headcount / Pax (Prominent driver) */}
+                  <div className="lg:col-span-1">
+                    <Field
+                      label={isFoodOnly ? "Headcount / Pax" : "Guest count (Pax)"}
+                      required
+                      error={errors.guest_count}
+                      htmlFor="qb-guest_count"
+                    >
+                      <div className="relative">
+                        <input
+                          id="qb-guest_count"
+                          type="number"
+                          min="1"
+                          value={details.guest_count}
+                          onWheel={(e) => e.target.blur()}
+                          onChange={(e) => setDetail("guest_count", nonNegative(e.target.value))}
+                          className={`${inputClass(errors.guest_count)} font-bold text-base tabular-nums py-1.5`}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 mt-1.5">
+                        {[50, 100, 150].map((pax) => (
+                          <button
+                            key={pax}
+                            type="button"
+                            onClick={() => setDetail("guest_count", pax)}
+                            className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${Number(details.guest_count) === pax
+                                ? "bg-primary text-white border-primary"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                              }`}
+                          >
+                            {pax}
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                  </div>
+
+                  {/* 2. Service Type */}
+                  <div className="lg:col-span-1">
+                    <Field
+                      label="Service type"
+                      htmlFor="qb-service_type"
+                    >
+                      {isPackageInquiry ? (
+                        <select
+                          id="qb-service_type"
+                          value={displayedServiceType}
+                          disabled
+                          aria-readonly="true"
+                          className={`${inputClass(false)} py-2 text-xs font-semibold bg-slate-50 text-slate-800 cursor-not-allowed truncate`}
+                          title={displayedServiceType}
+                        >
+                          <option value={displayedServiceType}>
+                            {displayedServiceType}
+                          </option>
+                        </select>
+                      ) : (
+                        <select
+                          id="qb-service_type"
+                          value={details.service_type}
+                          onChange={(e) => handleServiceTypeChange(e.target.value)}
+                          className={`${inputClass(false)} py-2 text-xs font-semibold`}
+                        >
+                          {Object.values(SERVICE_TYPES).map((type) => {
+                            const customLabel = resolveServiceType({
+                              booking_type: "custom",
+                              service_type: type,
+                            });
+                            return (
+                              <option key={type} value={type}>
+                                {customLabel}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      )}
+                      <span className="text-[10px] text-slate-400 mt-1 block">
+                        {isPackageInquiry ? "Defined by package & menu selection" : "Determines package options"}
+                      </span>
+                    </Field>
+                  </div>
+
+                  {/* 3. Event Date */}
+                  <div className="lg:col-span-1">
+                    <Field
+                      label="Event date"
+                      required
+                      error={errors.event_date}
+                      htmlFor="qb-event_date"
+                    >
+                      <input
+                        id="qb-event_date"
+                        type="date"
+                        min={today}
+                        value={details.event_date}
+                        onChange={(e) => setDetail("event_date", e.target.value)}
+                        className={`${inputClass(errors.event_date)} py-1.5 text-xs`}
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">Scheduled date</span>
+                    </Field>
+                  </div>
+
+                  {/* 4. Start Time */}
+                  <div className="lg:col-span-1">
+                    <Field label="Start time" required error={errors.start_time} htmlFor="qb-start_time">
+                      <input
+                        id="qb-start_time"
+                        type="time"
+                        value={details.start_time}
+                        onChange={(e) => setDetail("start_time", e.target.value)}
+                        className={`${inputClass(errors.start_time)} py-1.5 text-xs`}
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">Standard 4h window</span>
+                    </Field>
+                  </div>
+
+                  {/* 5. Event Type */}
+                  <div className="lg:col-span-1">
+                    <Field label="Event type" required error={errors.event_type} htmlFor="qb-event_type">
+                      <select
+                        id="qb-event_type"
+                        value={details.event_type}
+                        onChange={(e) => setDetail("event_type", e.target.value)}
+                        className={`${inputClass(errors.event_type)} py-2 text-xs`}
+                      >
+                        <option value="">Select event type</option>
+                        {EVENT_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                      {details.event_type === OTHER_EVENT_TYPE && (
+                        <input
+                          id="qb-event_type_other"
+                          type="text"
+                          placeholder="e.g. Reunion"
+                          value={details.event_type_other}
+                          onChange={(e) => setDetail("event_type_other", e.target.value)}
+                          className={`${inputClass(errors.event_type_other)} py-1 text-xs mt-1`}
+                        />
+                      )}
+                    </Field>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowFullCustomerForm(!showFullCustomerForm)}
-                  className="text-xs font-semibold text-primary hover:text-primary-hover transition-colors flex items-center gap-1 shrink-0 self-start sm:self-auto cursor-pointer"
-                >
-                  <span>{isCustomerFormOpen ? "Hide Form" : "Edit All Fields"}</span>
-                  {isCustomerFormOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                </button>
-              </div>
-
-              {/* COLLAPSIBLE FULL CONTACT, HONOREE & VENUE LOCATION EDITOR */}
-              {isCustomerFormOpen && (
-                <div className="space-y-3.5 pt-2 animate-in fade-in-50 duration-150">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <Field label="First name" required error={errors.contact_first_name} htmlFor="qb-contact_first_name">
-                      <input
-                        id="qb-contact_first_name"
-                        type="text"
-                        value={details.contact_first_name}
-                        onChange={(e) => setDetail("contact_first_name", e.target.value)}
-                        className={inputClass(errors.contact_first_name)}
-                      />
-                    </Field>
-                    <Field label="Last name" required error={errors.contact_last_name} htmlFor="qb-contact_last_name">
-                      <input
-                        id="qb-contact_last_name"
-                        type="text"
-                        value={details.contact_last_name}
-                        onChange={(e) => setDetail("contact_last_name", e.target.value)}
-                        className={inputClass(errors.contact_last_name)}
-                      />
-                    </Field>
-                    <Field label="Email" required error={errors.contact_email} htmlFor="qb-contact_email">
-                      <input
-                        id="qb-contact_email"
-                        type="email"
-                        value={details.contact_email}
-                        onChange={(e) => setDetail("contact_email", e.target.value)}
-                        className={inputClass(errors.contact_email)}
-                      />
-                    </Field>
-                    <Field label="Phone" required error={errors.contact_phone} htmlFor="qb-contact_phone">
-                      <input
-                        id="qb-contact_phone"
-                        type="tel"
-                        value={details.contact_phone}
-                        onChange={(e) => setDetail("contact_phone", e.target.value)}
-                        className={inputClass(errors.contact_phone)}
-                      />
-                    </Field>
-                  </div>
-
-                  {/* Celebrant / Honoree toggle and input */}
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                    <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                      <User size={12} /> Event Honoree / Celebrant
-                    </p>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Field label="Who is this event for?" htmlFor="qb-booking_for">
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDetail("booking_for", "myself");
-                              setDetail("celebrant_name", "");
-                            }}
-                            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-                              details.booking_for !== "someone_else"
-                                ? "bg-primary text-white border-primary shadow-2xs"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                            }`}
-                          >
-                            <User size={13} /> For myself
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDetail("booking_for", "someone_else")}
-                            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-                              details.booking_for === "someone_else"
-                                ? "bg-primary text-white border-primary shadow-2xs"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                            }`}
-                          >
-                            <Heart size={13} /> Someone else
-                          </button>
-                        </div>
-                      </Field>
-                      {details.booking_for === "someone_else" ? (
-                        <Field
-                          label="Celebrant / Honoree Name"
-                          required
-                          error={errors.celebrant_name}
-                          hint="Name of the person or couple celebrating (e.g. Sarah Jane, Baby Liam, John & Maria)."
-                          htmlFor="qb-celebrant_name"
-                        >
-                          <input
-                            id="qb-celebrant_name"
-                            type="text"
-                            placeholder="e.g. Sarah Jane"
-                            value={details.celebrant_name}
-                            onChange={(e) => setDetail("celebrant_name", e.target.value)}
-                            className={inputClass(errors.celebrant_name)}
-                          />
-                        </Field>
-                      ) : (
-                        <div className="flex items-center text-xs text-slate-500 pt-5">
-                          <span>Booking under the customer's own name ({details.contact_first_name || "Customer"}).</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Venue / Destination Type & Scaffold */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label={isFoodOnly ? "Venue / Destination Type" : "Venue type"} htmlFor="qb-venue_type">
-                      <input
-                        id="qb-venue_type"
-                        type="text"
-                        placeholder={isFoodOnly ? "e.g. Residential, Office" : "e.g. Function Hall"}
-                        value={details.venue_type}
-                        onChange={(e) => setDetail("venue_type", e.target.value)}
-                        className={inputClass(false)}
-                      />
-                    </Field>
-
-                    {eventSpace && !isFoodOnly && (
-                      <Field
-                        label="Event space / scaffold size"
-                        hint="Set when the customer booked."
-                      >
-                        <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                          <Lock size={13} className="shrink-0 text-slate-500" />
-                          <span
-                            className="truncate text-sm font-semibold tabular-nums text-slate-800"
-                            title={eventSpace}
-                          >
-                            {eventSpace}
-                          </span>
-                        </div>
-                      </Field>
-                    )}
-                  </div>
-
-                  {/* Theme & Palette */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field
-                      label={isFoodOnly ? "Order Motif / Theme (Optional)" : "Theme"}
-                      htmlFor="qb-event_theme"
-                    >
-                      <input
-                        id="qb-event_theme"
-                        type="text"
-                        placeholder={isFoodOnly ? "e.g. Minimalist Gold" : "e.g. Rustic Garden"}
-                        value={details.event_theme}
-                        onChange={(e) => setDetail("event_theme", e.target.value)}
-                        className={inputClass(false)}
-                      />
-                    </Field>
-
-                    <Field
-                      label={isFoodOnly ? "Color Motif (Optional)" : "Colour palette"}
-                      htmlFor="qb-event_palette"
-                    >
-                      <input
-                        id="qb-event_palette"
-                        type="text"
-                        placeholder="e.g. Navy, Ivory, Gold"
-                        value={details.event_palette}
-                        onChange={(e) => setDetail("event_palette", e.target.value)}
-                        className={inputClass(false)}
-                      />
-                      {resolvedPalette.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {resolvedPalette.map((colour, index) => (
-                            <span
-                              key={`${colour}-${index}`}
-                              className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700"
-                            >
-                              {colour}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </Field>
-                  </div>
-
-                  {/* Venue Location Details */}
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                    <div className="mb-2.5 flex items-center justify-between gap-2">
-                      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                        <MapPin size={12} /> {isFoodOnly ? "Delivery / Venue Location" : "Venue Location"}
-                      </p>
-                      {isFoodOnly && inquiry.delivery_method && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-primary">
-                          <Truck size={11} /> {inquiry.delivery_method === "pickup" ? "Store Pickup" : "Delivery"}
+                {/* HIGH DENSITY CUSTOMER & VENUE SUMMARY BANNER */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <User size={13} className="text-slate-400 shrink-0" />
+                      <span className="font-bold text-slate-900 truncate">
+                        {details.contact_first_name} {details.contact_last_name}
+                      </span>
+                      {details.celebrant_name && (
+                        <span className="rounded bg-rose-50 border border-rose-200/80 px-1.5 py-0.2 text-[10px] text-rose-700 font-medium">
+                          for {details.celebrant_name}
                         </span>
                       )}
                     </div>
+                    <div className="flex items-center gap-1.5 text-slate-500">
+                      <Phone size={12} className="text-slate-400 shrink-0" />
+                      <span className="font-mono">{details.contact_phone || "No phone"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-500 truncate max-w-[200px]">
+                      <Mail size={12} className="text-slate-400 shrink-0" />
+                      <span className="truncate">{details.contact_email || "No email"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-500 truncate max-w-[240px]">
+                      <MapPin size={12} className="text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {[details.street, details.barangay, details.municipality].filter(Boolean).join(", ") || details.venue_type || "Venue address pending"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFullCustomerForm(!showFullCustomerForm)}
+                    className="text-xs font-semibold text-primary hover:text-primary-hover transition-colors flex items-center gap-1 shrink-0 self-start sm:self-auto cursor-pointer"
+                  >
+                    <span>{isCustomerFormOpen ? "Hide Form" : "Edit All Fields"}</span>
+                    {isCustomerFormOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                </div>
+
+                {/* COLLAPSIBLE FULL CONTACT, HONOREE & VENUE LOCATION EDITOR */}
+                {isCustomerFormOpen && (
+                  <div className="space-y-3.5 pt-2 animate-in fade-in-50 duration-150">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      <Field label="Municipality" required error={errors.municipality} htmlFor="qb-municipality">
-                        <select
-                          id="qb-municipality"
-                          value={details.municipality}
-                          onChange={(e) => {
-                            setDetail("municipality", e.target.value);
-                            setDetail("barangay", "");
-                          }}
-                          className={inputClass(errors.municipality)}
-                        >
-                          <option value="">Select municipality</option>
-                          {municipalities.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field
-                        label="Barangay"
-                        required
-                        error={errors.barangay}
-                        hint={!details.municipality ? "Choose a municipality first." : undefined}
-                        htmlFor="qb-barangay"
-                      >
-                        <select
-                          id="qb-barangay"
-                          value={details.barangay}
-                          disabled={!details.municipality}
-                          onChange={(e) => setDetail("barangay", e.target.value)}
-                          className={inputClass(errors.barangay)}
-                        >
-                          <option value="">Select barangay</option>
-                          {barangays.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Street and building" htmlFor="qb-street">
+                      <Field label="First name" required error={errors.contact_first_name} htmlFor="qb-contact_first_name">
                         <input
-                          id="qb-street"
+                          id="qb-contact_first_name"
                           type="text"
-                          value={details.street}
-                          onChange={(e) => setDetail("street", e.target.value)}
-                          className={inputClass(false)}
+                          value={details.contact_first_name}
+                          onChange={(e) => setDetail("contact_first_name", e.target.value)}
+                          className={inputClass(errors.contact_first_name)}
                         />
                       </Field>
-                      <Field label="Landmark" htmlFor="qb-landmark">
+                      <Field label="Last name" required error={errors.contact_last_name} htmlFor="qb-contact_last_name">
                         <input
-                          id="qb-landmark"
+                          id="qb-contact_last_name"
                           type="text"
-                          value={details.landmark}
-                          onChange={(e) => setDetail("landmark", e.target.value)}
-                          className={inputClass(false)}
+                          value={details.contact_last_name}
+                          onChange={(e) => setDetail("contact_last_name", e.target.value)}
+                          className={inputClass(errors.contact_last_name)}
+                        />
+                      </Field>
+                      <Field label="Email" required error={errors.contact_email} htmlFor="qb-contact_email">
+                        <input
+                          id="qb-contact_email"
+                          type="email"
+                          value={details.contact_email}
+                          onChange={(e) => setDetail("contact_email", e.target.value)}
+                          className={inputClass(errors.contact_email)}
+                        />
+                      </Field>
+                      <Field label="Phone" required error={errors.contact_phone} htmlFor="qb-contact_phone">
+                        <input
+                          id="qb-contact_phone"
+                          type="tel"
+                          value={details.contact_phone}
+                          onChange={(e) => setDetail("contact_phone", e.target.value)}
+                          className={inputClass(errors.contact_phone)}
                         />
                       </Field>
                     </div>
+
+                    {/* Celebrant / Honoree toggle and input */}
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                      <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        <User size={12} /> Event Honoree / Celebrant
+                      </p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <Field label="Who is this event for?" htmlFor="qb-booking_for">
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetail("booking_for", "myself");
+                                setDetail("celebrant_name", "");
+                              }}
+                              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${details.booking_for !== "someone_else"
+                                  ? "bg-primary text-white border-primary shadow-2xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                }`}
+                            >
+                              <User size={13} /> For myself
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDetail("booking_for", "someone_else")}
+                              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-md text-xs font-semibold border transition-all cursor-pointer ${details.booking_for === "someone_else"
+                                  ? "bg-primary text-white border-primary shadow-2xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                }`}
+                            >
+                              <Heart size={13} /> Someone else
+                            </button>
+                          </div>
+                        </Field>
+                        {details.booking_for === "someone_else" ? (
+                          <Field
+                            label="Celebrant / Honoree Name"
+                            required
+                            error={errors.celebrant_name}
+                            hint="Name of the person or couple celebrating (e.g. Sarah Jane, Baby Liam, John & Maria)."
+                            htmlFor="qb-celebrant_name"
+                          >
+                            <input
+                              id="qb-celebrant_name"
+                              type="text"
+                              placeholder="e.g. Sarah Jane"
+                              value={details.celebrant_name}
+                              onChange={(e) => setDetail("celebrant_name", e.target.value)}
+                              className={inputClass(errors.celebrant_name)}
+                            />
+                          </Field>
+                        ) : (
+                          <div className="flex items-center text-xs text-slate-500 pt-5">
+                            <span>Booking under the customer's own name ({details.contact_first_name || "Customer"}).</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Venue / Destination Type & Scaffold */}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label={isFoodOnly ? "Venue / Destination Type" : "Venue type"} htmlFor="qb-venue_type">
+                        <input
+                          id="qb-venue_type"
+                          type="text"
+                          placeholder={isFoodOnly ? "e.g. Residential, Office" : "e.g. Function Hall"}
+                          value={details.venue_type}
+                          onChange={(e) => setDetail("venue_type", e.target.value)}
+                          className={inputClass(false)}
+                        />
+                      </Field>
+
+                      {eventSpace && !isFoodOnly && (
+                        <Field
+                          label="Event space / scaffold size"
+                          hint="Set when the customer booked."
+                        >
+                          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <Lock size={13} className="shrink-0 text-slate-500" />
+                            <span
+                              className="truncate text-sm font-semibold tabular-nums text-slate-800"
+                              title={eventSpace}
+                            >
+                              {eventSpace}
+                            </span>
+                          </div>
+                        </Field>
+                      )}
+                    </div>
+
+                    {/* Theme & Palette */}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field
+                        label={isFoodOnly ? "Order Motif / Theme (Optional)" : "Theme"}
+                        htmlFor="qb-event_theme"
+                      >
+                        <input
+                          id="qb-event_theme"
+                          type="text"
+                          placeholder={isFoodOnly ? "e.g. Minimalist Gold" : "e.g. Rustic Garden"}
+                          value={details.event_theme}
+                          onChange={(e) => setDetail("event_theme", e.target.value)}
+                          className={inputClass(false)}
+                        />
+                      </Field>
+
+                      <Field
+                        label={isFoodOnly ? "Color Motif (Optional)" : "Colour palette"}
+                        htmlFor="qb-event_palette"
+                      >
+                        <input
+                          id="qb-event_palette"
+                          type="text"
+                          placeholder="e.g. Navy, Ivory, Gold"
+                          value={details.event_palette}
+                          onChange={(e) => setDetail("event_palette", e.target.value)}
+                          className={inputClass(false)}
+                        />
+                        {resolvedPalette.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {resolvedPalette.map((colour, index) => (
+                              <span
+                                key={`${colour}-${index}`}
+                                className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700"
+                              >
+                                {colour}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </Field>
+                    </div>
+
+                    {/* Venue Location Details */}
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                      <div className="mb-2.5 flex items-center justify-between gap-2">
+                        <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          <MapPin size={12} /> {isFoodOnly ? "Delivery / Venue Location" : "Venue Location"}
+                        </p>
+                        {isFoodOnly && inquiry.delivery_method && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-primary">
+                            <Truck size={11} /> {inquiry.delivery_method === "pickup" ? "Store Pickup" : "Delivery"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <Field label="Municipality" required error={errors.municipality} htmlFor="qb-municipality">
+                          <select
+                            id="qb-municipality"
+                            value={details.municipality}
+                            onChange={(e) => {
+                              setDetail("municipality", e.target.value);
+                              setDetail("barangay", "");
+                            }}
+                            className={inputClass(errors.municipality)}
+                          >
+                            <option value="">Select municipality</option>
+                            {municipalities.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field
+                          label="Barangay"
+                          required
+                          error={errors.barangay}
+                          hint={!details.municipality ? "Choose a municipality first." : undefined}
+                          htmlFor="qb-barangay"
+                        >
+                          <select
+                            id="qb-barangay"
+                            value={details.barangay}
+                            disabled={!details.municipality}
+                            onChange={(e) => setDetail("barangay", e.target.value)}
+                            className={inputClass(errors.barangay)}
+                          >
+                            <option value="">Select barangay</option>
+                            {barangays.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Street and building" htmlFor="qb-street">
+                          <input
+                            id="qb-street"
+                            type="text"
+                            value={details.street}
+                            onChange={(e) => setDetail("street", e.target.value)}
+                            className={inputClass(false)}
+                          />
+                        </Field>
+                        <Field label="Landmark" htmlFor="qb-landmark">
+                          <input
+                            id="qb-landmark"
+                            type="text"
+                            value={details.landmark}
+                            onChange={(e) => setDetail("landmark", e.target.value)}
+                            className={inputClass(false)}
+                          />
+                        </Field>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Read-only context from customer */}
-              {(inquiry.allergies ||
-                inquiry.dietary_restrictions ||
-                inquiry.dietary_requirements ||
-                inquiry.special_requests) && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
-                    From the customer
-                  </p>
-                  {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
-                    <p>
-                      <span className="font-semibold text-amber-950">Dietary and allergies: </span>
-                      {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
-                        .filter(Boolean)
-                        .join(". ")}
-                    </p>
+                {/* Read-only context from customer */}
+                {(inquiry.allergies ||
+                  inquiry.dietary_restrictions ||
+                  inquiry.dietary_requirements ||
+                  inquiry.special_requests) && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs leading-relaxed text-amber-900">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                        From the customer
+                      </p>
+                      {(inquiry.allergies || inquiry.dietary_restrictions || inquiry.dietary_requirements) && (
+                        <p>
+                          <span className="font-semibold text-amber-950">Dietary and allergies: </span>
+                          {[inquiry.allergies, inquiry.dietary_restrictions || inquiry.dietary_requirements]
+                            .filter(Boolean)
+                            .join(". ")}
+                        </p>
+                      )}
+                      {inquiry.special_requests && (
+                        <p className="mt-1 whitespace-pre-line">
+                          <span className="font-semibold text-amber-950">Special requests: </span>
+                          {inquiry.special_requests}
+                        </p>
+                      )}
+                    </div>
                   )}
-                  {inquiry.special_requests && (
-                    <p className="mt-1 whitespace-pre-line">
-                      <span className="font-semibold text-amber-950">Special requests: </span>
-                      {inquiry.special_requests}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </SectionCard>
+              </div>
+            </SectionCard>
 
-          {/* --- Bespoke setup brief (unchanged source of truth) ------------- */}
-          {(inquiry.is_custom_setup ||
-            inquiry.budget_range ||
-            inquiry.custom_setup_notes ||
-            (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) ||
-            (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
-              <SectionCard
-                icon={Sparkles}
-                title="Bespoke event setup brief"
-                description="The design request as the customer described it. Reference only."
-                aside={
-                  <span className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                    {inquiry.is_custom_setup ? "Fully custom request" : "Custom preferences"}
-                  </span>
-                }
-              >
-                <div className="space-y-3 text-xs text-slate-700">
-                  {/* Theme and palette are not repeated here: they are editable
+            {/* --- Bespoke setup brief (unchanged source of truth) ------------- */}
+            {(inquiry.is_custom_setup ||
+              inquiry.budget_range ||
+              inquiry.custom_setup_notes ||
+              (inquiry.custom_setup_scope && inquiry.custom_setup_scope.length > 0) ||
+              (inquiry.inspiration_images && inquiry.inspiration_images.length > 0)) && (
+                <SectionCard
+                  icon={Sparkles}
+                  title="Bespoke event setup brief"
+                  description="The design request as the customer described it. Reference only."
+                  aside={
+                    <span className="rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                      {inquiry.is_custom_setup ? "Fully custom request" : "Custom preferences"}
+                    </span>
+                  }
+                >
+                  <div className="space-y-3 text-xs text-slate-700">
+                    {/* Theme and palette are not repeated here: they are editable
                       fields in the event details above, and a second read-only
                       copy of a value the admin can change is the copy that
                       goes stale. */}
-                  {inquiry.budget_range && (
-                    <div>
-                      <span className={LABEL_CLASS}>Customer budget</span>
-                      <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
-                    </div>
-                  )}
+                    {inquiry.budget_range && (
+                      <div>
+                        <span className={LABEL_CLASS}>Customer budget</span>
+                        <span className="font-semibold text-slate-900">{inquiry.budget_range}</span>
+                      </div>
+                    )}
 
-                  {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
-                    <div>
-                      <span className={LABEL_CLASS}>Requested scope</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {inquiry.custom_setup_scope.map((scope, idx) => (
-                          <span
+                    {Array.isArray(inquiry.custom_setup_scope) && inquiry.custom_setup_scope.length > 0 && (
+                      <div>
+                        <span className={LABEL_CLASS}>Requested scope</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {inquiry.custom_setup_scope.map((scope, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                            >
+                              <Check size={11} className="text-primary" /> {scope}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {inquiry.custom_setup_notes && (
+                      <p className="whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-2.5 leading-relaxed">
+                        {inquiry.custom_setup_notes}
+                      </p>
+                    )}
+
+                    {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {inquiry.inspiration_images.map((url, idx) => (
+                          <a
                             key={idx}
-                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block h-16 w-16 overflow-hidden rounded-md border border-slate-200 transition-colors hover:border-primary"
+                            title="Open full image in a new tab"
                           >
-                            <Check size={11} className="text-primary" /> {scope}
-                          </span>
+                            <img src={url} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover" />
+                          </a>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </SectionCard>
+              )}
 
-                  {inquiry.custom_setup_notes && (
-                    <p className="whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-2.5 leading-relaxed">
-                      {inquiry.custom_setup_notes}
-                    </p>
-                  )}
-
-                  {Array.isArray(inquiry.inspiration_images) && inquiry.inspiration_images.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {inquiry.inspiration_images.map((url, idx) => (
-                        <a
-                          key={idx}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block h-16 w-16 overflow-hidden rounded-md border border-slate-200 transition-colors hover:border-primary"
-                          title="Open full image in a new tab"
-                        >
-                          <img src={url} alt={`Inspiration ${idx + 1}`} className="h-full w-full object-cover" />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
-            )}
-
-          {/* --- 2. Package and starting price ------------------------------- */}
-          {/* A combo arrives with one figure already settled and a list of
+            {/* --- 2. Package and starting price ------------------------------- */}
+            {/* A combo arrives with one figure already settled and a list of
               things the customer was told are covered. Stating both here,
               before the pricing fields, is what stops food that the combo paid
               for being charged again further down. */}
-          {offerContext && (
-            <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
-                  <Sparkles size={11} /> Combo Pack
-                </span>
-                <span className="text-sm font-bold text-slate-900">
-                  {offerContext.name}
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border border-amber-200 bg-white p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Combo food price
-                  </p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
-                    {formatCurrency(offerContext.basePrice)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {offerContext.guests} guests ×{" "}
-                    {formatCurrency(offerContext.perPax)} per pax — seeded
-                    as the starting price below.
-                  </p>
+            {offerContext && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/60 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+                    <Sparkles size={11} /> Combo Pack
+                  </span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {offerContext.name}
+                  </span>
                 </div>
 
-                <div className="rounded-lg border border-amber-200 bg-white p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Event set-up
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-700">
-                    Not part of this combo
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    A combo is food. If this customer also needs their venue set
-                    up, price it below as an additional charge.
-                  </p>
-                </div>
-              </div>
-
-              {offerContext.included.length > 0 && (
-                <div className="mt-3">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Included in the combo — already paid for by the combo price
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {offerContext.included.map((entry) => (
-                      <span
-                        key={entry}
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800"
-                      >
-                        <Check size={11} /> {entry}
-                      </span>
-                    ))}
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-amber-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Combo food price
+                    </p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">
+                      {formatCurrency(offerContext.basePrice)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {offerContext.guests} guests ×{" "}
+                      {formatCurrency(offerContext.perPax)} per pax — seeded
+                      as the starting price below.
+                    </p>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    The customer&apos;s dishes are listed below at {formatCurrency(0)}
-                    for the record. Leave them there — pricing them again would
-                    charge for food this combo already covers.
-                  </p>
+
+                  <div className="rounded-lg border border-amber-200 bg-white p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Event set-up
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      Not part of this combo
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      A combo is food. If this customer also needs their venue set
+                      up, price it below as an additional charge.
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              <p className="mt-3 text-xs text-slate-600">
-                Equipment, crew, add-ons and any additional requests are not part
-                of the combo. Add them below; this quotation is what settles them.
-              </p>
-            </div>
-          )}
-
-          <SectionCard
-            step={stepNumbers.pkg}
-            id="qb-section-package"
-            accent="primary"
-            icon={Package}
-            title={
-              offerContext
-                ? "Combo and food price"
-                : isFoodOnly
-                ? "Catering Package / Food Baseline"
-                : isSetupOnly
-                ? "Event Setup Package & Starting Price"
-                : "Package and Starting Price"
-            }
-            description={
-              offerContext
-                ? "Combo food terms and baseline price."
-                : isFoodOnly
-                ? "The baseline catering package or food order rate before individual dishes or add-ons."
-                : isSetupOnly
-                ? "The baseline setup package price before inclusion deductions or adjustments."
-                : "The baseline this quotation is built from, before anything is added or removed."
-            }
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field
-                label="Package"
-                hint="The package cannot be changed here. Ask the customer to rebook to move to a different package."
-              >
-                <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                  <Lock size={13} className="shrink-0 text-slate-500" />
-                  <span className="truncate text-sm font-semibold text-slate-800" title={packageName}>
-                    {packageName || (isFoodOnly ? "Custom Food Order" : isSetupOnly ? "Custom Setup Package" : "Custom Package")}
-                  </span>
-                </div>
-              </Field>
-
-              <Field
-                label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline price" : "Starting price"}
-                required
-                error={errors.package_starting_price}
-                hint={
-                  offerContext
-                    ? `${offerContext.guests} guests × ${formatCurrency(offerContext.perPax)} per pax. Adjust only if the combo changed.`
-                    : isFoodOnly
-                    ? (totals.startingPrice > 0 ? "Package baseline food rate. Set to 0 if pricing strictly per dish in the Menu section." : "Set baseline rate or 0 if dishes below will carry the price.")
-                    : totals.startingPrice > 0
-                    ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
-                    : "This package has no price on record. Enter the baseline for this quotation."
-                }
-                htmlFor="qb-package_starting_price"
-              >
-                <MoneyInput
-                  id="qb-package_starting_price"
-                  value={startingPrice}
-                  error={errors.package_starting_price}
-                  onChange={(value) => {
-                    setStartingPrice(nonNegative(value));
-                    clearError("package_starting_price");
-                    clearError("removed_inclusions");
-                  }}
-                />
-              </Field>
-            </div>
-
-            {/* The whole package calculation, in one line the admin can read. */}
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs">
-                <span className="text-slate-500">
-                  {offerContext ? "Combo food price" : "Starting price"}
-                  <strong className="ml-2 tabular-nums text-slate-800">
-                    {formatCurrency(totals.startingPrice)}
-                  </strong>
-                </span>
-                <span className="text-slate-500">
-                  Removed inclusions
-                  <strong
-                    className={`ml-2 tabular-nums ${totals.inclusionDeductions > 0 ? "text-emerald-700" : "text-slate-800"
-                      }`}
-                  >
-                    {totals.inclusionDeductions > 0
-                      ? `- ${formatCurrency(totals.inclusionDeductions)}`
-                      : formatCurrency(0)}
-                  </strong>
-                </span>
-                {/* Only shown once a quantity has actually moved: an untouched
-                    package should not carry a line reading "zero". */}
-                {totals.inclusionAdjustments !== 0 && (
-                  <span className="text-slate-500">
-                    Quantity changes
-                    <strong
-                      className={`ml-2 tabular-nums ${totals.inclusionAdjustments < 0 ? "text-emerald-700" : "text-amber-700"
-                        }`}
-                    >
-                      {totals.inclusionAdjustments < 0
-                        ? `- ${formatCurrency(Math.abs(totals.inclusionAdjustments))}`
-                        : `+ ${formatCurrency(totals.inclusionAdjustments)}`}
-                    </strong>
-                  </span>
+                {offerContext.included.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Included in the combo — already paid for by the combo price
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {offerContext.included.map((entry) => (
+                        <span
+                          key={entry}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800"
+                        >
+                          <Check size={11} /> {entry}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">
+                      The customer&apos;s dishes are listed below at {formatCurrency(0)}
+                      for the record. Leave them there — pricing them again would
+                      charge for food this combo already covers.
+                    </p>
+                  </div>
                 )}
-                <span className="font-semibold text-slate-900">
-                  {offerContext ? "Adjusted base price" : "Adjusted package price"}
-                  <strong className="ml-2 tabular-nums text-primary">
-                    {formatCurrency(totals.packagePrice)}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          </SectionCard>
 
-{/* --- 3. Package inclusions --------------------------------------- */}
-          <SectionCard
-            step={stepNumbers.inclusions}
-            id="qb-section-inclusions"
-            accent="emerald"
-            icon={Check}
-            title={
-              isFoodOnly
-                ? "Catering Inclusions"
-                : isSetupOnly
-                ? "Event Setup Inclusions"
-                : "Package Inclusions"
-            }
-            description={
-              isFoodOnly
-                ? "Buffet presentation, food warmers, dinnerware, or service crew included with this order."
-                : isSetupOnly
-                ? "Backdrops, staging, lighting, tables, chairs, and setup/egress crew included with this package."
-                : "Remove what the customer is not getting, or change how many of something they get, and state what that is worth."
-            }
-            aside={
-              <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                {keptInclusions.length} kept, {removedInclusions.length} removed
-                {inclusionAdjustments.length > 0 &&
-                  `, ${inclusionAdjustments.length} adjusted`}
-              </span>
-            }
-          >
-            {errors.removed_inclusions && (
-              <div
-                role="alert"
-                className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700"
-              >
-                <AlertCircle size={14} className="shrink-0 text-red-500" />
-                <span>{errors.removed_inclusions}</span>
+                <p className="mt-3 text-xs text-slate-600">
+                  Equipment, crew, add-ons and any additional requests are not part
+                  of the combo. Add them below; this quotation is what settles them.
+                </p>
               </div>
             )}
 
-            {inclusions.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400">
-                {isFoodOnly
-                  ? "This food order has no preset inclusions on record. Add catering equipment, chafing warmers, or service crew below if needed."
-                  : isSetupOnly
-                  ? "This setup package has no preset inclusions on record. Add setup equipment, backdrops, or styling items below."
-                  : "This package has no inclusions on record. Add any items that come with it below."}
+            <SectionCard
+              step={stepNumbers.pkg}
+              id="qb-section-package"
+              accent="primary"
+              icon={Package}
+              title={
+                offerContext
+                  ? "Combo and food price"
+                  : isFoodOnly
+                    ? "Catering Package / Food Baseline"
+                    : isSetupOnly
+                      ? "Event Setup Package & Starting Price"
+                      : "Package and Starting Price"
+              }
+              description={
+                offerContext
+                  ? "Combo food terms and baseline price."
+                  : isFoodOnly
+                    ? "The baseline catering package or food order rate before individual dishes or add-ons."
+                    : isSetupOnly
+                      ? "The baseline setup package price before inclusion deductions or adjustments."
+                      : "The baseline this quotation is built from, before anything is added or removed."
+              }
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field
+                  label="Package"
+                  hint="The package cannot be changed here. Ask the customer to rebook to move to a different package."
+                >
+                  <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                    <Lock size={13} className="shrink-0 text-slate-500" />
+                    <span className="truncate text-sm font-semibold text-slate-800" title={packageName}>
+                      {packageName || (isFoodOnly ? "Custom Food Order" : isSetupOnly ? "Custom Setup Package" : "Custom Package")}
+                    </span>
+                  </div>
+                </Field>
+
+                <Field
+                  label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline price" : "Starting price"}
+                  required
+                  error={errors.package_starting_price}
+                  hint={
+                    offerContext
+                      ? `${offerContext.guests} guests × ${formatCurrency(offerContext.perPax)} per pax. Adjust only if the combo changed.`
+                      : isFoodOnly
+                        ? (totals.startingPrice > 0 ? "Package baseline food rate. Set to 0 if pricing strictly per dish in the Menu section." : "Set baseline rate or 0 if dishes below will carry the price.")
+                        : totals.startingPrice > 0
+                          ? "Taken from the package the customer booked. Adjust only if the baseline itself is wrong."
+                          : "This package has no price on record. Enter the baseline for this quotation."
+                  }
+                  htmlFor="qb-package_starting_price"
+                >
+                  <MoneyInput
+                    id="qb-package_starting_price"
+                    value={startingPrice}
+                    error={errors.package_starting_price}
+                    onChange={(value) => {
+                      setStartingPrice(nonNegative(value));
+                      clearError("package_starting_price");
+                      clearError("removed_inclusions");
+                    }}
+                  />
+                </Field>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {inclusionGroups.map((group) => (
-                  <div key={group.category}>
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        {group.category}
-                      </span>
-                      <span className="h-px flex-1 bg-slate-200" />
-                      <span className="text-[10px] font-semibold tabular-nums text-slate-400">
-                        {group.rows.length}
-                      </span>
-                    </div>
-                    <ul className="space-y-2">
-                    {group.rows.map(({ entry, index }) => {
-                      // A line only offers quantity pricing if its own wording
-                      // stated an amount to begin with. "Professional crew" has
-                      // nothing to count, so it gets no quantity controls rather
-                      // than an empty box the admin has to ignore.
-                      const hasQuantity =
-                        entry.baseQuantity !== null && entry.baseQuantity !== undefined;
-                      const quantityMoved =
-                        hasQuantity && Number(entry.quantity) !== Number(entry.baseQuantity);
-                      const adjustment = quantityMoved
-                        ? inclusionAdjustmentAmount({
-                            base_quantity: entry.baseQuantity,
-                            quantity: entry.quantity,
-                            unit_price: entry.unitPrice,
-                          })
-                        : 0;
-                      return (
-                      <li
-                        key={index}
-                        className={`rounded-lg border p-2.5 transition-colors ${entry.removed
-                            ? "border-emerald-200 bg-emerald-50/50"
-                            : quantityMoved
-                              ? "border-amber-200 bg-amber-50/40"
-                              : "border-slate-200 bg-white"
+
+              {/* The whole package calculation, in one line the admin can read. */}
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs">
+                  <span className="text-slate-500">
+                    {offerContext ? "Combo food price" : "Starting price"}
+                    <strong className="ml-2 tabular-nums text-slate-800">
+                      {formatCurrency(totals.startingPrice)}
+                    </strong>
+                  </span>
+                  <span className="text-slate-500">
+                    Removed inclusions
+                    <strong
+                      className={`ml-2 tabular-nums ${totals.inclusionDeductions > 0 ? "text-emerald-700" : "text-slate-800"
+                        }`}
+                    >
+                      {totals.inclusionDeductions > 0
+                        ? `- ${formatCurrency(totals.inclusionDeductions)}`
+                        : formatCurrency(0)}
+                    </strong>
+                  </span>
+                  {/* Only shown once a quantity has actually moved: an untouched
+                    package should not carry a line reading "zero". */}
+                  {totals.inclusionAdjustments !== 0 && (
+                    <span className="text-slate-500">
+                      Quantity changes
+                      <strong
+                        className={`ml-2 tabular-nums ${totals.inclusionAdjustments < 0 ? "text-emerald-700" : "text-amber-700"
                           }`}
                       >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${entry.removed ? "bg-emerald-500" : "bg-primary"
-                                }`}
-                            />
-                            <input
-                              id={`qb-inclusions.${index}.name`}
-                              type="text"
-                              value={inclusionDisplayName(entry.name)}
-                              onChange={(e) => handleInclusionName(index, e.target.value)}
-                              placeholder="Inclusion description"
-                              className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${entry.removed ? "line-through decoration-slate-400" : ""
-                                }`}
-                            />
-                          </div>
+                        {totals.inclusionAdjustments < 0
+                          ? `- ${formatCurrency(Math.abs(totals.inclusionAdjustments))}`
+                          : `+ ${formatCurrency(totals.inclusionAdjustments)}`}
+                      </strong>
+                    </span>
+                  )}
+                  <span className="font-semibold text-slate-900">
+                    {offerContext ? "Adjusted base price" : "Adjusted package price"}
+                    <strong className="ml-2 tabular-nums text-primary">
+                      {formatCurrency(totals.packagePrice)}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            </SectionCard>
 
-                          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-                            {/* How many, and what one is worth. The two sit
+            {/* --- 3. Package inclusions --------------------------------------- */}
+            <SectionCard
+              step={stepNumbers.inclusions}
+              id="qb-section-inclusions"
+              accent="emerald"
+              icon={Check}
+              title={
+                isFoodOnly
+                  ? "Catering Inclusions"
+                  : isSetupOnly
+                    ? "Event Setup Inclusions"
+                    : "Package Inclusions"
+              }
+              description={
+                isFoodOnly
+                  ? "Buffet presentation, food warmers, dinnerware, or service crew included with this order."
+                  : isSetupOnly
+                    ? "Backdrops, staging, lighting, tables, chairs, and setup/egress crew included with this package."
+                    : "Remove what the customer is not getting, or change how many of something they get, and state what that is worth."
+              }
+              aside={
+                <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                  {keptInclusions.length} kept, {removedInclusions.length} removed
+                  {inclusionAdjustments.length > 0 &&
+                    `, ${inclusionAdjustments.length} adjusted`}
+                </span>
+              }
+            >
+              {errors.removed_inclusions && (
+                <div
+                  role="alert"
+                  className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700"
+                >
+                  <AlertCircle size={14} className="shrink-0 text-red-500" />
+                  <span>{errors.removed_inclusions}</span>
+                </div>
+              )}
+
+              {inclusions.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs text-slate-400">
+                  {isFoodOnly
+                    ? "This food order has no preset inclusions on record. Add catering equipment, chafing warmers, or service crew below if needed."
+                    : isSetupOnly
+                      ? "This setup package has no preset inclusions on record. Add setup equipment, backdrops, or styling items below."
+                      : "This package has no inclusions on record. Add any items that come with it below."}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {inclusionGroups.map((group) => (
+                    <div key={group.category}>
+                      <div className="mb-1.5 flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {group.category}
+                        </span>
+                        <span className="h-px flex-1 bg-slate-200" />
+                        <span className="text-[10px] font-semibold tabular-nums text-slate-400">
+                          {group.rows.length}
+                        </span>
+                      </div>
+                      <ul className="space-y-2">
+                        {group.rows.map(({ entry, index }) => {
+                          // A line only offers quantity pricing if its own wording
+                          // stated an amount to begin with. "Professional crew" has
+                          // nothing to count, so it gets no quantity controls rather
+                          // than an empty box the admin has to ignore.
+                          const hasQuantity =
+                            entry.baseQuantity !== null && entry.baseQuantity !== undefined;
+                          const quantityMoved =
+                            hasQuantity && Number(entry.quantity) !== Number(entry.baseQuantity);
+                          const adjustment = quantityMoved
+                            ? inclusionAdjustmentAmount({
+                              base_quantity: entry.baseQuantity,
+                              quantity: entry.quantity,
+                              unit_price: entry.unitPrice,
+                            })
+                            : 0;
+                          return (
+                            <li
+                              key={index}
+                              className={`rounded-lg border p-2.5 transition-colors ${entry.removed
+                                ? "border-emerald-200 bg-emerald-50/50"
+                                : quantityMoved
+                                  ? "border-amber-200 bg-amber-50/40"
+                                  : "border-slate-200 bg-white"
+                                }`}
+                            >
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
+                                  <span
+                                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${entry.removed ? "bg-emerald-500" : "bg-primary"
+                                      }`}
+                                  />
+                                  <input
+                                    id={`qb-inclusions.${index}.name`}
+                                    type="text"
+                                    value={inclusionDisplayName(entry.name)}
+                                    onChange={(e) => handleInclusionName(index, e.target.value)}
+                                    placeholder="Inclusion description"
+                                    className={`${inputClass(errors[`inclusions.${index}.name`])} py-1.5 text-xs ${entry.removed ? "line-through decoration-slate-400" : ""
+                                      }`}
+                                  />
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                                  {/* How many, and what one is worth. The two sit
                                 together because neither means anything alone: a
                                 changed count with no rate cannot be priced, and a
                                 rate with an unchanged count changes nothing. */}
-                            {!entry.removed && hasQuantity && (
-                              <>
-                                <div
-                                  className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${quantityMoved
-                                      ? "border-amber-300 bg-amber-50 text-amber-800"
-                                      : "border-slate-200 bg-slate-50 text-slate-600"
-                                    }`}
-                                >
-                                  <label
-                                    htmlFor={`qb-inclusions.${index}.quantity`}
-                                    className="pl-1 text-[10px] font-semibold uppercase tracking-wider"
-                                  >
-                                    Qty
-                                  </label>
-                                  <input
-                                    id={`qb-inclusions.${index}.quantity`}
-                                    type="number"
-                                    min="0"
-                                    value={entry.quantity ?? ""}
-                                    onWheel={(e) => e.target.blur()}
-                                    onChange={(e) => handleInclusionQuantity(index, e.target.value)}
-                                    className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
-                                        ? "border-red-400"
-                                        : "border-slate-200"
-                                      }`}
-                                  />
-                                  <span className="pr-1 text-[10px] font-medium tabular-nums opacity-70">
-                                    of {entry.baseQuantity}
-                                  </span>
-                                </div>
+                                  {!entry.removed && hasQuantity && (
+                                    <>
+                                      <div
+                                        className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${quantityMoved
+                                          ? "border-amber-300 bg-amber-50 text-amber-800"
+                                          : "border-slate-200 bg-slate-50 text-slate-600"
+                                          }`}
+                                      >
+                                        <label
+                                          htmlFor={`qb-inclusions.${index}.quantity`}
+                                          className="pl-1 text-[10px] font-semibold uppercase tracking-wider"
+                                        >
+                                          Qty
+                                        </label>
+                                        <input
+                                          id={`qb-inclusions.${index}.quantity`}
+                                          type="number"
+                                          min="0"
+                                          value={entry.quantity ?? ""}
+                                          onWheel={(e) => e.target.blur()}
+                                          onChange={(e) => handleInclusionQuantity(index, e.target.value)}
+                                          className={`w-14 rounded border bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-amber-400 ${errors[`inclusions.${index}.quantity`]
+                                            ? "border-red-400"
+                                            : "border-slate-200"
+                                            }`}
+                                        />
+                                        <span className="pr-1 text-[10px] font-medium tabular-nums opacity-70">
+                                          of {entry.baseQuantity}
+                                        </span>
+                                      </div>
 
-                                {quantityMoved && (
-                                  <div className="w-32">
-                                    <MoneyInput
-                                      id={`qb-inclusions.${index}.unitPrice`}
-                                      value={entry.unitPrice}
-                                      error={errors[`inclusions.${index}.unitPrice`]}
-                                      placeholder="Per unit"
-                                      onChange={(value) => handleInclusionUnitPrice(index, value)}
-                                      className="py-1.5 text-xs"
-                                    />
-                                  </div>
-                                )}
+                                      {quantityMoved && (
+                                        <div className="w-32">
+                                          <MoneyInput
+                                            id={`qb-inclusions.${index}.unitPrice`}
+                                            value={entry.unitPrice}
+                                            error={errors[`inclusions.${index}.unitPrice`]}
+                                            placeholder="Per unit"
+                                            onChange={(value) => handleInclusionUnitPrice(index, value)}
+                                            className="py-1.5 text-xs"
+                                          />
+                                        </div>
+                                      )}
 
-                                {quantityMoved && (
-                                  <RowAction
-                                    onClick={() => handleResetInclusionQuantity(index)}
-                                    icon={Undo2}
-                                    label="Reset"
-                                    tone="neutral"
-                                    title={`Put this back to the ${entry.baseQuantity} the package includes`}
-                                  />
-                                )}
-                              </>
-                            )}
+                                      {quantityMoved && (
+                                        <RowAction
+                                          onClick={() => handleResetInclusionQuantity(index)}
+                                          icon={Undo2}
+                                          label="Reset"
+                                          tone="neutral"
+                                          title={`Put this back to the ${entry.baseQuantity} the package includes`}
+                                        />
+                                      )}
+                                    </>
+                                  )}
 
-                            {entry.removed && (
-                              <div className="w-36">
-                                <MoneyInput
-                                  id={`qb-inclusions.${index}.deduction`}
-                                  value={entry.deduction}
-                                  error={errors[`inclusions.${index}.deduction`]}
-                                  placeholder="Deduction"
-                                  onChange={(value) => handleInclusionDeduction(index, value)}
-                                  className="py-1.5 text-xs"
-                                />
-                              </div>
-                            )}
+                                  {entry.removed && (
+                                    <div className="w-36">
+                                      <MoneyInput
+                                        id={`qb-inclusions.${index}.deduction`}
+                                        value={entry.deduction}
+                                        error={errors[`inclusions.${index}.deduction`]}
+                                        placeholder="Deduction"
+                                        onChange={(value) => handleInclusionDeduction(index, value)}
+                                        className="py-1.5 text-xs"
+                                      />
+                                    </div>
+                                  )}
 
-                            {/* One control per row. A line that came with the
+                                  {/* One control per row. A line that came with the
                                 package is removed by deducting it from the starting
                                 price; a line the admin typed in here was never in
                                 the package, so there is nothing to deduct and
                                 Remove simply takes it back off the list. */}
-                            {entry.removed ? (
-                              <RowAction
-                                onClick={() => toggleInclusionRemoved(index)}
-                                icon={Undo2}
-                                label="Restore"
-                                tone="neutral"
-                                title="Put this inclusion back into the package"
-                              />
-                            ) : (
-                              <RowAction
-                                onClick={() =>
-                                  entry.fromPackage
-                                    ? toggleInclusionRemoved(index)
-                                    : handleDeleteInclusion(index)
-                                }
-                                icon={Trash2}
-                                label="Remove"
-                                title={
-                                  entry.fromPackage
-                                    ? "Remove this inclusion and deduct it from the starting price"
-                                    : "Remove this inclusion from the list"
-                                }
-                              />
-                            )}
-                          </div>
-                        </div>
+                                  {entry.removed ? (
+                                    <RowAction
+                                      onClick={() => toggleInclusionRemoved(index)}
+                                      icon={Undo2}
+                                      label="Restore"
+                                      tone="neutral"
+                                      title="Put this inclusion back into the package"
+                                    />
+                                  ) : (
+                                    <RowAction
+                                      onClick={() =>
+                                        entry.fromPackage
+                                          ? toggleInclusionRemoved(index)
+                                          : handleDeleteInclusion(index)
+                                      }
+                                      icon={Trash2}
+                                      label="Remove"
+                                      title={
+                                        entry.fromPackage
+                                          ? "Remove this inclusion and deduct it from the starting price"
+                                          : "Remove this inclusion from the list"
+                                      }
+                                    />
+                                  )}
+                                </div>
+                              </div>
 
-                        {(errors[`inclusions.${index}.name`] ||
-                          errors[`inclusions.${index}.deduction`] ||
-                          errors[`inclusions.${index}.quantity`] ||
-                          errors[`inclusions.${index}.unitPrice`]) && (
-                          <p className="mt-1.5 flex items-start gap-1 pl-3.5 text-[11.5px] font-medium leading-snug text-red-700">
-                            <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                            {errors[`inclusions.${index}.name`] ||
-                              errors[`inclusions.${index}.quantity`] ||
-                              errors[`inclusions.${index}.unitPrice`] ||
-                              errors[`inclusions.${index}.deduction`]}
-                          </p>
-                        )}
+                              {(errors[`inclusions.${index}.name`] ||
+                                errors[`inclusions.${index}.deduction`] ||
+                                errors[`inclusions.${index}.quantity`] ||
+                                errors[`inclusions.${index}.unitPrice`]) && (
+                                  <p className="mt-1.5 flex items-start gap-1 pl-3.5 text-[11.5px] font-medium leading-snug text-red-700">
+                                    <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                                    {errors[`inclusions.${index}.name`] ||
+                                      errors[`inclusions.${index}.quantity`] ||
+                                      errors[`inclusions.${index}.unitPrice`] ||
+                                      errors[`inclusions.${index}.deduction`]}
+                                  </p>
+                                )}
 
-                        {entry.removed && !errors[`inclusions.${index}.deduction`] && (
-                          <p className="mt-1.5 pl-3.5 text-[11.5px] text-emerald-700">
-                            Removed from the package. {formatCurrency(numberOf(entry.deduction))} comes off the
-                            starting price.
-                          </p>
-                        )}
+                              {entry.removed && !errors[`inclusions.${index}.deduction`] && (
+                                <p className="mt-1.5 pl-3.5 text-[11.5px] text-emerald-700">
+                                  Removed from the package. {formatCurrency(numberOf(entry.deduction))} comes off the
+                                  starting price.
+                                </p>
+                              )}
 
-                        {/* Where the money came from, in the admin's own numbers.
+                              {/* Where the money came from, in the admin's own numbers.
                             The arithmetic is stated rather than just its result,
                             because the figure has to be explainable to the
                             customer who asks why their quote moved. */}
-                        {quantityMoved && !errors[`inclusions.${index}.unitPrice`] && (
-                          <p
-                            className={`mt-1.5 pl-3.5 text-[11.5px] ${adjustment < 0 ? "text-emerald-700" : "text-amber-800"
-                              }`}
-                          >
-                            {Number(entry.quantity) < Number(entry.baseQuantity)
-                              ? `Down ${Number(entry.baseQuantity) - Number(entry.quantity)} from the ${entry.baseQuantity} the package includes`
-                              : `Up ${Number(entry.quantity) - Number(entry.baseQuantity)} from the ${entry.baseQuantity} the package includes`}
-                            {" · "}
-                            {Math.abs(Number(entry.quantity) - Number(entry.baseQuantity))} ×{" "}
-                            {formatCurrency(numberOf(entry.unitPrice))} ={" "}
-                            <strong className="tabular-nums">
-                              {adjustment < 0
-                                ? `${formatCurrency(Math.abs(adjustment))} off`
-                                : `${formatCurrency(adjustment)} added`}
-                            </strong>
-                          </p>
-                        )}
-                      </li>
-                      );
-                    })}
-                    </ul>
-                  </div>
-                ))}
+                              {quantityMoved && !errors[`inclusions.${index}.unitPrice`] && (
+                                <p
+                                  className={`mt-1.5 pl-3.5 text-[11.5px] ${adjustment < 0 ? "text-emerald-700" : "text-amber-800"
+                                    }`}
+                                >
+                                  {Number(entry.quantity) < Number(entry.baseQuantity)
+                                    ? `Down ${Number(entry.baseQuantity) - Number(entry.quantity)} from the ${entry.baseQuantity} the package includes`
+                                    : `Up ${Number(entry.quantity) - Number(entry.baseQuantity)} from the ${entry.baseQuantity} the package includes`}
+                                  {" · "}
+                                  {Math.abs(Number(entry.quantity) - Number(entry.baseQuantity))} ×{" "}
+                                  {formatCurrency(numberOf(entry.unitPrice))} ={" "}
+                                  <strong className="tabular-nums">
+                                    {adjustment < 0
+                                      ? `${formatCurrency(Math.abs(adjustment))} off`
+                                      : `${formatCurrency(adjustment)} added`}
+                                  </strong>
+                                </p>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={newInclusion}
+                  onChange={(e) => setNewInclusion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddInclusion();
+                    }
+                  }}
+                  placeholder="Add an inclusion this quotation covers"
+                  className={`${inputClass(false)} text-xs`}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddInclusion}
+                  disabled={!newInclusion.trim()}
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
+                >
+                  <Plus size={13} /> Add inclusion
+                </button>
               </div>
-            )}
+            </SectionCard>
 
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input
-                type="text"
-                value={newInclusion}
-                onChange={(e) => setNewInclusion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddInclusion();
-                  }
-                }}
-                placeholder="Add an inclusion this quotation covers"
-                className={`${inputClass(false)} text-xs`}
-              />
-              <button
-                type="button"
-                onClick={handleAddInclusion}
-                disabled={!newInclusion.trim()}
-                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
+            {/* --- 4. Menu ----------------------------------------------------- */}
+            {!isSetupOnly && (
+              <SectionCard
+                step={stepNumbers.menu}
+                id="qb-section-menu"
+                accent="amber"
+                icon={cateringIncluded ? Utensils : UtensilsCrossed}
+                title="Menu"
+                description={
+                  cateringIncluded
+                    ? "Every dish is quantity times unit price. State what the quantity is in — a kilo, a tray, a bilao, a head — and what one of them costs."
+                    : "The customer's answer to catering on this booking."
+                }
+                aside={
+                  cateringIncluded ? (
+                    <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
+                      {totals.guestCount} pax
+                    </span>
+                  ) : null
+                }
               >
-                <Plus size={13} /> Add inclusion
-              </button>
-            </div>
-          </SectionCard>
-
-          {/* --- 4. Menu ----------------------------------------------------- */}
-          {!isSetupOnly && (
-            <SectionCard
-              step={stepNumbers.menu}
-              id="qb-section-menu"
-              accent="amber"
-              icon={cateringIncluded ? Utensils : UtensilsCrossed}
-              title="Menu"
-              description={
-                cateringIncluded
-                  ? "Every dish is quantity times unit price. State what the quantity is in — a kilo, a tray, a bilao, a head — and what one of them costs."
-                  : "The customer's answer to catering on this booking."
-              }
-              aside={
-                cateringIncluded ? (
-                  <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-slate-600">
-                    {totals.guestCount} pax
-                  </span>
-                ) : null
-              }
-            >
-              {/* What the customer chose, stated plainly. An empty dish list and
+                {/* What the customer chose, stated plainly. An empty dish list and
                   a declined catering request look identical otherwise, and one
                   of them means the admin has lost the customer's selection. */}
-              <div
-                className={`mb-3 flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${cateringIncluded
+                <div
+                  className={`mb-3 flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${cateringIncluded
                     ? "border-primary/25 bg-primary/5 text-slate-700"
                     : "border-slate-300 bg-slate-50 text-slate-700"
-                  }`}
-              >
-                {cateringIncluded ? (
-                  <Utensils size={15} className="mt-0.5 shrink-0 text-primary" />
-                ) : (
-                  <UtensilsCrossed size={15} className="mt-0.5 shrink-0 text-slate-500" />
-                )}
-                <div className="min-w-0">
-                  {/* A combo customer chose a meal, not dishes. Saying they
+                    }`}
+                >
+                  {cateringIncluded ? (
+                    <Utensils size={15} className="mt-0.5 shrink-0 text-primary" />
+                  ) : (
+                    <UtensilsCrossed size={15} className="mt-0.5 shrink-0 text-slate-500" />
+                  )}
+                  <div className="min-w-0">
+                    {/* A combo customer chose a meal, not dishes. Saying they
                       "did not pick specific dishes" would read as an open menu
                       the admin still has to agree — the opposite of what a
                       combo is. */}
-                  {offerContext ? (
-                    <>
-                      <p className="font-semibold text-slate-900">
-                        The customer booked the {offerContext.name} combo, which
-                        decides the food.
-                      </p>
-                      <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                        {offerContext.food.map((name, index) => (
-                          <li
-                            key={`${name}-${index}`}
-                            className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
-                          >
-                            <Check size={11} className="text-amber-500" />
-                            {name}
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="mt-1.5">
-                        Already paid for by the combo price above — do not charge
-                        for it again.
-                      </p>
-                    </>
-                  ) : customerSelection.wantedFood ? (
-                    <>
-                      <p className="font-semibold text-slate-900">
-                        The customer asked for catering and chose{" "}
-                        {customerSelection.dishes.length}{" "}
-                        {customerSelection.dishes.length === 1 ? "dish" : "dishes"}.
-                      </p>
-                      {customerSelection.dishes.length > 0 ? (
+                    {offerContext ? (
+                      <>
+                        <p className="font-semibold text-slate-900">
+                          The customer booked the {offerContext.name} combo, which
+                          decides the food.
+                        </p>
                         <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                          {customerSelection.dishes.map((dish, index) => (
+                          {offerContext.food.map((name, index) => (
                             <li
-                              key={dish.id || index}
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                              key={`${name}-${index}`}
+                              className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
                             >
-                              <Check size={11} className="text-primary" />
-                              {dish.name || "Dish no longer in the catalog"}
-                              {dish.category && (
-                                <span className="text-slate-500">({dish.category})</span>
-                              )}
+                              <Check size={11} className="text-amber-500" />
+                              {name}
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <p className="mt-1">
-                          They did not pick specific dishes, so the menu is still open. Agree it with
-                          them before quoting a per guest rate.
+                        <p className="mt-1.5">
+                          Already paid for by the combo price above — do not charge
+                          for it again.
                         </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-semibold text-slate-900">
-                        The customer chose to skip catering on this booking.
-                      </p>
-                      <p className="mt-1">
-                        No food is being quoted and no food charges are included in the total. Only add
-                        dishes here if the customer has since asked for catering.
-                      </p>
-                    </>
-                  )}
+                      </>
+                    ) : customerSelection.wantedFood ? (
+                      <>
+                        <p className="font-semibold text-slate-900">
+                          The customer asked for catering and chose{" "}
+                          {customerSelection.dishes.length}{" "}
+                          {customerSelection.dishes.length === 1 ? "dish" : "dishes"}.
+                        </p>
+                        {customerSelection.dishes.length > 0 ? (
+                          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                            {customerSelection.dishes.map((dish, index) => (
+                              <li
+                                key={dish.id || index}
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700"
+                              >
+                                <Check size={11} className="text-primary" />
+                                {dish.name || "Dish no longer in the catalog"}
+                                {dish.category && (
+                                  <span className="text-slate-500">({dish.category})</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-1">
+                            They did not pick specific dishes, so the menu is still open. Agree it with
+                            them before quoting a per guest rate.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-slate-900">
+                          The customer chose to skip catering on this booking.
+                        </p>
+                        <p className="mt-1">
+                          No food is being quoted and no food charges are included in the total. Only add
+                          dishes here if the customer has since asked for catering.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Catering can still be turned on or off here, because customers
+                {/* Catering can still be turned on or off here, because customers
                   change their minds after booking and the quotation is where
                   that gets settled. */}
-              <label className="mb-3 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={cateringIncluded}
-                  onChange={(e) => setDetail("include_food", e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/40"
-                />
-                <span>
-                  Include catering on this quotation
-                  {customerSelection.wantedFood !== cateringIncluded && (
-                    <span className="ml-1.5 font-semibold text-amber-700">
-                      (changed from what the customer submitted)
-                    </span>
-                  )}
-                </span>
-              </label>
+                <label className="mb-3 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={cateringIncluded}
+                    onChange={(e) => setDetail("include_food", e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/40"
+                  />
+                  <span>
+                    Include catering on this quotation
+                    {customerSelection.wantedFood !== cateringIncluded && (
+                      <span className="ml-1.5 font-semibold text-amber-700">
+                        (changed from what the customer submitted)
+                      </span>
+                    )}
+                  </span>
+                </label>
 
-              {cateringIncluded && (
-              <>
+                {cateringIncluded && (
+                  <>
+                    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
+                      <select
+                        value={selectedCatalogDish}
+                        onChange={(e) => setSelectedCatalogDish(e.target.value)}
+                        className={`${inputClass(false)} text-xs`}
+                      >
+                        <option value="">Pick a dish from the menu catalog</option>
+                        {catalogMenuItems.map((item) => (
+                          <option key={item._id} value={item._id}>
+                            {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAddCatalogDish}
+                        disabled={!selectedCatalogDish}
+                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
+                      >
+                        <Plus size={13} /> Add dish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMenuItems((prev) => [...prev, menuRow()])}
+                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                      >
+                        <Plus size={13} /> Custom dish
+                      </button>
+                    </div>
+
+                    {/* Units are suggestions shared by every row, so the list is
+                  rendered once rather than per dish. */}
+                    <datalist id="qb-menu-units">
+                      {UNIT_SUGGESTIONS.map((unit) => (
+                        <option key={unit} value={unit} />
+                      ))}
+                    </datalist>
+
+                    {menuItems.length === 0 ? (
+                      <p className="py-3 text-center text-xs italic text-slate-500">
+                        No dishes on this quotation yet. Add the ones this event covers so they can be
+                        priced.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2.5">
+                        {menuItems.map((item, index) => {
+                          const unitLabel = String(item.unit || "").trim();
+                          const rowError =
+                            errors[`menu_items.${index}.name`] ||
+                            errors[`menu_items.${index}.price`] ||
+                            errors[`menu_items.${index}.quantity`];
+                          // One pricing form, so one colour: violet is "a counted
+                          // number of units", the same language the add-ons below
+                          // use for the same idea.
+                          const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
+                          return (
+                            <li
+                              key={index}
+                              className={`rounded-lg border p-2.5 transition-colors ${item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
+                                }`}
+                            >
+                              {/* Explicit column widths, not an implicit grid: the
+                            dish name gets a guaranteed minimum width it can
+                            never be squeezed under, whatever the numbers
+                            beside it grow to. */}
+                              <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                                {/* The dish, and what it is. The course comes from
+                              the menu catalog and is not the admin's to quote,
+                              so it sits beside the name as a label rather than
+                              in a field — and, in particular, not in the note,
+                              which is theirs to write. */}
+                                <div className="flex min-w-0 flex-1 flex-col gap-1 lg:min-w-[150px]">
+                                  <input
+                                    id={`qb-menu_items.${index}.name`}
+                                    type="text"
+                                    value={item.name}
+                                    disabled={item.removed}
+                                    onChange={(e) => handleMenuChange(index, "name", e.target.value)}
+                                    placeholder="Dish name"
+                                    className={`${inputClass(errors[`menu_items.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold ${item.removed ? "line-through decoration-slate-400" : ""
+                                      }`}
+                                  />
+                                  {item.category && (
+                                    <span className="w-fit rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                                      {item.category}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                                  {/* How many, and of what. The unit is the admin's
+                                to state — a kilo, a tray, a bilao, a head —
+                                because food is sold by all of them and forcing
+                                one of them on every dish is what the per-person
+                                default got wrong. */}
+                                  <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
+                                    <input
+                                      id={`qb-menu_items.${index}.quantity`}
+                                      type="number"
+                                      min="1"
+                                      disabled={item.removed}
+                                      value={item.quantity}
+                                      onWheel={(e) => e.target.blur()}
+                                      onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
+                                      className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
+                                        }`}
+                                    />
+                                    <input
+                                      type="text"
+                                      list="qb-menu-units"
+                                      disabled={item.removed}
+                                      value={item.unit}
+                                      onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
+                                      placeholder="unit"
+                                      className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                    />
+                                  </div>
+
+                                  <div className="w-28">
+                                    <MoneyInput
+                                      id={`qb-menu_items.${index}.price`}
+                                      value={item.price}
+                                      disabled={item.removed}
+                                      placeholder={`Per ${unitLabel || "unit"}`}
+                                      error={errors[`menu_items.${index}.price`]}
+                                      onChange={(value) => handleMenuChange(index, "price", value)}
+                                      className="py-1.5 text-xs"
+                                    />
+                                  </div>
+
+                                  <div className="min-w-[96px] text-right">
+                                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                      Line total
+                                    </span>
+                                    <span
+                                      className={`text-xs font-bold tabular-nums ${item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                                        }`}
+                                    >
+                                      {!item.removed && numberOf(item.price) === 0 ? (
+                                        <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+                                          Included in pkg
+                                        </span>
+                                      ) : (
+                                        formatCurrency(menuLineTotal(item, totals.guestCount))
+                                      )}
+                                    </span>
+                                  </div>
+
+                                  {/* Parked, not deleted: one click puts it back,
+                                with its price, quantity and note intact. */}
+                                  {item.removed ? (
+                                    <RowAction
+                                      onClick={() => toggleMenuItemRemoved(index)}
+                                      icon={Undo2}
+                                      label="Restore"
+                                      tone="success"
+                                      title="Put this dish back on the quotation"
+                                    />
+                                  ) : (
+                                    <RowAction
+                                      onClick={() =>
+                                        String(item.name || "").trim() || numberOf(item.price)
+                                          ? toggleMenuItemRemoved(index)
+                                          : handleDeleteMenuItem(index)
+                                      }
+                                      icon={Trash2}
+                                      label="Remove"
+                                      title="Take this dish off the quotation. You can restore it."
+                                    />
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* What this dish is, beyond its name and price: what a
+                            kilo of it serves, how it is packed, how it is
+                            prepared. It is the place for the detail that
+                            explains the quantity — never for the quantity
+                            itself, which has its own field above. Shown to the
+                            customer, and never part of the total. */}
+                              {!item.removed && (
+                                <div className="mt-2">
+                                  <label
+                                    htmlFor={`qb-menu_items.${index}.note`}
+                                    className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                  >
+                                    Notes
+                                  </label>
+                                  <input
+                                    id={`qb-menu_items.${index}.note`}
+                                    type="text"
+                                    value={item.note || ""}
+                                    onChange={(e) => handleMenuChange(index, "note", e.target.value)}
+                                    placeholder={`e.g. 1 ${unitLabel || "kilo"}, good for approximately 10 servings`}
+                                    title="Serving size, weight, packaging or preparation details for this dish."
+                                    className={`${inputClass(false)} py-1.5 text-xs`}
+                                  />
+                                </div>
+                              )}
+
+                              {rowError && (
+                                <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                                  <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                                  {rowError}
+                                </p>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+
+                  </>
+                )}
+              </SectionCard>
+            )}
+
+            {/* --- 5. Add-ons and services ------------------------------------- */}
+            <SectionCard
+              step={stepNumbers.addOns}
+              id="qb-section-addons"
+              accent="violet"
+              icon={Sparkles}
+              title={
+                isFoodOnly
+                  ? "Food & Catering Add-ons"
+                  : isSetupOnly
+                    ? "Event Setup & Equipment Add-ons"
+                    : "Add-ons and Extra Services"
+              }
+              description={
+                isFoodOnly
+                  ? "Additional food trays, whole roasted pig (lechon), drink stations, dessert tables, or extra crew."
+                  : isSetupOnly
+                    ? "Themed backdrop styling, mood lighting, Tiffany chairs, staging, or sound rentals."
+                    : "The catalog holds the add-on names. How many, at what price, and why are what you quote for this event."
+              }
+            >
               <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
                 <select
-                  value={selectedCatalogDish}
-                  onChange={(e) => setSelectedCatalogDish(e.target.value)}
+                  value={selectedCatalogAddon}
+                  onChange={(e) => setSelectedCatalogAddon(e.target.value)}
                   className={`${inputClass(false)} text-xs`}
                 >
-                  <option value="">Pick a dish from the menu catalog</option>
-                  {catalogMenuItems.map((item) => (
-                    <option key={item._id} value={item._id}>
-                      {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
+                  <option value="">
+                    {isFoodOnly
+                      ? "Pick a catering / food add-on from catalog"
+                      : isSetupOnly
+                        ? "Pick a setup / equipment add-on from catalog"
+                        : "Pick an add-on from the global catalog"}
+                  </option>
+                  {catalogAddons.map((addon) => (
+                    <option key={addon._id} value={addon._id}>
+                      {addon.name}
                     </option>
                   ))}
                 </select>
                 <button
                   type="button"
-                  onClick={handleAddCatalogDish}
-                  disabled={!selectedCatalogDish}
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
+                  onClick={handleAddCatalogAddon}
+                  disabled={!selectedCatalogAddon}
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40 cursor-pointer"
                 >
-                  <Plus size={13} /> Add dish
+                  <Plus size={13} /> {isFoodOnly ? "Add catering add-on" : isSetupOnly ? "Add setup add-on" : "Add service"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMenuItems((prev) => [...prev, menuRow()])}
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={() =>
+                    setAddOns((prev) => [
+                      ...prev,
+                      { name: "", price: "", quantity: 1, note: "", pricing_type: "quantity" },
+                    ])
+                  }
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
                 >
-                  <Plus size={13} /> Custom dish
+                  <Plus size={13} /> {isFoodOnly ? "Custom food add-on" : "Custom service"}
                 </button>
               </div>
 
-              {/* Units are suggestions shared by every row, so the list is
-                  rendered once rather than per dish. */}
-              <datalist id="qb-menu-units">
-                {UNIT_SUGGESTIONS.map((unit) => (
-                  <option key={unit} value={unit} />
-                ))}
-              </datalist>
-
-              {menuItems.length === 0 ? (
+              {addOns.length === 0 ? (
                 <p className="py-3 text-center text-xs italic text-slate-500">
-                  No dishes on this quotation yet. Add the ones this event covers so they can be
-                  priced.
+                  {isFoodOnly
+                    ? "No catering add-ons on this quotation yet. Add extra lechon, drinks, or dessert stations if needed."
+                    : isSetupOnly
+                      ? "No setup add-ons on this quotation yet. Add extra lighting, backdrop, or styling rentals if needed."
+                      : "No add-ons on this quotation yet."}
                 </p>
               ) : (
-                <ul className="space-y-2.5">
-                  {menuItems.map((item, index) => {
-                    const unitLabel = String(item.unit || "").trim();
+                <ul className="space-y-2">
+                  {addOns.map((item, index) => {
                     const rowError =
-                      errors[`menu_items.${index}.name`] ||
-                      errors[`menu_items.${index}.price`] ||
-                      errors[`menu_items.${index}.quantity`];
-                    // One pricing form, so one colour: violet is "a counted
-                    // number of units", the same language the add-ons below
-                    // use for the same idea.
+                      errors[`add_ons.${index}.name`] ||
+                      errors[`add_ons.${index}.price`] ||
+                      errors[`add_ons.${index}.quantity`];
                     const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
                     return (
                       <li
                         key={index}
-                        className={`rounded-lg border p-2.5 transition-colors ${
-                          item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
-                        }`}
+                        className={`rounded-lg border p-2.5 transition-colors ${item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
+                          }`}
                       >
-                        {/* Explicit column widths, not an implicit grid: the
-                            dish name gets a guaranteed minimum width it can
-                            never be squeezed under, whatever the numbers
-                            beside it grow to. */}
                         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                          {/* The dish, and what it is. The course comes from
-                              the menu catalog and is not the admin's to quote,
-                              so it sits beside the name as a label rather than
-                              in a field — and, in particular, not in the note,
-                              which is theirs to write. */}
-                          <div className="flex min-w-0 flex-1 flex-col gap-1 lg:min-w-[150px]">
-                            <input
-                              id={`qb-menu_items.${index}.name`}
-                              type="text"
-                              value={item.name}
-                              disabled={item.removed}
-                              onChange={(e) => handleMenuChange(index, "name", e.target.value)}
-                              placeholder="Dish name"
-                              className={`${inputClass(errors[`menu_items.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold ${
-                                item.removed ? "line-through decoration-slate-400" : ""
+                          <input
+                            id={`qb-add_ons.${index}.name`}
+                            type="text"
+                            value={item.name}
+                            disabled={item.removed}
+                            onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
+                            placeholder={isFoodOnly ? "e.g. Whole Roasted Lechon, Beverage Bar" : "Add-on or service name"}
+                            className={`${inputClass(errors[`add_ons.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${item.removed ? "line-through decoration-slate-400" : ""
                               }`}
-                            />
-                            {item.category && (
-                              <span className="w-fit rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                                {item.category}
-                              </span>
-                            )}
-                          </div>
+                          />
 
                           <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                            {/* How many, and of what. The unit is the admin's
-                                to state — a kilo, a tray, a bilao, a head —
-                                because food is sold by all of them and forcing
-                                one of them on every dish is what the per-person
-                                default got wrong. */}
-                            <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
+                            <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
                               <input
-                                id={`qb-menu_items.${index}.quantity`}
+                                id={`qb-add_ons.${index}.quantity`}
                                 type="number"
                                 min="1"
                                 disabled={item.removed}
                                 value={item.quantity}
                                 onWheel={(e) => e.target.blur()}
-                                onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
-                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${
-                                  errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
-                                }`}
-                              />
-                              <input
-                                type="text"
-                                list="qb-menu-units"
-                                disabled={item.removed}
-                                value={item.unit}
-                                onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
-                                placeholder="unit"
-                                className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
+                                className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
+                                  }`}
                               />
                             </div>
 
                             <div className="w-28">
                               <MoneyInput
-                                id={`qb-menu_items.${index}.price`}
+                                id={`qb-add_ons.${index}.price`}
                                 value={item.price}
                                 disabled={item.removed}
-                                placeholder={`Per ${unitLabel || "unit"}`}
-                                error={errors[`menu_items.${index}.price`]}
-                                onChange={(value) => handleMenuChange(index, "price", value)}
+                                placeholder="Unit price"
+                                error={errors[`add_ons.${index}.price`]}
+                                onChange={(value) => handleAddOnChange(index, "price", value)}
                                 className="py-1.5 text-xs"
                               />
                             </div>
@@ -3634,66 +3967,56 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 Line total
                               </span>
                               <span
-                                className={`text-xs font-bold tabular-nums ${
-                                  item.removed ? "text-slate-400 line-through" : "text-slate-800"
-                                }`}
+                                className={`text-xs font-bold tabular-nums ${item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                                  }`}
                               >
                                 {!item.removed && numberOf(item.price) === 0 ? (
                                   <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
                                     Included in pkg
                                   </span>
                                 ) : (
-                                  formatCurrency(menuLineTotal(item, totals.guestCount))
+                                  formatCurrency(addOnLineTotal(item))
                                 )}
                               </span>
                             </div>
 
-                            {/* Parked, not deleted: one click puts it back,
-                                with its price, quantity and note intact. */}
                             {item.removed ? (
                               <RowAction
-                                onClick={() => toggleMenuItemRemoved(index)}
+                                onClick={() => toggleAddOnRemoved(index)}
                                 icon={Undo2}
                                 label="Restore"
                                 tone="success"
-                                title="Put this dish back on the quotation"
+                                title="Put this add-on back on the quotation"
                               />
                             ) : (
                               <RowAction
                                 onClick={() =>
                                   String(item.name || "").trim() || numberOf(item.price)
-                                    ? toggleMenuItemRemoved(index)
-                                    : handleDeleteMenuItem(index)
+                                    ? toggleAddOnRemoved(index)
+                                    : handleDeleteAddOn(index)
                                 }
                                 icon={Trash2}
                                 label="Remove"
-                                title="Take this dish off the quotation. You can restore it."
+                                title="Take this add-on off the quotation. You can restore it."
                               />
                             )}
                           </div>
                         </div>
 
-                        {/* What this dish is, beyond its name and price: what a
-                            kilo of it serves, how it is packed, how it is
-                            prepared. It is the place for the detail that
-                            explains the quantity — never for the quantity
-                            itself, which has its own field above. Shown to the
-                            customer, and never part of the total. */}
                         {!item.removed && (
                           <div className="mt-2">
                             <label
-                              htmlFor={`qb-menu_items.${index}.note`}
+                              htmlFor={`qb-add_ons.${index}.note`}
                               className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
                             >
                               Notes
                             </label>
                             <input
-                              id={`qb-menu_items.${index}.note`}
+                              id={`qb-add_ons.${index}.note`}
                               type="text"
                               value={item.note || ""}
-                              onChange={(e) => handleMenuChange(index, "note", e.target.value)}
-                              placeholder={`e.g. 1 ${unitLabel || "kilo"}, good for approximately 10 servings`}
-                              title="Serving size, weight, packaging or preparation details for this dish."
+                              onChange={(e) => handleAddOnChange(index, "note", e.target.value)}
+                              placeholder={isFoodOnly ? "e.g. Served hot alongside main buffet." : "e.g. Set up an hour before the programme starts."}
                               className={`${inputClass(false)} py-1.5 text-xs`}
                             />
                           </div>
@@ -3710,843 +4033,631 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   })}
                 </ul>
               )}
-
-              </>
-              )}
             </SectionCard>
-          )}
 
-          {/* --- 5. Add-ons and services ------------------------------------- */}
-          <SectionCard
-            step={stepNumbers.addOns}
-            id="qb-section-addons"
-            accent="violet"
-            icon={Sparkles}
-            title={
-              isFoodOnly
-                ? "Food & Catering Add-ons"
-                : isSetupOnly
-                ? "Event Setup & Equipment Add-ons"
-                : "Add-ons and Extra Services"
-            }
-            description={
-              isFoodOnly
-                ? "Additional food trays, whole roasted pig (lechon), drink stations, dessert tables, or extra crew."
-                : isSetupOnly
-                ? "Themed backdrop styling, mood lighting, Tiffany chairs, staging, or sound rentals."
-                : "The catalog holds the add-on names. How many, at what price, and why are what you quote for this event."
-            }
-          >
-            <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
-              <select
-                value={selectedCatalogAddon}
-                onChange={(e) => setSelectedCatalogAddon(e.target.value)}
-                className={`${inputClass(false)} text-xs`}
-              >
-                <option value="">
-                  {isFoodOnly
-                    ? "Pick a catering / food add-on from catalog"
-                    : isSetupOnly
-                    ? "Pick a setup / equipment add-on from catalog"
-                    : "Pick an add-on from the global catalog"}
-                </option>
-                {catalogAddons.map((addon) => (
-                  <option key={addon._id} value={addon._id}>
-                    {addon.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleAddCatalogAddon}
-                disabled={!selectedCatalogAddon}
-                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40 cursor-pointer"
-              >
-                <Plus size={13} /> {isFoodOnly ? "Add catering add-on" : isSetupOnly ? "Add setup add-on" : "Add service"}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setAddOns((prev) => [
-                    ...prev,
-                    { name: "", price: "", quantity: 1, note: "", pricing_type: "quantity" },
-                  ])
-                }
-                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
-              >
-                <Plus size={13} /> {isFoodOnly ? "Custom food add-on" : "Custom service"}
-              </button>
-            </div>
-
-            {addOns.length === 0 ? (
-              <p className="py-3 text-center text-xs italic text-slate-500">
-                {isFoodOnly
-                  ? "No catering add-ons on this quotation yet. Add extra lechon, drinks, or dessert stations if needed."
-                  : isSetupOnly
-                  ? "No setup add-ons on this quotation yet. Add extra lighting, backdrop, or styling rentals if needed."
-                  : "No add-ons on this quotation yet."}
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {addOns.map((item, index) => {
-                  const rowError =
-                    errors[`add_ons.${index}.name`] ||
-                    errors[`add_ons.${index}.price`] ||
-                    errors[`add_ons.${index}.quantity`];
-                  const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
-                  return (
-                    <li
-                      key={index}
-                      className={`rounded-lg border p-2.5 transition-colors ${
-                        item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                        <input
-                          id={`qb-add_ons.${index}.name`}
-                          type="text"
-                          value={item.name}
-                          disabled={item.removed}
-                          onChange={(e) => handleAddOnChange(index, "name", e.target.value)}
-                          placeholder={isFoodOnly ? "e.g. Whole Roasted Lechon, Beverage Bar" : "Add-on or service name"}
-                          className={`${inputClass(errors[`add_ons.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold lg:min-w-[150px] lg:flex-1 ${
-                            item.removed ? "line-through decoration-slate-400" : ""
-                          }`}
-                        />
-
-                        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                          <div className={`flex shrink-0 items-center rounded-md border p-1 ${modeTint}`}>
-                            <input
-                              id={`qb-add_ons.${index}.quantity`}
-                              type="number"
-                              min="1"
-                              disabled={item.removed}
-                              value={item.quantity}
-                              onWheel={(e) => e.target.blur()}
-                              onChange={(e) => handleAddOnChange(index, "quantity", e.target.value)}
-                              className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${
-                                errors[`add_ons.${index}.quantity`] ? "border-red-400" : ""
-                              }`}
-                            />
-                          </div>
-
-                          <div className="w-28">
-                            <MoneyInput
-                              id={`qb-add_ons.${index}.price`}
-                              value={item.price}
-                              disabled={item.removed}
-                              placeholder="Unit price"
-                              error={errors[`add_ons.${index}.price`]}
-                              onChange={(value) => handleAddOnChange(index, "price", value)}
-                              className="py-1.5 text-xs"
-                            />
-                          </div>
-
-                          <div className="min-w-[96px] text-right">
-                            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                              Line total
-                            </span>
-                            <span
-                              className={`text-xs font-bold tabular-nums ${
-                                item.removed ? "text-slate-400 line-through" : "text-slate-800"
-                              }`}
-                            >
-                              {!item.removed && numberOf(item.price) === 0 ? (
-                                <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
-                                  Included in pkg
-                                </span>
-                              ) : (
-                                formatCurrency(addOnLineTotal(item))
-                              )}
-                            </span>
-                          </div>
-
-                          {item.removed ? (
-                            <RowAction
-                              onClick={() => toggleAddOnRemoved(index)}
-                              icon={Undo2}
-                              label="Restore"
-                              tone="success"
-                              title="Put this add-on back on the quotation"
-                            />
-                          ) : (
-                            <RowAction
-                              onClick={() =>
-                                String(item.name || "").trim() || numberOf(item.price)
-                                  ? toggleAddOnRemoved(index)
-                                  : handleDeleteAddOn(index)
-                              }
-                              icon={Trash2}
-                              label="Remove"
-                              title="Take this add-on off the quotation. You can restore it."
-                            />
-                          )}
-                        </div>
-                      </div>
-
-                      {!item.removed && (
-                        <div className="mt-2">
-                          <label
-                            htmlFor={`qb-add_ons.${index}.note`}
-                            className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                          >
-                            Notes
-                          </label>
-                          <input
-                            id={`qb-add_ons.${index}.note`}
-                            type="text"
-                            value={item.note || ""}
-                            onChange={(e) => handleAddOnChange(index, "note", e.target.value)}
-                            placeholder={isFoodOnly ? "e.g. Served hot alongside main buffet." : "e.g. Set up an hour before the programme starts."}
-                            className={`${inputClass(false)} py-1.5 text-xs`}
-                          />
-                        </div>
-                      )}
-
-                      {rowError && (
-                        <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
-                          <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                          {rowError}
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </SectionCard>
-
-          {/* --- 6. Adjustments ---------------------------------------------- */}
-          <SectionCard
-            step={stepNumbers.adjustments}
-            id="qb-section-adjustments"
-            accent="sky"
-            icon={Percent}
-            title="Adjustments, Overtime & Logistics"
-            description="Transportation, delivery, crew overtime calculator, custom fees, taxes, and discounts."
-          >
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field
-                  label={isFoodOnly ? "Delivery / Logistics fee" : "Transportation & Logistics"}
-                  hint={
-                    isFoodOnly
-                      ? inquiry.delivery_method === "pickup"
-                        ? "Pickup orders typically have ₱0 delivery fee."
-                        : "Delivery and handling fee to destination."
-                      : "Logistics, hauling, and crew transportation for this event."
-                  }
-                  htmlFor="qb-transportation_fee"
-                >
-                  <MoneyInput
-                    id="qb-transportation_fee"
-                    value={transportationFee}
-                    onChange={(value) => setTransportationFee(nonNegative(value))}
-                  />
-                </Field>
-                <Field label="Taxes" hint="Added to the subtotal." htmlFor="qb-taxes">
-                  <MoneyInput id="qb-taxes" value={taxes} onChange={(value) => setTaxes(nonNegative(value))} />
-                </Field>
-                <Field label="Discount" hint="Taken off the subtotal." htmlFor="qb-discounts">
-                  <MoneyInput
-                    id="qb-discounts"
-                    value={discounts}
-                    onChange={(value) => setDiscounts(nonNegative(value))}
-                  />
-                </Field>
-              </div>
-
-              {/* DEDICATED CREW & EVENT OVERTIME PRICING MODULE */}
-              <div className={`rounded-xl border transition-all ${
-                includeOvertime
-                  ? "border-sky-300 bg-gradient-to-b from-sky-50/80 via-white to-sky-50/40 p-4 shadow-2xs"
-                  : "border-slate-200 bg-slate-50/60 p-3.5"
-              }`}>
-                {/* Header with Switch */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/80">
-                  <div className="flex items-center gap-2.5">
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                      includeOvertime ? "bg-sky-600 text-white shadow-2xs" : "bg-slate-200 text-slate-500"
-                    }`}>
-                      <Clock size={16} />
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-900">Crew &amp; Event Overtime Pricing</h4>
-                        {includeOvertime ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 px-2 py-0.5 text-[10.5px] font-bold text-sky-800">
-                            Active &middot; {formatCurrency(finalOvertimeAmount)}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-medium text-slate-400">Optional</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500">
-                        {includeOvertime
-                          ? "Auto-synced directly into quotation fees as a structured, backward-compatible line item."
-                          : "Calculate overtime extension per crew hour or flat event surcharge."}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => setIncludeOvertime(!includeOvertime)}
-                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs self-start sm:self-auto ${
-                      includeOvertime
-                        ? "bg-sky-600 text-white hover:bg-sky-700 ring-2 ring-sky-300/60"
-                        : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
-                    }`}
+            {/* --- 6. Adjustments ---------------------------------------------- */}
+            <SectionCard
+              step={stepNumbers.adjustments}
+              id="qb-section-adjustments"
+              accent="sky"
+              icon={Percent}
+              title="Adjustments, Overtime & Logistics"
+              description="Transportation, delivery, crew overtime calculator, custom fees, taxes, and discounts."
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Field
+                    label={isFoodOnly ? "Delivery / Logistics fee" : "Transportation & Logistics"}
+                    hint={
+                      isFoodOnly
+                        ? inquiry.delivery_method === "pickup"
+                          ? "Pickup orders typically have ₱0 delivery fee."
+                          : "Delivery and handling fee to destination."
+                        : "Logistics, hauling, and crew transportation for this event."
+                    }
+                    htmlFor="qb-transportation_fee"
                   >
-                    <Sliders size={13} />
-                    <span>{includeOvertime ? "Overtime Included" : "+ Include Overtime"}</span>
-                  </button>
+                    <MoneyInput
+                      id="qb-transportation_fee"
+                      value={transportationFee}
+                      onChange={(value) => setTransportationFee(nonNegative(value))}
+                    />
+                  </Field>
+                  <Field label="Taxes" hint="Added to the subtotal." htmlFor="qb-taxes">
+                    <MoneyInput id="qb-taxes" value={taxes} onChange={(value) => setTaxes(nonNegative(value))} />
+                  </Field>
+                  <Field label="Discount" hint="Taken off the subtotal." htmlFor="qb-discounts">
+                    <MoneyInput
+                      id="qb-discounts"
+                      value={discounts}
+                      onChange={(value) => setDiscounts(nonNegative(value))}
+                    />
+                  </Field>
                 </div>
 
-                {includeOvertime && (
-                  <div className="mt-3.5 space-y-4">
-                    {/* Mode Selector Tabs */}
-                    <div>
-                      <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                        Overtime Billing Model
+                {/* DEDICATED CREW & EVENT OVERTIME PRICING MODULE */}
+                <div className={`rounded-xl border transition-all ${includeOvertime
+                    ? "border-sky-300 bg-gradient-to-b from-sky-50/80 via-white to-sky-50/40 p-4 shadow-2xs"
+                    : "border-slate-200 bg-slate-50/60 p-3.5"
+                  }`}>
+                  {/* Header with Switch */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/80">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${includeOvertime ? "bg-sky-600 text-white shadow-2xs" : "bg-slate-200 text-slate-500"
+                        }`}>
+                        <Clock size={16} />
                       </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOvertimeMode("per_crew");
-                            setOvertimeCustomAmount("");
-                          }}
-                          className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                            overtimeMode === "per_crew"
-                              ? "border-sky-500 bg-sky-50/90 ring-1 ring-sky-400/50"
-                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                          }`}
-                        >
-                          <div className={`mt-0.5 rounded-full p-1 ${overtimeMode === "per_crew" ? "bg-sky-600 text-white" : "bg-slate-200 text-slate-400"}`}>
-                            <Users size={12} />
-                          </div>
-                          <div>
-                            <span className="block text-xs font-bold text-slate-900">Hourly per Crew Member</span>
-                            <span className="block text-[11px] text-slate-500 mt-0.5">
-                              Hours &times; Crew Headcount &times; Hourly Rate
-                            </span>
-                          </div>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOvertimeMode("flat");
-                            setOvertimeCustomAmount("");
-                          }}
-                          className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                            overtimeMode === "flat"
-                              ? "border-sky-500 bg-sky-50/90 ring-1 ring-sky-400/50"
-                              : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                          }`}
-                        >
-                          <div className={`mt-0.5 rounded-full p-1 ${overtimeMode === "flat" ? "bg-sky-600 text-white" : "bg-slate-200 text-slate-400"}`}>
-                            <Clock size={12} />
-                          </div>
-                          <div>
-                            <span className="block text-xs font-bold text-slate-900">One-Time Flat Charge</span>
-                            <span className="block text-[11px] text-slate-500 mt-0.5">
-                              Fixed event extension fee regardless of headcount
-                            </span>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Calculator Inputs */}
-                    {overtimeMode === "per_crew" ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
-                        {/* 1. Hours */}
-                        <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                            Overtime Duration
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0.5"
-                              step="0.5"
-                              value={overtimeHours}
-                              onChange={(e) => {
-                                setOvertimeHours(Math.max(0.5, Number(e.target.value) || 0.5));
-                                setOvertimeCustomAmount("");
-                              }}
-                              className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
-                              hrs
-                            </span>
-                          </div>
-                          {/* Quick hour presets */}
-                          <div className="flex items-center gap-1 mt-1.5">
-                            {[1, 2, 3, 4].map((h) => (
-                              <button
-                                key={h}
-                                type="button"
-                                onClick={() => {
-                                  setOvertimeHours(h);
-                                  setOvertimeCustomAmount("");
-                                }}
-                                className={`px-2 py-0.5 text-[10.5px] font-semibold rounded border transition-colors cursor-pointer ${
-                                  Number(overtimeHours) === h
-                                    ? "bg-sky-600 text-white border-sky-600"
-                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                {h}h
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* 2. Crew Headcount */}
-                        <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                            Crew Headcount
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={crewCount}
-                              onChange={(e) => {
-                                setCrewCount(Math.max(1, Number(e.target.value) || 1));
-                                setOvertimeCustomAmount("");
-                              }}
-                              className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
-                              crew
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 mt-1 block">
-                            Estimated for {details.guest_count || 1} pax
-                          </span>
-                        </div>
-
-                        {/* 3. Hourly Rate */}
-                        <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                            Rate / Crew / Hour
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                              ₱
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="10"
-                              value={hourlyRatePerCrew}
-                              onChange={(e) => {
-                                setHourlyRatePerCrew(Math.max(0, Number(e.target.value) || 0));
-                                setOvertimeCustomAmount("");
-                              }}
-                              className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
-                            />
-                          </div>
-                          {/* Quick rate presets */}
-                          <div className="flex items-center gap-1 mt-1.5">
-                            {[150, 200, 250, 300].map((r) => (
-                              <button
-                                key={r}
-                                type="button"
-                                onClick={() => {
-                                  setHourlyRatePerCrew(r);
-                                  setOvertimeCustomAmount("");
-                                }}
-                                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
-                                  Number(hourlyRatePerCrew) === r
-                                    ? "bg-sky-600 text-white border-sky-600"
-                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                ₱{r}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Flat Charge Inputs */
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
-                        <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                            Estimated Duration
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={overtimeHours}
-                              onChange={(e) => setOvertimeHours(Math.max(1, Number(e.target.value) || 1))}
-                              className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
-                              hrs
-                            </span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                            Flat Overtime Fee (₱)
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                              ₱
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="100"
-                              value={flatOvertimeFee}
-                              onChange={(e) => {
-                                setFlatOvertimeFee(Math.max(0, Number(e.target.value) || 0));
-                                setOvertimeCustomAmount("");
-                              }}
-                              className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
-                            />
-                          </div>
-                          <div className="flex items-center gap-1 mt-1.5">
-                            {[1000, 1500, 2000, 3000].map((fee) => (
-                              <button
-                                key={fee}
-                                type="button"
-                                onClick={() => {
-                                  setFlatOvertimeFee(fee);
-                                  setOvertimeCustomAmount("");
-                                }}
-                                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${
-                                  Number(flatOvertimeFee) === fee
-                                    ? "bg-sky-600 text-white border-sky-600"
-                                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                ₱{fee.toLocaleString()}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Live Calculation Banner */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-sky-100/70 border border-sky-200">
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block">
-                          Formula Calculation
-                        </span>
-                        <p className="text-xs font-semibold text-sky-950 mt-0.5">
-                          {overtimeMode === "per_crew" ? (
-                            <>
-                              {overtimeHours} {overtimeHours === 1 ? "hour" : "hours"} &times; {crewCount} crew members &times; {formatCurrency(hourlyRatePerCrew)}/hr
-                            </>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-slate-900">Crew &amp; Event Overtime Pricing</h4>
+                          {includeOvertime ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 px-2 py-0.5 text-[10.5px] font-bold text-sky-800">
+                              Active &middot; {formatCurrency(finalOvertimeAmount)}
+                            </span>
                           ) : (
-                            <>
-                              {overtimeHours} {overtimeHours === 1 ? "hour" : "hours"} flat event extension
-                            </>
+                            <span className="text-[11px] font-medium text-slate-400">Optional</span>
                           )}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {includeOvertime
+                            ? "Auto-synced directly into quotation fees as a structured, backward-compatible line item."
+                            : "Calculate overtime extension per crew hour or flat event surcharge."}
                         </p>
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block sm:inline mr-2">
-                          Total Fee:
-                        </span>
-                        <span className="text-base font-extrabold text-sky-950 tabular-nums">
-                          {formatCurrency(finalOvertimeAmount)}
-                        </span>
-                      </div>
                     </div>
 
-                    {/* Admin Editable Quotation Line Item (Description & Amount override) */}
-                    <div className="bg-white/80 p-3 rounded-lg border border-slate-200 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                          Quotation Line Item Details (Customer-facing)
-                        </label>
-                        {(overtimeCustomTitle || overtimeCustomAmount !== "") && (
+                    {/* Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIncludeOvertime(!includeOvertime)}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs self-start sm:self-auto ${includeOvertime
+                          ? "bg-sky-600 text-white hover:bg-sky-700 ring-2 ring-sky-300/60"
+                          : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                        }`}
+                    >
+                      <Sliders size={13} />
+                      <span>{includeOvertime ? "Overtime Included" : "+ Include Overtime"}</span>
+                    </button>
+                  </div>
+
+                  {includeOvertime && (
+                    <div className="mt-3.5 space-y-4">
+                      {/* Mode Selector Tabs */}
+                      <div>
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                          Overtime Billing Model
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <button
                             type="button"
                             onClick={() => {
-                              setOvertimeCustomTitle("");
+                              setOvertimeMode("per_crew");
                               setOvertimeCustomAmount("");
                             }}
-                            className="text-[11px] font-semibold text-sky-600 hover:text-sky-800 cursor-pointer underline"
+                            className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${overtimeMode === "per_crew"
+                                ? "border-sky-500 bg-sky-50/90 ring-1 ring-sky-400/50"
+                                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                              }`}
                           >
-                            Reset to auto-calculated
+                            <div className={`mt-0.5 rounded-full p-1 ${overtimeMode === "per_crew" ? "bg-sky-600 text-white" : "bg-slate-200 text-slate-400"}`}>
+                              <Users size={12} />
+                            </div>
+                            <div>
+                              <span className="block text-xs font-bold text-slate-900">Hourly per Crew Member</span>
+                              <span className="block text-[11px] text-slate-500 mt-0.5">
+                                Hours &times; Crew Headcount &times; Hourly Rate
+                              </span>
+                            </div>
                           </button>
-                        )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOvertimeMode("flat");
+                              setOvertimeCustomAmount("");
+                            }}
+                            className={`flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${overtimeMode === "flat"
+                                ? "border-sky-500 bg-sky-50/90 ring-1 ring-sky-400/50"
+                                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+                              }`}
+                          >
+                            <div className={`mt-0.5 rounded-full p-1 ${overtimeMode === "flat" ? "bg-sky-600 text-white" : "bg-slate-200 text-slate-400"}`}>
+                              <Clock size={12} />
+                            </div>
+                            <div>
+                              <span className="block text-xs font-bold text-slate-900">One-Time Flat Charge</span>
+                              <span className="block text-[11px] text-slate-500 mt-0.5">
+                                Fixed event extension fee regardless of headcount
+                              </span>
+                            </div>
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <div className="sm:col-span-2">
-                          <input
-                            type="text"
-                            value={overtimeCustomTitle || defaultOvertimeTitle}
-                            onChange={(e) => setOvertimeCustomTitle(e.target.value)}
-                            placeholder={defaultOvertimeTitle}
-                            className={`${inputClass(false)} py-1.5 text-xs`}
-                          />
-                          <span className="text-[10px] text-slate-400 mt-1 block">
-                            Renders on customer quote modals, PDFs, and invoices.
+                      {/* Calculator Inputs */}
+                      {overtimeMode === "per_crew" ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                          {/* 1. Hours */}
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                              Overtime Duration
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value={overtimeHours}
+                                onChange={(e) => {
+                                  setOvertimeHours(Math.max(0.5, Number(e.target.value) || 0.5));
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                                hrs
+                              </span>
+                            </div>
+                            {/* Quick hour presets */}
+                            <div className="flex items-center gap-1 mt-1.5">
+                              {[1, 2, 3, 4].map((h) => (
+                                <button
+                                  key={h}
+                                  type="button"
+                                  onClick={() => {
+                                    setOvertimeHours(h);
+                                    setOvertimeCustomAmount("");
+                                  }}
+                                  className={`px-2 py-0.5 text-[10.5px] font-semibold rounded border transition-colors cursor-pointer ${Number(overtimeHours) === h
+                                      ? "bg-sky-600 text-white border-sky-600"
+                                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  {h}h
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 2. Crew Headcount */}
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                              Crew Headcount
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={crewCount}
+                                onChange={(e) => {
+                                  setCrewCount(Math.max(1, Number(e.target.value) || 1));
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                                crew
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 mt-1 block">
+                              Estimated for {details.guest_count || 1} pax
+                            </span>
+                          </div>
+
+                          {/* 3. Hourly Rate */}
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                              Rate / Crew / Hour
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                                ₱
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="10"
+                                value={hourlyRatePerCrew}
+                                onChange={(e) => {
+                                  setHourlyRatePerCrew(Math.max(0, Number(e.target.value) || 0));
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                              />
+                            </div>
+                            {/* Quick rate presets */}
+                            <div className="flex items-center gap-1 mt-1.5">
+                              {[150, 200, 250, 300].map((r) => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  onClick={() => {
+                                    setHourlyRatePerCrew(r);
+                                    setOvertimeCustomAmount("");
+                                  }}
+                                  className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${Number(hourlyRatePerCrew) === r
+                                      ? "bg-sky-600 text-white border-sky-600"
+                                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  ₱{r}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Flat Charge Inputs */
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-sky-100 shadow-2xs">
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                              Estimated Duration
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={overtimeHours}
+                                onChange={(e) => setOvertimeHours(Math.max(1, Number(e.target.value) || 1))}
+                                className={`${inputClass(false)} py-1.5 text-xs font-semibold tabular-nums`}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                                hrs
+                              </span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                              Flat Overtime Fee (₱)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                                ₱
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="100"
+                                value={flatOvertimeFee}
+                                onChange={(e) => {
+                                  setFlatOvertimeFee(Math.max(0, Number(e.target.value) || 0));
+                                  setOvertimeCustomAmount("");
+                                }}
+                                className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 mt-1.5">
+                              {[1000, 1500, 2000, 3000].map((fee) => (
+                                <button
+                                  key={fee}
+                                  type="button"
+                                  onClick={() => {
+                                    setFlatOvertimeFee(fee);
+                                    setOvertimeCustomAmount("");
+                                  }}
+                                  className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border transition-colors cursor-pointer ${Number(flatOvertimeFee) === fee
+                                      ? "bg-sky-600 text-white border-sky-600"
+                                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  ₱{fee.toLocaleString()}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Live Calculation Banner */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-sky-100/70 border border-sky-200">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block">
+                            Formula Calculation
+                          </span>
+                          <p className="text-xs font-semibold text-sky-950 mt-0.5">
+                            {overtimeMode === "per_crew" ? (
+                              <>
+                                {overtimeHours} {overtimeHours === 1 ? "hour" : "hours"} &times; {crewCount} crew members &times; {formatCurrency(hourlyRatePerCrew)}/hr
+                              </>
+                            ) : (
+                              <>
+                                {overtimeHours} {overtimeHours === 1 ? "hour" : "hours"} flat event extension
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 block sm:inline mr-2">
+                            Total Fee:
+                          </span>
+                          <span className="text-base font-extrabold text-sky-950 tabular-nums">
+                            {formatCurrency(finalOvertimeAmount)}
                           </span>
                         </div>
-                        <div>
-                          <div className="relative">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                              ₱
-                            </span>
+                      </div>
+
+                      {/* Admin Editable Quotation Line Item (Description & Amount override) */}
+                      <div className="bg-white/80 p-3 rounded-lg border border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                            Quotation Line Item Details (Customer-facing)
+                          </label>
+                          {(overtimeCustomTitle || overtimeCustomAmount !== "") && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOvertimeCustomTitle("");
+                                setOvertimeCustomAmount("");
+                              }}
+                              className="text-[11px] font-semibold text-sky-600 hover:text-sky-800 cursor-pointer underline"
+                            >
+                              Reset to auto-calculated
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="sm:col-span-2">
                             <input
-                              type="number"
-                              min="0"
-                              placeholder={String(computedOvertimeAmount)}
-                              value={overtimeCustomAmount}
-                              onChange={(e) => setOvertimeCustomAmount(nonNegative(e.target.value))}
-                              className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                              type="text"
+                              value={overtimeCustomTitle || defaultOvertimeTitle}
+                              onChange={(e) => setOvertimeCustomTitle(e.target.value)}
+                              placeholder={defaultOvertimeTitle}
+                              className={`${inputClass(false)} py-1.5 text-xs`}
                             />
+                            <span className="text-[10px] text-slate-400 mt-1 block">
+                              Renders on customer quote modals, PDFs, and invoices.
+                            </span>
                           </div>
-                          <span className="text-[10px] text-slate-400 mt-1 block">
-                            Direct fee override (optional)
-                          </span>
+                          <div>
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                                ₱
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder={String(computedOvertimeAmount)}
+                                value={overtimeCustomAmount}
+                                onChange={(e) => setOvertimeCustomAmount(nonNegative(e.target.value))}
+                                className={`${inputClass(false)} py-1.5 pl-6 text-xs font-semibold tabular-nums`}
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-1 block">
+                              Direct fee override (optional)
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* OTHER ADDITIONAL FEES */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-600 block">
-                      Other Custom Additional Fees
-                    </span>
-                    <span className="text-[10.5px] text-slate-400">
-                      One-off charges such as venue permits, generator rentals, or corkage.
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }])}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer shadow-2xs shrink-0"
-                  >
-                    <Plus size={12} /> Add custom fee
-                  </button>
+                  )}
                 </div>
 
-                {additionalFees.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || "")).length === 0 ? (
-                  <p className="text-[11.5px] leading-snug text-slate-400 italic py-1">
-                    No custom additional fees added yet. Click &ldquo;+ Add custom fee&rdquo; if needed.
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {additionalFees.map((fee, index) => {
-                      if (fee.isOvertime || /overtime/i.test(fee.name || "")) return null;
-                      const rowError =
-                        errors[`additional_fees.${index}.name`] ||
-                        errors[`additional_fees.${index}.amount`];
-                      return (
-                        <li key={index}>
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <input
-                              id={`qb-additional_fees.${index}.name`}
-                              type="text"
-                              value={fee.name}
-                              onChange={(e) => handleFeeChange(index, "name", e.target.value)}
-                              placeholder="Fee name, e.g. Generator Fuel, Venue Corkage"
-                              className={`${inputClass(errors[`additional_fees.${index}.name`])} py-1.5 text-xs`}
-                            />
-                            <div className="w-full sm:w-40 sm:shrink-0">
-                              <MoneyInput
-                                id={`qb-additional_fees.${index}.amount`}
-                                value={fee.amount}
-                                error={errors[`additional_fees.${index}.amount`]}
-                                onChange={(value) => handleFeeChange(index, "amount", value)}
-                                className="py-1.5 text-xs"
+                {/* OTHER ADDITIONAL FEES */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-600 block">
+                        Other Custom Additional Fees
+                      </span>
+                      <span className="text-[10.5px] text-slate-400">
+                        One-off charges such as venue permits, generator rentals, or corkage.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAdditionalFees((prev) => [...prev, { name: "", amount: "", isOvertime: false }])}
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer shadow-2xs shrink-0"
+                    >
+                      <Plus size={12} /> Add custom fee
+                    </button>
+                  </div>
+
+                  {additionalFees.filter((f) => !f.isOvertime && !/overtime/i.test(f.name || "")).length === 0 ? (
+                    <p className="text-[11.5px] leading-snug text-slate-400 italic py-1">
+                      No custom additional fees added yet. Click &ldquo;+ Add custom fee&rdquo; if needed.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {additionalFees.map((fee, index) => {
+                        if (fee.isOvertime || /overtime/i.test(fee.name || "")) return null;
+                        const rowError =
+                          errors[`additional_fees.${index}.name`] ||
+                          errors[`additional_fees.${index}.amount`];
+                        return (
+                          <li key={index}>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <input
+                                id={`qb-additional_fees.${index}.name`}
+                                type="text"
+                                value={fee.name}
+                                onChange={(e) => handleFeeChange(index, "name", e.target.value)}
+                                placeholder="Fee name, e.g. Generator Fuel, Venue Corkage"
+                                className={`${inputClass(errors[`additional_fees.${index}.name`])} py-1.5 text-xs`}
+                              />
+                              <div className="w-full sm:w-40 sm:shrink-0">
+                                <MoneyInput
+                                  id={`qb-additional_fees.${index}.amount`}
+                                  value={fee.amount}
+                                  error={errors[`additional_fees.${index}.amount`]}
+                                  onChange={(value) => handleFeeChange(index, "amount", value)}
+                                  className="py-1.5 text-xs"
+                                />
+                              </div>
+                              <RowAction
+                                onClick={() => handleRemoveFee(index)}
+                                icon={Trash2}
+                                label="Remove"
+                                title="Remove this fee from the quotation"
                               />
                             </div>
-                            <RowAction
-                              onClick={() => handleRemoveFee(index)}
-                              icon={Trash2}
-                              label="Remove"
-                              title="Remove this fee from the quotation"
-                            />
-                          </div>
-                          {rowError && (
-                            <p className="mt-1 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
-                              <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                              {rowError}
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </SectionCard>
-
-          {/* --- 7. Payment terms -------------------------------------------- */}
-          <SectionCard
-            step={stepNumbers.payment}
-            id="qb-section-payment"
-            accent="indigo"
-            icon={CreditCard}
-            title="Payment terms"
-            description="What the customer pays to confirm the date, and how long this quotation stands."
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Field
-                label="Required deposit"
-                required
-                error={errors.deposit_amount}
-                hint={`The standard deposit is ${depositPercentage} percent of the total.`}
-                htmlFor="qb-deposit_amount"
-              >
-                <MoneyInput
-                  id="qb-deposit_amount"
-                  value={depositAmount}
-                  error={errors.deposit_amount}
-                  onChange={(value) => {
-                    setDepositAmount(nonNegative(value));
-                    clearError("deposit_amount");
-                  }}
-                />
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {[...new Set([depositPercentage, 50, 100])].map((percent) => (
-                    <button
-                      key={percent}
-                      type="button"
-                      disabled={totals.totalCost <= 0}
-                      onClick={() => {
-                        setDepositAmount(String(money((totals.totalCost * percent) / 100)));
-                        clearError("deposit_amount");
-                      }}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
-                    >
-                      {percent} percent
-                    </button>
-                  ))}
-                </div>
-              </Field>
-
-              <Field
-                label="Quotation valid until"
-                required
-                error={errors.expiration_date}
-                hint={
-                  maxValidityDate
-                    ? `Must be valid until at latest 3 days before event (${formatShortDate(maxValidityDate)}).`
-                    : expirationDate && expirationDate >= today
-                    ? `Selectable from today. ${validityWindow}`
-                    : "Selectable from today onward — earlier dates are greyed out in the picker."
-                }
-                htmlFor="qb-expiration_date"
-              >
-                {/* `min` is what greys the past out in the native picker;
-                    `max` prevents setting validity closer than 3 days to event. */}
-                <input
-                  id="qb-expiration_date"
-                  type="date"
-                  min={today}
-                  max={maxValidityDate || undefined}
-                  value={expirationDate}
-                  onChange={(e) => {
-                    setExpirationDate(e.target.value);
-                    clearError("expiration_date");
-                  }}
-                  className={inputClass(errors.expiration_date)}
-                />
-                {/* The common validity windows, capped to 3 days before the event. */}
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {maxValidityDate && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setExpirationDate(maxValidityDate);
-                        clearError("expiration_date");
-                      }}
-                      className="rounded-md border border-blue-300 bg-blue-50/70 px-2 py-1 text-[11px] font-semibold text-[#4C81E0] transition-colors hover:bg-blue-100"
-                    >
-                      3 days before event ({formatShortDate(maxValidityDate)})
-                    </button>
+                            {rowError && (
+                              <p className="mt-1 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                                <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                                {rowError}
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                  {[7, 14, 30].map((days) => {
-                    const targetDate = addDays(days);
-                    const isCapped = maxValidityDate && targetDate > maxValidityDate;
-                    const finalDate = isCapped ? maxValidityDate : targetDate;
-                    if (maxValidityDate && days > 7 && targetDate >= maxValidityDate) return null;
-                    return (
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* --- 7. Payment terms -------------------------------------------- */}
+            <SectionCard
+              step={stepNumbers.payment}
+              id="qb-section-payment"
+              accent="indigo"
+              icon={CreditCard}
+              title="Payment terms"
+              description="What the customer pays to confirm the date, and how long this quotation stands."
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field
+                  label="Required deposit"
+                  required
+                  error={errors.deposit_amount}
+                  hint={`The standard deposit is ${depositPercentage} percent of the total.`}
+                  htmlFor="qb-deposit_amount"
+                >
+                  <MoneyInput
+                    id="qb-deposit_amount"
+                    value={depositAmount}
+                    error={errors.deposit_amount}
+                    onChange={(value) => {
+                      setDepositAmount(nonNegative(value));
+                      clearError("deposit_amount");
+                    }}
+                  />
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {[...new Set([depositPercentage, 50, 100])].map((percent) => (
                       <button
-                        key={days}
+                        key={percent}
+                        type="button"
+                        disabled={totals.totalCost <= 0}
+                        onClick={() => {
+                          setDepositAmount(String(money((totals.totalCost * percent) / 100)));
+                          clearError("deposit_amount");
+                        }}
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary disabled:opacity-40"
+                      >
+                        {percent} percent
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+
+                <Field
+                  label="Quotation valid until"
+                  required
+                  error={errors.expiration_date}
+                  hint={
+                    maxValidityDate
+                      ? `Must be valid until at latest 3 days before event (${formatShortDate(maxValidityDate)}).`
+                      : expirationDate && expirationDate >= today
+                        ? `Selectable from today. ${validityWindow}`
+                        : "Selectable from today onward — earlier dates are greyed out in the picker."
+                  }
+                  htmlFor="qb-expiration_date"
+                >
+                  {/* `min` is what greys the past out in the native picker;
+                    `max` prevents setting validity closer than 3 days to event. */}
+                  <input
+                    id="qb-expiration_date"
+                    type="date"
+                    min={today}
+                    max={maxValidityDate || undefined}
+                    value={expirationDate}
+                    onChange={(e) => {
+                      setExpirationDate(e.target.value);
+                      clearError("expiration_date");
+                    }}
+                    className={inputClass(errors.expiration_date)}
+                  />
+                  {/* The common validity windows, capped to 3 days before the event. */}
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {maxValidityDate && (
+                      <button
                         type="button"
                         onClick={() => {
-                          setExpirationDate(finalDate);
+                          setExpirationDate(maxValidityDate);
                           clearError("expiration_date");
                         }}
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                        className="rounded-md border border-blue-300 bg-blue-50/70 px-2 py-1 text-[11px] font-semibold text-[#4C81E0] transition-colors hover:bg-blue-100"
                       >
-                        {days} days{isCapped ? " (capped)" : ""}
+                        3 days before event ({formatShortDate(maxValidityDate)})
                       </button>
-                    );
-                  })}
+                    )}
+                    {[7, 14, 30].map((days) => {
+                      const targetDate = addDays(days);
+                      const isCapped = maxValidityDate && targetDate > maxValidityDate;
+                      const finalDate = isCapped ? maxValidityDate : targetDate;
+                      if (maxValidityDate && days > 7 && targetDate >= maxValidityDate) return null;
+                      return (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => {
+                            setExpirationDate(finalDate);
+                            clearError("expiration_date");
+                          }}
+                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-primary hover:text-primary"
+                        >
+                          {days} days{isCapped ? " (capped)" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Balance after deposit
+                  </span>
+                  <span className="mt-1 block text-lg font-bold tabular-nums text-slate-900">
+                    {formatCurrency(totals.remainingBalance)}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">
+                    Payable before the event.
+                  </span>
                 </div>
-              </Field>
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  Balance after deposit
-                </span>
-                <span className="mt-1 block text-lg font-bold tabular-nums text-slate-900">
-                  {formatCurrency(totals.remainingBalance)}
-                </span>
-                <span className="mt-0.5 block text-[11px] text-slate-500">
-                  Payable before the event.
-                </span>
               </div>
-            </div>
 
-            <Field label="Notes for the customer" className="mt-3" htmlFor="qb-admin_notes">
-              <textarea
-                id="qb-admin_notes"
-                rows="3"
-                value={adminNotes}
-                onChange={(e) => setAdminNotes(e.target.value)}
-                placeholder="Payment terms, venue guidelines, or anything the customer should read before accepting."
-                className={`${inputClass(false)} resize-y`}
-              />
-            </Field>
-          </SectionCard>
+              <Field label="Notes for the customer" className="mt-3" htmlFor="qb-admin_notes">
+                <textarea
+                  id="qb-admin_notes"
+                  rows="3"
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  placeholder="Payment terms, venue guidelines, or anything the customer should read before accepting."
+                  className={`${inputClass(false)} resize-y`}
+                />
+              </Field>
+            </SectionCard>
 
-          {warnings.length > 0 && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5">
-              <p className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                <AlertTriangle size={15} className="shrink-0" />
-                Worth checking before you send
-              </p>
-              <ul className="mt-2 space-y-1 pl-6 text-[11.5px] leading-snug text-amber-800">
-                {warnings.map((warning, index) => (
-                  <li key={index} className="list-disc">
-                    {warning}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {warnings.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5">
+                <p className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                  <AlertTriangle size={15} className="shrink-0" />
+                  Worth checking before you send
+                </p>
+                <ul className="mt-2 space-y-1 pl-6 text-[11.5px] leading-snug text-amber-800">
+                  {warnings.map((warning, index) => (
+                    <li key={index} className="list-disc">
+                      {warning}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
         {/* ------------------------------------------------------------------
             Right column: the running total, always visible
@@ -4574,8 +4685,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     ? "Combo Food Baseline"
                     : "Food Baseline"
                   : isSetupOnly
-                  ? "Setup Package"
-                  : "Package Baseline"}
+                    ? "Setup Package"
+                    : "Package Baseline"}
               </p>
               <SummaryRow
                 label={offerContext ? "Combo food price" : isFoodOnly ? "Food baseline" : "Starting price"}
@@ -4596,8 +4707,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       ? "Adjusted food price"
                       : "Adjusted food baseline"
                     : isSetupOnly
-                    ? "Adjusted setup price"
-                    : "Adjusted package price"
+                      ? "Adjusted setup price"
+                      : "Adjusted package price"
                 }
                 value={formatCurrency(totals.packagePrice)}
                 strong
@@ -4611,9 +4722,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               {!isSetupOnly && cateringIncluded && (
                 <SummaryRow
                   label={isFoodOnly ? "Menu dishes" : (menuHeading || "Menu")}
-                  detail={`(${chargeableMenuItems.length} ${
-                    chargeableMenuItems.length === 1 ? "dish" : "dishes"
-                  })`}
+                  detail={`(${chargeableMenuItems.length} ${chargeableMenuItems.length === 1 ? "dish" : "dishes"
+                    })`}
                   value={formatCurrency(totals.menuSubtotal)}
                 />
               )}
@@ -4622,8 +4732,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   isFoodOnly
                     ? "Catering add-ons"
                     : isSetupOnly
-                    ? "Setup add-ons"
-                    : "Add-ons and services"
+                      ? "Setup add-ons"
+                      : "Add-ons and services"
                 }
                 detail={`(${chargeableAddOns.length})`}
                 value={formatCurrency(totals.addOnsSubtotal)}

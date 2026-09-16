@@ -35,6 +35,7 @@ import {
 } from "../../lib/specialOffers";
 import { formatCurrency, formatShortDate, formatTime } from "../../utils/format";
 import { menuLineTotal, addOnLineTotal } from "../../utils/quotationPricing";
+import { resolveServiceType } from "../../components/customer/portal/statusMeta";
 
 /* --- Refined Section Container --- */
 const SectionContainer = ({ title, icon: Icon, badge, headerRight, children, className = "" }) => (
@@ -565,7 +566,7 @@ export default function AdminQuoteDetails() {
             <div>
               <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 block mb-0.5">Event &amp; Service</span>
               <span className="text-xs font-semibold text-slate-800 truncate block">
-                {quote.event_type || "Event"} · {quote.service_type || "Setup"}
+                {quote.event_type || "Event"} · {resolveServiceType(quote)}
               </span>
             </div>
             <div>
@@ -716,7 +717,7 @@ export default function AdminQuoteDetails() {
                     <DataField 
                       icon={Layers} 
                       label="Service" 
-                      value={quote.service_type || (quote.include_food === false ? "Event Setup Only" : "Food and Event Setup")} 
+                      value={resolveServiceType(quote)} 
                       emphasized
                     />
                     

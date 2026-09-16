@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import StatusPill from "./portal/StatusPill";
 import StateNotice from "./portal/StateNotice";
 import DetailGrid from "./portal/DetailGrid";
+import { resolveServiceType } from "./portal/statusMeta";
 import { formatCurrency, formatEventDate, formatShortDate, formatTime } from "../../utils/format";
 import {
   MENU_PRICING,
@@ -616,9 +617,17 @@ export default function CustomerQuotationModal({ open, onClose, quotation, inqui
                   { label: "Date", value: formatEventDate(eventDetail("event_date"), { fallback: "To be confirmed" }) },
                   { label: "Start time", value: formatTime(eventDetail("start_time")) || "To be confirmed" },
                   { label: "Guests", value: `${guestCount} guests` },
-                  eventDetail("service_type") && {
+                  {
                     label: "Service type",
-                    value: eventDetail("service_type"),
+                    value: resolveServiceType({
+                      ...inquiry,
+                      ...snapshot,
+                      package_id: quotation.package_id || inquiry?.package_id,
+                      package_name: quotation.package_name || inquiry?.package_name_snapshot || inquiry?.package_name,
+                      menu_items: quotation.menu_items || inquiry?.selected_menu,
+                      service_type: eventDetail("service_type") || inquiry?.service_type,
+                      include_food: eventDetail("include_food") !== undefined ? eventDetail("include_food") : inquiry?.include_food,
+                    }),
                   },
                 ]}
               />

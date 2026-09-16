@@ -221,6 +221,24 @@ export default function CustomerBookings() {
     return Array.from(names);
   }, [packages, bookings]);
 
+  // Dynamically derive package service options from bookings and packages
+  const packageServiceOptions = useMemo(() => {
+    const options = new Set();
+    (packages || []).forEach((pkg) => {
+      if (pkg.offer_type !== "special" && !isSpecialOffer(pkg) && pkg.name) {
+        options.add(pkg.name);
+        options.add(`${pkg.name} + Menu`);
+      }
+    });
+    (bookings || []).forEach((bkg) => {
+      const st = resolveServiceType(bkg);
+      if (st && !st.startsWith("Custom Quote -") && !comboPackNames.includes(st)) {
+        options.add(st);
+      }
+    });
+    return Array.from(options);
+  }, [packages, bookings, comboPackNames]);
+
   // Auto-select first booking for desktop pane
   useEffect(() => {
     if (filteredBookings.length > 0) {
@@ -655,25 +673,31 @@ export default function CustomerBookings() {
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
+                    {/* Category 1: Packages */}
                     <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                      Regular Package
+                      Packages
                     </DropdownMenuLabel>
-                    {["Regular Package", "Regular Package + Menu"].map((opt) => (
-                      <DropdownMenuItem
-                        key={opt}
-                        onClick={() => setServiceTypeFilter(opt)}
-                        className={cn(
-                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                          serviceTypeFilter === opt ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
-                        )}
-                      >
-                        <span>{opt}</span>
-                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
-                      </DropdownMenuItem>
-                    ))}
+                    {packageServiceOptions.length > 0 ? (
+                      packageServiceOptions.map((opt) => (
+                        <DropdownMenuItem
+                          key={opt}
+                          onClick={() => setServiceTypeFilter(opt)}
+                          className={cn(
+                            "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                            serviceTypeFilter === opt ? "bg-[#1E3563]/10 text-[#1E3563] font-bold" : "text-slate-700"
+                          )}
+                        >
+                          <span>{opt}</span>
+                          {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#1E3563]" />}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <div className="px-3 py-1 text-[11px] text-slate-400 italic">No packages</div>
+                    )}
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
+                    {/* Category 2: Combo Packs */}
                     <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
                       Combo Packs
                     </DropdownMenuLabel>
@@ -697,10 +721,15 @@ export default function CustomerBookings() {
 
                     <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
+                    {/* Category 3: Custom Quotes */}
                     <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                      Request Custom
+                      Custom Quotes
                     </DropdownMenuLabel>
-                    {["Food Only", "Event Setup Only", "Food and Event Setup"].map((opt) => (
+                    {[
+                      "Custom Quote - Food Only",
+                      "Custom Quote - Event Setup Only",
+                      "Custom Quote - Food and Event Setup",
+                    ].map((opt) => (
                       <DropdownMenuItem
                         key={opt}
                         onClick={() => setServiceTypeFilter(opt)}

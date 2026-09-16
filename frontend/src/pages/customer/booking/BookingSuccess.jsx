@@ -217,6 +217,8 @@ export default function BookingSuccess() {
             isSubmitting={scheduling}
             eventDate={booking?.event_date}
             eventTitle={booking?.event_type || "Event Venue Inspection"}
+            eventType={booking?.event_type}
+            booking={booking}
           />
         )}
       </div>

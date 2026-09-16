@@ -95,6 +95,20 @@ export default function AdminOcularDateTimePicker({
     return d;
   }, [selectedBooking]);
 
+  const isWedding = useMemo(() => {
+    const rawType = String(selectedBooking?.event_type || "").trim().toLowerCase();
+    return rawType.includes("wedding");
+  }, [selectedBooking]);
+
+  const maxAllowedOcularDateObj = useMemo(() => {
+    if (!eventDateObj) return null;
+    const d = new Date(eventDateObj);
+    if (isWedding) {
+      d.setDate(d.getDate() - 7);
+    }
+    return d;
+  }, [eventDateObj, isWedding]);
+
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (dateValue) {
       const parsed = parseLocalDate(dateValue);
@@ -145,7 +159,12 @@ export default function AdminOcularDateTimePicker({
     if (d < startOfToday) return true;
 
     // 2. Never allow dates after event date (unless disabled for event date selection)
-    if (!disableEventDateLimit && eventDateObj && d > eventDateObj) return true;
+    if (!disableEventDateLimit && eventDateObj) {
+      if (isWedding && maxAllowedOcularDateObj && d > maxAllowedOcularDateObj) {
+        return true;
+      }
+      if (d > eventDateObj) return true;
+    }
 
     return false;
   };
@@ -264,6 +283,30 @@ export default function AdminOcularDateTimePicker({
                 <MapPin size={11} className="text-blue-600 shrink-0" /> {selectedBooking.venue_type}
               </span>
             )}
+          </div>
+          {isWedding && !disableEventDateLimit && (
+            <div className="mt-1 pt-1.5 border-t border-blue-200/60 flex items-center justify-between text-[11px] text-amber-900 bg-amber-50/80 -mx-2.5 -mb-2.5 px-2.5 py-1.5 rounded-b-lg">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Sparkles size={12} className="text-amber-600 shrink-0" />
+                <span>
+                  <strong>Wedding Ocular Policy:</strong> Site visits must be scheduled at least 1 week (7 days) before the event date
+                  {maxAllowedOcularDateObj ? ` (on or before ${maxAllowedOcularDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})` : ""}.
+                </span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Wedding Within 7 Days Warning */}
+      {isWedding && !disableEventDateLimit && maxAllowedOcularDateObj && maxAllowedOcularDateObj < startOfToday && (
+        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
+          <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <p className="font-semibold text-amber-950">Wedding Preparation Window Active (&lt; 7 Days Remaining)</p>
+            <p className="text-[11px] text-amber-800">
+              The standard 1-week lead time for wedding ocular site visits has passed. Dates are disabled to ensure sufficient floral and stage styling lead time.
+            </p>
           </div>
         </div>
       )}

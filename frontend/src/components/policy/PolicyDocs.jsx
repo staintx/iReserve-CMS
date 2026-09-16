@@ -48,6 +48,20 @@ export function TermsContent({ depositPercentage = 20 }) {
         </p>
       </section>
       <section>
+        <H>Venue Ocular Visits &amp; Site Inspections</H>
+        <p>
+          Clients may request a physical site inspection (ocular visit) to verify venue dimensions, power access, and layout setup.
+        </p>
+        <ul className="list-disc space-y-1 pl-5 mt-1">
+          <li>
+            <strong>Standard Events:</strong> Ocular visits may be scheduled up to one (1) day prior to the event date.
+          </li>
+          <li>
+            <strong>Weddings:</strong> Due to extensive floral styling, stage production, and catering logistics, ocular visits for weddings must be scheduled at least one (1) week (7 days) prior to the event date.
+          </li>
+        </ul>
+      </section>
+      <section>
         <H>Lost or Damaged Equipment</H>
         <p>
           The client is responsible for the safekeeping of all catering equipment

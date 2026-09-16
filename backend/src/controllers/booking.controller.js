@@ -1822,9 +1822,37 @@ exports.scheduleOcular = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-  const { scheduled_date, scheduled_time, notes } = req.body;
+  const { scheduled_date, scheduled_time, notes, override_wedding_rule } = req.body;
   if (!scheduled_date)
     return res.status(400).json({ message: "Scheduled date is required" });
+
+  const parseDateKey = (val) => {
+    if (!val) return null;
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const selectedDateKey = parseDateKey(scheduled_date);
+  const eventDateKey = parseDateKey(booking.event_date);
+  const isWedding = String(booking.event_type || "").toLowerCase().includes("wedding");
+
+  if (eventDateKey && selectedDateKey) {
+    if (selectedDateKey >= eventDateKey) {
+      return res.status(400).json({ message: "Ocular visit date must be scheduled before the event date." });
+    }
+    if (isWedding && !override_wedding_rule) {
+      const eventDateObj = new Date(booking.event_date);
+      const maxWeddingDate = new Date(eventDateObj);
+      maxWeddingDate.setDate(maxWeddingDate.getDate() - 7);
+      const maxWeddingKey = parseDateKey(maxWeddingDate);
+      if (selectedDateKey > maxWeddingKey) {
+        return res.status(400).json({
+          message: "Ocular visits for weddings must be scheduled at least 1 week (7 days) before the event date.",
+        });
+      }
+    }
+  }
 
   booking.ocular_visit = {
     ...(booking.ocular_visit?.toObject?.() || booking.ocular_visit || {}),
@@ -1988,7 +2016,20 @@ exports.requestOcular = asyncHandler(async (req, res) => {
     });
   }
 
-  if (selectedDateKey >= eventDateKey) {
+  const isWedding = String(booking.event_type || "").toLowerCase().includes("wedding");
+  const eventDateObj = new Date(booking.event_date);
+
+  if (isWedding) {
+    const maxWeddingOcularDate = new Date(eventDateObj);
+    maxWeddingOcularDate.setDate(maxWeddingOcularDate.getDate() - 7);
+    const maxWeddingOcularKey = parseDateKey(maxWeddingOcularDate);
+
+    if (selectedDateKey > maxWeddingOcularKey) {
+      return res.status(400).json({
+        message: "Ocular visits for weddings must be scheduled at least 1 week (7 days) before the event date to allow for floral, stage styling, and venue logistics coordination.",
+      });
+    }
+  } else if (selectedDateKey >= eventDateKey) {
     return res.status(400).json({
       message: "Ocular visit date must be scheduled before the event date.",
     });

@@ -1425,6 +1425,8 @@ export default function CustomerBookings() {
           initialTime={requestingOcularBooking?.ocular_visit?.scheduled_time || "10:00 AM"}
           eventDate={requestingOcularBooking?.event_date}
           eventTitle={requestingOcularBooking?.event_type}
+          eventType={requestingOcularBooking?.event_type}
+          booking={requestingOcularBooking}
         />
       )}
 

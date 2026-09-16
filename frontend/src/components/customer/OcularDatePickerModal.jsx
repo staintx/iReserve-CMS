@@ -67,10 +67,18 @@ export default function OcularDatePickerModal({
   submitting = false,
   isSubmitting = false,
   eventDate,
-  eventTitle = "Event Venue Inspection"
+  eventTitle = "Event Venue Inspection",
+  eventType = "",
+  booking = null
 }) {
   const isOpenModal = Boolean(open || isOpen);
   const isSubmittingForm = Boolean(submitting || isSubmitting);
+
+  // Detect whether this event is a Wedding
+  const isWedding = useMemo(() => {
+    const text = String(eventType || booking?.event_type || eventTitle || "").toLowerCase();
+    return text.includes("wedding");
+  }, [eventType, booking, eventTitle]);
 
   // TODAY normalized to start of day
   const today = useMemo(() => {
@@ -98,13 +106,14 @@ export default function OcularDatePickerModal({
 
   const minAllowedDateKey = useMemo(() => getDateKey(minAllowedDate), [minAllowedDate]);
 
-  // maximumAllowedDate = EVENT_DATE - 1 day
+  // maximumAllowedDate: for Weddings, at least 7 days before event; for other events, 1 day before
   const maxAllowedDate = useMemo(() => {
     if (!parsedEventDate) return null;
     const d = new Date(parsedEventDate);
-    d.setDate(d.getDate() - 1);
+    const daysPrior = isWedding ? 7 : 1;
+    d.setDate(d.getDate() - daysPrior);
     return d;
-  }, [parsedEventDate]);
+  }, [parsedEventDate, isWedding]);
 
   const maxAllowedDateKey = useMemo(() => {
     return maxAllowedDate ? getDateKey(maxAllowedDate) : "";
@@ -247,14 +256,31 @@ export default function OcularDatePickerModal({
           {/* Scrollable Body */}
           <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
             
+            {/* Wedding Ocular Lead Time Policy Notice */}
+            {isWedding && hasAvailableDates && (
+              <div className="p-3 bg-amber-500/10 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-950 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-xs text-amber-900 dark:text-amber-300">Wedding Ocular Policy</p>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300/90 leading-relaxed">
+                    Venue site visits for weddings must be held <strong className="font-bold">at least 1 week (7 days) before the wedding date</strong> to finalize stage setup, floral styling, and venue coordination.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Edge Case Warning: No Available Dates */}
             {!hasAvailableDates && (
               <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-900 shadow-2xs">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <p className="font-bold text-xs text-amber-950">No Available Dates</p>
+                  <p className="font-bold text-xs text-amber-950">
+                    {isWedding ? "Wedding Preparation Window Notice" : "No Available Dates"}
+                  </p>
                   <p className="text-[11px] text-amber-800 leading-relaxed">
-                    No available dates for an ocular visit before your event.
+                    {isWedding
+                      ? "This wedding is within the 1-week preparation window. Site visits cannot be scheduled online within 7 days of a wedding. Please contact your catering coordinator directly for expedited assistance."
+                      : "No available dates for an ocular visit before your event."}
                   </p>
                 </div>
               </div>

@@ -182,19 +182,6 @@ export default function AdminReservations() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedBooking]);
 
-  // Auto-open target booking drawer if bookingId query param is provided
-  useEffect(() => {
-    const targetId = searchParams.get("bookingId") || searchParams.get("booking_id") || searchParams.get("id");
-    if (targetId && inScope.length > 0) {
-      const match = inScope.find(
-        (b) => String(b._id) === targetId || String(b.id) === targetId || String(b.rawBooking?.inquiry_id?._id || b.rawBooking?.inquiry_id) === targetId
-      );
-      if (match) {
-        setSelectedBooking(match);
-        setFilter("all");
-      }
-    }
-  }, [searchParams, inScope]);
 
   // Map API fields to structured table & detail models
   const formattedBookings = useMemo(() => {
@@ -305,6 +292,20 @@ export default function AdminReservations() {
     });
   }, [formattedBookings]);
 
+  // Auto-open target booking drawer if bookingId query param is provided
+  useEffect(() => {
+    const targetId = searchParams.get("bookingId") || searchParams.get("booking_id") || searchParams.get("id");
+    if (targetId && inScope.length > 0) {
+      const match = inScope.find(
+        (b) => String(b._id) === targetId || String(b.id) === targetId || String(b.rawBooking?.inquiry_id?._id || b.rawBooking?.inquiry_id) === targetId
+      );
+      if (match) {
+        setSelectedBooking(match);
+        setFilter("all");
+      }
+    }
+  }, [searchParams, inScope]);
+
   // 4 Key Operational Metric KPI Cards
   const kpiStats = useMemo(() => {
     const total = inScope.length;
@@ -385,16 +386,6 @@ export default function AdminReservations() {
     });
   }, [filteredBookings, sortBy]);
 
-  // Close details drawer on Escape key press
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape" && selectedBooking) {
-        setSelectedBooking(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedBooking]);
 
   // Pagination calculation
   const totalItems = sortedBookings.length;
@@ -409,16 +400,6 @@ export default function AdminReservations() {
     setPage(1);
   }, [search, filter, sortBy]);
 
-  // Close drawer on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape" && selectedBooking) {
-        setSelectedBooking(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedBooking]);
 
   // Handlers
   const handleApprove = (id) => {
@@ -910,9 +891,16 @@ export default function AdminReservations() {
                         <AvatarInitials name={selectedBooking.customer} className="w-9 h-9 text-xs" />
                         <div className="min-w-0">
                           <h4 className="font-bold text-foreground text-sm truncate">{selectedBooking.customer}</h4>
-                          <span className="text-[10px] text-muted-foreground block mt-0.5">
-                            Coordinator: <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-muted-foreground">
+                              Coordinator: <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
+                            </span>
+                            {selectedBooking.quotationBacked && (
+                              <span className="text-[9.5px] font-bold text-primary bg-primary/10 px-1.5 py-0.2 rounded border border-primary/20">
+                                Quoted
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">

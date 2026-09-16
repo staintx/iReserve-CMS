@@ -179,10 +179,32 @@ export default function AdminReservations() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedBooking]);
 
+  // Auto-open target booking drawer if bookingId query param is provided
+  useEffect(() => {
+    const targetId = searchParams.get("bookingId") || searchParams.get("booking_id") || searchParams.get("id");
+    if (targetId && inScope.length > 0) {
+      const match = inScope.find(
+        (b) => String(b._id) === targetId || String(b.id) === targetId || String(b.rawBooking?.inquiry_id?._id || b.rawBooking?.inquiry_id) === targetId
+      );
+      if (match) {
+        setSelectedBooking(match);
+        setFilter("all");
+      }
+    }
+  }, [searchParams, inScope]);
+
   // Map API fields to structured table & detail models
   const formattedBookings = useMemo(() => {
     return bookings
-      .filter((b) => !["inquiry", "quote_sent", "customer_accepted"].includes(b.status))
+      .filter((b) => {
+        const statusLower = (b.status || "").toLowerCase();
+        if (["inquiry", "quote_sent"].includes(statusLower)) return false;
+        if (statusLower === "customer_accepted") {
+          const hasDepositPaid = ["deposit_paid", "fully_paid"].includes(b.payment_status);
+          if (!hasDepositPaid && quotationBackedIds.has(String(b._id))) return false;
+        }
+        return true;
+      })
       .map((b) => {
         const hasChangeRequest = b.change_request?.status === "pending" && Boolean(b.change_request?.message?.trim());
         const mappedStatus = hasChangeRequest ? "change requests" : b.status;
@@ -262,8 +284,19 @@ export default function AdminReservations() {
   // In-scope active reservations
   const inScope = useMemo(() => {
     return formattedBookings.filter((r) => {
-      const historic = ["completed", "cancelled"].includes(r.rawStatus.toLowerCase());
-      return r.depositPaid || historic || !r.quotationBacked;
+      const statusLower = (r.rawStatus || "").toLowerCase();
+      const historic = ["completed", "cancelled"].includes(statusLower);
+      const isConfirmedOrActive = [
+        "confirmed",
+        "deposit_paid",
+        "ready for event",
+        "ocular scheduled",
+        "preparing",
+        "ongoing",
+        "final payment pending"
+      ].includes(statusLower);
+
+      return r.depositPaid || isConfirmedOrActive || historic || !r.quotationBacked;
     });
   }, [formattedBookings]);
 

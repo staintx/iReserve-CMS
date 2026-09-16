@@ -171,14 +171,14 @@ export default function AppRoutes() {
         <Route path="/admin/payments" element={<ProtectedRoute allowedRoles={adminOnly}><AdminPayments /></ProtectedRoute>} />
         <Route path="/admin/refunds" element={<ProtectedRoute allowedRoles={adminOnly}><AdminRefunds /></ProtectedRoute>} />
         <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={adminOnly}><AdminCustomers /></ProtectedRoute>} />
-        <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminOnly}><AdminReservations /></ProtectedRoute>} />
+        <Route path="/admin/bookings/reservations" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminReservations /></ProtectedRoute>} />
         <Route path="/admin/bookings/calendar" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsCalendar /></ProtectedRoute>} />
         <Route path="/admin/bookings/inquiries" element={<ProtectedRoute allowedRoles={adminOnly}><AdminInquiries /></ProtectedRoute>} />
         <Route path="/admin/bookings/inquiries/:id" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/inquiries/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminQuoteDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/ocular" element={<ProtectedRoute allowedRoles={adminOnly}><AdminOcular /></ProtectedRoute>} />
         <Route path="/admin/bookings/new" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingWizard /></ProtectedRoute>} />
-        <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingDetails /></ProtectedRoute>} />
+        <Route path="/admin/bookings/:id/details" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminBookingDetails /></ProtectedRoute>} />
         <Route path="/admin/bookings/history" element={<ProtectedRoute allowedRoles={adminOnly}><AdminBookingsHistory /></ProtectedRoute>} />
         <Route path="/admin/packages" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminPackages /></ProtectedRoute>} />
         <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={adminManagerOnly}><AdminMenu /></ProtectedRoute>} />

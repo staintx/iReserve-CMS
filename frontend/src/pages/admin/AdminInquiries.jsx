@@ -1408,7 +1408,14 @@ export default function AdminInquiries() {
                 {/* Primary Contextual Action */}
                 {selectedInquiry.status === "Converted to Booking" || Boolean(selectedInquiry.convertedBookingId) ? (
                   <button
-                    onClick={() => navigate('/admin/bookings/reservations')}
+                    onClick={() => {
+                      const bId = selectedInquiry.convertedBookingId?._id || selectedInquiry.convertedBookingId || selectedInquiry.converted_booking_id;
+                      if (bId) {
+                        navigate(`/admin/bookings/reservations?bookingId=${bId}&search=${encodeURIComponent(selectedInquiry.reference || bId)}`);
+                      } else {
+                        navigate(`/admin/bookings/reservations?search=${encodeURIComponent(selectedInquiry.reference || '')}`);
+                      }
+                    }}
                     className="w-full py-2 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                   >
                     <CheckCircle2 size={14} /> View Confirmed Booking

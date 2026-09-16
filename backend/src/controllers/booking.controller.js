@@ -2946,6 +2946,13 @@ exports.executeInquiryConversion = async ({
       paymentDoc.booking_id = preCheckBooking._id;
       await paymentDoc.save();
     }
+    if (!inquiry.converted_booking_id) {
+      inquiry.converted_booking_id = preCheckBooking._id;
+      inquiry.status = "Converted to Booking";
+      await inquiry.save();
+    }
+    const { syncBookingStatus } = require("./payment.controller");
+    if (syncBookingStatus) await syncBookingStatus(preCheckBooking._id);
     return preCheckBooking;
   }
 

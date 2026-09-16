@@ -375,6 +375,20 @@ exports.getInquiryById = asyncHandler(async (req, res) => {
   const inquiryObj = inquiry.toObject();
   inquiryObj.had_package_selection = hadPackageSelection;
 
+  if (!inquiryObj.converted_booking_id) {
+    try {
+      const linkedBooking = await Booking.findOne({ inquiry_id: inquiry._id }).select("_id status").lean();
+      if (linkedBooking) {
+        inquiryObj.converted_booking_id = linkedBooking._id;
+        if (rawInquiry && !rawInquiry.converted_booking_id) {
+          rawInquiry.converted_booking_id = linkedBooking._id;
+          rawInquiry.status = "Converted to Booking";
+          await rawInquiry.save().catch(() => {});
+        }
+      }
+    } catch (e) {}
+  }
+
   const [approvedPayment, latestQuote] = await Promise.all([
     Payment.findOne({
       $or: [

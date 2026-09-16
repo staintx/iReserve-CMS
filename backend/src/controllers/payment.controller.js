@@ -226,23 +226,64 @@ exports.syncBookingStatus = async function (bookingId) {
 	const booking = await Booking.findById(bookingId);
 	if (!booking) return;
 
+	// Link any orphan payments for this inquiry to the booking
+	if (booking.inquiry_id) {
+		try {
+			await Payment.updateMany(
+				{ inquiry_id: booking.inquiry_id, booking_id: { $ne: bookingId } },
+				{ booking_id: bookingId }
+			);
+		} catch (e) {}
+	}
+
 	const allPayments = await Payment.find({ booking_id: bookingId, status: "approved" });
 	const totalPaid = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
 	let businessInfo;
 	try { businessInfo = await BusinessInfo.findOne(); } catch(e) {}
 	const depositPercentage = businessInfo?.deposit_percentage ?? 20;
-	const requiredDeposit = (booking.total_price * depositPercentage) / 100;
+	const requiredDeposit = (Number(booking.total_price || 0) * depositPercentage) / 100;
+
+	let depositAmount = Number(booking.deposit_amount || 0);
+	if (depositAmount <= 0 && booking.quotation_id) {
+		try {
+			const Quotation = require("../models/Quotation");
+			const q = await Quotation.findById(booking.quotation_id);
+			if (q?.deposit_amount > 0) depositAmount = Number(q.deposit_amount);
+		} catch (e) {}
+	}
+
+	const hasApprovedDepositPayment = allPayments.some(
+		(p) => (p.payment_type === "deposit" || p.payment_type === "full") && p.status === "approved" && (Number(p.amount) || 0) > 0
+	);
+
+	const isPaidInFull = totalPaid >= booking.total_price && Number(booking.total_price) > 0;
+	const isDepositPaid =
+		isPaidInFull ||
+		hasApprovedDepositPayment ||
+		(depositAmount > 0 && totalPaid >= depositAmount) ||
+		(requiredDeposit > 0 && totalPaid >= requiredDeposit);
 
 	let newPaymentStatus = "pending";
 	let newBookingStatus = booking.status;
 
-	if (totalPaid >= booking.total_price && booking.total_price > 0) {
+	if (isPaidInFull) {
 		newPaymentStatus = "fully_paid";
-		if (newBookingStatus === "pending deposit") newBookingStatus = "confirmed";
-	} else if (totalPaid >= requiredDeposit && requiredDeposit > 0) {
+	} else if (isDepositPaid) {
 		newPaymentStatus = "deposit_paid";
-		if (newBookingStatus === "pending deposit") newBookingStatus = "confirmed";
+	}
+
+	const preConfirmStatuses = [
+		"pending deposit",
+		"deposit pending",
+		"converted to booking",
+		"customer_accepted",
+		"quote_sent",
+		"inquiry",
+		"draft"
+	];
+	if ((isDepositPaid || isPaidInFull) && preConfirmStatuses.includes((newBookingStatus || "").toLowerCase())) {
+		newBookingStatus = "confirmed";
 	}
 
 	await Booking.findByIdAndUpdate(bookingId, {

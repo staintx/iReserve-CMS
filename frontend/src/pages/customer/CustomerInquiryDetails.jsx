@@ -849,7 +849,10 @@ export default function CustomerInquiryDetails() {
 
               {isConverted && inquiry.converted_booking_id && (
                 <Button
-                  onClick={() => navigate(`/customer/bookings/${inquiry.converted_booking_id}`)}
+                  onClick={() => {
+                    const bId = String(inquiry.converted_booking_id?._id || inquiry.converted_booking_id);
+                    navigate(`/customer/bookings/${bId}`);
+                  }}
                   className="bg-[#2C4B8A] hover:bg-[#1E3563] text-white font-bold text-xs h-9 px-4 rounded-xl cursor-pointer shadow-xs transition-all"
                 >
                   Go to Confirmed Booking <ChevronRight className="w-4 h-4 ml-1" />

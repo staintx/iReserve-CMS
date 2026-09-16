@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
+import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import { CustomerAPI } from "../../api/customer";
 import { createConversation } from "../../api/messages";
 import { 
@@ -143,6 +144,7 @@ export default function CustomerEventDashboard() {
   const [payments, setPayments] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(true);
   const [payingPaymentId, setPayingPaymentId] = useState(null);
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
@@ -489,28 +491,9 @@ export default function CustomerEventDashboard() {
     }
   };
 
-  const handlePayRemainingBalance = async () => {
+  const handlePayRemainingBalance = () => {
     if (!booking?._id || outstandingAmount <= 0) return;
-    setPayingPaymentId("balance");
-
-    try {
-      notify("Generating secure PayMongo checkout session...", "info");
-      const res = await CustomerAPI.createPaymentCheckout({
-        booking_id: booking._id,
-        amount: outstandingAmount,
-        payment_type: "balance"
-      });
-
-      if (res.data?.checkout_url) {
-        window.location.assign(res.data.checkout_url);
-      } else {
-        notify("Could not generate checkout session.", "error");
-        setPayingPaymentId(null);
-      }
-    } catch (err) {
-      notify(err.response?.data?.message || "Failed to start checkout.", "error");
-      setPayingPaymentId(null);
-    }
+    setIsChoiceModalOpen(true);
   };
 
   const fetchBookingRating = async (bId) => {
@@ -865,16 +848,16 @@ export default function CustomerEventDashboard() {
       desc: "Inspection of venue layout & logistics"
     },
     { 
-      label: "Final Payment", 
-      completed: booking.payment_status === "fully_paid" || isFullyPaid,
-      date: isFullyPaid ? "Completed" : "Due before event date",
-      desc: "Full balance payment cleared"
-    },
-    { 
-      label: "Event Completed", 
+      label: "Event Delivered", 
       completed: ["completed", "Completed"].includes(booking.status),
       date: ["completed", "Completed"].includes(booking.status) ? "Completed" : "Upcoming",
       desc: "Event successfully served"
+    },
+    { 
+      label: "Final Balance Settlement", 
+      completed: booking.payment_status === "fully_paid" || isFullyPaid,
+      date: isFullyPaid ? "Completed" : "Due same day after event",
+      desc: "Remaining balance settled online or in cash on-site"
     },
   ];
 
@@ -916,14 +899,26 @@ export default function CustomerEventDashboard() {
         assignedParty: "Customer Payment Checkout",
         timeline: "Immediate lock upon payment",
         action: (
-          <Button
-            onClick={handlePayRemainingBalance}
-            disabled={payingPaymentId !== null}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Pay Deposit Now</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handlePayRemainingBalance}
+              disabled={payingPaymentId !== null}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Pay Deposit Now</span>
+            </Button>
+            {needsOcular && (
+              <Button
+                variant="outline"
+                onClick={() => setRequestingOcular(true)}
+                className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-9 px-3.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+              >
+                <CalendarRange className="w-4 h-4 text-amber-700" />
+                <span>Schedule Ocular Visit</span>
+              </Button>
+            )}
+          </div>
         ),
       };
     }
@@ -1096,6 +1091,30 @@ export default function CustomerEventDashboard() {
 
     // 9. Completed
     if (["completed", "event completed"].includes(rawStatus)) {
+      if (outstandingAmount > 0) {
+        const isCash = booking.balance_payment_preference === "in_person";
+        return {
+          tone: "action",
+          badge: isCash ? "Cash Due (Completed)" : "Balance Due Today",
+          badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-semibold",
+          title: `Event Concluded · Remaining Balance: ₱${outstandingAmount.toLocaleString()}`,
+          description: isCash
+            ? "Your event has concluded! Please hand the remaining cash to your Event Manager or settle online."
+            : "Your event has concluded today! Please settle your remaining balance online or with your Event Manager.",
+          assignedParty: "Client Payment",
+          timeline: "Due Today",
+          action: (
+            <Button
+              size="sm"
+              onClick={handlePayRemainingBalance}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-9 px-4 rounded-lg cursor-pointer shadow-2xs gap-1.5"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>{isCash ? "Manage Payment" : "Settle Balance"}</span>
+            </Button>
+          ),
+        };
+      }
       return {
         tone: "neutral",
         badge: "Event Completed",
@@ -2382,6 +2401,24 @@ export default function CustomerEventDashboard() {
                           </div>
                         </div>
                       )}
+
+                      {booking.ocular_visit && booking.ocular_visit.status === "skipped" && (
+                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900 text-xs">Ocular Skipped</span>
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-slate-600 border-slate-300">Skipped</Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-600">You previously opted to proceed without an on-site inspection.</p>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setRequestingOcular(true)}
+                            className="w-full text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 h-8 mt-1"
+                          >
+                            Request Ocular Visit Instead
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
@@ -2646,6 +2683,8 @@ export default function CustomerEventDashboard() {
           submitting={isSubmittingOcular}
           eventDate={booking?.event_date}
           eventTitle={booking?.event_type || "Event Venue Inspection"}
+          eventType={booking?.event_type}
+          booking={booking}
         />
       )}
 
@@ -2701,6 +2740,19 @@ export default function CustomerEventDashboard() {
         onPay={handlePayRemainingBalance}
         isPaying={payingPaymentId !== null}
       />
+
+      {isChoiceModalOpen && booking && (
+        <PaymentChoiceModal
+          open={isChoiceModalOpen}
+          onClose={() => setIsChoiceModalOpen(false)}
+          booking={booking}
+          balanceAmount={outstandingAmount}
+          onSuccess={() => {
+            fetchBookingDetails();
+            fetchPayments();
+          }}
+        />
+      )}
 
     </CustomerDashboardLayout>
   );

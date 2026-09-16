@@ -226,23 +226,64 @@ exports.syncBookingStatus = async function (bookingId) {
 	const booking = await Booking.findById(bookingId);
 	if (!booking) return;
 
+	// Link any orphan payments for this inquiry to the booking
+	if (booking.inquiry_id) {
+		try {
+			await Payment.updateMany(
+				{ inquiry_id: booking.inquiry_id, booking_id: { $ne: bookingId } },
+				{ booking_id: bookingId }
+			);
+		} catch (e) {}
+	}
+
 	const allPayments = await Payment.find({ booking_id: bookingId, status: "approved" });
 	const totalPaid = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
 	let businessInfo;
 	try { businessInfo = await BusinessInfo.findOne(); } catch(e) {}
 	const depositPercentage = businessInfo?.deposit_percentage ?? 20;
-	const requiredDeposit = (booking.total_price * depositPercentage) / 100;
+	const requiredDeposit = (Number(booking.total_price || 0) * depositPercentage) / 100;
+
+	let depositAmount = Number(booking.deposit_amount || 0);
+	if (depositAmount <= 0 && booking.quotation_id) {
+		try {
+			const Quotation = require("../models/Quotation");
+			const q = await Quotation.findById(booking.quotation_id);
+			if (q?.deposit_amount > 0) depositAmount = Number(q.deposit_amount);
+		} catch (e) {}
+	}
+
+	const hasApprovedDepositPayment = allPayments.some(
+		(p) => (p.payment_type === "deposit" || p.payment_type === "full") && p.status === "approved" && (Number(p.amount) || 0) > 0
+	);
+
+	const isPaidInFull = totalPaid >= booking.total_price && Number(booking.total_price) > 0;
+	const isDepositPaid =
+		isPaidInFull ||
+		hasApprovedDepositPayment ||
+		(depositAmount > 0 && totalPaid >= depositAmount) ||
+		(requiredDeposit > 0 && totalPaid >= requiredDeposit);
 
 	let newPaymentStatus = "pending";
 	let newBookingStatus = booking.status;
 
-	if (totalPaid >= booking.total_price && booking.total_price > 0) {
+	if (isPaidInFull) {
 		newPaymentStatus = "fully_paid";
-		if (newBookingStatus === "pending deposit") newBookingStatus = "confirmed";
-	} else if (totalPaid >= requiredDeposit && requiredDeposit > 0) {
+	} else if (isDepositPaid) {
 		newPaymentStatus = "deposit_paid";
-		if (newBookingStatus === "pending deposit") newBookingStatus = "confirmed";
+	}
+
+	const preConfirmStatuses = [
+		"pending deposit",
+		"deposit pending",
+		"converted to booking",
+		"customer_accepted",
+		"quote_sent",
+		"inquiry",
+		"draft"
+	];
+	if ((isDepositPaid || isPaidInFull) && preConfirmStatuses.includes((newBookingStatus || "").toLowerCase())) {
+		newBookingStatus = "confirmed";
 	}
 
 	await Booking.findByIdAndUpdate(bookingId, {
@@ -495,6 +536,107 @@ const calculatePayableAmount = async ({ targetDoc, payment_type, isCustomer, req
 	return expectedAmount;
 };
 
+exports.setPaymentPreference = asyncHandler(async (req, res) => {
+	const { booking_id, preference = "in_person", notes = "" } = req.body;
+	if (!booking_id) {
+		return res.status(400).json({ message: "booking_id is required" });
+	}
+
+	const booking = await Booking.findById(booking_id).populate("customer_id");
+	if (!booking) {
+		return res.status(404).json({ message: "Booking not found" });
+	}
+
+	const customerId = booking.customer_id?._id || booking.customer_id;
+	const isOwner = String(customerId) === String(req.user._id);
+	const isPrivileged = ["admin", "staff", "manager"].includes(req.user.role);
+	if (!isOwner && !isPrivileged) {
+		return res.status(403).json({ message: "Not authorized to update payment preference for this booking" });
+	}
+
+	if (booking.payment_status === "fully_paid") {
+		return res.status(400).json({ message: "This booking is already fully paid" });
+	}
+	if (["cancelled", "refunded"].includes(booking.status)) {
+		return res.status(400).json({ message: "Cannot change payment preference for cancelled or refunded bookings" });
+	}
+
+	// Calculate remaining balance
+	const approvedPayments = await Payment.find({ booking_id: booking._id, status: "approved" });
+	const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+	const remainingBalance = Math.max(0, Number(booking.total_price || 0) - totalPaid);
+
+	if (remainingBalance <= 0) {
+		return res.status(400).json({ message: "No outstanding balance for this booking" });
+	}
+
+	const validPreference = ["online", "in_person"].includes(preference) ? preference : "in_person";
+	booking.balance_payment_preference = validPreference;
+	if (notes) booking.balance_payment_notes = notes;
+
+	const io = req.app.get("io");
+
+	if (validPreference === "in_person") {
+		// Create or update a pending manual payment record for the remaining balance
+		let pendingPayment = await Payment.findOne({
+			booking_id: booking._id,
+			payment_type: "balance",
+			status: "pending"
+		});
+
+		if (pendingPayment) {
+			pendingPayment.amount = remainingBalance;
+			pendingPayment.method = "cash";
+			pendingPayment.gateway = "manual";
+			pendingPayment.metadata = { ...(pendingPayment.metadata || {}), preference: "in_person", notes };
+			await pendingPayment.save();
+		} else {
+			pendingPayment = await Payment.create({
+				booking_id: booking._id,
+				customer_id: customerId || req.user._id,
+				amount: remainingBalance,
+				currency: "PHP",
+				payment_type: "balance",
+				method: "cash",
+				status: "pending",
+				gateway: "manual",
+				metadata: { preference: "in_person", notes }
+			});
+		}
+
+		// Notify admins and assigned manager
+		const { notifyAdmins } = require("../utils/notify");
+		await notifyAdmins({
+			title: "In-Person Payment Selected",
+			body: `Customer selected Cash on Event Day for Booking ${booking.reference || booking._id} (₱${remainingBalance.toLocaleString()}).`,
+			type: "info",
+			link: `/admin/bookings/${booking._id}`,
+			meta: { booking_id: booking._id, payment_id: pendingPayment._id }
+		}, io);
+	} else {
+		// Switched back to online: clean up any pending manual cash payment
+		await Payment.deleteMany({
+			booking_id: booking._id,
+			payment_type: "balance",
+			status: "pending",
+			gateway: "manual"
+		});
+	}
+
+	await booking.save();
+
+	if (io) {
+		io.emit("system:refresh", { type: "booking", action: "payment_preference", booking_id: booking._id });
+	}
+
+	res.json({
+		message: `Payment preference updated to ${validPreference === "in_person" ? "In-Person Cash" : "Online"}`,
+		booking,
+		preference: validPreference,
+		remaining_balance: remainingBalance
+	});
+});
+
 exports.createCheckout = asyncHandler(async (req, res) => {
 	const {
 		booking_id,
@@ -554,6 +696,19 @@ exports.createCheckout = asyncHandler(async (req, res) => {
 	if (targetDoc.payment_status === "unpaid") {
 		targetDoc.payment_status = "pending";
 		await targetDoc.save();
+	}
+
+	if (booking_id && normalizedPaymentType === "balance") {
+		if (targetDoc.balance_payment_preference !== "online") {
+			targetDoc.balance_payment_preference = "online";
+			await targetDoc.save();
+		}
+		await Payment.deleteMany({
+			booking_id: targetDoc._id,
+			payment_type: "balance",
+			status: "pending",
+			gateway: "manual"
+		});
 	}
 
 	const appBaseUrl = process.env.FRONTEND_URL || "http://localhost:5173";

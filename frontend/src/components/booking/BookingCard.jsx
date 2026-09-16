@@ -239,6 +239,8 @@ export default function BookingCard({
               submitting={isRequestingOcular}
               eventDate={booking?.event_date}
               eventTitle={recordTitle(booking)}
+              eventType={booking?.event_type}
+              booking={booking}
             />
           )}
         </div>

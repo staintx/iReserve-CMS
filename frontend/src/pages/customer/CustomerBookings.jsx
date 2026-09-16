@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
+import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import { createConversation } from "../../api/messages";
@@ -85,6 +86,10 @@ export default function CustomerBookings() {
   // Invoice Modal State
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
+
+  // Payment Choice Modal State (for balance payments)
+  const [choiceModalBooking, setChoiceModalBooking] = useState(null);
+  const [choiceModalOpen, setChoiceModalOpen] = useState(false);
 
   const submitOcularRequest = async (selectedDate, selectedTime) => {
     if (!requestingOcularBooking?._id) return;
@@ -242,13 +247,21 @@ export default function CustomerBookings() {
       notify("This booking is fully paid.", "info");
       return;
     }
+    const isDeposit = (booking.status || "").toLowerCase().includes("deposit");
+    if (!isDeposit) {
+      // Final / remaining balance payment: present choice of Online vs In-Person
+      setChoiceModalBooking(booking);
+      setChoiceModalOpen(true);
+      return;
+    }
+
+    // Deposit payment: direct online checkout to lock the booking date
     try {
-      notify("Generating checkout session for payment...", "info");
-      const isDeposit = (booking.status || "").toLowerCase().includes("deposit");
+      notify("Generating checkout session for deposit payment...", "info");
       const checkoutRes = await CustomerAPI.createPaymentCheckout({
         booking_id: booking._id,
         amount,
-        payment_type: isDeposit ? "deposit" : "final",
+        payment_type: "deposit",
       });
 
       if (checkoutRes.data?.checkout_url) {
@@ -354,8 +367,8 @@ export default function CustomerBookings() {
         badgeClass: "bg-blue-100 text-blue-900 border-blue-200 font-semibold",
         title: "Site Visit Requested — Pending Admin Confirmation",
         description: `Requested schedule: ${ocularMeta.scheduled_date ? formatShortDate(ocularMeta.scheduled_date) : "Pending confirmation"}. Our team will confirm shortly.`,
-        actionType: "view",
-        actionLabel: "View Details",
+        actionType: "ocular_reschedule",
+        actionLabel: "Reschedule Ocular",
       };
     }
 
@@ -385,21 +398,24 @@ export default function CustomerBookings() {
       };
     }
 
-    // 7. Balance owed before event
-    if (bal > 0 && ["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus)) {
+    // 7. Balance owed before or on event day
+    if (bal > 0 && ["confirmed", "converted to booking", "preparing", "ready for event", "ongoing"].includes(rawStatus)) {
+      const isCash = bkg.balance_payment_preference === "in_person";
       return {
         state: "balance_due",
-        badge: "Balance Due",
-        badgeClass: "bg-amber-50 text-amber-900 border-amber-200 font-semibold",
+        badge: isCash ? "Cash on Event Day" : "Balance Due",
+        badgeClass: isCash ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold" : "bg-amber-50 text-amber-900 border-amber-200 font-semibold",
         title: `Remaining Balance: ${formatCurrency(bal)}`,
-        description: "Your date is fully locked. The remaining balance is due prior to event dispatch and setup.",
+        description: isCash
+          ? "You elected cash on event day. Due the same day after event completion to your Event Manager."
+          : "Remaining balance is due the same day after your event has been completed (payable online or in cash).",
         actionType: "balance",
-        actionLabel: `Pay Balance (${formatCurrency(bal)})`,
+        actionLabel: isCash ? `Manage Payment (${formatCurrency(bal)})` : `Pay Balance (${formatCurrency(bal)})`,
       };
     }
 
     // 8. Confirmed & fully paid
-    if (["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus) && bal <= 0) {
+    if (["confirmed", "converted to booking", "preparing", "ready for event", "ongoing"].includes(rawStatus) && bal <= 0) {
       const isFood = isFoodOnly(resolveServiceType(bkg));
       return {
         state: "all_set",
@@ -416,6 +432,20 @@ export default function CustomerBookings() {
 
     // 9. Completed
     if (["completed", "event completed"].includes(rawStatus)) {
+      if (bal > 0) {
+        const isCash = bkg.balance_payment_preference === "in_person";
+        return {
+          state: "balance_due",
+          badge: isCash ? "Cash Due (Completed)" : "Balance Due Today",
+          badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-semibold",
+          title: `Event Concluded · Remaining Balance: ${formatCurrency(bal)}`,
+          description: isCash
+            ? "Your event has completed! Please hand the remaining cash to your Event Manager or settle online."
+            : "Your event has completed today! Please settle your remaining balance online or with your Event Manager.",
+          actionType: "balance",
+          actionLabel: `Settle Balance (${formatCurrency(bal)})`,
+        };
+      }
       return {
         state: "completed",
         badge: "Event Completed",
@@ -887,17 +917,33 @@ export default function CustomerBookings() {
 
                           <div className="pt-0.5">
                             {nextAction?.actionType === "deposit" && (
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startCheckout(bkg);
-                                }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
-                              >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                <span>Pay Deposit</span>
-                              </Button>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startCheckout(bkg);
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>Pay Deposit</span>
+                                </Button>
+                                {getBookingOcularActionMeta(bkg)?.state === "action_required" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRequestingOcularBooking(bkg);
+                                    }}
+                                    className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-8 px-2.5 rounded-lg shadow-2xs gap-1 cursor-pointer"
+                                  >
+                                    <CalendarClock className="w-3.5 h-3.5 text-amber-700" />
+                                    <span>Ocular</span>
+                                  </Button>
+                                )}
+                              </div>
                             )}
 
                             {nextAction?.actionType === "ocular" && (
@@ -911,6 +957,21 @@ export default function CustomerBookings() {
                               >
                                 <CalendarClock className="w-3.5 h-3.5" />
                                 <span>Schedule Ocular</span>
+                              </Button>
+                            )}
+
+                            {nextAction?.actionType === "ocular_reschedule" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRequestingOcularBooking(bkg);
+                                }}
+                                className="border-blue-300 bg-white hover:bg-blue-50 text-blue-900 font-bold text-xs h-8 px-3.5 rounded-lg shadow-2xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                              >
+                                <CalendarClock className="w-3.5 h-3.5 text-blue-700" />
+                                <span>Reschedule Ocular</span>
                               </Button>
                             )}
 
@@ -1107,13 +1168,25 @@ export default function CustomerBookings() {
 
                         {/* Primary Action Button inside Guidance */}
                         {nextAction.actionType === "deposit" && (
-                          <Button
-                            onClick={() => startCheckout(selectedBooking)}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
-                          >
-                            <CreditCard className="w-4 h-4" />
-                            <span>Pay Deposit Now ({formatCurrency(bal)})</span>
-                          </Button>
+                          <div className="space-y-2">
+                            <Button
+                              onClick={() => startCheckout(selectedBooking)}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+                            >
+                              <CreditCard className="w-4 h-4" />
+                              <span>Pay Deposit Now ({formatCurrency(bal)})</span>
+                            </Button>
+                            {getBookingOcularActionMeta(selectedBooking)?.state === "action_required" && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setRequestingOcularBooking(selectedBooking)}
+                                className="w-full border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+                              >
+                                <CalendarClock className="w-4 h-4 text-amber-700" />
+                                <span>Schedule Ocular Visit</span>
+                              </Button>
+                            )}
+                          </div>
                         )}
 
                         {nextAction.actionType === "ocular" && (
@@ -1123,6 +1196,17 @@ export default function CustomerBookings() {
                           >
                             <CalendarClock className="w-4 h-4" />
                             <span>Select Ocular Visit Date</span>
+                          </Button>
+                        )}
+
+                        {nextAction.actionType === "ocular_reschedule" && (
+                          <Button
+                            variant="outline"
+                            onClick={() => setRequestingOcularBooking(selectedBooking)}
+                            className="w-full border-blue-300 bg-white hover:bg-blue-50 text-blue-900 font-bold text-xs h-8.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+                          >
+                            <CalendarClock className="w-4 h-4 text-blue-700" />
+                            <span>Reschedule Ocular Visit</span>
                           </Button>
                         )}
 
@@ -1337,8 +1421,12 @@ export default function CustomerBookings() {
           onClose={() => setRequestingOcularBooking(null)}
           onSubmit={submitOcularRequest}
           isSubmitting={isSubmittingOcular}
+          initialDate={requestingOcularBooking?.ocular_visit?.scheduled_date}
+          initialTime={requestingOcularBooking?.ocular_visit?.scheduled_time || "10:00 AM"}
           eventDate={requestingOcularBooking?.event_date}
           eventTitle={requestingOcularBooking?.event_type}
+          eventType={requestingOcularBooking?.event_type}
+          booking={requestingOcularBooking}
         />
       )}
 
@@ -1351,6 +1439,19 @@ export default function CustomerBookings() {
             (p) => String(p.booking_id?._id || p.booking_id) === String(selectedBooking._id)
           )}
           businessInfo={businessInfo}
+        />
+      )}
+
+      {choiceModalOpen && choiceModalBooking && (
+        <PaymentChoiceModal
+          open={choiceModalOpen}
+          onClose={() => {
+            setChoiceModalOpen(false);
+            setChoiceModalBooking(null);
+          }}
+          booking={choiceModalBooking}
+          balanceAmount={balanceOf(choiceModalBooking)}
+          onSuccess={() => loadData(true)}
         />
       )}
     </CustomerDashboardLayout>

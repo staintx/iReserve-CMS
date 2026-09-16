@@ -6,6 +6,7 @@ const validate = require("../middleware/validate.middleware");
 const { paymentSchema } = require("../validations/payment.validation");
 
 router.post("/", protect, authorize("admin", "staff"), validate(paymentSchema), ctrl.create);
+router.post("/preference", protect, ctrl.setPaymentPreference);
 router.post("/checkout", protect, ctrl.createCheckout);
 router.post("/intent", protect, ctrl.createIntent);
 router.post("/intent/process", protect, ctrl.processIntent);

@@ -40,6 +40,7 @@ import Btn from "../../components/admin/ui/Btn";
 import Badge from "../../components/admin/ui/Badge";
 import AssignEquipmentModal from "../../components/admin/ui/AssignEquipmentModal";
 import VerifyEquipmentReturnsModal from "../../components/admin/ui/VerifyEquipmentReturnsModal";
+import AdminAssignStaffModal from "../../components/admin/ui/AdminAssignStaffModal";
 import RevisionProposalModal from "../../components/booking/RevisionProposalModal";
 import BookingRevisionHistory from "../../components/booking/BookingRevisionHistory";
 import PrintableInvoice from "../../components/admin/ui/PrintableInvoice";
@@ -77,6 +78,7 @@ export default function AdminBookingDetails() {
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCompleteOcularModal, setShowCompleteOcularModal] = useState(false);
   const [showAssignManagerModal, setShowAssignManagerModal] = useState(false);
+  const [showAssignTeamModal, setShowAssignTeamModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -815,6 +817,28 @@ export default function AdminBookingDetails() {
                     </span>
                   </div>
                 )}
+
+                {/* Staff Team Summary Row */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-slate-500 font-semibold text-[11px] uppercase tracking-wider flex items-center gap-1">
+                    <Users size={12} className="text-amber-600" /> Staff Team
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAssignTeamModal(true)}
+                    className="text-[11px] font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 hover:underline cursor-pointer transition-colors"
+                  >
+                    {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
+                      <>
+                        <UserCheck size={11} /> {booking.staff_assignments.length} Dispatched
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={11} /> + Assign Team
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </AdminCard>
@@ -859,9 +883,166 @@ export default function AdminBookingDetails() {
                   {fmt(remainingBalance)}
                 </strong>
               </div>
+
+              {remainingBalance > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-medium">Balance Preference</span>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+                      booking.balance_payment_preference === "in_person"
+                        ? "bg-amber-100 text-amber-900 border-amber-300"
+                        : "bg-blue-50 text-blue-800 border-blue-200"
+                    }`}>
+                      {booking.balance_payment_preference === "in_person" ? "Cash On Event Day" : "Pay Online"}
+                    </span>
+                  </div>
+                  {booking.balance_payment_preference === "in_person" && (
+                    <div className="p-2 rounded bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 leading-snug">
+                      Client elected cash settlement ({fmt(remainingBalance)}) upon event completion.
+                    </div>
+                  )}
+                  <div className="pt-1">
+                    <Btn
+                      size="xs"
+                      variant="secondary"
+                      className="w-full justify-center font-semibold text-[11px]"
+                      onClick={() => navigate(`/admin/payments?booking=${booking._id}`)}
+                    >
+                      Record / Manage Payment
+                    </Btn>
+                  </div>
+                </div>
+              )}
             </div>
           </AdminCard>
         </div>
+
+        {/* Assigned Staff Team & Crew Dispatch Card */}
+        <AdminCard className="!p-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-sans font-bold text-slate-900 text-base flex items-center gap-2">
+                  Assigned Staff Team &amp; Crew
+                  {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
+                    <span className="text-[10px] font-bold font-mono text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200">
+                      {booking.staff_assignments.length} Crew Dispatched
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold font-mono text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300">
+                      No Staff Assigned
+                    </span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Kitchen, waitstaff, staging crew, and event support assigned to execute this reservation.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Btn
+                size="sm"
+                variant={Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? "secondary" : "primary"}
+                onClick={() => setShowAssignTeamModal(true)}
+                className="gap-1.5"
+              >
+                {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
+                  <>
+                    <Edit size={13} /> Edit Staff Team
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={13} /> Assign Staff Team
+                  </>
+                )}
+              </Btn>
+            </div>
+          </div>
+
+          {/* Team Members Grid or Empty State */}
+          {Array.isArray(booking.staff_assignments) && booking.staff_assignments.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {booking.staff_assignments.map((assignment, idx) => {
+                const memberName = assignment.name || assignment.user_id?.full_name || "Staff Member";
+                const memberPhone = assignment.phone || assignment.user_id?.phone || "No phone";
+                const memberRole = assignment.role || "Crew";
+                const isHeadCook = memberRole.toLowerCase().includes("cook") || memberRole.toLowerCase().includes("chef");
+                const isServer = memberRole.toLowerCase().includes("server");
+                const isSetup = memberRole.toLowerCase().includes("setup");
+
+                return (
+                  <div
+                    key={idx}
+                    className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl flex items-start gap-3 shadow-2xs hover:bg-white hover:border-amber-300 transition-all"
+                  >
+                    <div className={`w-9 h-9 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 border ${
+                      isHeadCook
+                        ? "bg-amber-100 text-amber-900 border-amber-300"
+                        : isServer
+                        ? "bg-blue-100 text-blue-900 border-blue-200"
+                        : isSetup
+                        ? "bg-emerald-100 text-emerald-900 border-emerald-200"
+                        : "bg-slate-100 text-slate-800 border-slate-200"
+                    }`}>
+                      {memberName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-slate-900 text-xs truncate">{memberName}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 uppercase tracking-tight ${
+                          isHeadCook
+                            ? "bg-amber-100 text-amber-900"
+                            : isServer
+                            ? "bg-blue-50 text-blue-800"
+                            : isSetup
+                            ? "bg-emerald-50 text-emerald-800"
+                            : "bg-slate-200/70 text-slate-700"
+                        }`}>
+                          {memberRole}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate mt-0.5 flex items-center gap-1">
+                        <Phone size={10} className="shrink-0 text-slate-400" />
+                        <span>{memberPhone}</span>
+                      </div>
+                      {assignment.user_id?.position && (
+                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                          {assignment.user_id.position}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div
+              onClick={() => setShowAssignTeamModal(true)}
+              className="p-6 border border-dashed border-slate-300 hover:border-amber-400 bg-slate-50/50 hover:bg-amber-50/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 cursor-pointer transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-amber-100 text-slate-400 group-hover:text-amber-700 flex items-center justify-center transition-colors">
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-xs sm:text-sm group-hover:text-amber-900">
+                    No Staff Team Dispatched Yet
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Click here to assign a Head Cook, Servers, Setup Crew, and Support Staff to this reservation.
+                  </p>
+                </div>
+              </div>
+              <Btn size="sm" variant="primary" className="bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0">
+                <Plus size={13} /> Assign Staff Team
+              </Btn>
+            </div>
+          )}
+        </AdminCard>
 
         {/* Ocular Visit Card (for Setup/Full Catering) OR Delivery & Logistics Card (for Food Only) */}
         {isFoodOnlyService ? (
@@ -1799,6 +1980,17 @@ export default function AdminBookingDetails() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Assign Staff Team Modal */}
+        <AdminAssignStaffModal
+          booking={booking}
+          open={showAssignTeamModal}
+          onClose={() => setShowAssignTeamModal(false)}
+          onSave={(updatedBooking) => {
+            if (updatedBooking) setBooking(updatedBooking);
+            loadData();
+          }}
+        />
 
         {/* Production-Quality Invoice Modal & Printable Document */}
         <InvoiceModal

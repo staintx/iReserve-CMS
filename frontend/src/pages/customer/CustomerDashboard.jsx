@@ -137,7 +137,28 @@ export default function CustomerDashboard() {
       };
     });
 
-    return [...quoteSentInquiries, ...depositNeededBookings];
+    const ocularNeededBookings = bookings
+      .filter((b) => {
+        if (["cancelled", "completed", "refunded"].includes((b.status || "").toLowerCase())) return false;
+        const oMeta = getBookingOcularActionMeta(b);
+        return oMeta?.state === "action_required";
+      })
+      .map((b) => {
+        return {
+          type: "ocular",
+          id: `ocular-${b._id}`,
+          title: recordTitle(b),
+          date: b.event_date,
+          startTime: b.start_time,
+          status: { tone: "warning", label: "Ocular Required", icon: CalendarClock },
+          description: "Schedule venue inspection with our team",
+          actionText: "Schedule ocular",
+          isOcular: true,
+          onAction: () => navigate(`/customer/bookings/${b._id}`),
+        };
+      });
+
+    return [...quoteSentInquiries, ...depositNeededBookings, ...ocularNeededBookings];
   }, [inquiries, bookings, navigate]);
 
   // Confirmed / Upcoming Events
@@ -384,6 +405,8 @@ export default function CustomerDashboard() {
                       "shrink-0 font-semibold text-xs px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-2xs",
                       item.isPayment
                         ? "bg-amber-600 hover:bg-amber-700 text-white"
+                        : item.isOcular
+                        ? "bg-orange-600 hover:bg-orange-700 text-white"
                         : "bg-[#2C4B8A] hover:bg-[#1E3563] text-white"
                     )}
                   >

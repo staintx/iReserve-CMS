@@ -89,6 +89,7 @@ export const AdminAPI = {
 
   // Staff
   getStaff: () => api.get("/staff"),
+  getStaffAvailability: (params) => api.get("/manager/staff", { params }),
   createStaff: (data) => api.post("/staff", data),
   updateStaff: (id, data) => api.put(`/staff/${id}`, data),
   deleteStaff: (id) => api.delete(`/staff/${id}`),

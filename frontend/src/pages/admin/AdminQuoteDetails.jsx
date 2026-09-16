@@ -536,7 +536,10 @@ export default function AdminQuoteDetails() {
               {quote.converted_booking_id && (
                 <button 
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer"
-                  onClick={() => navigate(`/admin/bookings/${quote.converted_booking_id}/details`)}
+                  onClick={() => {
+                    const targetBookingId = String(quote.converted_booking_id?._id || quote.converted_booking_id);
+                    navigate(`/admin/bookings/${targetBookingId}/details`);
+                  }}
                 >
                   <CheckCircle2 size={14} />
                   <span>View Confirmed Booking</span>

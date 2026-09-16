@@ -1255,7 +1255,14 @@ export default function AdminQuotesList() {
                 ) : selectedQuotation.status === "Converted to Booking" || Boolean(selectedQuotation.convertedBookingId) ? (
                   <div className="flex flex-col gap-2">
                     <button
-                      onClick={() => navigate('/admin/bookings/reservations')}
+                      onClick={() => {
+                        const bId = selectedQuotation.convertedBookingId?._id || selectedQuotation.convertedBookingId || selectedQuotation.converted_booking_id;
+                        if (bId) {
+                          navigate(`/admin/bookings/reservations?bookingId=${bId}&search=${encodeURIComponent(selectedQuotation.reference || bId)}`);
+                        } else {
+                          navigate(`/admin/bookings/reservations?search=${encodeURIComponent(selectedQuotation.reference || '')}`);
+                        }
+                      }}
                       className="w-full py-2 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-center transition-colors shadow-2xs flex items-center justify-center gap-1.5 text-xs cursor-pointer"
                     >
                       <CheckCircle2 size={14} /> View Confirmed Booking

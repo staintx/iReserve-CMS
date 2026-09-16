@@ -111,14 +111,14 @@ const startCronJobs = (io) => {
                         const customerId = booking.customer_id?._id || booking.customer_id;
                         await createNotification({
                             userId: customerId,
-                            title: "Final Payment Due",
-                            body: `Your event is in 3 days! Please pay the remaining balance of ₱${balance.toFixed(2)}.`,
-                            type: "warning",
+                            title: "Upcoming Event in 3 Days",
+                            body: `Your event is in 3 days! As a reminder, your remaining balance of ₱${balance.toFixed(2)} is due the same day after your event has been completed (payable online or in cash to your event manager).`,
+                            type: "info",
                             link: payment.checkout_url || "/customer/payments",
                             meta: { payment_id: payment._id, booking_id: booking._id }
                         }, io);
 
-                        // Send final invoice email
+                        // Send final invoice email with note on post-event settlement
                         const customerEmail = booking.contact_email || booking.customer_id?.email;
                         if (customerEmail) {
                             sendFinalInvoiceEmail({
@@ -141,58 +141,53 @@ const startCronJobs = (io) => {
         }
     });
 
-    // Run every day at 9 AM — Payment follow-up reminders (2 days and 1 day before)
+    // Run every day at 9 AM — Follow-up on completed events with unpaid balances
     cron.schedule('0 9 * * *', async () => {
         try {
-            console.log('Running payment follow-up reminder cron...');
+            console.log('Running post-event balance follow-up cron...');
 
-            for (const daysOut of [2, 1]) {
-                const targetStart = new Date();
-                targetStart.setDate(targetStart.getDate() + daysOut);
-                targetStart.setHours(0, 0, 0, 0);
-                const targetEnd = new Date(targetStart);
-                targetEnd.setHours(23, 59, 59, 999);
+            const completedUnpaidBookings = await Booking.find({
+                status: { $in: ["completed", "Completed"] },
+                payment_status: { $ne: "fully_paid" }
+            }).populate("customer_id");
 
-                const unpaidBookings = await Booking.find({
-                    event_date: { $gte: targetStart, $lte: targetEnd },
-                    status: { $in: ACTIVE_UPCOMING_STATUSES },
-                    payment_status: { $ne: "fully_paid" }
-                }).populate("customer_id");
+            for (const booking of completedUnpaidBookings) {
+                const payments = await Payment.find({ booking_id: booking._id, status: "approved" });
+                const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const balance = (Number(booking.total_price) || 0) - amountPaid;
 
-                for (const booking of unpaidBookings) {
-                    const payments = await Payment.find({ booking_id: booking._id, status: "approved" });
-                    const amountPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                    const balance = (Number(booking.total_price) || 0) - amountPaid;
+                if (balance > 0) {
+                    const customerId = booking.customer_id?._id || booking.customer_id;
 
-                    if (balance > 0) {
-                        const customerId = booking.customer_id?._id || booking.customer_id;
-                        const urgency = daysOut === 1 ? "URGENT" : "Reminder";
+                    await createNotification({
+                        userId: customerId,
+                        title: "Balance Settlement Due",
+                        body: `Your event has concluded! Please settle your remaining balance of ₱${balance.toFixed(2)} today online via your portal or in cash to your event manager.`,
+                        type: "warning",
+                        link: `/customer/bookings/${booking._id}`,
+                        meta: { booking_id: booking._id, balance }
+                    }, io);
 
-                        await createNotification({
-                            userId: customerId,
-                            title: `${urgency}: Payment Due`,
-                            body: `Your event is in ${daysOut} day${daysOut > 1 ? "s" : ""}! Remaining balance: ₱${balance.toFixed(2)}.`,
-                            type: daysOut === 1 ? "error" : "warning",
-                            link: "/customer/payments",
-                            meta: { booking_id: booking._id, reminder_days: daysOut }
+                    // If completed more than 1 day ago and still unpaid, inform admins
+                    const completedDate = booking.completed_at ? new Date(booking.completed_at) : null;
+                    const oneDayAgo = new Date();
+                    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+                    if (completedDate && completedDate < oneDayAgo) {
+                        await notifyAdmins({
+                            title: "Unsettled Balance on Completed Event",
+                            body: `Booking ${booking.reference || booking._id} completed on ${completedDate.toLocaleDateString()} still has an unpaid balance of ₱${balance.toFixed(2)}.`,
+                            type: "warning",
+                            link: `/admin/bookings/${booking._id}/details`,
+                            meta: { booking_id: booking._id, balance }
                         }, io);
-
-                        if (daysOut === 1) {
-                            await notifyAdmins({
-                                title: "Unpaid Balance — Event Tomorrow",
-                                body: `Booking ${booking.reference || booking._id} has an unpaid balance of ₱${balance.toFixed(2)} and the event is tomorrow.`,
-                                type: "error",
-                                link: `/admin/bookings/${booking._id}/details`,
-                                meta: { booking_id: booking._id }
-                            }, io);
-                        }
                     }
                 }
             }
 
-            console.log('Payment follow-up reminders completed.');
+            console.log(`Post-event balance follow-up completed for ${completedUnpaidBookings.length} bookings.`);
         } catch (error) {
-            console.error('Error in payment follow-up cron:', error);
+            console.error('Error in post-event balance follow-up cron:', error);
         }
     });
 

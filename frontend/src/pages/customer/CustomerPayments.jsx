@@ -3,6 +3,7 @@ import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLa
 import { CustomerAPI } from "../../api/customer";
 import CustomerPaymentsTable from "../../components/tables/CustomerPaymentsTable";
 import CustomerReceiptModal from "../../components/customer/portal/CustomerReceiptModal";
+import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import useToast from "../../hooks/useToast";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -48,6 +49,10 @@ export default function CustomerPayments() {
   // Receipt Modal State
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptBooking, setReceiptBooking] = useState(null);
+
+  // Payment Choice Modal State (for balance payments)
+  const [choiceModalBooking, setChoiceModalBooking] = useState(null);
+  const [choiceModalOpen, setChoiceModalOpen] = useState(false);
 
   // Filters & View State
   const [searchQuery, setSearchQuery] = useState("");
@@ -222,13 +227,21 @@ export default function CustomerPayments() {
       return;
     }
 
+    if (paymentType === "balance" || !booking.isDepositStage) {
+      // Final / remaining balance payment: open choice modal
+      setChoiceModalBooking(booking);
+      setChoiceModalOpen(true);
+      return;
+    }
+
+    // Deposit stage: direct PayMongo checkout to secure the booking
     setPayingTargetId(booking._id);
     try {
       notify("Opening secure PayMongo checkout...", "info");
       const res = await CustomerAPI.createPaymentCheckout({
         booking_id: booking._id,
         amount: payAmount,
-        payment_type: paymentType,
+        payment_type: "deposit",
       });
 
       if (res.data?.checkout_url) {
@@ -863,6 +876,19 @@ export default function CustomerPayments() {
             setReceiptBooking(null);
           }}
           formatCurrency={formatCurrency}
+        />
+      )}
+
+      {choiceModalOpen && choiceModalBooking && (
+        <PaymentChoiceModal
+          open={choiceModalOpen}
+          onClose={() => {
+            setChoiceModalOpen(false);
+            setChoiceModalBooking(null);
+          }}
+          booking={choiceModalBooking}
+          balanceAmount={getBookingRemainingBalance(choiceModalBooking)}
+          onSuccess={() => fetchData()}
         />
       )}
     </CustomerDashboardLayout>

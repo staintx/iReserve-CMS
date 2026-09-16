@@ -280,7 +280,7 @@ export default function AdminInquiries() {
   
   // Filters & Search
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") || "all");
   const [eventTypeFilter, setEventTypeFilter] = useState("all");
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [customDateRange, setCustomDateRange] = useState({ from: "", to: "" });
@@ -396,19 +396,14 @@ export default function AdminInquiries() {
       // Status filter
       if (statusFilter === "Archived") {
         if (!r.archived) return false;
-      } else if (statusFilter === "needs_action") {
-        if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
-        if (r.latestQuote && !r.isNew) return false;
       } else if (statusFilter === "active") {
         if (r.archived || r.status === "Converted to Booking" || r.status === "Cancelled") return false;
       } else if (statusFilter === "Quotation Sent") {
         if (r.archived || (!r.latestQuote && r.status !== "Quotation Sent") || r.status === "Converted to Booking") return false;
       } else if (statusFilter === "Converted to Booking") {
         if (r.archived || (r.status !== "Converted to Booking" && !r.convertedBookingId)) return false;
-      } else if (statusFilter !== "all") {
-        if (r.archived || r.status !== statusFilter) return false;
       } else {
-        // 'all' tab shows all unarchived inquiries
+        // 'all' shows all unarchived inquiries
         if (r.archived) return false;
       }
 
@@ -589,19 +584,13 @@ export default function AdminInquiries() {
 
         {/* Main Content Area (Uncompressed 100% Full Width) */}
         <div className="space-y-3.5 w-full">
-            {/* Operational KPI Summary Cards Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Operational KPI Summary Cards Row (3 evenly-spaced cards) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <KPICard
                 title="Active Inquiries"
                 value={activeCount}
                 sub="Open leads in pipeline"
                 icon={Mail}
-              />
-              <KPICard
-                title="Quotes Needed"
-                value={quotesNeededCount}
-                sub="Awaiting quote creation"
-                icon={Sparkles}
               />
               <KPICard
                 title="Quotation Sent"
@@ -615,33 +604,6 @@ export default function AdminInquiries() {
                 sub={`${conversionPct}% conversion rate`}
                 icon={CheckCircle2}
               />
-            </div>
-
-            {/* Smart Triage Stage Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 border-b border-border/40">
-              {[
-                { id: "active", label: `Active Leads (${activeCount})` },
-                { id: "needs_action", label: `⚡ Needs Action (${quotesNeededCount})` },
-                { id: "Quotation Sent", label: `Quotation Sent (${quotationSentCount})` },
-                { id: "Converted to Booking", label: `Converted (${convertedCount})` },
-                { id: "all", label: `All Inquiries (${totalInquiriesCount})` },
-                { id: "Archived", label: `Archived (${archivedCount})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setStatusFilter(tab.id);
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors cursor-pointer ${
-                    statusFilter === tab.id
-                      ? "bg-primary text-primary-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
             </div>
 
             {/* Filter Controls Bar */}
@@ -662,7 +624,7 @@ export default function AdminInquiries() {
                     {search && (
                       <button
                         onClick={() => setSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         <X size={12} />
                       </button>
@@ -670,12 +632,34 @@ export default function AdminInquiries() {
                   </div>
                 </div>
 
+                {/* Inquiry Status Filter */}
+                <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Inquiry</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
+                  >
+                    <option value="all">All Inquiries</option>
+                    <option value="active">Active Inquiry</option>
+                    <option value="Quotation Sent">Quotation Sent</option>
+                    <option value="Converted to Booking">Converted Bookings</option>
+                    <option value="Archived">Archived</option>
+                  </select>
+                </div>
+
                 {/* Event Type Filter */}
                 <div className="flex flex-col gap-1 min-w-[140px] shrink-0">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Event Type</label>
                   <select
                     value={eventTypeFilter}
-                    onChange={(e) => setEventTypeFilter(e.target.value)}
+                    onChange={(e) => {
+                      setEventTypeFilter(e.target.value);
+                      setPage(1);
+                    }}
                     className="w-full bg-background border border-input rounded-lg px-2.5 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary cursor-pointer h-8"
                   >
                     <option value="all">All Event Types</option>
@@ -694,6 +678,7 @@ export default function AdminInquiries() {
                     value={dateRangeFilter}
                     onChange={(e) => {
                       setDateRangeFilter(e.target.value);
+                      setPage(1);
                       if (e.target.value === "custom") setShowDatePopover(true);
                       else setShowDatePopover(false);
                     }}
@@ -736,7 +721,7 @@ export default function AdminInquiries() {
                 </div>
 
                 {/* Clear Filters Action Button */}
-                {(search || statusFilter !== "active" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
+                {(search || statusFilter !== "all" || eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
                   <div className="flex flex-col gap-1 shrink-0 justify-end">
                     <button
                       onClick={clearFilters}

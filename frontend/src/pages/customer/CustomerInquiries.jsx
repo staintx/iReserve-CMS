@@ -272,6 +272,24 @@ export default function CustomerInquiries() {
     return Array.from(names);
   }, [packages, inquiries]);
 
+  // Dynamically derive package service options from inquiries and packages
+  const packageServiceOptions = useMemo(() => {
+    const options = new Set();
+    (packages || []).forEach((pkg) => {
+      if (pkg.offer_type !== "special" && !isSpecialOffer(pkg) && pkg.name) {
+        options.add(pkg.name);
+        options.add(`${pkg.name} + Menu`);
+      }
+    });
+    (inquiries || []).forEach((inq) => {
+      const st = resolveServiceType(inq);
+      if (st && !st.startsWith("Custom Quote -") && !comboPackNames.includes(st)) {
+        options.add(st);
+      }
+    });
+    return Array.from(options);
+  }, [packages, inquiries, comboPackNames]);
+
   const handleViewInquiry = (inq) => {
     navigate(`/customer/inquiries/${inq._id}`);
   };
@@ -385,17 +403,6 @@ export default function CustomerInquiries() {
       </span>
     );
   };
-
-  // Quick status triage counts
-  const triageCounts = useMemo(() => {
-    const total = inquiries.filter((i) => inquiryStatusGroup(i) !== "converted").length;
-    const actionNeeded = inquiries.filter((i) => inquiryStatusGroup(i) === "quote_ready").length;
-    const pendingReview = inquiries.filter((i) => inquiryStatusGroup(i) === "pending_review").length;
-    const accepted = inquiries.filter((i) => inquiryStatusGroup(i) === "accepted").length;
-    const cancelled = inquiries.filter((i) => inquiryStatusGroup(i) === "cancelled").length;
-
-    return { total, actionNeeded, pendingReview, accepted, cancelled };
-  }, [inquiries]);
 
   // Audited Dynamic Action Button Renderer - Error prevention: only render valid customer actions
   const renderCardActionButton = (inq) => {
@@ -594,46 +601,6 @@ export default function CustomerInquiries() {
 
         {/* WORKSPACE AREA: FULL CONTENT WIDTH */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-4 sm:p-6 space-y-4 w-full">
-          {/* QUICK STATUS TRIAGE PILL TABS */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] shrink-0">
-            {[
-              { id: "all", label: "All Inquiries", count: triageCounts.total },
-              { id: "quote_ready", label: "Action Needed", count: triageCounts.actionNeeded, isAction: triageCounts.actionNeeded > 0 },
-              { id: "pending_review", label: "Under Review", count: triageCounts.pendingReview },
-              { id: "accepted", label: "Accepted", count: triageCounts.accepted },
-              { id: "cancelled", label: "Cancelled", count: triageCounts.cancelled },
-            ].map((tab) => {
-              const active = statusFilter === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setStatusFilter(tab.id)}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 border shadow-2xs",
-                    active
-                      ? "bg-[#2C4B8A] text-white border-[#2C4B8A] shadow-xs"
-                      : "bg-white text-slate-700 hover:text-slate-900 border-slate-200/90 hover:border-slate-300"
-                  )}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={cn(
-                      "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
-                      active
-                        ? "bg-white/20 text-white"
-                        : tab.isAction
-                        ? "bg-amber-100 text-amber-900 font-extrabold ring-1 ring-amber-300"
-                        : "bg-slate-100 text-slate-700"
-                    )}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* SEARCH & FILTERS MOVED ABOVE THE LIST */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
             {/* Search Bar */}
@@ -737,23 +704,27 @@ export default function CustomerInquiries() {
 
                   <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
-                  {/* Category 1: Regular Package */}
+                  {/* Category 1: Packages */}
                   <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                    Regular Package
+                    Packages
                   </DropdownMenuLabel>
-                  {["Regular Package", "Regular Package + Menu"].map((opt) => (
-                    <DropdownMenuItem
-                      key={opt}
-                      onClick={() => setServiceTypeFilter(opt)}
-                      className={cn(
-                        "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
-                        serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
-                      )}
-                    >
-                      <span>{opt}</span>
-                      {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
-                    </DropdownMenuItem>
-                  ))}
+                  {packageServiceOptions.length > 0 ? (
+                    packageServiceOptions.map((opt) => (
+                      <DropdownMenuItem
+                        key={opt}
+                        onClick={() => setServiceTypeFilter(opt)}
+                        className={cn(
+                          "text-xs font-medium pl-3 pr-2 py-1.5 rounded-lg cursor-pointer flex items-center justify-between",
+                          serviceTypeFilter === opt ? "bg-[#2C4B8A]/10 text-[#2C4B8A] font-semibold" : "text-slate-700"
+                        )}
+                      >
+                        <span>{opt}</span>
+                        {serviceTypeFilter === opt && <Check className="w-3.5 h-3.5 text-[#2C4B8A]" />}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <div className="px-3 py-1 text-[11px] text-slate-400 italic">No packages</div>
+                  )}
 
                   <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
@@ -781,11 +752,15 @@ export default function CustomerInquiries() {
 
                   <DropdownMenuSeparator className="my-1 bg-slate-100" />
 
-                  {/* Category 3: Request Custom */}
+                  {/* Category 3: Custom Quotes */}
                   <DropdownMenuLabel className="text-[11px] font-bold text-slate-800 uppercase tracking-wider px-2 pt-2 pb-1 select-none">
-                    Request Custom
+                    Custom Quotes
                   </DropdownMenuLabel>
-                  {["Food Only", "Event Setup Only", "Food and Event Setup"].map((opt) => (
+                  {[
+                    "Custom Quote - Food Only",
+                    "Custom Quote - Event Setup Only",
+                    "Custom Quote - Food and Event Setup",
+                  ].map((opt) => (
                     <DropdownMenuItem
                       key={opt}
                       onClick={() => setServiceTypeFilter(opt)}

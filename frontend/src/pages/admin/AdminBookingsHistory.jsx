@@ -28,6 +28,7 @@ import TableToolbar from "../../components/admin/table/TableToolbar";
 import FilterPopover from "../../components/admin/table/FilterPopover";
 import FilterChip from "../../components/admin/table/FilterChip";
 import RowActionsMenu from "../../components/admin/table/RowActionsMenu";
+import { resolveServiceType } from "../../components/customer/portal/statusMeta";
 import DetailDrawer from "../../components/admin/table/DetailDrawer";
 import DrawerField from "../../components/admin/table/DrawerField";
 import Pagination from "../../components/admin/table/Pagination";
@@ -344,7 +345,7 @@ export default function AdminBookingsHistory() {
                 <DrawerField label="Guest Count" value={`${drawerRow.guests} pax`} />
                 <DrawerField label="Event Date" value={drawerRow.date} />
                 <DrawerField label="Venue Location" value={drawerRow.venue} />
-                <DrawerField label="Service Type" value={drawerRow.serviceType} />
+                <DrawerField label="Service Type" value={resolveServiceType(drawerRow.rawBooking || drawerRow)} />
                 <DrawerField label="Total Revenue" value={fmt(drawerRow.total)} />
                 <DrawerField label="Total Paid" value={fmt(drawerRow.displayPaid)} />
                 <DrawerField label="Event Status" value={<Badge status={drawerRow.status} />} full />

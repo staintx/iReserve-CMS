@@ -60,7 +60,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "../../components/ui/input";
 import { createConversation } from "../../api/messages";
 import { menuAmountLabel, menuLineTotal } from "../../utils/quotationPricing";
-import { isFoodOnly, isSetupOnly } from "../../components/customer/portal/statusMeta";
+import { isFoodOnly, isSetupOnly, resolveServiceType } from "../../components/customer/portal/statusMeta";
 
 const safeDateToIsoString = (val) => {
   if (!val) return "";
@@ -755,7 +755,7 @@ export default function AdminBookingDetails() {
               {guestCount} Pax · {booking.event_type || "Catering Event"}
             </div>
             <div className="text-[11px] text-muted-foreground truncate">
-              {pkg?.name || booking.package_name_snapshot || serviceType}
+              {resolveServiceType(booking)}
             </div>
           </div>
 

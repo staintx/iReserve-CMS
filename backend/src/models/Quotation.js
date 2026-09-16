@@ -5,7 +5,7 @@ const QuotationSchema = new mongoose.Schema(
     quotation_number: { type: String, unique: true, sparse: true },
     inquiry_id: { type: mongoose.Schema.Types.ObjectId, ref: "Inquiry", required: true },
     version_number: { type: Number, default: 1 },
-    
+
     // Details cloned from Inquiry/Package to lock in the quote
     package_id: { type: mongoose.Schema.Types.ObjectId, ref: "Package" },
     package_name: String,
@@ -110,7 +110,7 @@ const QuotationSchema = new mongoose.Schema(
         pricing_type: { type: String, enum: ["fixed", "quantity"], default: "fixed" },
       },
     ],
-    
+
     transportation_fee: { type: Number, default: 0 },
 
     // Named one-off charges the admin adds while quoting (overtime service,
@@ -131,12 +131,12 @@ const QuotationSchema = new mongoose.Schema(
 
     taxes: { type: Number, default: 0 },
     discounts: { type: Number, default: 0 },
-    
+
     subtotal: { type: Number, default: 0 },
     total_cost: { type: Number, default: 0 },
     deposit_amount: { type: Number, default: 0 },
     remaining_balance: { type: Number, default: 0 },
-    
+
     expiration_date: { type: Date },
     admin_notes: String,
 

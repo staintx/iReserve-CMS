@@ -463,7 +463,7 @@ exports.getAllQuotations = asyncHandler(async (req, res) => {
     const bookingId = inq?.converted_booking_id ? String(inq.converted_booking_id._id || inq.converted_booking_id) : null;
     const payment = (inqId && paymentByInquiry.get(inqId)) || (bookingId && paymentByBooking.get(bookingId)) || null;
     const isApproved = payment?.status === "approved" || inq?.payment_status === "deposit_paid" || inq?.payment_status === "fully_paid";
-    
+
     return {
       ...q,
       payment_status: isApproved ? (inq?.payment_status || "deposit_paid") : (payment?.status || inq?.payment_status || "unpaid"),
@@ -494,7 +494,7 @@ exports.getQuotationsByInquiry = asyncHandler(async (req, res) => {
   const quotations = await Quotation.find(filter).sort({ version_number: -1 }).lean();
 
   // Find payments for this inquiry to attach real-time payment status
-  const payments = await Payment.find({ 
+  const payments = await Payment.find({
     $or: [
       { inquiry_id: req.params.inquiryId },
       ...(inquiry.converted_booking_id ? [{ booking_id: inquiry.converted_booking_id }] : [])

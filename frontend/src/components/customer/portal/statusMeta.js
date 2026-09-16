@@ -20,85 +20,134 @@ import {
  * describe the same record identically.
  */
 
-import { bookingIdentity, BOOKING_TYPES } from "../../../lib/specialOffers";
 
 /**
- * Service type is derived in several places; keep the rule in one function.
- * Classification logic:
- * 1. Combo Packs: displays the actual Combo Pack name (e.g. "Combo Pack A", "Student Budget Menu")
- * 2. Regular Package: "Regular Package + Menu" if food/menu is included; "Regular Package" if without food
- * 3. Request Custom: "Food Only", "Event Setup Only", or "Food and Event Setup"
+ * Canonical Service Type resolver used across all customer and admin surfaces.
+ *
+ * Rules:
+ * FOR PACKAGE-BASED INQUIRIES:
+ *  - Customer selected a package WITHOUT a menu: `<Package Name>` (e.g. "Birthday Package 1")
+ *  - Customer selected a package AND added a menu: `<Package Name> + Menu` (e.g. "Birthday Package 1 + Menu")
+ *  - "+ Menu" only appears when the customer actually selected/added dishes/menu items.
+ *  - Never return "Food Only", "Event Setup Only", or "Food and Event Setup" for package-based inquiries.
+ *
+ * FOR CUSTOM QUOTE INQUIRIES:
+ *  - Always prefix with "Custom Quote - ":
+ *    → "Custom Quote - Food Only"
+ *    → "Custom Quote - Event Setup Only"
+ *    → "Custom Quote - Food and Event Setup"
  */
 export const resolveServiceType = (record) => {
-  if (!record) return "Food and Event Setup";
+  if (!record) return "Custom Quote - Food and Event Setup";
 
-  const { type, name } = bookingIdentity(record);
+  const pkg =
+    record?.package_id && typeof record.package_id === "object"
+      ? record.package_id
+      : null;
 
-  // 1. Combo Packs
-  if (type === BOOKING_TYPES.SPECIAL) {
-    return name && name !== "Package" && name !== "Custom Booking"
-      ? name
-      : record?.package_name_snapshot || record?.package_id?.name || "Combo Pack";
-  }
+  // Check if explicitly custom inquiry
+  const isExplicitCustom =
+    record?.booking_type === "custom" ||
+    record?.is_custom_setup === true;
 
-  // 2. Regular Package
-  if (type === BOOKING_TYPES.REGULAR) {
-    const pkg =
-      record?.package_id && typeof record.package_id === "object"
-        ? record.package_id
-        : null;
+  // Extract dynamic package name if available
+  const rawPkgName =
+    record?.package_name_snapshot ||
+    pkg?.name ||
+    (typeof record?.package_name === "string" && !/^custom\b/i.test(record.package_name) ? record.package_name : null) ||
+    record?.package_details?.name ||
+    record?.package?.name ||
+    null;
+
+  // Determine if package-based inquiry
+  const hasPackageRef = Boolean(
+    (record?.package_id && record.package_id !== "none") ||
+    record?.had_package_selection ||
+    rawPkgName
+  );
+
+  const isPackage =
+    !isExplicitCustom &&
+    (record?.booking_type === "regular" ||
+     record?.booking_type === "special" ||
+     (hasPackageRef && record?.booking_type !== "custom"));
+
+  if (isPackage) {
+    const packageName = rawPkgName || pkg?.name || "Package";
 
     const foodExplicitlySkipped = record?.include_food === false;
-    const hasFood =
-      record?.include_food === true ||
-      (Array.isArray(record?.selected_menu) && record.selected_menu.length > 0) ||
-      (Array.isArray(pkg?.menu_items) && pkg.menu_items.length > 0) ||
-      pkg?.package_type === "Food + Event Setup" ||
-      pkg?.package_type === "Food Only" ||
-      (record?.service_type === "Food and Event Setup" && record?.include_food !== false) ||
-      (record?.service_type === "Food Only" && record?.include_food !== false);
 
-    if (hasFood && !foodExplicitlySkipped) {
-      return "Regular Package + Menu";
+    // Check if customer actually selected / added a menu
+    const hasSelectedMenu =
+      !foodExplicitlySkipped &&
+      Boolean(
+        (Array.isArray(record?.selected_menu) && record.selected_menu.length > 0) ||
+        (Array.isArray(record?.menu_items) && record.menu_items.length > 0) ||
+        (Array.isArray(record?.selected_menu_items) && record.selected_menu_items.length > 0) ||
+        (Array.isArray(record?.offer_food_snapshot) && record.offer_food_snapshot.length > 0) ||
+        (Array.isArray(pkg?.menu_items) && pkg.menu_items.length > 0) ||
+        (Array.isArray(pkg?.offer_food_items) && pkg.offer_food_items.length > 0)
+      );
+
+    if (hasSelectedMenu) {
+      return `${packageName} + Menu`;
     }
-    return "Regular Package";
+    return packageName;
   }
 
-  // 3. Request Custom (no package selected)
-  if (record?.service_type) {
-    if (record.service_type === "Food Only") return "Food Only";
-    if (record.service_type === "Event Setup Only") return "Event Setup Only";
-    if (record.service_type === "Food and Event Setup") return "Food and Event Setup";
-  }
+  // --- CUSTOM QUOTE INQUIRY ---
+  let cleanType = "Food and Event Setup";
+  const raw = String(record?.service_type || "")
+    .replace(/^Custom Quote\s*-\s*/i, "")
+    .trim();
 
-  if (
-    record?.event_type?.toLowerCase().includes("food delivery") ||
-    record?.delivery_method !== "setup"
+  const lower = raw.toLowerCase();
+  if (lower === "food only" || lower === "food" || lower === "food_only") {
+    cleanType = "Food Only";
+  } else if (
+    lower === "event setup only" ||
+    lower === "setup only" ||
+    lower === "event_only" ||
+    lower === "setup"
   ) {
-    return "Food Only";
+    cleanType = "Event Setup Only";
+  } else if (
+    lower === "food and event setup" ||
+    lower === "food & setup" ||
+    lower === "food_event" ||
+    lower === "full" ||
+    lower === "full_service"
+  ) {
+    cleanType = "Food and Event Setup";
+  } else if (
+    record?.event_type?.toLowerCase().includes("food delivery") ||
+    (record?.delivery_method && record.delivery_method !== "setup")
+  ) {
+    cleanType = "Food Only";
+  } else if (record?.include_food === false) {
+    cleanType = "Event Setup Only";
+  } else {
+    cleanType = "Food and Event Setup";
   }
 
-  if (record?.include_food === false) {
-    return "Event Setup Only";
-  }
-
-  return "Food and Event Setup";
+  return `Custom Quote - ${cleanType}`;
 };
 
 export const serviceIcon = (serviceType) => {
-  if (serviceType === "Food Only") return Utensils;
-  if (serviceType === "Event Setup Only" || serviceType === "Regular Package") return Layers;
+  const norm = String(serviceType || "").replace(/^Custom Quote\s*-\s*/i, "").trim();
+  if (norm === "Food Only") return Utensils;
+  if (norm === "Event Setup Only" || norm === "Regular Package" || (!norm.includes("+ Menu") && !norm.startsWith("Custom Quote"))) return Layers;
   return PartyPopper;
 };
 
 /** Helpers for service type differentiation */
 export const isFoodOnly = (serviceType) => {
-  const norm = String(serviceType || "").trim().toLowerCase();
+  const norm = String(serviceType || "").replace(/^Custom Quote\s*-\s*/i, "").trim().toLowerCase();
   return norm === "food only" || norm === "food";
 };
 
 export const isSetupOnly = (serviceType) => {
-  const norm = String(serviceType || "").trim().toLowerCase();
+  const norm = String(serviceType || "").replace(/^Custom Quote\s*-\s*/i, "").trim().toLowerCase();
   return norm === "event setup only" || norm === "setup only" || norm === "setup";
 };
 

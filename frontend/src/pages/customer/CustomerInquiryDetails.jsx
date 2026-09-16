@@ -808,10 +808,10 @@ export default function CustomerInquiryDetails() {
                     <Users className="w-3.5 h-3.5 text-[#2C4B8A]" />
                     {inquiry.guest_count ? `${inquiry.guest_count} guests` : "Guests TBD"}
                   </span>
-                  {inquiry.service_type && (
+                  {resolveServiceType(inquiry) && (
                     <>
                       <span>•</span>
-                      <span className="text-slate-600 font-semibold">{inquiry.service_type}</span>
+                      <span className="text-slate-600 font-semibold">{resolveServiceType(inquiry)}</span>
                     </>
                   )}
                 </div>

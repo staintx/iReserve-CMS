@@ -41,19 +41,29 @@ export function requiresPhysicalSiteInspection(booking) {
   }
 
   // 2. Pickup or non-setup Food Delivery -> NOT eligible
-  const deliveryMethod = booking.delivery_method;
-  const serviceType = booking.service_type;
+  const deliveryMethod = (booking.delivery_method || "").toLowerCase();
+  const rawServiceType = (booking.service_type || "").trim().toLowerCase();
   const eventType = (booking.event_type || "").toLowerCase();
 
+  const isFoodOnly =
+    rawServiceType === "food only" ||
+    rawServiceType === "food" ||
+    rawServiceType === "food_only";
+
+  const isSetupOrFull =
+    rawServiceType.includes("setup") ||
+    rawServiceType.includes("full") ||
+    rawServiceType === "food and event setup" ||
+    rawServiceType === "event setup only";
+
   if (deliveryMethod === "pickup") return false;
-  if (serviceType === "Food Only" && deliveryMethod !== "setup") return false;
-  if (eventType.includes("food delivery") && deliveryMethod !== "setup") return false;
+  if (isFoodOnly && deliveryMethod !== "setup") return false;
+  if (eventType.includes("food delivery") && !isSetupOrFull && deliveryMethod !== "setup") return false;
 
   // 3. Positive setup/equipment indicators -> ELIGIBLE
   if (
     deliveryMethod === "setup" ||
-    serviceType === "Event Setup Only" ||
-    serviceType === "Food and Event Setup" ||
+    isSetupOrFull ||
     (Array.isArray(booking.service_items) && booking.service_items.length > 0)
   ) {
     return true;

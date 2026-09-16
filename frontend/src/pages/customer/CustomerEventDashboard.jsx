@@ -916,14 +916,26 @@ export default function CustomerEventDashboard() {
         assignedParty: "Customer Payment Checkout",
         timeline: "Immediate lock upon payment",
         action: (
-          <Button
-            onClick={handlePayRemainingBalance}
-            disabled={payingPaymentId !== null}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Pay Deposit Now</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handlePayRemainingBalance}
+              disabled={payingPaymentId !== null}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 px-4 rounded-lg shadow-xs gap-1.5 cursor-pointer active:scale-[0.98]"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Pay Deposit Now</span>
+            </Button>
+            {needsOcular && (
+              <Button
+                variant="outline"
+                onClick={() => setRequestingOcular(true)}
+                className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs h-9 px-3.5 rounded-lg shadow-xs gap-1.5 cursor-pointer"
+              >
+                <CalendarRange className="w-4 h-4 text-amber-700" />
+                <span>Schedule Ocular Visit</span>
+              </Button>
+            )}
+          </div>
         ),
       };
     }
@@ -2380,6 +2392,24 @@ export default function CustomerEventDashboard() {
                               </Button>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {booking.ocular_visit && booking.ocular_visit.status === "skipped" && (
+                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900 text-xs">Ocular Skipped</span>
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-slate-600 border-slate-300">Skipped</Badge>
+                          </div>
+                          <p className="text-[11px] text-slate-600">You previously opted to proceed without an on-site inspection.</p>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setRequestingOcular(true)}
+                            className="w-full text-xs font-medium border-primary/30 text-primary hover:bg-primary/5 h-8 mt-1"
+                          >
+                            Request Ocular Visit Instead
+                          </Button>
                         </div>
                       )}
                     </CardContent>

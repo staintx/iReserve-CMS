@@ -36,7 +36,10 @@ import {
   Sliders,
   Phone,
   Mail,
+  Search,
+  X,
 } from "lucide-react";
+import { compareCategories } from "../../../utils/menuCategories";
 import { diffQuotationVersions } from "../../../utils/quotationDiff";
 import {
   computeQuotationTotals,
@@ -383,6 +386,7 @@ const menuRow = (partial = {}) => ({
   unit: "",
   pricing_type: MENU_PRICING.QUANTITY,
   price: "",
+  image_url: "",
   ...partial,
 });
 
@@ -438,6 +442,16 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   const [selectedCatalogAddon, setSelectedCatalogAddon] = useState("");
   const [depositPercentage, setDepositPercentage] = useState(20);
 
+  // Custom catalog dish dropdown state
+  const [isCatalogDropdownOpen, setIsCatalogDropdownOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const catalogDropdownRef = useRef(null);
+
+  // Custom catalog add-on dropdown state
+  const [isAddonDropdownOpen, setIsAddonDropdownOpen] = useState(false);
+  const [addonSearch, setAddonSearch] = useState("");
+  const addonDropdownRef = useRef(null);
+
   // Section 1: what the customer submitted, editable so the admin can correct it
   const [details, setDetails] = useState({
     booking_for: "myself",
@@ -478,7 +492,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // One list holds both states. `removed` decides which side of the quote a row
   // lands on at save time, so restoring an inclusion is a toggle, not a retype.
   const [inclusions, setInclusions] = useState([]);
-  const [newInclusion, setNewInclusion] = useState("");
 
   // Sections 4 and 5: line items
   const [menuItems, setMenuItems] = useState([]);
@@ -660,8 +673,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       .filter(Boolean)
       .map((item) =>
         item && typeof item === "object"
-          ? { id: String(item._id || ""), name: item.name || "", category: item.category || "", price: Number(item.price) || 0 }
-          : { id: String(item), name: "", category: "", price: 0 }
+          ? {
+              id: String(item._id || ""),
+              name: item.name || "",
+              category: item.category || "",
+              price: Number(item.price) || 0,
+              image_url: item.image_url || "",
+            }
+          : { id: String(item), name: "", category: "", price: 0, image_url: "" }
       );
     return {
       dishes,
@@ -685,6 +704,182 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     () => getBatangasBarangays(details.municipality),
     [details.municipality]
   );
+
+  // Map of catalog dishes by name and id for instant image and metadata lookup
+  const catalogDishMap = useMemo(() => {
+    const map = new Map();
+    for (const item of catalogMenuItems) {
+      if (item?.name) {
+        map.set(item.name.toLowerCase().trim(), item);
+      }
+      if (item?._id) {
+        map.set(String(item._id), item);
+      }
+    }
+    return map;
+  }, [catalogMenuItems]);
+
+  const getDishImage = (item) => {
+    if (item?.image_url) return item.image_url;
+    const byName = item?.name ? catalogDishMap.get(item.name.toLowerCase().trim()) : null;
+    if (byName?.image_url) return byName.image_url;
+    return "";
+  };
+
+  const getDishCategory = (item) => {
+    const directCat = String(item?.category || "").trim();
+    if (directCat) return directCat;
+    const byName = item?.name ? catalogDishMap.get(item.name.toLowerCase().trim()) : null;
+    if (byName?.category) return byName.category;
+    return "Other";
+  };
+
+  const selectedCatalogDishObj = useMemo(() => {
+    if (!selectedCatalogDish) return null;
+    return catalogMenuItems.find((item) => item._id === selectedCatalogDish) || null;
+  }, [selectedCatalogDish, catalogMenuItems]);
+
+  const filteredCatalogDishes = useMemo(() => {
+    if (!catalogSearch.trim()) return catalogMenuItems;
+    const q = catalogSearch.toLowerCase().trim();
+    return catalogMenuItems.filter(
+      (item) =>
+        item.name?.toLowerCase().includes(q) ||
+        item.category?.toLowerCase().includes(q)
+    );
+  }, [catalogMenuItems, catalogSearch]);
+
+  const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
+  const [collapsedCategories, setCollapsedCategories] = useState(() => new Set());
+
+  const toggleCategoryCollapse = (categoryKey) => {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryKey)) {
+        next.delete(categoryKey);
+      } else {
+        next.add(categoryKey);
+      }
+      return next;
+    });
+  };
+
+  const groupedCatalogDishes = useMemo(() => {
+    const groupMap = new Map();
+    for (const item of filteredCatalogDishes) {
+      const rawCat = String(item.category || "Other").trim() || "Other";
+      const key = rawCat.toLowerCase();
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          categoryKey: key,
+          categoryName: rawCat,
+          items: [],
+        });
+      }
+      groupMap.get(key).items.push(item);
+    }
+    return Array.from(groupMap.values()).sort((a, b) =>
+      compareCategories(a.categoryName, b.categoryName)
+    );
+  }, [filteredCatalogDishes]);
+
+  const activeCategoryKeys = useMemo(() => {
+    const keys = new Set();
+    menuItems.forEach((item) => {
+      keys.add(getDishCategory(item).toLowerCase());
+    });
+    return Array.from(keys);
+  }, [menuItems, catalogDishMap]);
+
+  const orderedCategoryKeys = useMemo(() => {
+    if (activeCategoryKeys.length === 0) return [];
+    const defaultSorted = [...activeCategoryKeys].sort((a, b) => compareCategories(a, b));
+    if (customCategoryOrder.length === 0) {
+      return defaultSorted;
+    }
+    const existingOrdered = customCategoryOrder.filter((k) => activeCategoryKeys.includes(k));
+    const newKeys = activeCategoryKeys.filter((k) => !existingOrdered.includes(k));
+    newKeys.sort((a, b) => compareCategories(a, b));
+    return [...existingOrdered, ...newKeys];
+  }, [activeCategoryKeys, customCategoryOrder]);
+
+  const handleMoveCategoryUp = (categoryKey) => {
+    const currentIndex = orderedCategoryKeys.indexOf(categoryKey);
+    if (currentIndex <= 0) return;
+    const newOrder = [...orderedCategoryKeys];
+    const temp = newOrder[currentIndex - 1];
+    newOrder[currentIndex - 1] = newOrder[currentIndex];
+    newOrder[currentIndex] = temp;
+    setCustomCategoryOrder(newOrder);
+  };
+
+  const handleMoveCategoryDown = (categoryKey) => {
+    const currentIndex = orderedCategoryKeys.indexOf(categoryKey);
+    if (currentIndex === -1 || currentIndex >= orderedCategoryKeys.length - 1) return;
+    const newOrder = [...orderedCategoryKeys];
+    const temp = newOrder[currentIndex + 1];
+    newOrder[currentIndex + 1] = newOrder[currentIndex];
+    newOrder[currentIndex] = temp;
+    setCustomCategoryOrder(newOrder);
+  };
+
+  const groupedMenuItems = useMemo(() => {
+    const groupMap = new Map();
+    menuItems.forEach((item, originalIndex) => {
+      const rawCategory = getDishCategory(item);
+      const key = rawCategory.toLowerCase();
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          categoryKey: key,
+          categoryName: rawCategory,
+          items: [],
+        });
+      }
+      groupMap.get(key).items.push({ item, originalIndex });
+    });
+
+    return orderedCategoryKeys
+      .map((key) => groupMap.get(key))
+      .filter(Boolean);
+  }, [menuItems, catalogDishMap, orderedCategoryKeys]);
+
+  const selectedCatalogAddonObj = useMemo(() => {
+    if (!selectedCatalogAddon) return null;
+    return catalogAddons.find((addon) => addon._id === selectedCatalogAddon) || null;
+  }, [selectedCatalogAddon, catalogAddons]);
+
+  const filteredCatalogAddons = useMemo(() => {
+    if (!addonSearch.trim()) return catalogAddons;
+    const q = addonSearch.toLowerCase().trim();
+    return catalogAddons.filter((addon) =>
+      addon.name?.toLowerCase().includes(q)
+    );
+  }, [catalogAddons, addonSearch]);
+
+  // Handle outside clicks and Escape key to close catalog dropdowns
+  useEffect(() => {
+    if (!isCatalogDropdownOpen && !isAddonDropdownOpen) return;
+    const handleClickOutside = (e) => {
+      if (catalogDropdownRef.current && !catalogDropdownRef.current.contains(e.target)) {
+        setIsCatalogDropdownOpen(false);
+      }
+      if (addonDropdownRef.current && !addonDropdownRef.current.contains(e.target)) {
+        setIsAddonDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setIsCatalogDropdownOpen(false);
+        setIsAddonDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCatalogDropdownOpen, isAddonDropdownOpen]);
 
   /* --- Load catalogs, business defaults and any existing quotation --------- */
   useEffect(() => {
@@ -888,6 +1083,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       : 1,
                   unit: perGuest ? "pax" : m?.unit || "",
                   price: m?.price ? String(m.price) : "",
+                  image_url: m?.image_url || "",
                 });
               })
               : []
@@ -1030,6 +1226,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     category: item.category || "",
                     note: item.note || "",
                     price: !item.price ? "" : String(item.price),
+                    image_url: item.image_url || "",
                   });
                 }
                 return menuRow({ name: String(item || "") });
@@ -1340,6 +1537,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         quantity: Math.max(1, Number(item.quantity) || 1),
         unit: String(item.unit || "").trim(),
         price: money(item.price),
+        image_url: String(item.image_url || getDishImage(item) || ""),
       })),
       add_ons: chargeableAddOns.map((item) => ({
         name: String(item.name || "").trim(),
@@ -1673,16 +1871,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
   /* --- Inclusion handlers ------------------------------------------------- */
 
-  const handleAddInclusion = () => {
-    const name = String(newInclusion || "").trim();
-    if (!name) return;
-    // A line the admin types here was never in the package, so it has no
-    // baseline to be adjusted against — whatever quantity its wording states
-    // is simply what this quotation covers.
-    setInclusions((prev) => [...prev, inclusionRow(name, { fromPackage: false })]);
-    setNewInclusion("");
-  };
-
   /**
    * Renaming a line rewrites only its name, then re-reads its quantity.
    *
@@ -1817,9 +2005,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         name: found.name,
         category: found.category || "",
         price: found.price ? String(found.price) : "",
+        image_url: found.image_url || "",
       }),
     ]);
     setSelectedCatalogDish("");
+    setIsCatalogDropdownOpen(false);
+    setCatalogSearch("");
   };
 
   const handleMenuChange = (index, field, value) => {
@@ -1883,6 +2074,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       { name: found.name, price: "", quantity: 1, note: "", pricing_type: "quantity" },
     ]);
     setSelectedCatalogAddon("");
+    setIsAddonDropdownOpen(false);
+    setAddonSearch("");
   };
 
   const handleAddOnChange = (index, field, value) => {
@@ -3470,30 +3663,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                   ))}
                 </div>
               )}
-
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input
-                  type="text"
-                  value={newInclusion}
-                  onChange={(e) => setNewInclusion(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddInclusion();
-                    }
-                  }}
-                  placeholder="Add an inclusion this quotation covers"
-                  className={`${inputClass(false)} text-xs`}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddInclusion}
-                  disabled={!newInclusion.trim()}
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40"
-                >
-                  <Plus size={13} /> Add inclusion
-                </button>
-              </div>
             </SectionCard>
 
             {/* --- 4. Menu ----------------------------------------------------- */}
@@ -3623,31 +3792,181 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
 
                 {cateringIncluded && (
                   <>
-                    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
-                      <select
-                        value={selectedCatalogDish}
-                        onChange={(e) => setSelectedCatalogDish(e.target.value)}
-                        className={`${inputClass(false)} text-xs`}
-                      >
-                        <option value="">Pick a dish from the menu catalog</option>
-                        {catalogMenuItems.map((item) => (
-                          <option key={item._id} value={item._id}>
-                            {item.name} ({item.category || "Dish"}) {formatCurrency(item.price)} per pax
-                          </option>
-                        ))}
-                      </select>
+                    <style>{`
+                      @keyframes catalogDropdownFadeSlide {
+                        0% {
+                          opacity: 0;
+                          transform: translateY(-5px) scale(0.98);
+                        }
+                        100% {
+                          opacity: 1;
+                          transform: translateY(0) scale(1);
+                        }
+                      }
+                    `}</style>
+                    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row sm:items-center">
+                      <div ref={catalogDropdownRef} className="relative flex-1 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setIsCatalogDropdownOpen((prev) => !prev)}
+                          className={`${inputClass(false)} flex items-center justify-between gap-2 py-2 text-xs font-semibold text-left transition-colors cursor-pointer ${
+                            selectedCatalogDishObj ? "border-primary/60 bg-primary/5 text-slate-900" : "text-slate-700"
+                          }`}
+                        >
+                          {selectedCatalogDishObj ? (
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {selectedCatalogDishObj.image_url ? (
+                                <img
+                                  src={selectedCatalogDishObj.image_url}
+                                  alt={selectedCatalogDishObj.name}
+                                  className="w-5 h-5 rounded object-cover border border-slate-200 shrink-0 bg-white"
+                                />
+                              ) : (
+                                <div className="w-5 h-5 rounded bg-blue-100 text-[#2C4B8A] flex items-center justify-center shrink-0">
+                                  <Utensils size={10} />
+                                </div>
+                              )}
+                              <span className="truncate font-semibold">{selectedCatalogDishObj.name}</span>
+                              {selectedCatalogDishObj.category && (
+                                <span className="text-[9.5px] font-medium text-slate-500 uppercase tracking-wider bg-white px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+                                  {selectedCatalogDishObj.category}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 font-normal">Pick a dish from the menu catalog</span>
+                          )}
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {selectedCatalogDishObj && (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCatalogDish("");
+                                }}
+                                className="p-0.5 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                                title="Clear selection"
+                              >
+                                <X size={12} />
+                              </span>
+                            )}
+                            <ChevronDown
+                              size={14}
+                              className={`text-slate-400 transition-transform duration-200 ${
+                                isCatalogDropdownOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </div>
+                        </button>
+
+                        {isCatalogDropdownOpen && (
+                          <div
+                            className="absolute left-0 top-full z-50 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-98 slide-in-from-top-1.5 duration-150 ease-out"
+                            style={{
+                              animation: "catalogDropdownFadeSlide 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+                              transformOrigin: "top left",
+                              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)",
+                            }}
+                          >
+                            {catalogMenuItems.length > 6 && (
+                              <div className="p-2 border-b border-slate-100 bg-slate-50/80">
+                                <div className="relative">
+                                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    value={catalogSearch}
+                                    onChange={(e) => setCatalogSearch(e.target.value)}
+                                    placeholder="Search dishes..."
+                                    className="w-full pl-8 pr-2.5 py-1 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="max-h-72 overflow-y-auto">
+                              {groupedCatalogDishes.length === 0 ? (
+                                <div className="p-4 text-center text-xs text-slate-400">
+                                  No dishes found matching &ldquo;{catalogSearch}&rdquo;
+                                </div>
+                              ) : (
+                                groupedCatalogDishes.map((group) => (
+                                  <div key={group.categoryName} className="border-b border-slate-100 last:border-b-0">
+                                    {/* Bold Category Heading at upper-left */}
+                                    <div className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs px-3 py-1.5 border-y border-slate-200/80 text-[10.5px] font-bold uppercase tracking-wider text-slate-700 select-none">
+                                      {group.categoryName}
+                                    </div>
+                                    <div className="divide-y divide-slate-100/70">
+                                      {group.items.map((item) => {
+                                        const isSelected = selectedCatalogDish === item._id;
+                                        return (
+                                          <div
+                                            key={item._id}
+                                            onClick={() => {
+                                              setSelectedCatalogDish(item._id);
+                                              setIsCatalogDropdownOpen(false);
+                                              setCatalogSearch("");
+                                            }}
+                                            className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors ${
+                                              isSelected ? "bg-primary/10 border-l-2 border-primary" : "hover:bg-slate-50"
+                                            }`}
+                                          >
+                                            {/* Small dish image on the LEFT */}
+                                            {item.image_url ? (
+                                              <img
+                                                src={item.image_url}
+                                                alt={item.name}
+                                                className="w-9 h-9 rounded-md object-cover border border-slate-200 shrink-0 bg-slate-100"
+                                                onError={(e) => {
+                                                  e.currentTarget.style.display = "none";
+                                                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "flex";
+                                                }}
+                                              />
+                                            ) : null}
+                                            <div
+                                              className={`w-9 h-9 rounded-md bg-blue-50 text-[#2C4B8A] border border-blue-100/60 items-center justify-center shrink-0 ${
+                                                item.image_url ? "hidden" : "flex"
+                                              }`}
+                                            >
+                                              <Utensils size={14} />
+                                            </div>
+
+                                            {/* Dish Name */}
+                                            <div className="min-w-0 flex-1">
+                                              <div className={`font-semibold text-xs truncate ${isSelected ? "text-primary font-bold" : "text-slate-800"}`}>
+                                                {item.name}
+                                              </div>
+                                            </div>
+
+                                            {isSelected && (
+                                              <Check size={14} className="text-primary shrink-0 ml-1" />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       <button
                         type="button"
                         onClick={handleAddCatalogDish}
                         disabled={!selectedCatalogDish}
-                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40"
+                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-40 cursor-pointer"
                       >
                         <Plus size={13} /> Add dish
                       </button>
                       <button
                         type="button"
                         onClick={() => setMenuItems((prev) => [...prev, menuRow()])}
-                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
                       >
                         <Plus size={13} /> Custom dish
                       </button>
@@ -3667,172 +3986,229 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                         priced.
                       </p>
                     ) : (
-                      <ul className="space-y-2.5">
-                        {menuItems.map((item, index) => {
-                          const unitLabel = String(item.unit || "").trim();
-                          const rowError =
-                            errors[`menu_items.${index}.name`] ||
-                            errors[`menu_items.${index}.price`] ||
-                            errors[`menu_items.${index}.quantity`];
-                          // One pricing form, so one colour: violet is "a counted
-                          // number of units", the same language the add-ons below
-                          // use for the same idea.
-                          const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
+                      <div className="space-y-6">
+                        {groupedMenuItems.map((group, categoryIndex) => {
+                          const isCollapsed = collapsedCategories.has(group.categoryKey);
+
                           return (
-                            <li
-                              key={index}
-                              className={`rounded-lg border p-2.5 transition-colors ${item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
-                                }`}
-                            >
-                              {/* Explicit column widths, not an implicit grid: the
-                            dish name gets a guaranteed minimum width it can
-                            never be squeezed under, whatever the numbers
-                            beside it grow to. */}
-                              <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                                {/* The dish, and what it is. The course comes from
-                              the menu catalog and is not the admin's to quote,
-                              so it sits beside the name as a label rather than
-                              in a field — and, in particular, not in the note,
-                              which is theirs to write. */}
-                                <div className="flex min-w-0 flex-1 flex-col gap-1 lg:min-w-[150px]">
-                                  <input
-                                    id={`qb-menu_items.${index}.name`}
-                                    type="text"
-                                    value={item.name}
-                                    disabled={item.removed}
-                                    onChange={(e) => handleMenuChange(index, "name", e.target.value)}
-                                    placeholder="Dish name"
-                                    className={`${inputClass(errors[`menu_items.${index}.name`])} min-w-0 py-1.5 text-xs font-semibold ${item.removed ? "line-through decoration-slate-400" : ""
-                                      }`}
-                                  />
-                                  {item.category && (
-                                    <span className="w-fit rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                                      {item.category}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
-                                  {/* How many, and of what. The unit is the admin's
-                                to state — a kilo, a tray, a bilao, a head —
-                                because food is sold by all of them and forcing
-                                one of them on every dish is what the per-person
-                                default got wrong. */}
-                                  <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
-                                    <input
-                                      id={`qb-menu_items.${index}.quantity`}
-                                      type="number"
-                                      min="1"
-                                      disabled={item.removed}
-                                      value={item.quantity}
-                                      onWheel={(e) => e.target.blur()}
-                                      onChange={(e) => handleMenuChange(index, "quantity", e.target.value)}
-                                      className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`menu_items.${index}.quantity`] ? "border-red-400" : ""
-                                        }`}
-                                    />
-                                    <input
-                                      type="text"
-                                      list="qb-menu-units"
-                                      disabled={item.removed}
-                                      value={item.unit}
-                                      onChange={(e) => handleMenuChange(index, "unit", e.target.value)}
-                                      placeholder="unit"
-                                      className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                                    />
-                                  </div>
-
-                                  <div className="w-28">
-                                    <MoneyInput
-                                      id={`qb-menu_items.${index}.price`}
-                                      value={item.price}
-                                      disabled={item.removed}
-                                      placeholder={`Per ${unitLabel || "unit"}`}
-                                      error={errors[`menu_items.${index}.price`]}
-                                      onChange={(value) => handleMenuChange(index, "price", value)}
-                                      className="py-1.5 text-xs"
-                                    />
-                                  </div>
-
-                                  <div className="min-w-[96px] text-right">
-                                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                                      Line total
-                                    </span>
-                                    <span
-                                      className={`text-xs font-bold tabular-nums ${item.removed ? "text-slate-400 line-through" : "text-slate-800"
-                                        }`}
+                            <div key={group.categoryKey} className="space-y-2.5">
+                              {/* Category Heading Row */}
+                              <div className="flex items-center justify-between gap-2 pt-1 pb-0.5 select-none">
+                                <div className="flex items-center gap-2">
+                                  {/* Category Reorder Controls on the LEFT */}
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveCategoryUp(group.categoryKey)}
+                                      disabled={categoryIndex === 0}
+                                      title="Move category up"
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
                                     >
-                                      {!item.removed && numberOf(item.price) === 0 ? (
-                                        <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
-                                          Included in pkg
-                                        </span>
-                                      ) : (
-                                        formatCurrency(menuLineTotal(item, totals.guestCount))
-                                      )}
-                                    </span>
+                                      <ChevronUp size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveCategoryDown(group.categoryKey)}
+                                      disabled={categoryIndex === orderedCategoryKeys.length - 1}
+                                      title="Move category down"
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+                                    >
+                                      <ChevronDown size={13} />
+                                    </button>
                                   </div>
 
-                                  {/* Parked, not deleted: one click puts it back,
-                                with its price, quantity and note intact. */}
-                                  {item.removed ? (
-                                    <RowAction
-                                      onClick={() => toggleMenuItemRemoved(index)}
-                                      icon={Undo2}
-                                      label="Restore"
-                                      tone="success"
-                                      title="Put this dish back on the quotation"
-                                    />
-                                  ) : (
-                                    <RowAction
-                                      onClick={() =>
-                                        String(item.name || "").trim() || numberOf(item.price)
-                                          ? toggleMenuItemRemoved(index)
-                                          : handleDeleteMenuItem(index)
-                                      }
-                                      icon={Trash2}
-                                      label="Remove"
-                                      title="Take this dish off the quotation. You can restore it."
-                                    />
-                                  )}
+                                  {/* Category Title */}
+                                  <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                                    {group.categoryName}
+                                  </span>
+
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                    ({group.items.length} {group.items.length === 1 ? "dish" : "dishes"})
+                                  </span>
                                 </div>
+
+                                <div className="h-px flex-1 bg-slate-200 mx-2" />
+
+                                {/* Collapse/Expand Toggle for Every Category */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCategoryCollapse(group.categoryKey)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
+                                  title={isCollapsed ? "Expand category" : "Collapse category"}
+                                >
+                                  <span>{isCollapsed ? "Expand" : "Collapse"}</span>
+                                  {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                                </button>
                               </div>
 
-                              {/* What this dish is, beyond its name and price: what a
-                            kilo of it serves, how it is packed, how it is
-                            prepared. It is the place for the detail that
-                            explains the quantity — never for the quantity
-                            itself, which has its own field above. Shown to the
-                            customer, and never part of the total. */}
-                              {!item.removed && (
-                                <div className="mt-2">
-                                  <label
-                                    htmlFor={`qb-menu_items.${index}.note`}
-                                    className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                              {/* Dishes in this category group (hidden when collapsed) */}
+                              {!isCollapsed && (
+                                <ul className="space-y-2.5">
+                                  {group.items.map(({ item, originalIndex }) => {
+                                const unitLabel = String(item.unit || "").trim();
+                                const rowError =
+                                  errors[`menu_items.${originalIndex}.name`] ||
+                                  errors[`menu_items.${originalIndex}.price`] ||
+                                  errors[`menu_items.${originalIndex}.quantity`];
+                                const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
+                                return (
+                                  <li
+                                    key={originalIndex}
+                                    className={`rounded-lg border p-2.5 transition-colors ${item.removed ? "border-slate-300 bg-slate-50" : "border-violet-200 bg-white"
+                                      }`}
                                   >
-                                    Notes
-                                  </label>
-                                  <input
-                                    id={`qb-menu_items.${index}.note`}
-                                    type="text"
-                                    value={item.note || ""}
-                                    onChange={(e) => handleMenuChange(index, "note", e.target.value)}
-                                    placeholder={`e.g. 1 ${unitLabel || "kilo"}, good for approximately 10 servings`}
-                                    title="Serving size, weight, packaging or preparation details for this dish."
-                                    className={`${inputClass(false)} py-1.5 text-xs`}
-                                  />
-                                </div>
-                              )}
+                                    <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                                      {/* The dish and its actual image */}
+                                      <div className="flex min-w-0 flex-1 items-start gap-2.5 lg:min-w-[170px]">
+                                        {/* Small dish image on the LEFT */}
+                                        {getDishImage(item) ? (
+                                          <img
+                                            src={getDishImage(item)}
+                                            alt={item.name || "Dish"}
+                                            className={`w-10 h-10 rounded-md object-cover border shrink-0 mt-0.5 bg-slate-100 ${
+                                              item.removed ? "border-slate-300 opacity-50 grayscale" : "border-slate-200"
+                                            }`}
+                                            onError={(e) => {
+                                              e.currentTarget.style.display = "none";
+                                              if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "flex";
+                                            }}
+                                          />
+                                        ) : null}
+                                        <div
+                                          className={`w-10 h-10 rounded-md bg-blue-50 text-[#2C4B8A] border border-blue-100/60 items-center justify-center shrink-0 mt-0.5 ${
+                                            getDishImage(item) ? "hidden" : "flex"
+                                          } ${item.removed ? "opacity-50" : ""}`}
+                                        >
+                                          <Utensils size={15} />
+                                        </div>
 
-                              {rowError && (
-                                <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
-                                  <AlertCircle size={12} className="mt-[2px] shrink-0" />
-                                  {rowError}
-                                </p>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                          <input
+                                            id={`qb-menu_items.${originalIndex}.name`}
+                                            type="text"
+                                            value={item.name}
+                                            disabled={item.removed}
+                                            onChange={(e) => handleMenuChange(originalIndex, "name", e.target.value)}
+                                            placeholder="Dish name"
+                                            className={`${inputClass(errors[`menu_items.${originalIndex}.name`])} min-w-0 py-1.5 text-xs font-semibold ${item.removed ? "line-through decoration-slate-400" : ""
+                                              }`}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                                        <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
+                                          <input
+                                            id={`qb-menu_items.${originalIndex}.quantity`}
+                                            type="number"
+                                            min="1"
+                                            disabled={item.removed}
+                                            value={item.quantity}
+                                            onWheel={(e) => e.target.blur()}
+                                            onChange={(e) => handleMenuChange(originalIndex, "quantity", e.target.value)}
+                                            className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`menu_items.${originalIndex}.quantity`] ? "border-red-400" : ""
+                                              }`}
+                                          />
+                                          <input
+                                            type="text"
+                                            list="qb-menu-units"
+                                            disabled={item.removed}
+                                            value={item.unit}
+                                            onChange={(e) => handleMenuChange(originalIndex, "unit", e.target.value)}
+                                            placeholder="unit"
+                                            className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                          />
+                                        </div>
+
+                                        <div className="w-28">
+                                          <MoneyInput
+                                            id={`qb-menu_items.${originalIndex}.price`}
+                                            value={item.price}
+                                            disabled={item.removed}
+                                            placeholder={`Per ${unitLabel || "unit"}`}
+                                            error={errors[`menu_items.${originalIndex}.price`]}
+                                            onChange={(value) => handleMenuChange(originalIndex, "price", value)}
+                                            className="py-1.5 text-xs"
+                                          />
+                                        </div>
+
+                                        <div className="min-w-[96px] text-right">
+                                          <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                            Line total
+                                          </span>
+                                          <span
+                                            className={`text-xs font-bold tabular-nums ${item.removed ? "text-slate-400 line-through" : "text-slate-800"
+                                              }`}
+                                          >
+                                            {!item.removed && numberOf(item.price) === 0 ? (
+                                              <span className="inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+                                                Included in pkg
+                                              </span>
+                                            ) : (
+                                              formatCurrency(menuLineTotal(item, totals.guestCount))
+                                            )}
+                                          </span>
+                                        </div>
+
+                                        {item.removed ? (
+                                          <RowAction
+                                            onClick={() => toggleMenuItemRemoved(originalIndex)}
+                                            icon={Undo2}
+                                            label="Restore"
+                                            tone="success"
+                                            title="Put this dish back on the quotation"
+                                          />
+                                        ) : (
+                                          <RowAction
+                                            onClick={() =>
+                                              String(item.name || "").trim() || numberOf(item.price)
+                                                ? toggleMenuItemRemoved(originalIndex)
+                                                : handleDeleteMenuItem(originalIndex)
+                                            }
+                                            icon={Trash2}
+                                            label="Remove"
+                                            title="Take this dish off the quotation. You can restore it."
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {!item.removed && (
+                                      <div className="mt-2">
+                                        <label
+                                          htmlFor={`qb-menu_items.${originalIndex}.note`}
+                                          className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                                        >
+                                          Notes
+                                        </label>
+                                        <input
+                                          id={`qb-menu_items.${originalIndex}.note`}
+                                          type="text"
+                                          value={item.note || ""}
+                                          onChange={(e) => handleMenuChange(originalIndex, "note", e.target.value)}
+                                          placeholder={`e.g. 1 ${unitLabel || "kilo"}, good for approximately 10 servings`}
+                                          title="Serving size, weight, packaging or preparation details for this dish."
+                                          className={`${inputClass(false)} py-1.5 text-xs`}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {rowError && (
+                                      <p className="mt-1.5 flex items-start gap-1 text-[11.5px] font-medium text-red-700">
+                                        <AlertCircle size={12} className="mt-[2px] shrink-0" />
+                                        {rowError}
+                                      </p>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                   </>
                 )}
@@ -3861,24 +4237,128 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               }
             >
               <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 sm:flex-row">
-                <select
-                  value={selectedCatalogAddon}
-                  onChange={(e) => setSelectedCatalogAddon(e.target.value)}
-                  className={`${inputClass(false)} text-xs`}
-                >
-                  <option value="">
-                    {isFoodOnly
-                      ? "Pick a catering / food add-on from catalog"
-                      : isSetupOnly
-                        ? "Pick a setup / equipment add-on from catalog"
-                        : "Pick an add-on from the global catalog"}
-                  </option>
-                  {catalogAddons.map((addon) => (
-                    <option key={addon._id} value={addon._id}>
-                      {addon.name}
-                    </option>
-                  ))}
-                </select>
+                {/* Custom animated catalog add-on dropdown */}
+                <div ref={addonDropdownRef} className="relative flex-1 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddonDropdownOpen((prev) => !prev)}
+                    className={`${inputClass(false)} text-xs flex items-center justify-between text-left cursor-pointer transition-colors py-2 px-3 ${
+                      selectedCatalogAddonObj ? "border-primary/60 bg-primary/5 text-slate-900" : "text-slate-700"
+                    }`}
+                  >
+                    {selectedCatalogAddonObj ? (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-5 h-5 rounded bg-violet-100 text-violet-700 flex items-center justify-center shrink-0">
+                          <Sparkles size={11} />
+                        </div>
+                        <span className="truncate font-semibold text-slate-800">{selectedCatalogAddonObj.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 font-normal truncate">
+                        {isFoodOnly
+                          ? "Pick a catering / food add-on from catalog"
+                          : isSetupOnly
+                            ? "Pick a setup / equipment add-on from catalog"
+                            : "Pick an add-on from the global catalog"}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      {selectedCatalogAddonObj && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCatalogAddon("");
+                          }}
+                          className="p-0.5 text-slate-400 hover:text-slate-600 rounded cursor-pointer"
+                          title="Clear selection"
+                        >
+                          <X size={12} />
+                        </span>
+                      )}
+                      <ChevronDown
+                        size={14}
+                        className={`text-slate-400 transition-transform duration-200 ${
+                          isAddonDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {isAddonDropdownOpen && (
+                    <div
+                      className="absolute left-0 top-full z-50 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-98 slide-in-from-top-1.5 duration-150 ease-out"
+                      style={{
+                        animation: "catalogDropdownFadeSlide 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+                        transformOrigin: "top left",
+                        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)",
+                      }}
+                    >
+                      {catalogAddons.length > 6 && (
+                        <div className="p-2 border-b border-slate-100 bg-slate-50/80">
+                          <div className="relative">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={addonSearch}
+                              onChange={(e) => setAddonSearch(e.target.value)}
+                              placeholder="Search add-ons..."
+                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="max-h-72 overflow-y-auto divide-y divide-slate-100/70">
+                        {filteredCatalogAddons.length === 0 ? (
+                          <div className="p-4 text-center text-xs text-slate-400">
+                            No add-ons found matching &ldquo;{addonSearch}&rdquo;
+                          </div>
+                        ) : (
+                          filteredCatalogAddons.map((addon) => {
+                            const isSelected = selectedCatalogAddon === addon._id;
+                            return (
+                              <div
+                                key={addon._id}
+                                onClick={() => {
+                                  setSelectedCatalogAddon(addon._id);
+                                  setIsAddonDropdownOpen(false);
+                                  setAddonSearch("");
+                                }}
+                                className={`flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors ${
+                                  isSelected ? "bg-primary/10 border-l-2 border-primary" : "hover:bg-slate-50"
+                                }`}
+                              >
+                                <div
+                                  className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 border ${
+                                    isSelected
+                                      ? "bg-primary/15 border-primary/30 text-primary"
+                                      : "bg-violet-50 border-violet-100/60 text-violet-700"
+                                  }`}
+                                >
+                                  <Sparkles size={13} />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className={`font-semibold text-xs truncate ${isSelected ? "text-primary font-bold" : "text-slate-800"}`}>
+                                    {addon.name}
+                                  </div>
+                                </div>
+
+                                {isSelected && (
+                                  <Check size={14} className="text-primary shrink-0 ml-1" />
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={handleAddCatalogAddon}

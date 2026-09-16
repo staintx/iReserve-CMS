@@ -891,9 +891,16 @@ export default function AdminReservations() {
                         <AvatarInitials name={selectedBooking.customer} className="w-9 h-9 text-xs" />
                         <div className="min-w-0">
                           <h4 className="font-bold text-foreground text-sm truncate">{selectedBooking.customer}</h4>
-                          <span className="text-[10px] text-muted-foreground block mt-0.5">
-                            Coordinator: <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
-                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-muted-foreground">
+                              Coordinator: <span className="font-semibold text-foreground">{selectedBooking.coordinator}</span>
+                            </span>
+                            {selectedBooking.quotationBacked && (
+                              <span className="text-[9.5px] font-bold text-primary bg-primary/10 px-1.5 py-0.2 rounded border border-primary/20">
+                                Quoted
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">

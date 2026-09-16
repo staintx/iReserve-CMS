@@ -10,7 +10,7 @@
 export const policyHighlights = (depositPercentage = 20) => [
   {
     title: `A ${depositPercentage}% deposit reserves your date`,
-    body: "Your date is held once you accept the quotation and pay the deposit. The balance is due the day before the event.",
+    body: "Your date is held once you accept the quotation and pay the deposit online. The remaining balance is due the same day after your event has been completed (payable online or in cash to your event manager).",
   },
   {
     title: "Deposits are non-refundable",

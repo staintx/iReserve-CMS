@@ -859,6 +859,36 @@ export default function AdminBookingDetails() {
                   {fmt(remainingBalance)}
                 </strong>
               </div>
+
+              {remainingBalance > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-medium">Balance Preference</span>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+                      booking.balance_payment_preference === "in_person"
+                        ? "bg-amber-100 text-amber-900 border-amber-300"
+                        : "bg-blue-50 text-blue-800 border-blue-200"
+                    }`}>
+                      {booking.balance_payment_preference === "in_person" ? "Cash On Event Day" : "Pay Online"}
+                    </span>
+                  </div>
+                  {booking.balance_payment_preference === "in_person" && (
+                    <div className="p-2 rounded bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 leading-snug">
+                      Client elected cash settlement ({fmt(remainingBalance)}) upon event completion.
+                    </div>
+                  )}
+                  <div className="pt-1">
+                    <Btn
+                      size="xs"
+                      variant="secondary"
+                      className="w-full justify-center font-semibold text-[11px]"
+                      onClick={() => navigate(`/admin/payments?booking=${booking._id}`)}
+                    >
+                      Record / Manage Payment
+                    </Btn>
+                  </div>
+                </div>
+              )}
             </div>
           </AdminCard>
         </div>

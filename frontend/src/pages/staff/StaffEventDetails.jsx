@@ -32,6 +32,7 @@ import {
   Lock,
   Utensils,
   Layers,
+  Banknote,
   X
 } from "lucide-react";
 import { getEventTimingStatus } from "../../utils/format";
@@ -376,7 +377,50 @@ export default function StaffEventDetails() {
     }
   };
 
+  const executeComplete = async (collectedCash = false) => {
+    setCompletingEvent(true);
+    try {
+      await StaffAPI.completeEvent(id, {
+        final_notes: note.trim() || undefined,
+        equipment_returns: equipmentList,
+        collected_cash_balance: collectedCash,
+      });
+      notify(
+        collectedCash
+          ? "Event completed and cash balance payment confirmed!"
+          : "Event marked as completed",
+        "success",
+        { description: collectedCash ? "Cash balance cleared." : "Nice work." }
+      );
+      navigate("/staff/dashboard");
+    } finally {
+      setCompletingEvent(false);
+    }
+  };
+
   const handleCompleteEvent = async () => {
+    const remainingBal = Number(booking?.remaining_balance ?? 0);
+    const isCashElected = booking?.balance_payment_preference === "in_person";
+
+    if (remainingBal > 0) {
+      await confirm({
+        tone: "confirm",
+        title: "Complete Event & Confirm Cash Payment?",
+        description: isCashElected
+          ? `The client selected Cash on Event Day. Did you collect the remaining balance of ₱${remainingBal.toLocaleString()} in cash?`
+          : `The booking has an outstanding balance of ₱${remainingBal.toLocaleString()}. If you received this in cash on-site, choose "Yes, Collected Cash", otherwise "No, Leave Pending".`,
+        confirmLabel: "Yes, Collected Cash",
+        cancelLabel: "No, Leave Pending",
+        onConfirm: async () => {
+          await executeComplete(true);
+        },
+        onCancel: async () => {
+          await executeComplete(false);
+        }
+      });
+      return;
+    }
+
     await confirm({
       tone: "confirm",
       title: "Mark this event as completed?",
@@ -385,17 +429,7 @@ export default function StaffEventDetails() {
       confirmLabel: "Mark completed",
       cancelLabel: "Not yet",
       onConfirm: async () => {
-        setCompletingEvent(true);
-        try {
-          await StaffAPI.completeEvent(id, {
-            final_notes: note.trim() || undefined,
-            equipment_returns: equipmentList,
-          });
-          notify("Event marked as completed", "success", { description: "Nice work." });
-          navigate("/staff/dashboard");
-        } finally {
-          setCompletingEvent(false);
-        }
+        await executeComplete(false);
       },
     });
   };
@@ -572,6 +606,34 @@ export default function StaffEventDetails() {
                 </div>
               </div>
             </div>
+
+            {/* Financial & Balance Settlement Overview */}
+            {Number(booking.remaining_balance || 0) > 0 ? (
+              <div className="p-3 bg-card border border-amber-300 dark:border-amber-800 rounded-lg space-y-2 shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-950 dark:text-amber-200">
+                    <Banknote size={15} className="text-amber-600 shrink-0" />
+                    <span>Client Remaining Balance: ₱{Number(booking.remaining_balance).toLocaleString()}</span>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 w-fit">
+                    {booking.balance_payment_preference === "in_person" ? "Cash On-Site Choice" : "Pending Settlement"}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {booking.balance_payment_preference === "in_person"
+                    ? `The client elected to pay the remaining balance of ₱${Number(booking.remaining_balance).toLocaleString()} in cash to the event manager upon completion of the event.`
+                    : `Remaining balance is due the same day after event completion (payable online via portal or in cash on-site).`}
+                </p>
+              </div>
+            ) : (
+              <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-200 shadow-2xs">
+                <div className="flex items-center gap-2 font-bold">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                  <span>Booking Payment: Paid in Full</span>
+                </div>
+                <span className="text-[10.5px] text-emerald-800 dark:text-emerald-300 font-medium">₱{Number(booking.total_price || 0).toLocaleString()} Settled</span>
+              </div>
+            )}
 
             {/* Event Specs & Lead Coordinator */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4">

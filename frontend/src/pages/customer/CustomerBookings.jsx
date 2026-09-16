@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import CustomerDashboardLayout from "../../components/layout/CustomerDashboardLayout";
 import OcularDatePickerModal from "../../components/customer/OcularDatePickerModal";
+import PaymentChoiceModal from "../../components/customer/PaymentChoiceModal";
 import InvoiceModal from "../../components/common/invoice/InvoiceModal";
 import useBusinessInfo from "../../hooks/useBusinessInfo";
 import { createConversation } from "../../api/messages";
@@ -85,6 +86,10 @@ export default function CustomerBookings() {
   // Invoice Modal State
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [isOpeningChat, setIsOpeningChat] = useState(false);
+
+  // Payment Choice Modal State (for balance payments)
+  const [choiceModalBooking, setChoiceModalBooking] = useState(null);
+  const [choiceModalOpen, setChoiceModalOpen] = useState(false);
 
   const submitOcularRequest = async (selectedDate, selectedTime) => {
     if (!requestingOcularBooking?._id) return;
@@ -242,13 +247,21 @@ export default function CustomerBookings() {
       notify("This booking is fully paid.", "info");
       return;
     }
+    const isDeposit = (booking.status || "").toLowerCase().includes("deposit");
+    if (!isDeposit) {
+      // Final / remaining balance payment: present choice of Online vs In-Person
+      setChoiceModalBooking(booking);
+      setChoiceModalOpen(true);
+      return;
+    }
+
+    // Deposit payment: direct online checkout to lock the booking date
     try {
-      notify("Generating checkout session for payment...", "info");
-      const isDeposit = (booking.status || "").toLowerCase().includes("deposit");
+      notify("Generating checkout session for deposit payment...", "info");
       const checkoutRes = await CustomerAPI.createPaymentCheckout({
         booking_id: booking._id,
         amount,
-        payment_type: isDeposit ? "deposit" : "final",
+        payment_type: "deposit",
       });
 
       if (checkoutRes.data?.checkout_url) {
@@ -385,21 +398,24 @@ export default function CustomerBookings() {
       };
     }
 
-    // 7. Balance owed before event
-    if (bal > 0 && ["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus)) {
+    // 7. Balance owed before or on event day
+    if (bal > 0 && ["confirmed", "converted to booking", "preparing", "ready for event", "ongoing"].includes(rawStatus)) {
+      const isCash = bkg.balance_payment_preference === "in_person";
       return {
         state: "balance_due",
-        badge: "Balance Due",
-        badgeClass: "bg-amber-50 text-amber-900 border-amber-200 font-semibold",
+        badge: isCash ? "Cash on Event Day" : "Balance Due",
+        badgeClass: isCash ? "bg-amber-100 text-amber-900 border-amber-300 font-semibold" : "bg-amber-50 text-amber-900 border-amber-200 font-semibold",
         title: `Remaining Balance: ${formatCurrency(bal)}`,
-        description: "Your date is fully locked. The remaining balance is due prior to event dispatch and setup.",
+        description: isCash
+          ? "You elected cash on event day. Due the same day after event completion to your Event Manager."
+          : "Remaining balance is due the same day after your event has been completed (payable online or in cash).",
         actionType: "balance",
-        actionLabel: `Pay Balance (${formatCurrency(bal)})`,
+        actionLabel: isCash ? `Manage Payment (${formatCurrency(bal)})` : `Pay Balance (${formatCurrency(bal)})`,
       };
     }
 
     // 8. Confirmed & fully paid
-    if (["confirmed", "converted to booking", "preparing", "ready for event"].includes(rawStatus) && bal <= 0) {
+    if (["confirmed", "converted to booking", "preparing", "ready for event", "ongoing"].includes(rawStatus) && bal <= 0) {
       const isFood = isFoodOnly(resolveServiceType(bkg));
       return {
         state: "all_set",
@@ -416,6 +432,20 @@ export default function CustomerBookings() {
 
     // 9. Completed
     if (["completed", "event completed"].includes(rawStatus)) {
+      if (bal > 0) {
+        const isCash = bkg.balance_payment_preference === "in_person";
+        return {
+          state: "balance_due",
+          badge: isCash ? "Cash Due (Completed)" : "Balance Due Today",
+          badgeClass: "bg-amber-100 text-amber-900 border-amber-300 font-semibold",
+          title: `Event Concluded · Remaining Balance: ${formatCurrency(bal)}`,
+          description: isCash
+            ? "Your event has completed! Please hand the remaining cash to your Event Manager or settle online."
+            : "Your event has completed today! Please settle your remaining balance online or with your Event Manager.",
+          actionType: "balance",
+          actionLabel: `Settle Balance (${formatCurrency(bal)})`,
+        };
+      }
       return {
         state: "completed",
         badge: "Event Completed",
@@ -1407,6 +1437,19 @@ export default function CustomerBookings() {
             (p) => String(p.booking_id?._id || p.booking_id) === String(selectedBooking._id)
           )}
           businessInfo={businessInfo}
+        />
+      )}
+
+      {choiceModalOpen && choiceModalBooking && (
+        <PaymentChoiceModal
+          open={choiceModalOpen}
+          onClose={() => {
+            setChoiceModalOpen(false);
+            setChoiceModalBooking(null);
+          }}
+          booking={choiceModalBooking}
+          balanceAmount={balanceOf(choiceModalBooking)}
+          onSuccess={() => loadData(true)}
         />
       )}
     </CustomerDashboardLayout>

@@ -31,8 +31,10 @@ export function TermsContent({ depositPercentage = 20 }) {
             required to reserve the date.
           </li>
           <li>
-            <strong>Final Payment:</strong> The remaining balance must be paid a
-            day before the event date.
+            <strong>Final Payment:</strong> The remaining balance is payable the
+            same day after the event has been completed. Customers have the choice
+            to pay online via the customer portal or in cash to the event manager
+            on-site.
           </li>
         </ul>
       </section>

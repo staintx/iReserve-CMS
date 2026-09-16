@@ -154,7 +154,7 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
       // carry the money signal. Amber is reserved for what's urgent now.
       notice:
         balance > 0
-          ? { tone: "neutral", title: "Your date is reserved.", text: "The remaining balance is due before your event setup." }
+          ? { tone: "neutral", title: "Your date is reserved.", text: "The remaining balance is due the same day after your event has been completed." }
           : { tone: "success", title: "Your date is reserved.", text: "Everything is paid — nothing is needed from you right now." },
     };
   }
@@ -171,7 +171,7 @@ export const bookingStatusMeta = (booking, { balance = 0 } = {}) => {
   // Once an event is reserved, the only thing that can still be owed is money —
   // so the closing sentence depends on the balance, never on the stage.
   const nothingOrBalance = balance > 0
-    ? "The remaining balance is due before your event setup."
+    ? "The remaining balance is due the same day after your event has been completed."
     : "No action is needed from you right now.";
 
   if (raw === "ocular scheduled") {

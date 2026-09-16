@@ -147,7 +147,17 @@ exports.getMyBooking = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Assigned event not found" });
   }
 
-  res.json(booking);
+  const Payment = require("../models/Payment");
+  const payments = await Payment.find({ booking_id: booking._id, status: "approved" }).lean();
+  const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const remainingBalance = Math.max(0, Number(booking.total_price || 0) - totalPaid);
+
+  const bookingObj = booking.toObject ? booking.toObject() : booking;
+  bookingObj.approved_payments = payments;
+  bookingObj.total_paid = totalPaid;
+  bookingObj.remaining_balance = remainingBalance;
+
+  res.json(bookingObj);
 });
 
 const isBookingStartedOrFinished = (booking) => {
@@ -370,6 +380,63 @@ exports.completeEvent = asyncHandler(async (req, res) => {
   booking.status = "Completed";
   booking.completed_at = new Date();
   await booking.save();
+
+  // Handle balance payment upon event completion
+  const Payment = require("../models/Payment");
+  const approvedPayments = await Payment.find({ booking_id: booking._id, status: "approved" });
+  const totalPaid = approvedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const remainingBalance = Math.max(0, Number(booking.total_price || 0) - totalPaid);
+
+  const io = req.app.get("io");
+
+  if (req.body.collected_cash_balance === true && remainingBalance > 0) {
+    const { syncBookingStatus } = require("./payment.controller");
+    let balPayment = await Payment.findOne({
+      booking_id: booking._id,
+      payment_type: "balance",
+      status: "pending"
+    });
+
+    if (balPayment) {
+      balPayment.status = "approved";
+      balPayment.method = "cash";
+      balPayment.gateway = "manual";
+      balPayment.amount = remainingBalance;
+      balPayment.paid_at = new Date();
+      balPayment.metadata = { ...(balPayment.metadata || {}), collected_by: req.user._id, on_site: true };
+      await balPayment.save();
+    } else {
+      balPayment = await Payment.create({
+        booking_id: booking._id,
+        customer_id: booking.customer_id,
+        amount: remainingBalance,
+        currency: "PHP",
+        payment_type: "balance",
+        method: "cash",
+        gateway: "manual",
+        status: "approved",
+        paid_at: new Date(),
+        metadata: { collected_by: req.user._id, on_site: true }
+      });
+    }
+
+    await syncBookingStatus(booking._id);
+  } else if (remainingBalance > 0 && booking.customer_id) {
+    // Notify customer that event has concluded and remaining balance is due today
+    const { createNotification } = require("../utils/notify");
+    await createNotification({
+      userId: booking.customer_id,
+      title: "Event Completed — Balance Due Today",
+      body: `Your event has concluded! Your remaining balance of ₱${remainingBalance.toLocaleString()} is due today. Settle online via your portal or in person with your event manager.`,
+      type: "info",
+      link: `/customer/bookings/${booking._id}`,
+      meta: { booking_id: booking._id, amount: remainingBalance }
+    }, io);
+  }
+
+  if (io) {
+    io.emit("system:refresh", { type: "booking", action: "complete_event", booking_id: booking._id });
+  }
 
   res.json({ message: "Event completed successfully", booking });
 });

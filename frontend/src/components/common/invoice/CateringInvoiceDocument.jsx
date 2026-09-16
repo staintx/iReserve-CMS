@@ -786,7 +786,7 @@ export default function CateringInvoiceDocument({
                 </li>
               ))}
               <li>
-                <strong className="text-slate-700">Balance Settlement:</strong> Outstanding balances must be fully settled on or before the day of the event prior to food release and setup.
+                <strong className="text-slate-700">Balance Settlement:</strong> The remaining balance is payable the same day after the event has been completed, either online through the portal or in cash to your event manager.
               </li>
               <li>
                 <strong className="text-slate-700">7-Day Headcount Cutoff:</strong> Final menu choices and guest count adjustments must be finalized at least seven (7) calendar days prior to event commencement.
@@ -1296,7 +1296,7 @@ export default function CateringInvoiceDocument({
                         </li>
                       ))}
                       <li className="caz-terms-item">
-                        <strong className="text-slate-800">Balance Settlement:</strong> Outstanding balances must be fully settled on or before the day of the event prior to food release and setup.
+                        <strong className="text-slate-800">Balance Settlement:</strong> The remaining balance is payable the same day after the event has been completed, either online through the portal or in cash to your event manager.
                       </li>
                       <li className="caz-terms-item">
                         <strong className="text-slate-800">7-Day Headcount Cutoff:</strong> Final menu choices and guest count adjustments must be finalized at least seven (7) calendar days prior to event commencement.

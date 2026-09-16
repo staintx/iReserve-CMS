@@ -66,6 +66,7 @@ export const CustomerAPI = {
   createPaymentIntent: (data) => api.post("/payments/intent", data),
   processPaymentIntent: (data) => api.post("/payments/intent/process", data),
   verifyPayment: (id) => api.post(`/payments/${id}/verify`),
+  setPaymentPreference: (data) => api.post("/payments/preference", data),
 
   // messages
   getConversations: () => api.get("/messages/conversations"),

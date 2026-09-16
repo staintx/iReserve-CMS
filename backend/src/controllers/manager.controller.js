@@ -425,28 +425,58 @@ exports.markCompleted = asyncHandler(async (req, res) => {
 });
 
 exports.getStaff = asyncHandler(async (req, res) => {
-  const staff = await User.find({ role: "staff", is_active: true }).lean();
+  const roleFilter = String(req.query.role || (req.user?.role === "admin" ? "all" : "staff")).toLowerCase().trim();
+  const query = {};
+
+  if (roleFilter === "manager") {
+    query.role = "manager";
+  } else if (roleFilter === "staff") {
+    query.role = "staff";
+  } else {
+    query.role = { $in: ["staff", "manager"] };
+  }
+
+  if (req.query.include_inactive !== "true") {
+    query.is_active = true;
+  }
+
+  const staff = await User.find(query).select("-password").lean();
   const staffIds = staff.map((s) => s._id);
 
   const now = new Date();
-  const upcomingAssignments = await Booking.aggregate([
-    {
-      $match: {
-        "staff_assignments.user_id": { $in: staffIds },
-        event_date: { $gte: now },
-        status: { $nin: ["Cancelled", "cancelled", "refunded", "Completed", "completed"] }
-      }
-    },
-    { $unwind: "$staff_assignments" },
-    { $match: { "staff_assignments.user_id": { $in: staffIds } } },
-    { $group: { _id: "$staff_assignments.user_id", count: { $sum: 1 } } }
-  ]);
+  const upcomingBookings = await Booking.find({
+    $or: [
+      { "staff_assignments.user_id": { $in: staffIds } },
+      { event_manager_id: { $in: staffIds } }
+    ],
+    event_date: { $gte: now },
+    status: { $nin: ["Cancelled", "cancelled", "refunded", "Completed", "completed"] }
+  }).select("staff_assignments event_manager_id");
 
-  const upcomingMap = new Map(upcomingAssignments.map((item) => [String(item._id), item.count]));
+  const upcomingMap = new Map();
+  upcomingBookings.forEach((b) => {
+    const seen = new Set();
+    if (b.event_manager_id) {
+      const mId = String(b.event_manager_id);
+      seen.add(mId);
+      upcomingMap.set(mId, (upcomingMap.get(mId) || 0) + 1);
+    }
+    if (Array.isArray(b.staff_assignments)) {
+      b.staff_assignments.forEach((sa) => {
+        if (sa.user_id) {
+          const sId = String(sa.user_id);
+          if (!seen.has(sId)) {
+            seen.add(sId);
+            upcomingMap.set(sId, (upcomingMap.get(sId) || 0) + 1);
+          }
+        }
+      });
+    }
+  });
 
   // If event_date query is provided, check availability on that date
   let unavailableSet = new Set();
-  let bookedStaffSet = new Set();
+  let bookedMap = new Map();
 
   if (req.query.event_date) {
     const eventDate = new Date(req.query.event_date);
@@ -459,17 +489,44 @@ exports.getStaff = asyncHandler(async (req, res) => {
         date: { $gte: startOfDay, $lte: endOfDay }
       }).select("user_id"),
       Booking.find({
-        "staff_assignments.user_id": { $in: staffIds },
+        $or: [
+          { "staff_assignments.user_id": { $in: staffIds } },
+          { event_manager_id: { $in: staffIds } }
+        ],
         event_date: { $gte: startOfDay, $lte: endOfDay },
         status: { $nin: ["Cancelled", "cancelled", "refunded"] }
-      }).select("staff_assignments")
+      })
+        .populate("customer_id", "full_name first_name last_name")
+        .select("staff_assignments event_manager_id event_date start_time duration_hours event_type reference status customer_id")
     ]);
 
     unavailableSet = new Set(unavailabilities.map((u) => String(u.user_id)));
     bookedEvents.forEach((b) => {
+      const custName = b.customer_id?.full_name 
+        || `${b.customer_id?.first_name || ""} ${b.customer_id?.last_name || ""}`.trim() 
+        || "Customer";
+      const eventSummary = {
+        booking_id: b._id,
+        reference: b.reference || String(b._id).slice(-6).toUpperCase(),
+        event_type: b.event_type,
+        start_time: b.start_time || "",
+        duration_hours: b.duration_hours,
+        customer_name: custName,
+        status: b.status
+      };
+
+      if (b.event_manager_id) {
+        const mId = String(b.event_manager_id);
+        if (!bookedMap.has(mId)) bookedMap.set(mId, []);
+        bookedMap.get(mId).push({ ...eventSummary, assigned_as: "Event Manager" });
+      }
       if (Array.isArray(b.staff_assignments)) {
         b.staff_assignments.forEach((sa) => {
-          if (sa.user_id) bookedStaffSet.add(String(sa.user_id));
+          if (sa.user_id) {
+            const sId = String(sa.user_id);
+            if (!bookedMap.has(sId)) bookedMap.set(sId, []);
+            bookedMap.get(sId).push({ ...eventSummary, assigned_as: sa.role || "Staff" });
+          }
         });
       }
     });
@@ -478,13 +535,26 @@ exports.getStaff = asyncHandler(async (req, res) => {
   const result = staff.map((member) => {
     const idStr = String(member._id);
     const isUnavailable = unavailableSet.has(idStr);
-    const isBooked = bookedStaffSet.has(idStr);
+    const isBooked = bookedMap.has(idStr);
+    const isConflict = isUnavailable && isBooked;
+
+    let availabilityStatus = "Available";
+    if (!member.is_active) {
+      availabilityStatus = "Inactive";
+    } else if (isConflict) {
+      availabilityStatus = "Conflict";
+    } else if (isUnavailable) {
+      availabilityStatus = "Unavailable";
+    } else if (isBooked) {
+      availabilityStatus = "Scheduled";
+    }
 
     return {
       ...member,
       upcoming_count: upcomingMap.get(idStr) || 0,
-      is_available: req.query.event_date ? (!isUnavailable && !isBooked) : true,
-      availability_status: isUnavailable ? "Unavailable" : isBooked ? "Booked" : "Available"
+      is_available: req.query.event_date ? (!isUnavailable && !isBooked && member.is_active) : member.is_active,
+      availability_status: availabilityStatus,
+      scheduled_events: bookedMap.get(idStr) || []
     };
   });
 
@@ -500,34 +570,66 @@ exports.getStaffCalendar = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Month must be YYYY-MM" });
   }
 
-  const [availability, assignments] = await Promise.all([
+  const [member, availability, assignments] = await Promise.all([
+    User.findById(staffId).select("full_name email phone role position is_active username").lean(),
     StaffAvailability.find({
       user_id: staffId,
       date: { $gte: range.start, $lte: range.end }
     }).select("date"),
     Booking.find({
-      "staff_assignments.user_id": staffId,
+      $or: [
+        { "staff_assignments.user_id": staffId },
+        { event_manager_id: staffId }
+      ],
       event_date: { $gte: range.start, $lte: range.end },
       status: { $nin: ["Cancelled", "cancelled", "refunded"] }
     })
       .populate("customer_id", "full_name first_name last_name")
-      .select("event_date event_type reference status customer_id")
+      .select("event_date start_time duration_hours event_type reference status customer_id event_manager_id staff_assignments")
   ]);
 
+  if (!member) {
+    return res.status(404).json({ message: "Staff member or manager not found" });
+  }
+
+  const unavailableDates = availability.map((item) => toDateKey(item.date));
+  const unavailableSet = new Set(unavailableDates);
+
+  const parsedAssignments = assignments.map((booking) => {
+    const custName = booking.customer_id?.full_name 
+      || `${booking.customer_id?.first_name || ""} ${booking.customer_id?.last_name || ""}`.trim() 
+      || "Customer";
+    const isManager = String(booking.event_manager_id) === String(staffId);
+    const staffEntry = (booking.staff_assignments || []).find((sa) => String(sa.user_id) === String(staffId));
+    const assignedAs = isManager ? "Event Manager" : (staffEntry?.role || member.position || "Staff");
+    const dateKey = toDateKey(new Date(booking.event_date));
+    const isConflict = unavailableSet.has(dateKey);
+
+    return {
+      _id: booking._id,
+      date: booking.event_date,
+      date_key: dateKey,
+      start_time: booking.start_time || "",
+      duration_hours: booking.duration_hours,
+      event_type: booking.event_type,
+      reference: booking.reference || String(booking._id).slice(-6).toUpperCase(),
+      customer_name: custName,
+      status: booking.status,
+      assigned_as: assignedAs,
+      is_conflict: isConflict
+    };
+  });
+
+  const conflictDates = Array.from(
+    new Set(parsedAssignments.filter((a) => a.is_conflict).map((a) => a.date_key))
+  );
+
   res.json({
+    member,
     month,
-    unavailable: availability.map((item) => toDateKey(item.date)),
-    assignments: assignments.map((booking) => {
-      const custName = booking.customer_id?.full_name 
-        || `${booking.customer_id?.first_name || ""} ${booking.customer_id?.last_name || ""}`.trim() 
-        || "Customer";
-      return {
-        date: booking.event_date,
-        event_type: booking.event_type,
-        reference: booking.reference || String(booking._id).slice(-6).toUpperCase(),
-        customer_name: custName,
-        status: booking.status
-      };
-    })
+    unavailable: unavailableDates,
+    conflicts: conflictDates,
+    assignments: parsedAssignments
   });
 });
+

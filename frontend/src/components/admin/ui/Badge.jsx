@@ -48,6 +48,33 @@ export default function Badge({ status, variant, icon, children, dot = false, cl
     );
   }
 
+  if (norm === "scheduled" || norm === "booked") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />}
+        <span>Scheduled</span>
+      </span>
+    );
+  }
+
+  if (norm === "conflict") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-300 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0" />}
+        <span>Schedule Conflict</span>
+      </span>
+    );
+  }
+
+  if (norm === "on leave" || norm === "off-duty") {
+    return (
+      <span className={`inline-flex items-center ${dot ? "gap-1.5 px-2" : "px-2.5"} py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 ${className} whitespace-nowrap`}>
+        {dot && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+        <span>{norm === "off-duty" ? "Off-Duty" : "On Leave"}</span>
+      </span>
+    );
+  }
+
   // 1. Success / Confirmed / Approved / Completed / Paid
   const isSuccess = [
     "confirmed",

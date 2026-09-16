@@ -143,13 +143,25 @@ export default function AdminStaff() {
       header: "Actions",
       stopRowClick: true,
       render: (s) => (
-        <RowActionsMenu
-          actions={[
-            { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(s) },
-            { key: "edit", label: "Edit account", icon: Edit3, onSelect: () => handleOpenModal(s) },
-            { key: "delete", label: "Delete account", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(s) },
-          ]}
-        />
+        <div className="flex items-center justify-end gap-1.5">
+          <Btn
+            variant="secondary"
+            size="xs"
+            onClick={() => navigate(`/admin/staff/schedule?id=${s._id}`)}
+            className="hidden sm:inline-flex items-center gap-1 text-[11px] py-1 px-2"
+          >
+            <Calendar size={12} className="text-primary" />
+            <span>Schedule</span>
+          </Btn>
+          <RowActionsMenu
+            actions={[
+              { key: "schedule", label: "View schedule", icon: Calendar, onSelect: () => navigate(`/admin/staff/schedule?id=${s._id}`) },
+              { key: "view", label: "View details", icon: Eye, onSelect: () => setDrawerRow(s) },
+              { key: "edit", label: "Edit account", icon: Edit3, onSelect: () => handleOpenModal(s) },
+              { key: "delete", label: "Delete account", icon: Trash2, destructive: true, onSelect: () => setCancelTarget(s) },
+            ]}
+          />
+        </div>
       ),
     },
   ];
@@ -169,7 +181,7 @@ export default function AdminStaff() {
 
           <div className="flex gap-2 flex-wrap items-center self-start sm:self-auto">
 
-            <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/dashboard")}>
+            <Btn variant="secondary" size="sm" onClick={() => navigate("/admin/staff/schedule")}>
               <Calendar size={13} /> View Schedule
             </Btn>
             <Btn 
@@ -298,6 +310,17 @@ export default function AdminStaff() {
         footer={
           drawerRow && (
             <>
+              <Btn
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const row = drawerRow;
+                  setDrawerRow(null);
+                  navigate(`/admin/staff/schedule?id=${row._id}`);
+                }}
+              >
+                <Calendar size={13} /> View Schedule
+              </Btn>
               <Btn
                 variant="danger"
                 size="sm"

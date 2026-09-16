@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Search, Plus, Filter, Edit3, Trash2 } from "lucide-react";
 import AdminLayout from "../../components/layout/AdminLayout";
 import AdminCard from "../../components/admin/ui/AdminCard";
@@ -21,7 +21,14 @@ export default function AdminGallery() {
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
-  const categories = ["all", "Weddings", "Birthday", "Corporate Events", "Food Display"];
+  const categories = useMemo(() => {
+    const base = ["Weddings", "Birthday", "Corporate Events", "Food Display"];
+    const dynamic = (items || [])
+      .map((i) => i?.category?.trim())
+      .filter(Boolean);
+    const unique = Array.from(new Set([...base, ...dynamic])).filter(Boolean);
+    return ["all", ...unique];
+  }, [items]);
 
   const loadData = () => {
     setLoading(true);
@@ -75,8 +82,7 @@ export default function AdminGallery() {
         </div>
 
         <AdminCard className="!p-3.5 sm:!p-4">
-
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 min-w-48 shadow-2xs">
               <Search size={14} className="text-muted-foreground/70" />
               <input 
@@ -87,16 +93,19 @@ export default function AdminGallery() {
                 style={{ fontFamily: "var(--font-sans, Inter), sans-serif" }} 
               />
             </div>
-            <div className="flex gap-1 flex-wrap">
-              {categories.map(c => (
-                <button 
-                  key={c} 
-                  onClick={() => setFilter(c)} 
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all cursor-pointer ${filter === c ? "bg-primary text-white shadow-2xs" : "bg-muted text-muted-foreground hover:bg-border/80 hover:text-foreground"}`}
-                >
-                  {c}
-                </button>
-              ))}
+            <div className="relative shrink-0 w-44 sm:w-52">
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs capitalize"
+                style={{ fontFamily: "var(--font-sans, Inter), sans-serif" }}
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c} className="capitalize text-slate-800 bg-white">
+                    {c === "all" ? "All Categories" : c}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </AdminCard>

@@ -5,18 +5,9 @@ import SingleImageField from "./SingleImageField";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
 
-export const PREDEFINED_CATEGORIES = [
-  "Appetizer",
-  "Soup",
-  "Salad",
-  "Main Course",
-  "Vegetable",
-  "Pasta",
-  "Rice",
-  "Dessert",
-  "Beverage",
-  "Drinking Water",
-];
+import { DEFAULT_FOOD_CATEGORIES } from "../../../utils/menuCategories";
+
+export const PREDEFINED_CATEGORIES = DEFAULT_FOOD_CATEGORIES;
 
 export default function MenuModal({ item, onClose, onSave }) {
   const { notify } = useToast();

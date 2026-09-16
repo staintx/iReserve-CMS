@@ -7,7 +7,8 @@ import Badge from "../../components/admin/ui/Badge";
 import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import useRealTimeRefresh from "../../hooks/useRealTimeRefresh";
-import MenuModal, { PREDEFINED_CATEGORIES } from "../../components/admin/ui/MenuModal";
+import MenuModal from "../../components/admin/ui/MenuModal";
+import { DEFAULT_FOOD_CATEGORIES, sortMenuItemsByCategory } from "../../utils/menuCategories";
 import AIMenuParserModal from "../../components/admin/ui/AIMenuParserModal";
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
@@ -24,13 +25,13 @@ export default function AdminMenu() {
   const [activeItem, setActiveItem] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
-  // Preserve predefined categories in order, plus any custom categories dynamically
+  // Preserve canonical categories with Main Course first, plus any custom categories dynamically
   const categories = useMemo(() => {
     const customCats = menuItems
       .map((i) => i?.category?.trim())
-      .filter((cat) => cat && !PREDEFINED_CATEGORIES.includes(cat));
+      .filter((cat) => cat && !DEFAULT_FOOD_CATEGORIES.some((c) => c.toLowerCase() === cat.toLowerCase()));
     const uniqueCustom = [...new Set(customCats)].sort((a, b) => a.localeCompare(b));
-    return ["all", ...PREDEFINED_CATEGORIES, ...uniqueCustom];
+    return ["all", ...DEFAULT_FOOD_CATEGORIES, ...uniqueCustom];
   }, [menuItems]);
 
   const loadData = () => {
@@ -67,11 +68,15 @@ export default function AdminMenu() {
       .catch(err => notify(err.response?.data?.message || "Failed to delete menu item", "error"));
   };
 
-  const filtered = menuItems.filter(i => {
-    const matchSearch = !search || (i.name && i.name.toLowerCase().includes(search.toLowerCase()));
-    const matchCategory = filter === "all" || i.category === filter;
-    return matchSearch && matchCategory;
-  });
+  // Filter items and prioritize Main Course first across the menu items grid
+  const filtered = useMemo(() => {
+    const result = menuItems.filter((i) => {
+      const matchSearch = !search || (i.name && i.name.toLowerCase().includes(search.toLowerCase()));
+      const matchCategory = filter === "all" || (i.category && i.category.toLowerCase() === filter.toLowerCase());
+      return matchSearch && matchCategory;
+    });
+    return sortMenuItemsByCategory(result);
+  }, [menuItems, search, filter]);
 
   return (
     <AdminLayout>
@@ -95,8 +100,7 @@ export default function AdminMenu() {
         </div>
 
         <AdminCard className="!p-3.5 sm:!p-4">
-
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 flex-1 min-w-48 shadow-2xs">
               <Search size={14} className="text-muted-foreground/70" />
               <input 
@@ -107,16 +111,19 @@ export default function AdminMenu() {
                 style={{ fontFamily: "var(--font-sans, Inter), sans-serif" }} 
               />
             </div>
-            <div className="flex gap-1 flex-wrap">
-              {categories.map(c => (
-                <button 
-                  key={c} 
-                  onClick={() => setFilter(c)} 
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all cursor-pointer ${filter === c ? "bg-primary text-white shadow-2xs" : "bg-muted text-muted-foreground hover:bg-border/80 hover:text-foreground"}`}
-                >
-                  {c}
-                </button>
-              ))}
+            <div className="relative shrink-0 w-44 sm:w-52">
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full bg-muted/60 border border-border/70 rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shadow-2xs capitalize"
+                style={{ fontFamily: "var(--font-sans, Inter), sans-serif" }}
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c} className="capitalize text-slate-800 bg-white">
+                    {c === "all" ? "All Categories" : c}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </AdminCard>

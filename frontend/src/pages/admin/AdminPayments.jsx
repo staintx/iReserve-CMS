@@ -536,14 +536,14 @@ export default function AdminPayments() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setDrawerRow(p)}
-              className="p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors cursor-pointer"
               title="View Payment Details"
             >
               <Eye size={15} />
             </button>
             <button
               onClick={() => setReceiptModalRow(p)}
-              className="p-1.5 rounded-md text-gray-500 hover:text-primary hover:bg-amber-50 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md text-slate-500 hover:text-primary hover:bg-blue-50 transition-colors cursor-pointer"
               title="Print Receipt"
             >
               <Printer size={15} />
@@ -555,7 +555,7 @@ export default function AdminPayments() {
                   { key: "view", label: "View Details", icon: Eye, onSelect: () => setDrawerRow(p) },
                   { key: "verify", label: "Sync with Gateway", icon: ShieldCheck, show: p.method === "paymongo", onSelect: () => handleVerify(p) },
                   { key: "approve", label: "Approve Payment", icon: CheckCircle2, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "approved") },
-                  { key: "reject", label: "Reject Payment", icon: XCircle, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "rejected") },
+                  { key: "reject", label: "Reject Payment", icon: XCircle, destructive: true, show: p.method !== "paymongo", onSelect: () => handleUpdateStatus(p, "rejected") },
                 ]}
               />
             )}

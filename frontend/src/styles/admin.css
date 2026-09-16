@@ -3573,3 +3573,53 @@ input.search {
 .inv-switch-v2 input:checked + .inv-slider-v2:before {
   transform: translateX(20px);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Admin Row Actions Menu (Floating Popover / Card)
+   Radix UI portals this to document.body outside .admin-shell,
+   so these explicit rules ensure clean white background, crisp slate
+   borders, multi-layer elevation, and modern blue accent hover/focus states.
+   ═══════════════════════════════════════════════════════════════ */
+.admin-row-actions-content {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+  color: #1e293b !important;
+  font-family: var(--font-sans) !important;
+}
+
+.admin-row-actions-item {
+  color: #334155 !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+
+.admin-row-actions-item:hover,
+.admin-row-actions-item:focus,
+.admin-row-actions-item[data-highlighted] {
+  background-color: #eff6ff !important;
+  color: #1d4ed8 !important;
+}
+
+.admin-row-actions-item:hover svg,
+.admin-row-actions-item:focus svg,
+.admin-row-actions-item[data-highlighted] svg {
+  color: #3b82f6 !important;
+}
+
+.admin-row-actions-item[data-destructive="true"] {
+  color: #e11d48 !important;
+}
+
+.admin-row-actions-item[data-destructive="true"]:hover,
+.admin-row-actions-item[data-destructive="true"]:focus,
+.admin-row-actions-item[data-destructive="true"][data-highlighted] {
+  background-color: #fff1f2 !important;
+  color: #be123c !important;
+}
+
+.admin-row-actions-item[data-destructive="true"]:hover svg,
+.admin-row-actions-item[data-destructive="true"]:focus svg,
+.admin-row-actions-item[data-destructive="true"][data-highlighted] svg {
+  color: #e11d48 !important;
+}
+

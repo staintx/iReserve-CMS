@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import CustomerLayout from "../../../components/layout/CustomerLayout";
+import { CustomerAPI } from "../../../api/customer";
 import { formatCurrency } from "../../../utils/format";
 import {
   CheckCircle2,
@@ -21,8 +22,58 @@ export default function InquirySubmitted() {
 
   const reference = state?.reference;
   const kind = state?.kind === "custom" ? "custom" : "package";
-  const summary = Array.isArray(state?.summary) ? state.summary.filter((row) => row?.value) : [];
+  const rawSummary = Array.isArray(state?.summary) ? state.summary.filter((row) => row?.value) : [];
   const estimate = Number(state?.estimatedTotal) || 0;
+
+  const [resolvedOfferName, setResolvedOfferName] = useState(state?.offerName || "");
+
+  // Detect whether this inquiry represents a Special Offer
+  const isSpecialOffer =
+    state?.isSpecialOffer === true ||
+    state?.kind === "special_offer" ||
+    rawSummary.some((row) => row.label === "Service" && row.value === "Special Offer") ||
+    rawSummary.some(
+      (row) =>
+        row.label === "Event type" &&
+        (row.value === "Special Offer Catering" ||
+          row.value === "Special Offer Event" ||
+          row.value?.toLowerCase().includes("special offer"))
+    );
+
+  // If this is a Special Offer and we don't have the offer name yet, fetch it dynamically by reference
+  useEffect(() => {
+    if (!isSpecialOffer || resolvedOfferName || !reference) return;
+
+    CustomerAPI.getInquiries()
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        const match = list.find((inq) => inq.reference === reference);
+        if (match) {
+          const name = match.package_name_snapshot || match.package_id?.name || "";
+          if (name) setResolvedOfferName(name);
+        }
+      })
+      .catch(() => {});
+  }, [isSpecialOffer, resolvedOfferName, reference]);
+
+  const summary = useMemo(() => {
+    if (!isSpecialOffer) return rawSummary;
+
+    const eventDate = rawSummary.find((r) => r.label === "Event date")?.value || "";
+    const guests = rawSummary.find((r) => r.label === "Guests")?.value || "";
+    const dynamicOfferName =
+      resolvedOfferName ||
+      state?.offerName ||
+      rawSummary.find((r) => r.label === "Service type")?.value ||
+      "";
+
+    return [
+      { label: "Service", value: "Special Offer" },
+      { label: "Service type", value: dynamicOfferName },
+      { label: "Event date", value: eventDate },
+      { label: "Guests", value: guests },
+    ].filter((row) => Boolean(row?.value));
+  }, [isSpecialOffer, rawSummary, resolvedOfferName, state?.offerName]);
 
   useEffect(() => {
     document.title = "Inquiry Submitted · Caezelle’s Food, Catering & Services";

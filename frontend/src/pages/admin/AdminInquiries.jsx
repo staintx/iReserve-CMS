@@ -291,8 +291,7 @@ export default function AdminInquiries() {
   const [viewMode, setViewMode] = useState("table"); // 'table' | 'grid'
   const [sortBy, setSortBy] = useState("newest"); // 'newest' | 'oldest' | 'event_date' | 'guests'
 
-  // Selection & Side-by-Side Panel
-  const [selectedIds, setSelectedIds] = useState([]);
+  // Side-by-Side Panel
   const [selectedInquiry, setSelectedInquiry] = useState(null); // Row opened in right detail panel
 
   // Dialog targets
@@ -403,6 +402,10 @@ export default function AdminInquiries() {
         if (r.archived || (!r.latestQuote && r.status !== "Quotation Sent") || r.status === "Converted to Booking") return false;
       } else if (statusFilter === "Converted to Booking") {
         if (r.archived || (r.status !== "Converted to Booking" && !r.convertedBookingId)) return false;
+      } else if (statusFilter === "Cancelled") {
+        if (r.archived || (r.status !== "Cancelled" && !r.status?.toLowerCase().includes("cancel"))) return false;
+      } else if (statusFilter === "Rejected") {
+        if (r.archived || r.status === "Cancelled" || r.status?.toLowerCase().includes("cancel") || (!r.status?.toLowerCase().includes("reject") && r.latestQuote?.status?.toLowerCase() !== "rejected")) return false;
       } else {
         // 'all' shows all unarchived inquiries
         if (r.archived) return false;
@@ -534,20 +537,6 @@ export default function AdminInquiries() {
     setShowDatePopover(false);
   };
 
-  // Toggle selection
-  const toggleSelectAll = () => {
-    if (selectedIds.length === paginatedRows.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(paginatedRows.map((r) => r._id));
-    }
-  };
-
-  const toggleSelectRow = (id) => {
-    setSelectedIds((prev) => 
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
 
   // Close drawer on Escape key
   useEffect(() => {
@@ -693,6 +682,8 @@ export default function AdminInquiries() {
                     <option value="active">Active Inquiry</option>
                     <option value="Quotation Sent">Quotation Sent</option>
                     <option value="Converted to Booking">Converted Bookings</option>
+                    <option value="Cancelled">Cancelled Inquiry</option>
+                    <option value="Rejected">Rejected Inquiry</option>
                     <option value="Archived">Archived</option>
                   </select>
                 </div>
@@ -853,20 +844,12 @@ export default function AdminInquiries() {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-muted/50 border-b border-border text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                        <th className="py-2.5 pl-3 pr-1 w-8">
-                          <input
-                            type="checkbox"
-                            checked={paginatedRows.length > 0 && selectedIds.length === paginatedRows.length}
-                            onChange={toggleSelectAll}
-                            className="rounded border-input text-primary focus:ring-primary"
-                          />
-                        </th>
-                        <th className="py-2.5 px-3 font-semibold">Customer</th>
+                        <th className="py-2.5 pl-4 pr-3 font-semibold">Customer</th>
                         <th className="py-2.5 px-3 font-semibold">Event Details</th>
                         <th className="py-2.5 px-3 font-semibold">Status & Next Action</th>
                         <th className="py-2.5 px-3 font-semibold">Package Type</th>
                         <th className="py-2.5 px-3 font-semibold">Received</th>
-                        <th className="py-2.5 pr-3 pl-1 text-right font-semibold">Actions</th>
+                        <th className="py-2.5 pr-4 pl-1 text-right font-semibold">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
@@ -883,18 +866,8 @@ export default function AdminInquiries() {
                                 : "hover:bg-muted/40"
                             }`}
                           >
-                            {/* Checkbox */}
-                            <td className="py-2.5 pl-3 pr-1" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.includes(r._id)}
-                                onChange={() => toggleSelectRow(r._id)}
-                                className="rounded border-input text-primary focus:ring-primary"
-                              />
-                            </td>
-
                             {/* Customer & Reference */}
-                            <td className="py-2.5 px-3 min-w-[140px]">
+                            <td className="py-2.5 pl-4 pr-3 min-w-[140px]">
                               <div className="min-w-0 space-y-0.5">
                                 <div className="flex items-center gap-1.5">
                                   <button

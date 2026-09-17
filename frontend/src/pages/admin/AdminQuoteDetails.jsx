@@ -5,7 +5,6 @@ import { AdminAPI } from "../../api/admin";
 import useToast from "../../hooks/useToast";
 import QuotationBuilderModal from "../../components/admin/quotation/QuotationBuilderModal";
 import ConvertBookingModal from "../../components/admin/quotation/ConvertBookingModal";
-import ZelleQuoteDraft from "../../components/admin/ui/ZelleQuoteDraft";
 import { 
   User, Mail, Phone, Calendar, Clock, MapPin, 
   DollarSign, Info, ArrowLeft, CheckCircle2,
@@ -239,8 +238,9 @@ function CurrentQuotationCard({ quotation, versionCount, hasDraft, isDepositPaid
                   {dishes.map((dish, i) => {
                     const byQuantity = dish.pricing_type === "quantity";
                     const units = byQuantity ? Math.max(1, Number(dish.quantity) || 1) : guests;
+                    const unitLabel = String(dish.unit || "").trim();
                     const basis = byQuantity
-                      ? `${units} × ${formatCurrency(dish.price)}`
+                      ? `${units} ${unitLabel ? unitLabel + " " : ""}× ${formatCurrency(dish.price)}`
                       : `${units} guests × ${formatCurrency(dish.price)}/pax`;
                     return (
                       <div key={i} className="flex items-center justify-between gap-3 px-3.5 py-2.5 bg-white hover:bg-slate-50/50 transition-colors">
@@ -507,14 +507,6 @@ export default function AdminQuoteDetails() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 pt-1 sm:pt-0">
-              {!isConverted && (
-                <ZelleQuoteDraft
-                  inquiryId={quote._id}
-                  currentPackageName={quote.package_id?.name || quote.package_name_snapshot}
-                  guestCount={quote.guest_count}
-                  onApplyRecommendation={() => setShowConvertModal(true)}
-                />
-              )}
               {!isConverted && (
                 <button 
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md shadow-xs transition-colors cursor-pointer"

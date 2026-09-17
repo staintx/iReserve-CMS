@@ -10,6 +10,7 @@ import {
   Layers,
   PartyPopper,
 } from "lucide-react";
+import { isSpecialOffer } from "../../../lib/specialOffers";
 
 /**
  * Translates raw backend statuses into what a customer actually needs to know:
@@ -25,6 +26,10 @@ import {
  * Canonical Service Type resolver used across all customer and admin surfaces.
  *
  * Rules:
+ * FOR SPECIAL OFFERS:
+ *  - Display ONLY the actual Special Offer name: `<Special Offer Name>` (e.g. "Student Budget Menu")
+ *  - The "+ Menu" indicator does NOT appear for Special Offers (only applicable to regular Packages).
+ *
  * FOR PACKAGE-BASED INQUIRIES:
  *  - Customer selected a package WITHOUT a menu: `<Package Name>` (e.g. "Birthday Package 1")
  *  - Customer selected a package AND added a menu: `<Package Name> + Menu` (e.g. "Birthday Package 1 + Menu")
@@ -45,12 +50,7 @@ export const resolveServiceType = (record) => {
       ? record.package_id
       : null;
 
-  // Check if explicitly custom inquiry
-  const isExplicitCustom =
-    record?.booking_type === "custom" ||
-    record?.is_custom_setup === true;
-
-  // Extract dynamic package name if available
+  // Extract dynamic package/offer name if available
   const rawPkgName =
     record?.package_name_snapshot ||
     pkg?.name ||
@@ -58,6 +58,30 @@ export const resolveServiceType = (record) => {
     record?.package_details?.name ||
     record?.package?.name ||
     null;
+
+  // Special Offers: display ONLY the actual Special Offer name.
+  // The "+ Menu" indicator/option should NOT appear for Special Offers as it only applies to regular Packages.
+  const isOffer =
+    record?.booking_type === "special" ||
+    isSpecialOffer(pkg) ||
+    pkg?.offer_type === "special" ||
+    pkg?.booking_type === "special" ||
+    Boolean(pkg?.is_special_offer) ||
+    Boolean(record?.is_special_offer) ||
+    (Array.isArray(pkg?.offer_food_items) && pkg.offer_food_items.length > 0) ||
+    (Array.isArray(record?.offer_food_snapshot) && record.offer_food_snapshot.length > 0) ||
+    record?.event_type === "Special Offer Catering" ||
+    record?.event_type === "Special Offer Event" ||
+    record?.service === "Special Offer";
+
+  if (isOffer) {
+    return rawPkgName || pkg?.name || "Special Offer";
+  }
+
+  // Check if explicitly custom inquiry
+  const isExplicitCustom =
+    record?.booking_type === "custom" ||
+    record?.is_custom_setup === true;
 
   // Determine if package-based inquiry
   const hasPackageRef = Boolean(
@@ -69,7 +93,6 @@ export const resolveServiceType = (record) => {
   const isPackage =
     !isExplicitCustom &&
     (record?.booking_type === "regular" ||
-     record?.booking_type === "special" ||
      (hasPackageRef && record?.booking_type !== "custom"));
 
   if (isPackage) {
@@ -84,9 +107,7 @@ export const resolveServiceType = (record) => {
         (Array.isArray(record?.selected_menu) && record.selected_menu.length > 0) ||
         (Array.isArray(record?.menu_items) && record.menu_items.length > 0) ||
         (Array.isArray(record?.selected_menu_items) && record.selected_menu_items.length > 0) ||
-        (Array.isArray(record?.offer_food_snapshot) && record.offer_food_snapshot.length > 0) ||
-        (Array.isArray(pkg?.menu_items) && pkg.menu_items.length > 0) ||
-        (Array.isArray(pkg?.offer_food_items) && pkg.offer_food_items.length > 0)
+        (Array.isArray(pkg?.menu_items) && pkg.menu_items.length > 0)
       );
 
     if (hasSelectedMenu) {

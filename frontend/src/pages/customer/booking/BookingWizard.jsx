@@ -1324,17 +1324,21 @@ export default function BookingWizard() {
       hasSubmitted.current = true;
       clearDraft(user._id);
 
-      // A milestone, not a toast: the customer has just finished a nine-step
-      // form and their next question is "is my date booked?" — which needs a
-      // real answer, not a line that disappears in four seconds.
-      navigate("/customer/request-submitted", {
-        replace: true,
-        state: {
-          submitted: true,
-          kind: "package",
-          reference: data?.reference || null,
-          estimatedTotal: estimate.total,
-          summary: [
+      const offerName =
+        packageDetails?.name ||
+        initialPackageName ||
+        packages.find((pkg) => String(pkg._id) === String(selectedPackageId))?.name ||
+        data?.package_name_snapshot ||
+        "";
+
+      const requestSummary = isOffer
+        ? [
+            { label: "Service", value: "Special Offer" },
+            { label: "Service type", value: offerName },
+            { label: "Event date", value: formatEventDate(form.event_date) },
+            { label: "Guests", value: form.guest_count ? `${form.guest_count}` : "" },
+          ]
+        : [
             ...(form.celebrant_name ? [{ label: "Celebrant / Honoree", value: form.celebrant_name }] : []),
             { label: "Event type", value: eventType },
             { label: "Event date", value: formatEventDate(form.event_date) },
@@ -1344,7 +1348,21 @@ export default function BookingWizard() {
             { label: "Event space / scaffold size", value: estimate.eventSpace },
             { label: "Service", value: payload.service_type },
             { label: "Venue", value: payload.venue_type },
-          ],
+          ];
+
+      // A milestone, not a toast: the customer has just finished a nine-step
+      // form and their next question is "is my date booked?" — which needs a
+      // real answer, not a line that disappears in four seconds.
+      navigate("/customer/request-submitted", {
+        replace: true,
+        state: {
+          submitted: true,
+          kind: isOffer ? "special_offer" : "package",
+          isSpecialOffer: isOffer,
+          offerName: isOffer ? offerName : undefined,
+          reference: data?.reference || null,
+          estimatedTotal: estimate.total,
+          summary: requestSummary,
         },
       });
     } catch (err) {

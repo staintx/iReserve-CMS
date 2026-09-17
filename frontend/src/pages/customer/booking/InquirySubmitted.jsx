@@ -5,7 +5,6 @@ import CustomerLayout from "../../../components/layout/CustomerLayout";
 import { CustomerAPI } from "../../../api/customer";
 import { formatCurrency } from "../../../utils/format";
 import {
-  CheckCircle2,
   Clock,
   ArrowRight,
   Home,
@@ -19,6 +18,105 @@ import {
   MapPin,
   PartyPopper,
 } from "lucide-react";
+
+/**
+ * Modern Mobbin-inspired animated circle check milestone badge:
+ * - Expanding dual ripple halos
+ * - Elastic spring circle scale-in
+ * - Animated SVG perimeter circle trace
+ * - Sequential animated SVG checkmark stroke draw
+ * - Radiating micro-particle celebration sparkles
+ */
+function AnimatedCheckBadge() {
+  return (
+    <div className="relative inline-flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 mb-0.5">
+      {/* Expanding halo ripple 1 */}
+      <Motion.div
+        initial={{ scale: 0.8, opacity: 0.7 }}
+        animate={{ scale: 1.5, opacity: 0 }}
+        transition={{ delay: 0.08, duration: 0.75, ease: "easeOut" }}
+        className="absolute inset-0 rounded-full bg-emerald-400/30 pointer-events-none"
+      />
+      {/* Expanding halo ripple 2 */}
+      <Motion.div
+        initial={{ scale: 0.6, opacity: 0.5 }}
+        animate={{ scale: 1.28, opacity: 0 }}
+        transition={{ delay: 0.16, duration: 0.65, ease: "easeOut" }}
+        className="absolute inset-0 rounded-full bg-emerald-400/20 pointer-events-none"
+      />
+
+      {/* Radiating micro-celebration sparkle dots */}
+      {[0, 60, 120, 180, 240, 300].map((deg, i) => (
+        <Motion.span
+          key={deg}
+          initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+          animate={{
+            scale: [0, 1.2, 0],
+            opacity: [0, 0.85, 0],
+            x: Math.cos((deg * Math.PI) / 180) * 24,
+            y: Math.sin((deg * Math.PI) / 180) * 24,
+          }}
+          transition={{
+            delay: 0.28 + i * 0.02,
+            duration: 0.45,
+            ease: "easeOut",
+          }}
+          className="absolute w-1 h-1 rounded-full bg-emerald-500 pointer-events-none"
+        />
+      ))}
+
+      {/* Spring pop-in circular badge */}
+      <Motion.div
+        initial={{ scale: 0, rotate: -15, opacity: 0 }}
+        animate={{ scale: 1, rotate: 0, opacity: 1 }}
+        transition={{
+          type: "spring",
+          stiffness: 360,
+          damping: 22,
+          mass: 0.8,
+        }}
+        className="relative w-full h-full rounded-full bg-emerald-50 text-emerald-600 ring-4 ring-emerald-50/80 border border-emerald-200/80 shadow-2xs flex items-center justify-center"
+      >
+        <svg
+          viewBox="0 0 48 48"
+          className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600"
+          fill="none"
+        >
+          {/* Animated Perimeter Ring */}
+          <Motion.circle
+            cx="24"
+            cy="24"
+            r="21"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{
+              duration: 0.38,
+              ease: [0.65, 0, 0.35, 1],
+            }}
+          />
+          {/* Animated Checkmark Sweep */}
+          <Motion.path
+            d="M14 24.5 L21 31.5 L34 17"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{
+              delay: 0.22,
+              duration: 0.35,
+              ease: [0.65, 0, 0.35, 1],
+            }}
+          />
+        </svg>
+      </Motion.div>
+    </div>
+  );
+}
 
 export default function InquirySubmitted() {
   const navigate = useNavigate();
@@ -141,15 +239,6 @@ export default function InquirySubmitted() {
     },
   };
 
-  const badgePopVariants = {
-    hidden: { scale: 0.5, opacity: 0 },
-    visible: {
-      scale: 1,
-      opacity: 1,
-      transition: { type: "spring", stiffness: 300, damping: 18 },
-    },
-  };
-
   // Helper icon for key-value rows
   const getRowIcon = (label) => {
     const l = label.toLowerCase();
@@ -171,12 +260,7 @@ export default function InquirySubmitted() {
       >
         {/* Header Milestone */}
         <Motion.div variants={itemVariants} className="text-center space-y-1">
-          <Motion.div
-            variants={badgePopVariants}
-            className="inline-flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-50 text-emerald-600 ring-4 ring-emerald-50/70 border border-emerald-200/60 shadow-2xs mb-0.5 relative"
-          >
-            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.2} />
-          </Motion.div>
+          <AnimatedCheckBadge />
 
           <h1 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 tracking-tight">
             Inquiry Submitted

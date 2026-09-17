@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Modal from "../../common/Modal";
 import { AdminAPI } from "../../../api/admin";
 import useToast from "../../../hooks/useToast";
-import ZelleQuoteDraft from "../ui/ZelleQuoteDraft";
 import {
   Calculator,
   Send,
@@ -353,19 +352,19 @@ const inclusionText = (inclusion) =>
  * per-person default creeps back into a form whose whole point is that food is
  * priced by the kilo, the tray or the bilao as often as by the person.
  */
-const UNIT_SUGGESTIONS = [
-  "unit",
-  "serving",
-  "kilo",
-  "tray",
-  "bilao",
-  "pan",
-  "platter",
-  "bottle",
-  "gallon",
-  "piece",
-  "set",
+const STANDARD_UNITS = [
+  "Bilao",
+  "Piece",
+  "Kilo",
+  "Gallon",
+  "Tray",
 ];
+
+const findStandardUnit = (unit) => {
+  if (!unit) return null;
+  const lower = String(unit).trim().toLowerCase();
+  return STANDARD_UNITS.find((u) => u.toLowerCase() === lower) || null;
+};
 
 /**
  * A dish row as the builder holds it, whatever it was seeded from.
@@ -387,6 +386,7 @@ const menuRow = (partial = {}) => ({
   pricing_type: MENU_PRICING.QUANTITY,
   price: "",
   image_url: "",
+  isCustomUnit: false,
   ...partial,
 });
 
@@ -1072,6 +1072,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               ? latest.menu_items.map((m) => {
                 const perGuest = m?.pricing_type !== MENU_PRICING.QUANTITY;
                 const { category, note } = splitLegacyNote(m);
+                const rawUnit = perGuest ? "pax" : m?.unit || "";
+                const isStd = Boolean(findStandardUnit(rawUnit));
                 return menuRow({
                   name: m?.name || "",
                   category,
@@ -1081,7 +1083,8 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                     : Number(m?.quantity) > 0
                       ? Number(m.quantity)
                       : 1,
-                  unit: perGuest ? "pax" : m?.unit || "",
+                  unit: rawUnit,
+                  isCustomUnit: !isStd && Boolean(String(rawUnit).trim()),
                   price: m?.price ? String(m.price) : "",
                   image_url: m?.image_url || "",
                 });
@@ -1221,10 +1224,14 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
               ? []
               : (Array.isArray(inquiry?.selected_menu) ? inquiry.selected_menu : []).map((item) => {
                 if (item && typeof item === "object") {
+                  const rawUnit = item.unit || "";
+                  const isStd = Boolean(findStandardUnit(rawUnit));
                   return menuRow({
                     name: item.name || "",
                     category: item.category || "",
                     note: item.note || "",
+                    unit: rawUnit,
+                    isCustomUnit: !isStd && Boolean(String(rawUnit).trim()),
                     price: !item.price ? "" : String(item.price),
                     image_url: item.image_url || "",
                   });
@@ -1779,9 +1786,19 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
         if (isBlankAmount(item.price))
           found[`menu_items.${index}.price`] =
             `Set the price for one ${String(item.unit || "").trim() || "unit"} of this dish. Enter 0 to include it at no charge.`;
-        if (!Number(item.quantity) || Number(item.quantity) < 1)
+        if (
+          item.quantity === "" ||
+          item.quantity === null ||
+          item.quantity === undefined ||
+          Number.isNaN(Number(item.quantity)) ||
+          Number(item.quantity) < 1
+        ) {
           found[`menu_items.${index}.quantity`] =
-            "Enter how many of this dish the quotation covers.";
+            "Quantity is required and must be at least 1.";
+        }
+        if (item.isCustomUnit && !String(item.unit || "").trim()) {
+          found[`menu_items.${index}.unit`] = "Please specify the custom unit.";
+        }
       });
     }
 
@@ -2018,12 +2035,84 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       prev.map((item, i) => {
         if (i !== index) return item;
         if (field === "price") return { ...item, price: nonNegative(value) };
-        if (field === "quantity")
-          return { ...item, quantity: Math.max(1, Number(nonNegative(value)) || 1) };
+        if (field === "quantity") {
+          if (value === "") return { ...item, quantity: "" };
+          const cleaned = String(value).replace(/[^0-9]/g, "");
+          return { ...item, quantity: cleaned === "" ? "" : Number(cleaned) };
+        }
         return { ...item, [field]: value };
       })
     );
-    clearError(`menu_items.${index}.${field}`);
+    if (field === "quantity") {
+      const num = Number(value);
+      if (value !== "" && !Number.isNaN(num) && num >= 1) {
+        clearError(`menu_items.${index}.quantity`);
+      }
+    } else {
+      clearError(`menu_items.${index}.${field}`);
+    }
+  };
+
+  const handleQuantityBlur = (index) => {
+    const item = menuItems[index];
+    if (!item || item.removed) return;
+    const raw = item.quantity;
+    const num = Number(raw);
+    if (raw === "" || raw === null || raw === undefined) {
+      setErrors((prev) => ({
+        ...prev,
+        [`menu_items.${index}.quantity`]: "Quantity is required and must be at least 1.",
+      }));
+    } else if (Number.isNaN(num) || num <= 0 || !Number.isInteger(num)) {
+      setErrors((prev) => ({
+        ...prev,
+        [`menu_items.${index}.quantity`]: "Quantity must be at least 1.",
+      }));
+    } else {
+      clearError(`menu_items.${index}.quantity`);
+      setMenuItems((prev) =>
+        prev.map((it, i) => (i === index ? { ...it, quantity: Math.floor(num) } : it))
+      );
+    }
+  };
+
+  const handleUnitSelectChange = (index, selectedValue) => {
+    if (selectedValue === "Others") {
+      setMenuItems((prev) =>
+        prev.map((item, i) => {
+          if (i !== index) return item;
+          const standard = findStandardUnit(item.unit);
+          return {
+            ...item,
+            isCustomUnit: true,
+            unit: standard ? "" : item.unit,
+          };
+        })
+      );
+      clearError(`menu_items.${index}.unit`);
+    } else {
+      setMenuItems((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? { ...item, unit: selectedValue, isCustomUnit: false }
+            : item
+        )
+      );
+      clearError(`menu_items.${index}.unit`);
+    }
+  };
+
+  const handleCustomUnitBlur = (index) => {
+    const item = menuItems[index];
+    if (!item || item.removed) return;
+    if (item.isCustomUnit && !String(item.unit || "").trim()) {
+      setErrors((prev) => ({
+        ...prev,
+        [`menu_items.${index}.unit`]: "Please specify the custom unit.",
+      }));
+    } else {
+      clearError(`menu_items.${index}.unit`);
+    }
   };
 
   /**
@@ -2046,6 +2135,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
       delete next[`menu_items.${index}.name`];
       delete next[`menu_items.${index}.price`];
       delete next[`menu_items.${index}.quantity`];
+      delete next[`menu_items.${index}.unit`];
       return next;
     });
   };
@@ -2214,9 +2304,38 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
     }
   };
 
+  const validateMenuBeforeSave = () => {
+    if (!cateringIncluded) return true;
+    const found = {};
+    menuItems.forEach((item, index) => {
+      if (item.removed) return;
+      if (
+        item.quantity === "" ||
+        item.quantity === null ||
+        item.quantity === undefined ||
+        Number.isNaN(Number(item.quantity)) ||
+        Number(item.quantity) < 1
+      ) {
+        found[`menu_items.${index}.quantity`] =
+          "Quantity is required and must be at least 1.";
+      }
+      if (item.isCustomUnit && !String(item.unit || "").trim()) {
+        found[`menu_items.${index}.unit`] = "Please specify the custom unit.";
+      }
+    });
+    if (Object.keys(found).length > 0) {
+      setErrors((prev) => ({ ...prev, ...found }));
+      focusFirstError(found);
+      notify("Quantity cannot be empty, zero, or negative. Please enter a valid quantity.", "error");
+      return false;
+    }
+    return true;
+  };
+
   /** The toolbar's own "Save draft" — the admin stays in the builder, so a
       toast is the right weight for the result. */
   const handleSaveDraft = async () => {
+    if (!validateMenuBeforeSave()) return;
     try {
       await saveDraft();
       notify("Draft saved", "success", {
@@ -2243,6 +2362,7 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
   // the reason — closing on failure would lose exactly what the admin just
   // asked to keep.
   const handleSaveDraftAndClose = async () => {
+    if (!validateMenuBeforeSave()) return;
     await saveDraft();
     setCloseIntent(null);
     notify("Draft saved", "success", { description: "Pick it up from this inquiry when you are ready." });
@@ -2517,49 +2637,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
           {/* Scrollable Form Content */}
           <div ref={formRef} className="flex-1 space-y-4 overflow-y-auto pb-10 pr-1 lg:pr-3">
 
-            {/* AI Quotation Recommendation Header */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500/10 via-primary/5 to-transparent border border-amber-500/30 shadow-2xs">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
-                  <Sparkles size={15} />
-                </div>
-                <div className="min-w-0">
-                  <span className="font-bold text-xs text-foreground block truncate">Zelle AI Quotation Assistant</span>
-                  <p className="text-[11px] text-muted-foreground truncate">Analyze requirements to generate a complete quotation draft</p>
-                </div>
-              </div>
-              <ZelleQuoteDraft
-                inquiryId={inquiry?._id}
-                currentPackageName={packageName}
-                guestCount={details.guest_count}
-                onApplyRecommendation={(rec) => {
-                  if (rec.recommended_package) setPackageName(rec.recommended_package);
-                  if (rec.starting_price || rec.estimated_package_cost) {
-                    setStartingPrice(String(rec.starting_price || rec.estimated_package_cost));
-                  }
-                  if (Array.isArray(rec.inclusions) && rec.inclusions.length > 0) {
-                    setInclusions(rec.inclusions.map((name) => inclusionRow(name)));
-                  }
-                  if (Array.isArray(rec.recommended_addons) && rec.recommended_addons.length > 0) {
-                    setAddOns(
-                      rec.recommended_addons.map((a) => ({
-                        name: typeof a === "object" ? a.name : a,
-                        price: typeof a === "object" && a.price ? String(a.price) : "2500",
-                        quantity: 1,
-                        note: "",
-                        pricing_type: "quantity",
-                      }))
-                    );
-                  }
-                  if (rec.deposit_amount) {
-                    setDepositAmount(String(rec.deposit_amount));
-                  }
-                  if (rec.admin_notes) {
-                    setAdminNotes((prev) => (prev ? prev + "\n" + rec.admin_notes : rec.admin_notes));
-                  }
-                }}
-              />
-            </div>
 
             {savedDraft && (
               <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 sm:flex-row sm:items-center sm:justify-between">
@@ -3972,13 +4049,6 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                       </button>
                     </div>
 
-                    {/* Units are suggestions shared by every row, so the list is
-                  rendered once rather than per dish. */}
-                    <datalist id="qb-menu-units">
-                      {UNIT_SUGGESTIONS.map((unit) => (
-                        <option key={unit} value={unit} />
-                      ))}
-                    </datalist>
 
                     {menuItems.length === 0 ? (
                       <p className="py-3 text-center text-xs italic text-slate-500">
@@ -4049,8 +4119,12 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                 const rowError =
                                   errors[`menu_items.${originalIndex}.name`] ||
                                   errors[`menu_items.${originalIndex}.price`] ||
-                                  errors[`menu_items.${originalIndex}.quantity`];
+                                  errors[`menu_items.${originalIndex}.quantity`] ||
+                                  errors[`menu_items.${originalIndex}.unit`];
                                 const modeTint = "border-violet-300 bg-violet-50 text-violet-800";
+                                const standard = findStandardUnit(item.unit);
+                                const isOthers = Boolean(item.isCustomUnit || (!standard && String(item.unit || "").trim()));
+                                const selectedDropdownValue = standard || (isOthers ? "Others" : "");
                                 return (
                                   <li
                                     key={originalIndex}
@@ -4100,24 +4174,64 @@ export default function QuotationBuilderModal({ inquiry, onClose, onSuccess }) {
                                         <div className={`flex shrink-0 items-center gap-1.5 rounded-md border p-1 ${modeTint}`}>
                                           <input
                                             id={`qb-menu_items.${originalIndex}.quantity`}
-                                            type="number"
-                                            min="1"
+                                            type="text"
+                                            inputMode="numeric"
                                             disabled={item.removed}
-                                            value={item.quantity}
+                                            value={item.quantity === 0 ? "0" : (item.quantity ?? "")}
+                                            placeholder="1"
                                             onWheel={(e) => e.target.blur()}
+                                            onFocus={(e) => e.target.select()}
+                                            onClick={(e) => e.target.select()}
                                             onChange={(e) => handleMenuChange(originalIndex, "quantity", e.target.value)}
-                                            className={`w-14 rounded border border-violet-200 bg-white px-2 py-1 text-xs font-semibold tabular-nums text-slate-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`menu_items.${originalIndex}.quantity`] ? "border-red-400" : ""
+                                            onBlur={() => handleQuantityBlur(originalIndex)}
+                                            className={`w-12 rounded border bg-white px-2 py-1 text-center text-xs font-semibold tabular-nums text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`menu_items.${originalIndex}.quantity`] ? "border-red-400 ring-1 ring-red-400 text-red-700" : "border-violet-200"
                                               }`}
                                           />
-                                          <input
-                                            type="text"
-                                            list="qb-menu-units"
-                                            disabled={item.removed}
-                                            value={item.unit}
-                                            onChange={(e) => handleMenuChange(originalIndex, "unit", e.target.value)}
-                                            placeholder="unit"
-                                            className="w-20 rounded border border-violet-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                                          />
+                                          <div className="relative inline-flex items-center">
+                                            <select
+                                              id={!isOthers ? `qb-menu_items.${originalIndex}.unit` : undefined}
+                                              disabled={item.removed}
+                                              value={selectedDropdownValue}
+                                              onChange={(e) => handleUnitSelectChange(originalIndex, e.target.value)}
+                                              className={`appearance-none rounded border bg-white py-1 pl-2.5 pr-6 text-xs font-medium text-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer ${errors[`menu_items.${originalIndex}.unit`]
+                                                ? "border-red-400 text-red-700 ring-1 ring-red-400"
+                                                : "border-violet-200 hover:border-violet-300"
+                                                }`}
+                                            >
+                                              <option value="" disabled hidden>
+                                                Unit
+                                              </option>
+                                              {STANDARD_UNITS.map((u) => (
+                                                <option key={u} value={u} className="text-slate-800">
+                                                  {u}
+                                                </option>
+                                              ))}
+                                              <option value="Others" className="text-slate-800">
+                                                Others
+                                              </option>
+                                            </select>
+                                            <ChevronDown
+                                              size={11}
+                                              className="pointer-events-none absolute right-1.5 text-slate-400"
+                                            />
+                                          </div>
+
+                                          {isOthers && (
+                                            <input
+                                              id={`qb-menu_items.${originalIndex}.unit`}
+                                              type="text"
+                                              disabled={item.removed}
+                                              value={item.unit || ""}
+                                              autoFocus={item.isCustomUnit && !item.unit}
+                                              onChange={(e) => handleMenuChange(originalIndex, "unit", e.target.value)}
+                                              onBlur={() => handleCustomUnitBlur(originalIndex)}
+                                              placeholder="e.g. box, pack"
+                                              className={`w-24 rounded border bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 ${errors[`menu_items.${originalIndex}.unit`]
+                                                ? "border-red-400 ring-1 ring-red-400 text-red-700"
+                                                : "border-violet-200"
+                                                }`}
+                                            />
+                                          )}
                                         </div>
 
                                         <div className="w-28">
